@@ -1,0 +1,68 @@
+[dotenv@17.3.1] injecting env (2) from .env -- tip: ???? agentic secret storage: https://dotenvx.com/as2
+node : C:\Users\ajang
+\Desktop\FullStack Pr
+oject\FMS\FMS\server\
+middleware\auth.js:9
+At line:1 char:1
++ node index.js 2>&1 
+| Out-File -Encoding 
+ASCII 
+server-error.txt
++ ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\ajang\...eware    
+\auth.js:9:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+    }
+    ^
+
+SyntaxError: Missing 
+catch or finally 
+after try
+    at wrapSafe (node
+:internal/modules/cjs
+/loader:1472:18)
+    at 
+Module._compile (node
+:internal/modules/cjs
+/loader:1501:20)
+    at Module._extens
+ions..js (node:intern
+al/modules/cjs/loader
+:1613:10)
+    at Module.load (n
+ode:internal/modules/
+cjs/loader:1275:32)
+    at Module._load (
+node:internal/modules
+/cjs/loader:1096:12)
+    at 
+Module.require (node:
+internal/modules/cjs/
+loader:1298:19)
+    at require (node:
+internal/modules/help
+ers:182:18)
+    at 
+Object.<anonymous> (C
+:\Users\ajang\Desktop
+\FullStack Project\FM
+S\FMS\server\routes\a
+uthRoutes.js:18:37)
+    at 
+Module._compile (node
+:internal/modules/cjs
+/loader:1529:14)
+    at Module._extens
+ions..js (node:intern
+al/modules/cjs/loader
+:1613:10)
+
+Node.js v20.19.0

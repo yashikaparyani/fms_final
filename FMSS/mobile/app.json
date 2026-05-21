@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "FMSS Fleet",
+    "slug": "fmss-fleet-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "fmssfleet",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FMSS needs your live location while a picked-up load is in transit.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FMSS needs background location while a picked-up load is in transit.",
+        "NSCameraUsageDescription": "FMSS needs camera access for pickup proof and delivery documents.",
+        "NSPhotoLibraryUsageDescription": "FMSS needs photo access for pickup proof and delivery documents.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "extra": {
+      "apiUrl": "http://localhost:5001/api"
+    }
+  }
+}

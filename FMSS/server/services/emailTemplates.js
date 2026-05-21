@@ -1,0 +1,94 @@
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const routeText = (load) =>
+  `${load.pickup?.city || "TBD"}, ${load.pickup?.state || ""} to ${load.drop?.city || "TBD"}, ${load.drop?.state || ""}`;
+
+const customerCredentials = ({ customer, password, frontendUrl }) => ({
+  subject: "FMS - Your Customer Portal Credentials",
+  text: `Hello ${customer.firstName || "Customer"}, your FMS login is ${frontendUrl}/client-login. Email: ${customer.email}. Password: ${password}. Please login and change your password immediately.`,
+  html: `
+    <h3>Hello ${escapeHtml(customer.firstName || "Customer")}!</h3>
+    <p>Your login credentials for the FMS system:</p>
+    <p><strong>Login URL:</strong> ${escapeHtml(frontendUrl)}/client-login</p>
+    <p><strong>Email:</strong> ${escapeHtml(customer.email)}</p>
+    <p><strong>Password:</strong> ${escapeHtml(password)}</p>
+    <br/>
+    <p>Please login and change your password immediately.</p>
+  `,
+});
+
+const fleetOwnerCredentials = ({ carrierName, email, password, frontendUrl, includeBiddingAccess = false }) => ({
+  subject: "FMS - Your Fleet Owner Credentials",
+  text: `Welcome ${carrierName}. Your FMS login is ${frontendUrl}/vendor-login. Email: ${email}. Password: ${password}. Please login and change your password immediately.`,
+  html: `
+    <h3>Welcome ${escapeHtml(carrierName)}!</h3>
+    <p>Your fleet owner credentials for the FMS system:</p>
+    <p><strong>Login URL:</strong> ${escapeHtml(frontendUrl)}/vendor-login</p>
+    <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+    <p><strong>Password:</strong> ${escapeHtml(password)}</p>
+    <br/>
+    <p>Please login and change your password immediately.</p>
+    ${includeBiddingAccess ? "<p>You can now view and bid on available loads in the system.</p>" : ""}
+  `,
+});
+
+const loadRequiresChanges = ({ load, client, changesNote }) => ({
+  subject: `Updates Required for Load ${load.loadId}`,
+  text: `Hello ${client.firstName || "Customer"}, your load ${load.loadId} requires changes: ${changesNote}. Please log in and update your load.`,
+  html: `
+    <p>Hello ${escapeHtml(client.firstName || "Customer")},</p>
+    <p>Your load <strong>${escapeHtml(load.loadId)}</strong> has been reviewed and requires the following changes before it can be verified:</p>
+    <blockquote style="
+      margin: 16px 0;
+      padding: 12px 16px;
+      background: #fff7ed;
+      border-left: 4px solid #f97316;
+      border-radius: 4px;
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.6;
+    ">
+      ${escapeHtml(changesNote)}
+    </blockquote>
+    <p>Please log in and update your load accordingly. Once resubmitted, our team will review it again.</p>
+    <p style="color:#6b7280;font-size:13px;">If you have any questions, please contact our support team.</p>
+  `,
+});
+
+const biddingNowOpen = ({ load }) => ({
+  subject: `FMS - Bidding Now Open: Load ${load.loadId}`,
+  text: `Bidding has started for load ${load.loadId}. Route: ${routeText(load)}. Bidding ends: ${load.bidEndTime ? new Date(load.bidEndTime).toLocaleString() : "TBD"}.`,
+  html: `
+    <h3>Bidding is Now Open!</h3>
+    <p>Bidding has started for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
+    <p><strong>Route:</strong> ${escapeHtml(routeText(load))}</p>
+    <p><strong>Bidding Ends:</strong> ${load.bidEndTime ? escapeHtml(new Date(load.bidEndTime).toLocaleString()) : "TBD"}</p>
+    <p>Login to the FMS portal to place your bid now!</p>
+  `,
+});
+
+const bidWon = ({ load, fleetOwner, winningBid }) => ({
+  subject: `FMS - Congratulations! You Won the Bid for Load ${load.loadId}`,
+  text: `Congratulations ${fleetOwner.carrierName}! Your bid of Rs. ${Number(winningBid.amount || 0).toLocaleString()} won load ${load.loadId}. Route: ${routeText(load)}.`,
+  html: `
+    <h3>Congratulations ${escapeHtml(fleetOwner.carrierName)}!</h3>
+    <p>Your bid of <strong>Rs. ${escapeHtml(Number(winningBid.amount || 0).toLocaleString())}</strong> was the winning bid for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
+    <p><strong>Route:</strong> ${escapeHtml(routeText(load))}</p>
+    <br/>
+    <p>Our team will contact you shortly with further details.</p>
+  `,
+});
+
+module.exports = {
+  biddingNowOpen,
+  bidWon,
+  customerCredentials,
+  fleetOwnerCredentials,
+  loadRequiresChanges,
+};

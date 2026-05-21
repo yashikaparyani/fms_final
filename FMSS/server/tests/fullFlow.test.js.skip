@@ -1,0 +1,544 @@
+const request = require("supertest");
+const express = require("express");
+const mongoose = require("mongoose");
+const { connect, closeDatabase, clearDatabase } = require("./setup");
+
+// Import all routes
+const authRoutes = require("../routes/authRoutes");
+const loadRoutes = require("../routes/loadRoutes");
+const bidRoutes = require("../routes/bidRoutes");
+const customerRoutes = require("../routes/customerRoutes");
+const fleetOwnerRoutes = require("../routes/fleetOwnerRoutes");
+const configRoutes = require("../routes/configRoutes");
+
+// Import models
+const User = require("../models/User");
+const Load = require("../models/Load");
+const FleetOwner = require("../models/FleetOwner");
+const EmailConfig = require("../models/EmailConfig");
+
+const app = express();
+app.use(express.json());
+
+// Setup routes with auth middleware simulation
+let currentUser = null;
+
+const mockAuth = (req, res, next) => {
+  if (currentUser) {
+    req.user = currentUser;
+  }
+  next();
+};
+
+const mockProtect = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Not authorized" });
+  }
+  next();
+};
+
+const mockAuthorize = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ message: "Not authorized for this role" });
+  }
+  next();
+};
+
+// Mock the auth middleware
+jest.mock("../middleware/auth", () => ({
+  protect: (req, res, next) => {
+    if (!req.user) return res.status(401).json({ message: "Not authorized" });
+    next();
+  },
+  authorize: (...roles) => (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Not authorized for this role" });
+    }
+    next();
+  }
+}));
+
+// Middleware to inject user
+app.use((req, res, next) => {
+  req.user = currentUser;
+  next();
+});
+
+app.use("/api/auth", authRoutes);
+app.use("/api/loads", loadRoutes);
+app.use("/api/loads/:loadId/bids", bidRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/fleet-owners", fleetOwnerRoutes);
+app.use("/api/config", configRoutes);
+
+beforeAll(async () => await connect());
+afterEach(async () => {
+  await clearDatabase();
+  currentUser = null;
+});
+afterAll(async () => await closeDatabase());
+
+describe("Full Business Flow Integration Tests", () => {
+
+  describe("Flow 1: Customer Registration and Load Creation", () => {
+    it("should allow customer to register and create a transport order", async () => {
+      // 1. Customer registers
+      const registerRes = await request(app)
+        .post("/api/auth/register")
+        .send({
+          firstName: "Test",
+          lastName: "Customer",
+          email: "customer@flow.com",
+          password: "password123",
+          role: "client"
+        });
+
+      expect(registerRes.statusCode).toEqual(201);
+      const customerId = registerRes.body.user.id;
+      
+      // 2. Set current user to simulate login
+      currentUser = { _id: customerId, id: customerId, role: "client" };
+
+      // 3. Customer creates a transport order (load)
+      const loadRes = await request(app)
+        .post("/api/loads")
+        .send({
+          loadId: "LD-FLOW-001",
+          customer: "Test Customer",
+          pickup: { city: "Mumbai", state: "Maharashtra" },
+          drop: { city: "Delhi", state: "Delhi" },
+          truckType: "32 ft Container",
+          material: "Electronics",
+          amount: 50000,
+          date: "2026-03-15"
+        });
+
+      expect(loadRes.statusCode).toEqual(201);
+      expect(loadRes.body.status).toEqual("PENDING_VERIFICATION");
+      expect(loadRes.body.loadId).toEqual("LD-FLOW-001");
+    });
+  });
+
+  describe("Flow 2: Staff Verification Workflow", () => {
+    let staffUser, clientUser, loadId;
+
+    beforeEach(async () => {
+      // Create staff user
+      staffUser = await User.create({
+        firstName: "Staff",
+        lastName: "Member",
+        email: "staff@flow.com",
+        password: "password123",
+        role: "staff"
+      });
+
+      // Create client user
+      clientUser = await User.create({
+        firstName: "Client",
+        lastName: "User",
+        email: "client@flow.com",
+        password: "password123",
+        role: "client"
+      });
+
+      // Create a pending load
+      const load = await Load.create({
+        loadId: "LD-VERIFY-001",
+        customer: "Client User",
+        pickup: { city: "Pune", state: "Maharashtra" },
+        drop: { city: "Chennai", state: "Tamil Nadu" },
+        truckType: "20 ft Container",
+        material: "Furniture",
+        amount: 35000,
+        date: "2026-03-20",
+        createdBy: "client",
+        creatorId: clientUser._id,
+        status: "PENDING_VERIFICATION"
+      });
+      loadId = load.loadId;
+    });
+
+    it("should allow staff to view pending loads", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .get("/api/loads?status=PENDING_VERIFICATION");
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.length).toBeGreaterThan(0);
+      expect(res.body[0].loadId).toEqual("LD-VERIFY-001");
+    });
+
+    it("should allow staff to verify a load", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .put(`/api/loads/${loadId}/status`)
+        .send({ status: "VERIFIED" });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.status).toEqual("VERIFIED");
+    });
+
+    it("should allow staff to request changes", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .put(`/api/loads/${loadId}/status`)
+        .send({ status: "REQUIRES_CHANGES" });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.status).toEqual("REQUIRES_CHANGES");
+    });
+
+    it("should allow client to update and resubmit load requiring changes", async () => {
+      // First, staff requests changes
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+      await request(app)
+        .put(`/api/loads/${loadId}/status`)
+        .send({ status: "REQUIRES_CHANGES" });
+
+      // Now client updates the load
+      currentUser = { _id: clientUser._id, id: clientUser._id.toString(), role: "client" };
+      const res = await request(app)
+        .put(`/api/loads/${loadId}`)
+        .send({
+          amount: 40000,
+          material: "Updated Furniture"
+        });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.status).toEqual("PENDING_VERIFICATION");
+      expect(res.body.amount).toEqual(40000);
+    });
+  });
+
+  describe("Flow 3: Staff Creates Customer and Load on Behalf", () => {
+    let staffUser;
+
+    beforeEach(async () => {
+      staffUser = await User.create({
+        firstName: "Staff",
+        lastName: "Creator",
+        email: "staffcreator@flow.com",
+        password: "password123",
+        role: "staff"
+      });
+    });
+
+    it("should allow staff to create a customer", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .post("/api/customers")
+        .send({
+          firstName: "New",
+          lastName: "Customer",
+          email: "newcustomer@flow.com"
+        });
+
+      expect(res.statusCode).toEqual(201);
+      expect(res.body.customer.role).toEqual("client");
+      expect(res.body.credentialsGenerated).toBe(true);
+    });
+
+    it("should allow staff to create a load (auto-verified)", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .post("/api/loads")
+        .send({
+          loadId: "LD-STAFF-001",
+          customer: "Phone Order Customer",
+          pickup: { city: "Bangalore", state: "Karnataka" },
+          drop: { city: "Hyderabad", state: "Telangana" },
+          truckType: "Flatbed",
+          material: "Machinery",
+          amount: 75000,
+          date: "2026-03-25"
+        });
+
+      expect(res.statusCode).toEqual(201);
+      expect(res.body.status).toEqual("VERIFIED"); // Staff created loads are auto-verified
+    });
+  });
+
+  describe("Flow 4: Fleet Owner Enrollment and Bidding", () => {
+    let staffUser, fleetOwnerUser, verifiedLoadId;
+
+    beforeEach(async () => {
+      staffUser = await User.create({
+        firstName: "Staff",
+        lastName: "Enrolls",
+        email: "staffenrolls@flow.com",
+        password: "password123",
+        role: "staff"
+      });
+
+      // Create a verified load with open bidding
+      const load = await Load.create({
+        loadId: "LD-BID-001",
+        customer: "Bidding Test Customer",
+        pickup: { city: "Ahmedabad", state: "Gujarat" },
+        drop: { city: "Jaipur", state: "Rajasthan" },
+        truckType: "32 ft Container",
+        material: "Textiles",
+        amount: 60000,
+        date: "2026-03-30",
+        createdBy: "staff",
+        creatorId: staffUser._id,
+        status: "VERIFIED",
+        bidStatus: "OPEN",
+        bidStartTime: new Date(Date.now() - 3600000), // Started 1 hour ago
+        bidEndTime: new Date(Date.now() + 3600000) // Ends in 1 hour
+      });
+      verifiedLoadId = load.loadId;
+    });
+
+    it("should allow staff to enroll a fleet owner", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .post("/api/fleet-owners")
+        .send({
+          carrierName: "Express Logistics",
+          phone: "999-888-7777",
+          contactPersons: [
+            { name: "Fleet Manager", phone: "111-222-3333", email: "fleet@express.com", isPrimary: true }
+          ],
+          createUserAccount: true
+        });
+
+      expect(res.statusCode).toEqual(201);
+      expect(res.body.userCreated).toBe(true);
+
+      // Get the created user
+      const fleetUser = await User.findOne({ email: "fleet@express.com" });
+      expect(fleetUser).not.toBeNull();
+      expect(fleetUser.role).toEqual("fleetOwner");
+    });
+
+    it("should allow staff to send credentials to fleet owner", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      // First create fleet owner
+      const fleetOwner = await FleetOwner.create({
+        carrierName: "Credential Test Fleet",
+        phone: "555-666-7777",
+        contactPersons: [
+          { name: "Owner", phone: "888-999-0000", email: "owner@fleet.com", isPrimary: true }
+        ]
+      });
+
+      const res = await request(app)
+        .post(`/api/fleet-owners/${fleetOwner._id}/send-credentials`);
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body).toHaveProperty("email");
+      expect(res.body).toHaveProperty("password");
+    });
+
+    it("should allow fleet owner to see open bids", async () => {
+      // Create fleet owner user
+      fleetOwnerUser = await User.create({
+        firstName: "Fleet",
+        lastName: "Owner",
+        email: "fleetowner@flow.com",
+        password: "password123",
+        role: "fleetOwner"
+      });
+
+      currentUser = { _id: fleetOwnerUser._id, id: fleetOwnerUser._id.toString(), role: "fleetOwner" };
+
+      const res = await request(app)
+        .get("/api/loads?bidStatus=OPEN");
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.length).toBeGreaterThan(0);
+      expect(res.body[0].bidStatus).toEqual("OPEN");
+    });
+
+    it("should allow fleet owner to place a bid", async () => {
+      // Create fleet owner user and link to fleet owner record
+      fleetOwnerUser = await User.create({
+        firstName: "Bidder",
+        lastName: "Fleet",
+        email: "bidder@flow.com",
+        password: "password123",
+        role: "fleetOwner"
+      });
+
+      await FleetOwner.create({
+        carrierName: "Bidder Fleet Co",
+        phone: "123-456-7890",
+        userId: fleetOwnerUser._id
+      });
+
+      currentUser = { _id: fleetOwnerUser._id, id: fleetOwnerUser._id.toString(), role: "fleetOwner" };
+
+      const res = await request(app)
+        .post(`/api/loads/${verifiedLoadId}/bids`)
+        .send({ amount: 55000 });
+
+      expect(res.statusCode).toEqual(201);
+      expect(res.body.bids.length).toEqual(1);
+      expect(res.body.bids[0].amount).toEqual(55000);
+    });
+  });
+
+  describe("Flow 5: Bidding Schedule and Auto-Selection", () => {
+    let staffUser;
+
+    beforeEach(async () => {
+      staffUser = await User.create({
+        firstName: "Staff",
+        lastName: "Scheduler",
+        email: "scheduler@flow.com",
+        password: "password123",
+        role: "staff"
+      });
+    });
+
+    it("should allow staff to schedule bidding for a verified load", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      // Create verified load
+      const load = await Load.create({
+        loadId: "LD-SCHEDULE-001",
+        customer: "Schedule Test",
+        pickup: { city: "Kolkata", state: "West Bengal" },
+        drop: { city: "Guwahati", state: "Assam" },
+        truckType: "Refrigerated",
+        material: "Perishables",
+        amount: 80000,
+        date: "2026-04-01",
+        createdBy: "staff",
+        creatorId: staffUser._id,
+        status: "VERIFIED"
+      });
+
+      const startTime = new Date(Date.now() + 3600000); // 1 hour from now
+      const endTime = new Date(Date.now() + 7200000); // 2 hours from now
+
+      const res = await request(app)
+        .post(`/api/loads/${load.loadId}/schedule`)
+        .send({
+          bidStartTime: startTime.toISOString(),
+          bidEndTime: endTime.toISOString()
+        });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.bidStatus).toEqual("UPCOMING");
+      expect(res.body.bidStartTime).toBeTruthy();
+      expect(res.body.bidEndTime).toBeTruthy();
+    });
+
+    it("should auto-select minimum bid when bidding ends", async () => {
+      // Create a load with expired bidding and multiple bids
+      const pastDate = new Date(Date.now() - 3600000); // 1 hour ago
+
+      const load = await Load.create({
+        loadId: "LD-AUTOSELECT-001",
+        customer: "Auto Select Test",
+        pickup: { city: "Lucknow", state: "Uttar Pradesh" },
+        drop: { city: "Patna", state: "Bihar" },
+        truckType: "32 ft Container",
+        material: "General",
+        amount: 45000,
+        date: "2026-04-05",
+        createdBy: "staff",
+        status: "VERIFIED",
+        bidStatus: "OPEN",
+        bidEndTime: pastDate,
+        bids: [
+          {
+            fleetOwnerId: new mongoose.Types.ObjectId(),
+            fleetOwnerName: "High Bidder",
+            amount: 44000
+          },
+          {
+            fleetOwnerId: new mongoose.Types.ObjectId(),
+            fleetOwnerName: "Low Bidder",
+            amount: 38000
+          },
+          {
+            fleetOwnerId: new mongoose.Types.ObjectId(),
+            fleetOwnerName: "Medium Bidder",
+            amount: 41000
+          }
+        ]
+      });
+
+      // Simulate the cron job logic
+      const expiredLoads = await Load.find({
+        bidStatus: "OPEN",
+        bidEndTime: { $lte: new Date() }
+      });
+
+      for (const expLoad of expiredLoads) {
+        if (expLoad.bids.length > 0) {
+          let winningBid = expLoad.bids[0];
+          for (const bid of expLoad.bids) {
+            if (bid.amount < winningBid.amount) {
+              winningBid = bid;
+            }
+          }
+          expLoad.winningBid = winningBid;
+        }
+        expLoad.bidStatus = "CLOSED";
+        await expLoad.save();
+      }
+
+      // Verify the result
+      const updatedLoad = await Load.findOne({ loadId: "LD-AUTOSELECT-001" });
+      expect(updatedLoad.bidStatus).toEqual("CLOSED");
+      expect(updatedLoad.winningBid.amount).toEqual(38000);
+      expect(updatedLoad.winningBid.fleetOwnerName).toEqual("Low Bidder");
+    });
+  });
+
+  describe("Flow 6: Email Configuration", () => {
+    let staffUser;
+
+    beforeEach(async () => {
+      staffUser = await User.create({
+        firstName: "Staff",
+        lastName: "Config",
+        email: "config@flow.com",
+        password: "password123",
+        role: "staff"
+      });
+    });
+
+    it("should allow staff to get email config", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app).get("/api/config/email");
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body).toHaveProperty("host");
+      expect(res.body).toHaveProperty("port");
+      expect(res.body).toHaveProperty("isEmailEnabled");
+    });
+
+    it("should allow staff to update email config", async () => {
+      currentUser = { _id: staffUser._id, id: staffUser._id.toString(), role: "staff" };
+
+      const res = await request(app)
+        .put("/api/config/email")
+        .send({
+          host: "smtp.customhost.com",
+          port: 2525,
+          email: "fms@company.com",
+          password: "secretpassword",
+          isEmailEnabled: true
+        });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.host).toEqual("smtp.customhost.com");
+      expect(res.body.port).toEqual(2525);
+      expect(res.body.isEmailEnabled).toBe(true);
+      expect(res.body.hasPassword).toBe(true);
+    });
+  });
+});
