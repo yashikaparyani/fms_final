@@ -41,7 +41,7 @@ const seed = async () => {
       rajesh, priya, amit,
       vikramUser, sureshUser, quickUser, safeUser,
     ] = await User.insertMany([
-      { firstName: "System",  lastName: "Admin",     email: "admin@fms.com",       password: hash, role: "staff",      isVerified: true },
+      { firstName: "System",  lastName: "Admin",     email: "admin@fms.com",       password: hash, role: "admin",      isVerified: true },
       { firstName: "FMS",     lastName: "Staff",     email: "staff@fms.com",       password: hash, role: "staff",      isVerified: true },
       { firstName: "Rajesh",  lastName: "Kumar",     email: "rajesh@example.com",  password: hash, role: "client",     isVerified: true },
       { firstName: "Priya",   lastName: "Sharma",    email: "priya@example.com",   password: hash, role: "client",     isVerified: true },
