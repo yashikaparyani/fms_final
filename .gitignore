@@ -140,3 +140,14 @@ vite.config.ts.timestamp-*
 
 # Local MongoDB replica set data for development
 mongo-rs/
+
+# Runtime user uploads — generated at runtime, never commit
+# (keep the folder structure via .gitkeep so the app can write into it)
+FMSS/server/uploads/**
+!FMSS/server/uploads/
+!FMSS/server/uploads/.gitkeep
+!FMSS/server/uploads/pod/
+!FMSS/server/uploads/pod/.gitkeep
+
+# Expo local cache / dev artifacts
+**/.expo/
