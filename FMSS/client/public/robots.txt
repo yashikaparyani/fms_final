@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /$
+Allow: /client/register
+Disallow: /admin
+Disallow: /staff
+Disallow: /fleetOwner
+Disallow: /client/
+
+Sitemap: https://bestloaders.com/sitemap.xml

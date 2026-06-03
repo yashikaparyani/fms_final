@@ -45,6 +45,7 @@ import WonBids from "./pages/fleetOwner/WonBids";
 import MyBids from "./pages/fleetOwner/MyBids";
 import ReportsPage from "./pages/staff/ReportsPage";
 import Bids from "./pages/Bids";
+import Seo from "./components/Seo";
 
 function App() {
   const dispatch = useDispatch();
@@ -70,6 +71,7 @@ function App() {
 
   return (
     <>
+      <Seo />
       <Routes>
         {/* Default Route */}
         <Route

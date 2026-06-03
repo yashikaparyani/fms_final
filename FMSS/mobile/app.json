@@ -13,10 +13,13 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "FMSS needs background location while a picked-up load is in transit.",
         "NSCameraUsageDescription": "FMSS needs camera access for pickup proof and delivery documents.",
         "NSPhotoLibraryUsageDescription": "FMSS needs photo access for pickup proof and delivery documents.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
+      "package": "com.bestloaders.fmssfleet",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -26,7 +29,10 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://localhost:5001/api"
+      "apiUrl": "https://bestloaders.com/api",
+      "eas": {
+        "projectId": "f61bdd54-9435-4a8f-a592-a2c2799dff39"
+      }
     }
   }
 }
