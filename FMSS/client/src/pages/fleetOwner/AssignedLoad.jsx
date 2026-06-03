@@ -55,7 +55,7 @@ const AssignedLoad = () => {
       render: (row) => (
         <LoadIdCell
           load={row}
-          onClick={() => navigate(`/fleetOwner/track-load/${row.loadId}`)}
+          onClick={() => navigate(`/fleetOwner/load/${row.loadId}`)}
         />
       ),
     },
@@ -178,14 +178,14 @@ const AssignedLoad = () => {
         {
           label: "👁 View",
           color: "#f97316",   // consistent blue, not gray
-          onClick: () => navigate(`/fleetOwner/track-load/${row.loadId}`),
+          onClick: () => navigate(`/fleetOwner/load/${row.loadId}`),
         },
       ]
     : [
         {
           label: "👁 View",
           color: "#f97316",
-          onClick: () => navigate(`/fleetOwner/track-load/${row.loadId}`),
+          onClick: () => navigate(`/fleetOwner/load/${row.loadId}`),
         },
       ]
 }

@@ -6,7 +6,17 @@ const Address = require("../models/common/Address");
 const Bid = require("../models/bidSchema");
 const TrackingEvent = require("../models/TrackingEvent");
 const fs = require("fs");
-const { sendLoadRequiresChanges } = require("../services/emailService");
+const {
+  sendLoadRequiresChanges,
+  sendBidWon,
+  sendBiddingScheduled,
+} = require("../services/emailService");
+
+// Resolve a fleet owner's primary contact email (falls back to first contact)
+const getFleetOwnerEmail = (fleetOwner) =>
+  fleetOwner?.contactPersons?.find((c) => c.isPrimary)?.email ||
+  fleetOwner?.contactPersons?.[0]?.email ||
+  null;
 const { buildPodDocument } = require("../services/podDocumentService");
 const { publishTrackingUpdate } = require("../services/trackingBroadcaster");
 const {
@@ -444,7 +454,7 @@ const getLoadById = async (req, res) => {
       })
     );
 
-    res.json({
+    const responsePayload = {
       ...load,
       customerName,
       bidCount:
@@ -452,7 +462,19 @@ const getLoadById = async (req, res) => {
       pickup: hydrateStopFromAddressMap(load.pickup, loadAddressMap),
       drop: hydrateStopFromAddressMap(load.drop, loadAddressMap),
       transportStatusHistory: transportHistory,
-    });
+    };
+
+    // 🔒 Customers (clients) must NOT see bid status/amounts — only the
+    // assigned bidder (allotment) and transit updates. Strip bid financials.
+    if (req.user?.role === "client") {
+      delete responsePayload.winningBid;
+      delete responsePayload.targetRate;
+      delete responsePayload.margin;
+      delete responsePayload.vendorRate;
+      delete responsePayload.bidCount;
+    }
+
+    res.json(responsePayload);
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -736,10 +758,16 @@ const updateTransportStatus = async (req, res) => {
       }
     }
 
+    // Web updates capture the current location at submit time, so the live
+    // GPS session (mobile-only) is not required for them. Mobile updates still
+    // require an active live-tracking session.
+    const isWebUpdate = req.body.source === "web";
+
     if (
       ["fleetOwner", "driver"].includes(role) &&
       liveTrackingRequiredStatuses.includes(transportStatus) &&
-      load.liveTracking?.status !== "ACTIVE"
+      load.liveTracking?.status !== "ACTIVE" &&
+      !isWebUpdate
     ) {
       return res.status(400).json({
         success: false,
@@ -836,7 +864,12 @@ const updateTransportStatus = async (req, res) => {
         latitude: parsedLat,
         longitude: parsedLng,
         recordedAt: locationRecordedAt,
-        source: role === "fleetOwner" || role === "driver" ? "mobile" : "web",
+        source:
+          isWebUpdate
+            ? "web"
+            : role === "fleetOwner" || role === "driver"
+              ? "mobile"
+              : "web",
       };
     }
 
@@ -997,6 +1030,19 @@ const scheduleBidding = async (req, res) => {
       notifyBiddingScheduled({ load, type: notificationType }).catch(
         console.error,
       );
+
+      // 📧 Push email to all active fleet owners about the scheduled bidding
+      // (fire-and-forget so it doesn't block the response)
+      FleetOwner.find({ status: "ACTIVE" })
+        .then((fleetOwners) => {
+          for (const owner of fleetOwners) {
+            const email = getFleetOwnerEmail(owner);
+            if (email) {
+              sendBiddingScheduled({ load, email }).catch(console.error);
+            }
+          }
+        })
+        .catch(console.error);
     }
 
     res.status(200).json({
@@ -1359,6 +1405,59 @@ const awardBid = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 📧 Send Bid Acceptance Mail to the awarded winner (manual staff/admin action)
+//    Requires a winner to already be awarded (load.winningBid set).
+// ═══════════════════════════════════════════════════════════════════════════════
+const sendBidAcceptanceMail = async (req, res) => {
+  try {
+    if (!["staff", "admin"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const winnerId = load.winningBid?.fleetOwnerId;
+    if (!winnerId) {
+      return res.status(400).json({
+        message: "No winner has been awarded yet. Award a bid before sending the acceptance mail.",
+      });
+    }
+
+    const fleetOwner = await FleetOwner.findById(winnerId);
+    if (!fleetOwner) {
+      return res.status(404).json({ message: "Winning fleet owner not found" });
+    }
+
+    const email = getFleetOwnerEmail(fleetOwner);
+    if (!email) {
+      return res.status(400).json({
+        message: "Winning fleet owner has no contact email on file.",
+      });
+    }
+
+    const emailStatus = await sendBidWon({
+      load,
+      fleetOwner,
+      winningBid: load.winningBid,
+      email,
+    });
+
+    load.acceptanceMailSent = true;
+    load.acceptanceMailSentAt = new Date();
+    await load.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Bid acceptance email sent to ${fleetOwner.carrierName} (${email})`,
+      emailStatus,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ✅ REQ 16: Reschedule Bidding - Change Bid Start/End Times
 // ═══════════════════════════════════════════════════════════════════════════════
 const rescheduleBidding = async (req, res) => {
@@ -1570,6 +1669,7 @@ module.exports = {
   confirmAssignedLoadByFleetOwner,
   rateCompletedLoad,
   awardBid,
+  sendBidAcceptanceMail,
   rescheduleBidding,
   rebidLoad,
   discardBid,

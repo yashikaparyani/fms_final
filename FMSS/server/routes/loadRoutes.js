@@ -16,6 +16,7 @@ const {
   getOpenForBid,
   rateCompletedLoad,
   awardBid,
+  sendBidAcceptanceMail,
   rescheduleBidding,
   rebidLoad,
   discardBid,
@@ -89,6 +90,12 @@ router.post(
   protect,
   authorizeRoles("staff", "admin"),
   awardBid,
+);
+router.post(
+  "/:loadId/send-acceptance-mail",
+  protect,
+  authorizeRoles("staff", "admin"),
+  sendBidAcceptanceMail,
 );
 router.post(
   "/:loadId/reschedule-bidding",

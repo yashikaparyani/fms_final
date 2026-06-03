@@ -13,11 +13,15 @@ const { protect, authorizeRoles } = require("../middleware/auth");
 
 router
   .route("/:loadId/bids")
-  .get(protect, getBidsForFleetOwner)
+  // 🔒 Clients must NOT see bid lists/amounts — only staff/admin/fleetOwner
+  .get(protect, authorizeRoles("staff", "admin", "fleetOwner"), getBidsForFleetOwner)
 
   .post(protect, authorizeRoles("fleetOwner"), placeOrUpdateBid);
 
-router.route("/:loadId/loadBids").get(protect, getBidsForLoad);
+router
+  .route("/:loadId/loadBids")
+  // 🔒 Clients must NOT see bid lists/amounts — only staff/admin/fleetOwner
+  .get(protect, authorizeRoles("staff", "admin", "fleetOwner"), getBidsForLoad);
 
 router.get(
   "/wonBids",

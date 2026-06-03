@@ -26,7 +26,7 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://bestloaders.com/api"
+      "apiUrl": "http://localhost:5001/api"
     }
   }
 }

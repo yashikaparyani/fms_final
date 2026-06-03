@@ -20,6 +20,7 @@ const bidDetailsApi = {
   awardBid: (loadId, fleetOwnerId, bidAmount) => api.post(`/loads/${loadId}/award-bid`, { fleetOwnerId, bidAmount }),
   discardBid: (loadId, bidId) => api.post(`/loads/${loadId}/discard-bid`, { bidId }),
   reviseBid: (loadId, bidId, newAmount) => api.post(`/loads/${loadId}/revise-bid`, { bidId, newAmount }),
+  sendAcceptanceMail: (loadId) => api.post(`/loads/${loadId}/send-acceptance-mail`),
 };
 
 // ─── Rank styling (mirrors LiveBidding) ──────────────────────────────────────
@@ -68,6 +69,7 @@ const BidDetails = () => {
   const [bids, setBids]           = useState([]);
   const [fetching, setFetching]   = useState(false);
   const [fetchingBids, setFetchingBids] = useState(false);
+  const [sendingMail, setSendingMail] = useState(false);
 
   // ─── Fetch load details ───────────────────────────────────────────────
   const fetchLoad = useCallback(async () => {
@@ -171,6 +173,30 @@ const BidDetails = () => {
     }
   };
 
+  const handleSendAcceptanceMail = async () => {
+    const result = await Swal.fire({
+      title: "Send bid acceptance mail?",
+      html: `Email the winning bidder <strong>${load?.winningBid?.fleetOwnerName || ""}</strong> to confirm they won this load?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Send Mail",
+      confirmButtonColor: "#4f46e5",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setSendingMail(true);
+    try {
+      const res = await bidDetailsApi.sendAcceptanceMail(loadId);
+      toast.success(res?.data?.message || "Acceptance mail sent");
+      fetchLoad();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to send acceptance mail");
+    } finally {
+      setSendingMail(false);
+    }
+  };
+
   // ─── Derived ─────────────────────────────────────────────────────────
   const lowestBid  = bids.length ? Math.min(...bids.map((b) => b.amount)) : null;
   const winningBid = bids.find((b) => b.status === "WINNING");
@@ -238,6 +264,29 @@ const BidDetails = () => {
           {winningBid && (
             <p className="text-xs text-green-600 mt-0.5">
               Winner: {winningBid.fleetOwnerName}
+            </p>
+          )}
+
+          {/* Send Bid Acceptance Mail — only once a winner has been awarded */}
+          {load?.winningBid?.fleetOwnerId && (
+            <button
+              onClick={handleSendAcceptanceMail}
+              disabled={sendingMail}
+              className="mt-2 self-start flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+            >
+              {sendingMail
+                ? "Sending…"
+                : load.acceptanceMailSent
+                ? "Resend Acceptance Mail"
+                : "Send Bid Acceptance Mail"}
+            </button>
+          )}
+          {load?.acceptanceMailSent && (
+            <p className="text-[11px] text-green-600 mt-1">
+              ✓ Acceptance mail sent
+              {load.acceptanceMailSentAt
+                ? ` on ${new Date(load.acceptanceMailSentAt).toLocaleString()}`
+                : ""}
             </p>
           )}
         </div>

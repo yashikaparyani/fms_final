@@ -361,8 +361,8 @@ function AvailableBidsTab({ onOpenAssigned }) {
 
   return (
     <FlatList
-      data={loads}
-      keyExtractor={(item) => item.loadId}
+      data={loads.filter((item) => item && item.loadId)}
+      keyExtractor={(item, index) => String(item._id || item.loadId || index)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
       ListEmptyComponent={
         <Text style={styles.empty}>{loading ? "Loading open bids..." : "No open bids right now."}</Text>
@@ -412,8 +412,8 @@ function MyBidsTab() {
 
   return (
     <FlatList
-      data={bids}
-      keyExtractor={(item) => item.loadId || item._id}
+      data={bids.filter(Boolean)}
+      keyExtractor={(item, index) => String(item._id || item.loadId || index)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchBids} />}
       ListEmptyComponent={
         <Text style={styles.empty}>{loading ? "Loading bids..." : "No bids submitted yet."}</Text>
@@ -465,8 +465,8 @@ function AssignedLoadsTab({ onTrack }) {
 
   return (
     <FlatList
-      data={loads}
-      keyExtractor={(item) => item.loadId}
+      data={loads.filter((item) => item && item.loadId)}
+      keyExtractor={(item, index) => String(item._id || item.loadId || index)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
       ListEmptyComponent={
         <Text style={styles.empty}>{loading ? "Loading assigned loads..." : "No assigned loads."}</Text>

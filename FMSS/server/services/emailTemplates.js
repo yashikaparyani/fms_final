@@ -73,12 +73,25 @@ const biddingNowOpen = ({ load }) => ({
   `,
 });
 
+const biddingScheduled = ({ load }) => ({
+  subject: `FMS - Bidding Scheduled: Load ${load.loadId}`,
+  text: `Bidding has been scheduled for load ${load.loadId}. Route: ${routeText(load)}. Bidding opens: ${load.bidStartTime ? new Date(load.bidStartTime).toLocaleString() : "TBD"} and closes: ${load.bidEndTime ? new Date(load.bidEndTime).toLocaleString() : "TBD"}. Log in to place your bid when it opens.`,
+  html: `
+    <h3>Bidding Scheduled</h3>
+    <p>A load is scheduled for bidding. Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
+    <p><strong>Route:</strong> ${escapeHtml(routeText(load))}</p>
+    <p><strong>Bidding Opens:</strong> ${load.bidStartTime ? escapeHtml(new Date(load.bidStartTime).toLocaleString()) : "TBD"}</p>
+    <p><strong>Bidding Closes:</strong> ${load.bidEndTime ? escapeHtml(new Date(load.bidEndTime).toLocaleString()) : "TBD"}</p>
+    <p>Log in to the FMS portal to place your bid once bidding opens.</p>
+  `,
+});
+
 const bidWon = ({ load, fleetOwner, winningBid }) => ({
   subject: `FMS - Congratulations! You Won the Bid for Load ${load.loadId}`,
-  text: `Congratulations ${fleetOwner.carrierName}! Your bid of Rs. ${Number(winningBid.amount || 0).toLocaleString()} won load ${load.loadId}. Route: ${routeText(load)}.`,
+  text: `Congratulations ${fleetOwner.carrierName}! Your bid of $${Number(winningBid.amount || 0).toLocaleString()} won load ${load.loadId}. Route: ${routeText(load)}.`,
   html: `
     <h3>Congratulations ${escapeHtml(fleetOwner.carrierName)}!</h3>
-    <p>Your bid of <strong>Rs. ${escapeHtml(Number(winningBid.amount || 0).toLocaleString())}</strong> was the winning bid for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
+    <p>Your bid of <strong>$${escapeHtml(Number(winningBid.amount || 0).toLocaleString())}</strong> was the winning bid for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
     <p><strong>Route:</strong> ${escapeHtml(routeText(load))}</p>
     <br/>
     <p>Our team will contact you shortly with further details.</p>
@@ -87,6 +100,7 @@ const bidWon = ({ load, fleetOwner, winningBid }) => ({
 
 module.exports = {
   biddingNowOpen,
+  biddingScheduled,
   bidWon,
   customerCredentials,
   fleetOwnerCredentials,

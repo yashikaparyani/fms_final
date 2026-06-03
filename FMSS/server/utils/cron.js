@@ -52,6 +52,35 @@ const startCronJobs = () => {
           console.log(`Closed bidding for ${load.loadId}.`);
         }
       }
+
+      // 3. Safety-net: email the acceptance mail to any AWARDED winner that
+      //    hasn't been mailed yet. (Allotment stays MANUAL — this only mails
+      //    loads where staff/admin already awarded a winner.)
+      const awardedUnmailed = await Load.find({
+        bidStatus: "CLOSED",
+        "winningBid.fleetOwnerId": { $ne: null },
+        acceptanceMailSent: { $ne: true },
+      });
+
+      for (const load of awardedUnmailed) {
+        try {
+          const fleetOwner = await FleetOwner.findById(load.winningBid.fleetOwnerId);
+          if (!fleetOwner) continue;
+
+          const email =
+            fleetOwner.contactPersons?.find((c) => c.isPrimary)?.email ||
+            fleetOwner.contactPersons?.[0]?.email;
+          if (!email) continue;
+
+          await sendBidWon({ load, fleetOwner, winningBid: load.winningBid, email });
+          load.acceptanceMailSent = true;
+          load.acceptanceMailSentAt = new Date();
+          await load.save();
+          console.log(`Sent bid acceptance mail to winner of ${load.loadId}.`);
+        } catch (mailErr) {
+          console.error(`Failed acceptance mail for ${load.loadId}:`, mailErr.message);
+        }
+      }
     } catch (error) {
       console.error("Error running cron jobs", error);
     }

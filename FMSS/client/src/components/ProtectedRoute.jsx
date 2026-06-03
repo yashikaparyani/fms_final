@@ -20,8 +20,13 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     return <Navigate to={roleLoginMap[allowedRole]} replace />;
   }
 
-  // Wrong role
-  if (currentUser.role !== allowedRole) {
+  // Role match — admin is a superset of staff, so an admin is allowed into
+  // any staff-protected route (the admin & staff areas share the same pages).
+  const roleMatches =
+    currentUser.role === allowedRole ||
+    (currentUser.role === "admin" && allowedRole === "staff");
+
+  if (!roleMatches) {
     return <Navigate to={roleLoginMap[currentUser.role]} replace />;
   }
 

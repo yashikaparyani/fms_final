@@ -62,6 +62,12 @@ const sendBiddingNowOpen = ({ load, email }) =>
     template: templates.biddingNowOpen({ load }),
   });
 
+const sendBiddingScheduled = ({ load, email }) =>
+  sendTemplate({
+    to: email,
+    template: templates.biddingScheduled({ load }),
+  });
+
 const sendBidWon = ({ load, fleetOwner, winningBid, email }) =>
   sendTemplate({
     to: email,
@@ -71,6 +77,7 @@ const sendBidWon = ({ load, fleetOwner, winningBid, email }) =>
 module.exports = {
   sendBidWon,
   sendBiddingNowOpen,
+  sendBiddingScheduled,
   sendCustomerCredentials,
   sendFleetOwnerCredentials,
   sendLoadRequiresChanges,

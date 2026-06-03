@@ -235,6 +235,11 @@ const loadSchema = new mongoose.Schema(
       submittedAt: Date,
     },
 
+    // Tracks whether the bid-acceptance email has been sent to the winner
+    // (set by the manual "Send Bid Acceptance Mail" button or the cron safety-net)
+    acceptanceMailSent: { type: Boolean, default: false },
+    acceptanceMailSentAt: { type: Date },
+
     // ═══════════════════════════════════════════════════════════
     // SECTION 7 — FLEET OWNER ASSIGNMENT (auto-assign from top bid)
     // ═══════════════════════════════════════════════════════════

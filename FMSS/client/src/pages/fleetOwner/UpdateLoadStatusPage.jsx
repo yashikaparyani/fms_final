@@ -118,6 +118,7 @@ const UpdateLoadStatusPage = () => {
       setSaving(true);
       const formData = new FormData();
       formData.append("transportStatus", transportStatus);
+      formData.append("source", "web");
       formData.append("note", note);
       formData.append("latitude", location.latitude);
       formData.append("longitude", location.longitude);
