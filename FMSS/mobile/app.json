@@ -2,7 +2,7 @@
   "expo": {
     "name": "FMSS Fleet",
     "slug": "fmss-fleet-mobile",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fmssfleet",
@@ -14,6 +14,7 @@
         "NSCameraUsageDescription": "FMSS needs camera access for pickup proof and delivery documents.",
         "NSPhotoLibraryUsageDescription": "FMSS needs photo access for pickup proof and delivery documents.",
         "UIBackgroundModes": [
+          "location",
           "location"
         ]
       }
@@ -21,6 +22,11 @@
     "android": {
       "package": "com.bestloaders.fmssfleet",
       "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
@@ -33,6 +39,12 @@
       "eas": {
         "projectId": "f61bdd54-9435-4a8f-a592-a2c2799dff39"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f61bdd54-9435-4a8f-a592-a2c2799dff39"
     }
   }
 }

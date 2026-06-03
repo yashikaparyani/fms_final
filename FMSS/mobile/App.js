@@ -11,6 +11,7 @@ import {
   RefreshControl,
   SafeAreaView,
   ScrollView,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -195,7 +196,7 @@ function Pill({ children, tone = "default" }) {
   );
 }
 
-function PrimaryButton({ title, onPress, disabled, tone = "primary" }) {
+function PrimaryButton({ title, onPress, disabled, tone = "primary", style }) {
   const backgroundColor =
     tone === "danger" ? colors.danger : tone === "success" ? colors.success : colors.primary;
 
@@ -206,6 +207,7 @@ function PrimaryButton({ title, onPress, disabled, tone = "primary" }) {
       style={({ pressed }) => [
         styles.button,
         { backgroundColor, opacity: disabled ? 0.55 : pressed ? 0.85 : 1 },
+        style,
       ]}
     >
       <Text style={styles.buttonText}>{title}</Text>
@@ -213,7 +215,7 @@ function PrimaryButton({ title, onPress, disabled, tone = "primary" }) {
   );
 }
 
-function SecondaryButton({ title, onPress, disabled }) {
+function SecondaryButton({ title, onPress, disabled, style }) {
   return (
     <Pressable
       onPress={onPress}
@@ -221,9 +223,12 @@ function SecondaryButton({ title, onPress, disabled }) {
       style={({ pressed }) => [
         styles.secondaryButton,
         { opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
+        style,
       ]}
     >
-      <Text style={styles.secondaryButtonText}>{title}</Text>
+      <Text style={styles.secondaryButtonText} numberOfLines={1}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -393,6 +398,9 @@ function AvailableBidsTab({ onOpenAssigned }) {
 function MyBidsTab() {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState({});
+  const [amountByLoad, setAmountByLoad] = useState({});
+  const [savingId, setSavingId] = useState(null);
 
   const fetchBids = async () => {
     try {
@@ -410,6 +418,35 @@ function MyBidsTab() {
     fetchBids();
   }, []);
 
+  const startEditing = (loadId, currentAmount) => {
+    setAmountByLoad((prev) => ({ ...prev, [loadId]: String(currentAmount ?? "") }));
+    setEditing((prev) => ({ ...prev, [loadId]: true }));
+  };
+
+  const cancelEditing = (loadId) => {
+    setEditing((prev) => ({ ...prev, [loadId]: false }));
+  };
+
+  const updateBid = async (loadId) => {
+    const amount = Number(amountByLoad[loadId]);
+    if (!amount) {
+      Alert.alert("Bid amount required", "Enter a valid bid amount.");
+      return;
+    }
+
+    try {
+      setSavingId(loadId);
+      await api.post(`/bidRoutes/${loadId}/bids`, { amount });
+      Alert.alert("Bid updated", "Your new bid amount was synced.");
+      setEditing((prev) => ({ ...prev, [loadId]: false }));
+      fetchBids();
+    } catch (error) {
+      Alert.alert("Update failed", error.response?.data?.message || error.message);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   return (
     <FlatList
       data={bids.filter(Boolean)}
@@ -418,16 +455,51 @@ function MyBidsTab() {
       ListEmptyComponent={
         <Text style={styles.empty}>{loading ? "Loading bids..." : "No bids submitted yet."}</Text>
       }
-      renderItem={({ item }) => (
-        <LoadCard load={item}>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaText}>Bid: {money(item.bidAmount || item.amount)}</Text>
-            <Pill tone={item.result === "WON" ? "success" : item.result === "LOST" ? "danger" : "warning"}>
-              {item.result || item.status || "Pending"}
-            </Pill>
-          </View>
-        </LoadCard>
-      )}
+      renderItem={({ item }) => {
+        const result = item.result || item.status || "PENDING";
+        const canEdit = result === "PENDING";
+        const isEditing = Boolean(editing[item.loadId]);
+        const isSaving = savingId === item.loadId;
+
+        return (
+          <LoadCard load={item}>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaText}>Bid: {money(item.bidAmount || item.amount)}</Text>
+              <Pill tone={result === "WON" ? "success" : result === "LOST" ? "danger" : "warning"}>
+                {result}
+              </Pill>
+            </View>
+
+            {canEdit && !isEditing && (
+              <SecondaryButton
+                title="Update bid"
+                onPress={() => startEditing(item.loadId, item.bidAmount || item.amount)}
+              />
+            )}
+
+            {canEdit && isEditing && (
+              <View style={styles.bidRow}>
+                <TextInput
+                  value={amountByLoad[item.loadId] ?? ""}
+                  onChangeText={(text) =>
+                    setAmountByLoad((prev) => ({ ...prev, [item.loadId]: text }))
+                  }
+                  keyboardType="numeric"
+                  placeholder="New bid amount"
+                  style={[styles.input, styles.bidInput]}
+                  placeholderTextColor="#98a2b3"
+                />
+                <SecondaryButton title="Cancel" onPress={() => cancelEditing(item.loadId)} disabled={isSaving} />
+                <PrimaryButton
+                  title={isSaving ? "Saving..." : "Save"}
+                  onPress={() => updateBid(item.loadId)}
+                  disabled={isSaving}
+                />
+              </View>
+            )}
+          </LoadCard>
+        );
+      }}
       contentContainerStyle={styles.listContent}
     />
   );
@@ -817,6 +889,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
                 title={labelize(status)}
                 onPress={() => updateStatus(status)}
                 disabled={saving}
+                style={styles.gridButton}
               />
             ))}
           </View>
@@ -972,10 +1045,14 @@ export default function App() {
   return <FleetHomeScreen session={session} onLogout={logout} />;
 }
 
+const ANDROID_TOP_INSET =
+  Platform.OS === "android" ? RNStatusBar.currentHeight || 0 : 0;
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
+    paddingTop: ANDROID_TOP_INSET,
   },
   centered: {
     flex: 1,
@@ -988,10 +1065,10 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 16,
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 20,
+    padding: 24,
     ...shadow,
   },
   brand: {
@@ -1023,12 +1100,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   input: {
-    minHeight: 44,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: "#fff",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     color: colors.text,
     fontSize: 14,
   },
@@ -1038,8 +1115,8 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   button: {
-    minHeight: 44,
-    borderRadius: 10,
+    minHeight: 48,
+    borderRadius: 12,
     paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -1047,11 +1124,11 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 14,
   },
   secondaryButton: {
-    minHeight: 42,
-    borderRadius: 10,
+    minHeight: 46,
+    borderRadius: 12,
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -1066,10 +1143,12 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: colors.surface,
   },
   topBar: {
     flexDirection: "row",
@@ -1081,17 +1160,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingTop: 4,
+    paddingBottom: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   tab: {
     flex: 1,
     alignItems: "center",
-    borderRadius: 10,
-    paddingVertical: 10,
-    backgroundColor: "#e8eef6",
+    borderRadius: 12,
+    paddingVertical: 11,
+    backgroundColor: "#eef2f9",
   },
   tabActive: {
     backgroundColor: colors.primary,
+    ...shadow,
   },
   tabText: {
     color: colors.muted,
@@ -1114,10 +1198,10 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 14,
+    padding: 16,
     marginBottom: 12,
     gap: 12,
     ...shadow,
@@ -1159,9 +1243,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
+    flexWrap: "wrap",
   },
   bidInput: {
     flex: 1,
+    minWidth: 120,
   },
   actionRow: {
     flexDirection: "row",
@@ -1169,7 +1255,13 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
+  },
+  gridButton: {
+    flexGrow: 1,
+    flexBasis: "47%",
   },
   screenContent: {
     padding: 16,
