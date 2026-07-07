@@ -1,6 +1,47 @@
 const mongoose = require("mongoose");
 const Counter = require("./Counter.model.js");
 
+// Reusable stop shapes for multiple origins (pickups) and destinations (drops).
+const pickupStopSchema = new mongoose.Schema(
+  {
+    addressId: { type: mongoose.Schema.Types.ObjectId, ref: "Address" },
+    address: { type: String },
+    city: { type: String },
+    state: { type: String },
+    zip: { type: String },
+    company: { type: String },
+    poNumber: { type: String },
+    pieces: { type: String },
+    weight: { type: String },
+    pickupDate: { type: Date },
+    fromTime: { type: String },
+    toTime: { type: String },
+    apptGivenBy: { type: String },
+    apptNumber: { type: String },
+  },
+  { _id: false }
+);
+
+const dropStopSchema = new mongoose.Schema(
+  {
+    addressId: { type: mongoose.Schema.Types.ObjectId, ref: "Address" },
+    address: { type: String },
+    city: { type: String },
+    state: { type: String },
+    zip: { type: String },
+    company: { type: String },
+    poNumber: { type: String },
+    pieces: { type: String },
+    weight: { type: String },
+    deliveryDate: { type: Date },
+    fromTime: { type: String },
+    toTime: { type: String },
+    apptGivenBy: { type: String },
+    apptNumber: { type: String },
+  },
+  { _id: false }
+);
+
 const loadSchema = new mongoose.Schema(
   {
     // ═══════════════════════════════════════════════════════════
@@ -81,6 +122,8 @@ const loadSchema = new mongoose.Schema(
     hazmat: { type: Boolean, default: false },
     chassisRent: { type: Boolean, default: false },
     railContainer: { type: Boolean, default: false },
+    dryVan: { type: Boolean, default: false },
+    reefer: { type: Boolean, default: false },
     bookingProblem: { type: Boolean, default: false },
     putOnHold: { type: Boolean, default: false },
     hotShipment: { type: Boolean, default: false },
@@ -162,6 +205,11 @@ const loadSchema = new mongoose.Schema(
       apptGivenBy: { type: String },
       apptNumber: { type: String },
     },
+
+    // Multiple origins / destinations. The single `pickup`/`drop` above are
+    // kept in sync with the first element of each for backward compatibility.
+    pickups: { type: [pickupStopSchema], default: undefined },
+    drops: { type: [dropStopSchema], default: undefined },
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 4 — LOAD VERIFICATION STATUS (set by staff/admin)

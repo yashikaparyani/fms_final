@@ -585,6 +585,7 @@ const TrackLoadPage = () => {
           <LoadHeader
             load={load}
             onUpdateStatus={() => setTransportOpen(true)}
+            onEditLoad={() => navigate(`/${userRole}/edit-load/${load.loadId}`)}
             onRebid={handleRebid}
             userRole={userRole}
           />

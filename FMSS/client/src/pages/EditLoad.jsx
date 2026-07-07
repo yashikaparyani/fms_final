@@ -36,6 +36,8 @@ const loadSchema = z.object({
   hazmat:          z.boolean(),
   chassisRent:     z.boolean(),
   railContainer:   z.boolean(),
+  dryVan:          z.boolean(),
+  reefer:          z.boolean(),
   accChargesEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid accessorial charges email" }),
   podEmail:        z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid POD email" }),
   deliveryEmail:   z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid delivery email" }),
@@ -86,7 +88,16 @@ const emptyStop = {
   company: "", address: "", city: "", state: "", zip: "",
 };
 
-const StopForm = ({ title, data, onChange, loading }) => {
+// Keep only the editable stop fields (drops server-generated _id, dates, etc.)
+const normalizeStop = (s = {}) => ({
+  company: s.company || "",
+  address: s.address || "",
+  city:    s.city    || "",
+  state:   s.state   || "",
+  zip:     s.zip     || "",
+});
+
+const StopForm = ({ data, onChange, loading }) => {
   const set = (field, value) => onChange({ ...data, [field]: value });
 
   // ── Location cascade via AddressFields ───────────────────────────────────────
@@ -118,6 +129,38 @@ const StopForm = ({ title, data, onChange, loading }) => {
     </div>
   );
 };
+
+// ─── Repeatable list of stops (origins / destinations) ───────────────────────
+const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, removeStop }) => (
+  <div className="space-y-4">
+    {stops.map((s, idx) => (
+      <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-bold text-gray-700">{singular} {idx + 1}</h4>
+          {stops.length > 1 && (
+            <button
+              type="button"
+              onClick={() => removeStop(stops, setStops, idx)}
+              disabled={loading}
+              className="text-xs font-semibold text-red-500 hover:text-red-700 disabled:opacity-50"
+            >
+              ✕ Remove
+            </button>
+          )}
+        </div>
+        <StopForm data={s} onChange={(next) => updateStop(stops, setStops, idx, next)} loading={loading} />
+      </div>
+    ))}
+    <button
+      type="button"
+      onClick={() => addStop(stops, setStops)}
+      disabled={loading}
+      className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-2.5 text-sm font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition disabled:opacity-50"
+    >
+      + Add another {singular.toLowerCase()}
+    </button>
+  </div>
+);
 
 // ─── Chevron SVGs ─────────────────────────────────────────────────────────────
 const ChevronRight = () => (
@@ -185,8 +228,15 @@ const EditLoad = () => {
   const [loadStatus,  setLoadStatus]  = useState("");
   const [changesNote, setChangesNote] = useState("");
   const [customers,   setCustomers]   = useState([]);
-  const [pickup,      setPickup]      = useState(emptyStop);
-  const [drop,        setDrop]        = useState(emptyStop);
+  const [pickups,     setPickups]     = useState([{ ...emptyStop }]);
+  const [drops,       setDrops]       = useState([{ ...emptyStop }]);
+
+  // ── Multi-stop helpers (shared by origins & destinations) ────────────────
+  const updateStop = (list, setList, index, next) =>
+    setList(list.map((s, i) => (i === index ? next : s)));
+  const addStop = (list, setList) => setList([...list, { ...emptyStop }]);
+  const removeStop = (list, setList, index) =>
+    setList(list.length > 1 ? list.filter((_, i) => i !== index) : list);
 
   const truckTypeOptions     = ["Container", "Flatbed", "Reefer", "Van", "Dry Van", "Open Truck", "Refrigerated", "Other"];
   const containerTypeOptions = ["40 Std", "40 HC", "45", "20"];
@@ -199,7 +249,7 @@ const EditLoad = () => {
       truckType: "", material: "", amount: "", lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "", bookingNo: "", shippingLine: "",
       containerNo: "", pickupNo: "", sealNo: "",
-      hazmat: false, chassisRent: false, railContainer: false,
+      hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
       driverRequirement: "Solo Driver",
@@ -229,25 +279,23 @@ const EditLoad = () => {
         setLoadStatus(load.status);
         setChangesNote(load.changesNote || "");
 
-        if (load.pickup) {
-          setPickup({
-            company:     load.pickup.company     || "",
-            address:     load.pickup.address     || "",
-            city:        load.pickup.city        || "",
-            state:       load.pickup.state       || "",
-            zip:         load.pickup.zip         || "",
-          });
-        }
+        // Initialise origins from the pickups array, falling back to the
+        // legacy single pickup, then to one empty stop.
+        const initPickups =
+          Array.isArray(load.pickups) && load.pickups.length
+            ? load.pickups.map(normalizeStop)
+            : load.pickup && (load.pickup.address || load.pickup.city)
+              ? [normalizeStop(load.pickup)]
+              : [{ ...emptyStop }];
+        setPickups(initPickups);
 
-        if (load.drop) {
-          setDrop({
-            company:     load.drop.company      || "",
-            address:     load.drop.address      || "",
-            city:        load.drop.city         || "",
-            state:       load.drop.state        || "",
-            zip:         load.drop.zip          || "",
-          });
-        }
+        const initDrops =
+          Array.isArray(load.drops) && load.drops.length
+            ? load.drops.map(normalizeStop)
+            : load.drop && (load.drop.address || load.drop.city)
+              ? [normalizeStop(load.drop)]
+              : [{ ...emptyStop }];
+        setDrops(initDrops);
 
         reset({
           customer:        load.customer        || load.customerId || "",
@@ -269,6 +317,8 @@ const EditLoad = () => {
           hazmat:          load.hazmat          || false,
           chassisRent:     load.chassisRent     || false,
           railContainer:   load.railContainer   || false,
+          dryVan:          load.dryVan          || false,
+          reefer:          load.reefer          || false,
           accChargesEmail: load.accChargesEmail || "",
           podEmail:        load.podEmail        || "",
           deliveryEmail:   load.deliveryEmail   || "",
@@ -279,7 +329,7 @@ const EditLoad = () => {
         });
       } catch {
         toast.error("Failed to load order details");
-        navigate(`/${role}/my-loads`);
+        navigate(-1);
       } finally {
         setPageLoading(false);
       }
@@ -302,22 +352,17 @@ const EditLoad = () => {
   };
 
   const onStep2Submit = async () => {
-    if (!pickup.address || !pickup.city || !pickup.state || !pickup.zip) {
-      toast.error("Please fill all required pickup fields (Address, City, State, Zip)");
+    const invalid = pickups.some((p) => !p.address || !p.city || !p.state || !p.zip);
+    if (invalid) {
+      toast.error("Please fill all required fields (Address, City, State, Zip) for every origin");
       return;
     }
     setSubmitting(true);
     try {
-      await api.put(`/loads/${loadId}`, { 
-        pickup: { 
-          company: pickup.company,
-          address: pickup.address,
-          city: pickup.city,
-          state: pickup.state,
-          zip: pickup.zip,
-        } 
+      await api.put(`/loads/${loadId}`, {
+        pickups: pickups.map(normalizeStop),
       });
-      toast.success("Pickup saved! Now review the drop address.");
+      toast.success("Origins saved! Now review the destinations.");
       setStep(3);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Error saving pickup address");
@@ -327,23 +372,23 @@ const EditLoad = () => {
   };
 
   const onStep3Submit = async () => {
-    if (!drop.address || !drop.city || !drop.state || !drop.zip) {
-      toast.error("Please fill all required drop fields (Address, City, State, Zip)");
+    const invalid = drops.some((d) => !d.address || !d.city || !d.state || !d.zip);
+    if (invalid) {
+      toast.error("Please fill all required fields (Address, City, State, Zip) for every destination");
       return;
     }
     setSubmitting(true);
     try {
-      await api.put(`/loads/${loadId}`, { 
-        drop: { 
-          company: drop.company,
-          address: drop.address,
-          city: drop.city,
-          state: drop.state,
-          zip: drop.zip,
-        } 
+      await api.put(`/loads/${loadId}`, {
+        drops: drops.map(normalizeStop),
       });
-      toast.success("Load updated and resubmitted for verification!");
-      navigate(`/${role}/my-loads`);
+      const isInternal = role === "admin" || role === "staff";
+      toast.success(
+        isInternal
+          ? "Load updated successfully!"
+          : "Load updated and resubmitted for verification!"
+      );
+      navigate(`/${role}/track-load/${loadId}`);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Error saving drop address");
     } finally {
@@ -579,6 +624,8 @@ const EditLoad = () => {
                   { name: "hazmat",        label: "Hazmat" },
                   { name: "chassisRent",   label: "Chassis Rent" },
                   { name: "railContainer", label: "Rail Container" },
+                  { name: "dryVan",        label: "Dry Van" },
+                  { name: "reefer",        label: "Reefer" },
                 ].map(({ name, label }) => (
                   <label key={name} className="flex items-center gap-2 label cursor-pointer">
                     <input type="checkbox" className="rounded" {...register(name)} disabled={submitting} />
@@ -619,7 +666,7 @@ const EditLoad = () => {
 
               {/* Footer */}
               <div className={`${uiStyles.flexBetween} gap-3 pt-6 border-t border-gray-200 mt-6`}>
-                <button type="button" onClick={() => navigate(`/${role}/my-loads`)} className="btn-secondary" disabled={submitting}>
+                <button type="button" onClick={() => navigate(-1)} className="btn-secondary" disabled={submitting}>
                   Cancel
                 </button>
                 <button type="button" onClick={handleSubmit(onStep1Submit)} disabled={submitting} className="btn-primary disabled:opacity-50">
@@ -635,7 +682,7 @@ const EditLoad = () => {
               <div className={`${uiStyles.flexBetween} mb-5`}>
                 <div>
                   <h2 className="h4">Pickup / Origin Address</h2>
-                  <p className="page-subtitle mt-0.5">Review and update the pickup location.</p>
+                  <p className="page-subtitle mt-0.5">Review and update the origin(s). Add more if the load has multiple pickups.</p>
                 </div>
                 <span className="badge-green">
                   <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -645,14 +692,22 @@ const EditLoad = () => {
                 </span>
               </div>
 
-              <AddressBanner color="indigo" icon={<PinIcon />} title="Origin / Pickup" />
+              <AddressBanner color="indigo" icon={<PinIcon />} title="Origin(s) / Pickup" />
 
-              <StopForm title="Pickup" data={pickup} onChange={setPickup} loading={submitting} />
+              <StopList
+                singular="Origin"
+                stops={pickups}
+                setStops={setPickups}
+                loading={submitting}
+                updateStop={updateStop}
+                addStop={addStop}
+                removeStop={removeStop}
+              />
 
               <StepFooter
                 onBack={() => setStep(1)}
                 onNext={onStep2Submit}
-                nextLabel={<> Save Pickup & Continue <ChevronRight /></>}
+                nextLabel={<> Save Origins & Continue <ChevronRight /></>}
                 submitting={submitting}
               />
             </div>
@@ -664,24 +719,36 @@ const EditLoad = () => {
               <div className={`${uiStyles.flexBetween} mb-5`}>
                 <div>
                   <h2 className="h4">Drop / Destination Address</h2>
-                  <p className="page-subtitle mt-0.5">Final step — review and update the drop location.</p>
+                  <p className="page-subtitle mt-0.5">Final step — review the destination(s). Add more if the load has multiple drops.</p>
                 </div>
                 <span className="badge-green">
                   <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
-                  Pickup Saved
+                  Origins Saved
                 </span>
               </div>
 
-              <AddressBanner color="amber" icon={<PinIcon />} title="Destination / Drop" />
+              <AddressBanner color="amber" icon={<PinIcon />} title="Destination(s) / Drop" />
 
-              <StopForm title="Drop" data={drop} onChange={setDrop} loading={submitting} />
+              <StopList
+                singular="Destination"
+                stops={drops}
+                setStops={setDrops}
+                loading={submitting}
+                updateStop={updateStop}
+                addStop={addStop}
+                removeStop={removeStop}
+              />
 
               <StepFooter
                 onBack={() => setStep(2)}
                 onNext={onStep3Submit}
-                nextLabel={<> <CheckIcon /> Save & Resubmit for Verification </>}
+                nextLabel={
+                  role === "admin" || role === "staff"
+                    ? <> <CheckIcon /> Save Changes </>
+                    : <> <CheckIcon /> Save & Resubmit for Verification </>
+                }
                 nextClass="btn-primary !bg-green-600 !border-green-600 hover:!bg-green-700"
                 submitting={submitting}
               />

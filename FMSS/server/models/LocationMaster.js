@@ -13,7 +13,8 @@ const locationMasterSchema = new mongoose.Schema(
     stateAbbr: { type: String, required: true, trim: true, uppercase: true, index: true },
     stateName: { type: String, required: true, trim: true },
     city:      { type: String, required: true, trim: true },
-    zip:       { type: String, required: true, trim: true },
+    // Zip is optional: user-added cities may not know the zip up front.
+    zip:       { type: String, required: false, trim: true, default: "" },
   },
   { timestamps: false }
 );

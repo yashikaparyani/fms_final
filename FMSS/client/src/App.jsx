@@ -133,6 +133,7 @@ function App() {
           <Route path="load/status/:loadId" element={<StaffLoadDetails />} />
           <Route path="update-address" element={<UpdateAddressPage />} />
           <Route path="track-load/:loadId" element={<TrackLoadPage />} />
+          <Route path="edit-load/:loadId" element={<EditLoad />} />
           <Route path="bids/:loadId" element={<BidDetails />} />
         </Route>
 
@@ -184,6 +185,7 @@ function App() {
           <Route path="load/status/:loadId" element={<StaffLoadDetails />} />
           <Route path="update-address" element={<UpdateAddressPage />} />
           <Route path="track-load/:loadId" element={<TrackLoadPage />} />
+          <Route path="edit-load/:loadId" element={<EditLoad />} />
           <Route path="bids/:loadId" element={<BidDetails />} />
         </Route>
 

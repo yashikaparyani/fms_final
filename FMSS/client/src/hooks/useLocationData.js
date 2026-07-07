@@ -100,5 +100,44 @@ export function useCities(stateAbbr) {
     }
   };
 
-  return { options, loading, getCityData, rawCities: cities };
+  /**
+   * Persists a new user-supplied city to the master list and makes it
+   * appear immediately in this (and future) dropdowns. Updates the module
+   * caches so every mounted <AddressFields> stays in sync.
+   * @returns the persisted city { city, stateAbbr, zip }
+   */
+  const addCity = async ({ city, stateAbbr: stAbbr, stateName, zip: zipVal }) => {
+    const res = await api.post("/locations/cities", {
+      city,
+      stateAbbr: stAbbr,
+      stateName,
+      zip: zipVal,
+    });
+    const newCity = res.data; // { city, stateAbbr, zip }
+
+    const sortByCity = (a, b) => a.city.localeCompare(b.city);
+    const exists = (list) =>
+      list.some(
+        (c) =>
+          c.city.toLowerCase() === newCity.city.toLowerCase() &&
+          c.stateAbbr === newCity.stateAbbr
+      );
+
+    // Patch the relevant module caches: the specific state and the 'ALL' bucket.
+    [newCity.stateAbbr, "ALL"].forEach((key) => {
+      const entry = citiesCache.get(key);
+      if (entry?.data && !exists(entry.data)) {
+        entry.data = [...entry.data, newCity].sort(sortByCity);
+      }
+    });
+
+    // Update this hook's local state so the caller re-renders with the new option.
+    setCities((prev) =>
+      exists(prev) ? prev : [...prev, newCity].sort(sortByCity)
+    );
+
+    return newCity;
+  };
+
+  return { options, loading, getCityData, addCity, rawCities: cities };
 }

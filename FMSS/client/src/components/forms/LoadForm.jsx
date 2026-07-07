@@ -36,6 +36,8 @@ const loadSchema = z.object({
   hazmat: z.boolean(),
   chassisRent: z.boolean(),
   railContainer: z.boolean(),
+  dryVan: z.boolean(),
+  reefer: z.boolean(),
   accChargesEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid accessorial charges email" }),
   podEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid POD email" }),
   deliveryEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid delivery email" }),
@@ -320,6 +322,17 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
 
+  // Before opening a modal, blur whatever is focused so any open react-select
+  // menu closes. Its menu is portalled to <body> at z-index 9999 (above the
+  // modal's z-50), so a menu left open would float on top of the modal.
+  const closeOpenMenus = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+  const openAddCompany = () => { closeOpenMenus(); setShowAddCompany(true); };
+  const openAddAddress = () => { closeOpenMenus(); setShowAddAddress(true); };
+
   const set = (field, value) => onChange({ ...data, [field]: value });
 
   // ΓöÇΓöÇ fetch addresses for selected company ΓöÇΓöÇ
@@ -415,7 +428,7 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
           {/* Register new company */}
           <button
             type="button"
-            onClick={() => setShowAddCompany(true)}
+            onClick={openAddCompany}
             disabled={loading}
             className="shrink-0 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center gap-1.5 disabled:opacity-50"
             title="Register a new company"
@@ -431,7 +444,7 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
         {allCompanies.length === 0 && (
           <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center">
             <p className="text-sm text-gray-400 mb-2">No companies registered yet.</p>
-            <button type="button" onClick={() => setShowAddCompany(true)} className="btn-primary text-sm">
+            <button type="button" onClick={openAddCompany} className="btn-primary text-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -467,7 +480,7 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
                 <p className="text-sm font-medium text-gray-700">No addresses for this company</p>
                 <p className="text-xs text-gray-400">Add a branch / location to continue.</p>
               </div>
-              <button type="button" onClick={() => setShowAddAddress(true)} className="shrink-0 btn-primary text-sm">
+              <button type="button" onClick={openAddAddress} className="shrink-0 btn-primary text-sm">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
@@ -493,7 +506,7 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
               {/* Add another address for this company */}
               <button
                 type="button"
-                onClick={() => setShowAddAddress(true)}
+                onClick={openAddAddress}
                 disabled={loading}
                 className="shrink-0 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center gap-1.5 disabled:opacity-50"
                 title="Add a new address for this company"
@@ -611,7 +624,7 @@ const LoadForm = () => {
       lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "",
       bookingNo: "", shippingLine: "", containerNo: "", pickupNo: "", sealNo: "",
-      hazmat: false, chassisRent: false, railContainer: false,
+      hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
       driverRequirement: "Solo Driver",
@@ -908,8 +921,8 @@ const LoadForm = () => {
                 ))}
               </div>
 
-              <div className="flex gap-6 mt-4">
-                {[{ name: "hazmat", label: "Hazmat" }, { name: "chassisRent", label: "Chassis Rent" }, { name: "railContainer", label: "Rail Container" }].map(({ name, label }) => (
+              <div className="flex flex-wrap gap-6 mt-4">
+                {[{ name: "hazmat", label: "Hazmat" }, { name: "chassisRent", label: "Chassis Rent" }, { name: "railContainer", label: "Rail Container" }, { name: "dryVan", label: "Dry Van" }, { name: "reefer", label: "Reefer" }].map(({ name, label }) => (
                   <label key={name} className="flex items-center gap-2 label cursor-pointer">
                     <input type="checkbox" className="rounded" {...register(name)} disabled={loading} /> {label}
                   </label>

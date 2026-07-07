@@ -237,9 +237,11 @@ const buildPodDocument = async ({ load, signatureData }) => {
   const delivered = load.deliveredAt ? formatTime(load.deliveredAt) : "";
 
   doc.font("Helvetica").fontSize(7.25).fillColor("#111827");
+  // LOADING row = actual pickup time; TIME OUT mirrors TIME IN.
   doc.text(pickedUp, 118, lowerY - 2, { width: 80, align: "left" });
-  doc.text(delivered, 251, lowerY - 2, { width: 80, align: "left" });
-  doc.text(pickedUp, 118, lowerY + 23, { width: 80, align: "left" });
+  doc.text(pickedUp, 251, lowerY - 2, { width: 80, align: "left" });
+  // UNLOADING/WAIT row = actual delivery time; TIME OUT mirrors TIME IN.
+  doc.text(delivered, 118, lowerY + 23, { width: 80, align: "left" });
   doc.text(delivered, 251, lowerY + 23, { width: 80, align: "left" });
 
   doc.rect(16, 362, 228, 36).stroke();
@@ -254,14 +256,16 @@ const buildPodDocument = async ({ load, signatureData }) => {
   doc.font("Helvetica").fontSize(7.5).text(safeText(load.truckNo || load.containerNo || ""), 248, 378, { width: 94, ellipsis: true });
 
   doc.font("Helvetica-Bold").fontSize(8).text("TOTAL TO COLLECT", 350, 368, { width: 108, align: "center" });
-  doc.font("Helvetica").fontSize(9).text(safeText(load.amount || ""), 350, 380, { width: 108, align: "center" });
+  // Intentionally left blank — the collect amount is not printed on the POD.
 
   doc.font("Helvetica-Bold").fontSize(8).text("RECEIVED", 490, 368);
   doc.font("Helvetica-Bold").fontSize(8).text("BY    X", 490, 382);
 
   if (signatureData) {
     const signatureBuffer = Buffer.from(signatureData.split(",")[1] || signatureData, "base64");
-    doc.image(signatureBuffer, 522, 368, { fit: [125, 24], align: "center", valign: "center" });
+    // Larger box (kept right of the "BY X" label) so a trimmed signature
+    // renders big enough to read. `fit` preserves aspect ratio.
+    doc.image(signatureBuffer, 518, 364, { fit: [136, 32], align: "center", valign: "center" });
   }
 
   doc.end();

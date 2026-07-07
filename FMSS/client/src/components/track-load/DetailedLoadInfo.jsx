@@ -23,6 +23,11 @@ const fmtFull = (v) =>
       })
     : "—";
 
+const money = (v) =>
+  v === null || v === undefined || v === "" || Number.isNaN(Number(v))
+    ? "—"
+    : `$${Number(v).toLocaleString()}`;
+
 const CheckboxDisplay = ({ label, checked }) => (
   <div className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
     <span className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">{label}</span>
@@ -36,6 +41,10 @@ const CheckboxDisplay = ({ label, checked }) => (
 
 const DetailedLoadInfo = ({ load }) => {
   if (!load) return null;
+
+  // Prefer the multi-stop arrays; fall back to the legacy single pickup/drop.
+  const pickups = load.pickups?.length ? load.pickups : load.pickup ? [load.pickup] : [];
+  const drops = load.drops?.length ? load.drops : load.drop ? [load.drop] : [];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -145,6 +154,42 @@ const DetailedLoadInfo = ({ load }) => {
 
       {/* ── TABLES ── */}
       <div className="space-y-6">
+        {/* Receivables */}
+        <Card>
+          <SectionHeader label="Receivables" accent="#059669" />
+          <div className="p-4 pt-2">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+              <InfoRow label="Customer" value={load.customerName} />
+              <InfoRow label="Freight Charges (Base)" value={money(load.amount)} />
+              <InfoRow
+                label="Fleet Owner Payout"
+                value={load.vendorRate != null ? money(load.vendorRate) : "—"}
+              />
+              <InfoRow
+                label="Gross Margin"
+                value={
+                  load.amount != null && load.vendorRate != null
+                    ? money(Number(load.amount) - Number(load.vendorRate))
+                    : "—"
+                }
+              />
+              <InfoRow
+                label="Accessorial Charges"
+                value={load.isAccessorialCharges ? "Yes" : "No"}
+              />
+              <InfoRow label="Invoice No" value={load.invoiceNo || "—"} />
+            </div>
+            <div className="mt-3 flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-2.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-emerald-600">
+                Total Receivable (from Customer)
+              </span>
+              <span className="text-lg font-black text-emerald-700">
+                {money(load.amount)}
+              </span>
+            </div>
+          </div>
+        </Card>
+
         {/* Origin Table */}
         <Card>
           <SectionHeader label="Origin(s)" accent="#f97316" />
@@ -160,27 +205,32 @@ const DetailedLoadInfo = ({ load }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                <tr className="hover:bg-orange-50/20 transition-colors">
-                  <td className="px-4 py-4 text-gray-500 font-medium">1</td>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-gray-800">{load.pickup?.company || "—"}</p>
-                    <p className="text-xs text-gray-600">{load.pickup?.address || ""}</p>
-                    <p className="text-xs text-gray-600">{[load.pickup?.city, load.pickup?.state, load.pickup?.zip].filter(Boolean).join(", ")}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold">
-                      {load.pickup?.pickupDate ? (
-                        <>
-                          {fmt(load.pickup.pickupDate)}
-                          <span className="mx-1.5 opacity-50">|</span>
-                          {load.pickup.fromTime || "—"} To {load.pickup.toTime || "—"}
-                        </>
-                      ) : "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-gray-700 font-medium">{load.pickup?.apptNumber || "—"}</td>
-                  <td className="px-4 py-4 text-gray-700 font-medium">{load.pickup?.apptGivenBy || "—"}</td>
-                </tr>
+                {pickups.length === 0 && (
+                  <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-400 italic">No origin added yet</td></tr>
+                )}
+                {pickups.map((p, idx) => (
+                  <tr key={idx} className="hover:bg-orange-50/20 transition-colors">
+                    <td className="px-4 py-4 text-gray-500 font-medium">{idx + 1}</td>
+                    <td className="px-4 py-4">
+                      <p className="font-bold text-gray-800">{p?.company || "—"}</p>
+                      <p className="text-xs text-gray-600">{p?.address || ""}</p>
+                      <p className="text-xs text-gray-600">{[p?.city, p?.state, p?.zip].filter(Boolean).join(", ")}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold">
+                        {p?.pickupDate ? (
+                          <>
+                            {fmt(p.pickupDate)}
+                            <span className="mx-1.5 opacity-50">|</span>
+                            {p.fromTime || "—"} To {p.toTime || "—"}
+                          </>
+                        ) : "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-gray-700 font-medium">{p?.apptNumber || "—"}</td>
+                    <td className="px-4 py-4 text-gray-700 font-medium">{p?.apptGivenBy || "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -201,27 +251,32 @@ const DetailedLoadInfo = ({ load }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                <tr className="hover:bg-blue-50/20 transition-colors">
-                  <td className="px-4 py-4 text-gray-500 font-medium">1</td>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-gray-800">{load.drop?.company || "—"}</p>
-                    <p className="text-xs text-gray-600">{load.drop?.address || ""}</p>
-                    <p className="text-xs text-gray-600">{[load.drop?.city, load.drop?.state, load.drop?.zip].filter(Boolean).join(", ")}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-100 text-blue-700 text-xs font-bold">
-                      {load.drop?.deliveryDate ? (
-                        <>
-                          {fmt(load.drop.deliveryDate)}
-                          <span className="mx-1.5 opacity-50">|</span>
-                          {load.drop.fromTime || "—"} To {load.drop.toTime || "—"}
-                        </>
-                      ) : "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-gray-700 font-medium">{load.drop?.apptNumber || "—"}</td>
-                  <td className="px-4 py-4 text-gray-700 font-medium">{load.drop?.apptGivenBy || "—"}</td>
-                </tr>
+                {drops.length === 0 && (
+                  <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-400 italic">No destination added yet</td></tr>
+                )}
+                {drops.map((d, idx) => (
+                  <tr key={idx} className="hover:bg-blue-50/20 transition-colors">
+                    <td className="px-4 py-4 text-gray-500 font-medium">{idx + 1}</td>
+                    <td className="px-4 py-4">
+                      <p className="font-bold text-gray-800">{d?.company || "—"}</p>
+                      <p className="text-xs text-gray-600">{d?.address || ""}</p>
+                      <p className="text-xs text-gray-600">{[d?.city, d?.state, d?.zip].filter(Boolean).join(", ")}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-100 text-blue-700 text-xs font-bold">
+                        {d?.deliveryDate ? (
+                          <>
+                            {fmt(d.deliveryDate)}
+                            <span className="mx-1.5 opacity-50">|</span>
+                            {d.fromTime || "—"} To {d.toTime || "—"}
+                          </>
+                        ) : "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-gray-700 font-medium">{d?.apptNumber || "—"}</td>
+                    <td className="px-4 py-4 text-gray-700 font-medium">{d?.apptGivenBy || "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

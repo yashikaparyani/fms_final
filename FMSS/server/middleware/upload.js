@@ -13,7 +13,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB per file
+    // Base64 signatures are sent as a text field; the busboy default is only
+    // 1MB which can truncate a high-res signature and blank it in the POD.
+    fieldSize: 15 * 1024 * 1024,
+  },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|pdf|doc|docx/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());

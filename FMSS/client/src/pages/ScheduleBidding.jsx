@@ -8,7 +8,9 @@ const EMPTY_FORM = {
   bidStartTime: "",
   bidEndTime: "",
   targetRate: "",
-  margin: "",
+  // Amount we pay the fleet owner (what the vendor sees). Margin is derived
+  // from this on submit: margin = targetRate - fleetOwnerAmount.
+  fleetOwnerAmount: "",
 };
 
 const toLocalDateTimeInput = (value) => {
@@ -44,7 +46,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
       bidStartTime: toLocalDateTimeInput(load.bidStartTime),
       bidEndTime: toLocalDateTimeInput(load.bidEndTime),
       targetRate: load.targetRate ?? load.amount ?? "",
-      margin: load.margin ?? "0",
+      fleetOwnerAmount: load.vendorRate ?? load.targetRate ?? load.amount ?? "",
     });
 
     const fetchLoadDetails = async () => {
@@ -60,7 +62,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
           bidStartTime: toLocalDateTimeInput(data.bidStartTime),
           bidEndTime: toLocalDateTimeInput(data.bidEndTime),
           targetRate: data.targetRate || data.amount || "",
-          margin: data.margin || "0",
+          fleetOwnerAmount: data.vendorRate ?? data.targetRate ?? data.amount ?? "",
         });
       } catch (err) {
         if (!isCurrentRequest) return;
@@ -108,11 +110,15 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
 
     setLoading(true);
     try {
+      // Keep the existing calculation: vendorRate = targetRate - margin.
+      // We collect the fleet-owner payout directly and derive the margin.
+      const targetRate = Number(formData.targetRate);
+      const fleetOwnerAmount = Number(formData.fleetOwnerAmount);
       await api.post(`/loads/${loadDetails.loadId}/schedule`, {
         bidStartTime: startTime.toISOString(),
         bidEndTime: endTime.toISOString(),
-        targetRate: Number(formData.targetRate),
-        margin: Number(formData.margin),
+        targetRate,
+        margin: targetRate - fleetOwnerAmount,
       });
       notify.success("Bidding scheduled! Fleet owners have been notified.");
       refreshLoads();
@@ -243,11 +249,11 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Margin ($)</label>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Fleet Owner Amount ($)</label>
                   <input
                     type="number"
-                    name="margin"
-                    value={formData.margin}
+                    name="fleetOwnerAmount"
+                    value={formData.fleetOwnerAmount}
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="0"
@@ -260,11 +266,11 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
             {/* Result Bar */}
             <div className="mt-5 p-3 bg-indigo-600 rounded-xl flex items-center justify-between shadow-lg shadow-indigo-200">
               <div className="text-white">
-                <span className="text-[9px] font-black uppercase opacity-80">Vendor Rate</span>
-                <p className="text-[10px] opacity-90 leading-tight">Displayed to fleet owners</p>
+                <span className="text-[9px] font-black uppercase opacity-80">Fleet Owner Gets</span>
+                <p className="text-[10px] opacity-90 leading-tight">Amount displayed to fleet owners</p>
               </div>
               <div className="text-xl font-black text-white tracking-tight">
-                ${(Number(formData.targetRate || 0) - Number(formData.margin || 0)).toLocaleString()}
+                ${Number(formData.fleetOwnerAmount || 0).toLocaleString()}
               </div>
             </div>
 

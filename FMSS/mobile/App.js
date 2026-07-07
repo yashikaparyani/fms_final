@@ -48,6 +48,17 @@ const statusOptions = [
   "DROP_IN_WAREHOUSE",
 ];
 
+// Forward-only progression order. A stage already reached can't be redone,
+// except PICKED_UP on a multi-origin load (one pickup per origin).
+const MAIN_ORDER = [
+  "ASSIGNED",
+  "READY_TO_PICKUP",
+  "PICKED_UP",
+  "IN_TRANSIT",
+  "REACHED_DESTINATION",
+  "DELIVERED",
+];
+
 const uploadableDocumentTypes = [
   "Bill Of Lading",
   "Scale Ticket",
@@ -320,7 +331,8 @@ function LoadCard({ load, children }) {
       </View>
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>{load.truckType || "Truck -"}</Text>
-        <Text style={styles.metaText}>{money(load.amount || load.vendorRate)}</Text>
+        {/* Show the fleet-owner payout (vendor rate), not the customer base rate. */}
+        <Text style={styles.metaText}>{money(load.vendorRate ?? load.amount)}</Text>
       </View>
       {children}
     </View>
@@ -584,6 +596,17 @@ function SignatureModal({ visible, onClose, onSigned }) {
               onClose();
             }}
             onEmpty={() => Alert.alert("Signature required", "Please sign before saving.")}
+            // Crop to the actual strokes so the exported PNG is a tight,
+            // roughly-landscape image instead of a giant portrait canvas
+            // (which shrinks to an invisible sliver in the POD).
+            trimWhitespace
+            imageType="image/png"
+            // Dark, bold strokes so the signature stays visible after it is
+            // scaled down into the small POD signature box.
+            penColor="#000000"
+            minWidth={2}
+            maxWidth={4}
+            dotSize={3}
             descriptionText="Receiver signature"
             webStyle={
               ".m-signature-pad { box-shadow: none; border: 0; } .m-signature-pad--body { border: 1px solid #d9e2ec; border-radius: 14px; }"
@@ -613,6 +636,20 @@ function TrackingScreen({ load: initialLoad, onBack }) {
   const pendingDeliveryStatusRef = useRef(null);
 
   const isTrackingActive = tracking?.status === "ACTIVE";
+
+  // ── One-way status progression + multi-origin pickup ─────────────────────
+  const originCount = load?.pickups?.length || 1;
+  const pickedUpCount = (load?.transportStatusHistory || []).filter(
+    (h) => h.status === "PICKED_UP",
+  ).length;
+  const canExtraPickup = originCount >= 2 && pickedUpCount < originCount;
+  const currentStatusIdx = MAIN_ORDER.indexOf(load?.transportStatus);
+  const isStatusLocked = (status) => {
+    const idx = MAIN_ORDER.indexOf(status);
+    if (idx === -1) return false; // side statuses always available
+    if (status === "PICKED_UP" && canExtraPickup) return false;
+    return idx <= currentStatusIdx;
+  };
 
   const fetchLoad = async () => {
     const res = await api.get(`/loads/${initialLoad.loadId}`);
@@ -742,6 +779,32 @@ function TrackingScreen({ load: initialLoad, onBack }) {
 
   const updateStatus = async (status, signatureOverride = signatureData) => {
     try {
+      // Forward-only: block moving back to an already-passed stage.
+      if (isStatusLocked(status)) {
+        Alert.alert(
+          "Not allowed",
+          `This load has already passed "${labelize(status)}". Status can't move backward.`,
+        );
+        return;
+      }
+
+      // Multi-origin pickup: confirm which origin this pickup is for.
+      if (status === "PICKED_UP" && canExtraPickup && pickedUpCount >= 1) {
+        const originNo = pickedUpCount + 1;
+        const confirmed = await new Promise((resolve) => {
+          Alert.alert(
+            "Confirm origin",
+            `Is this the pickup for origin #${originNo}?`,
+            [
+              { text: "No", style: "cancel", onPress: () => resolve(false) },
+              { text: "Yes", onPress: () => resolve(true) },
+            ],
+            { cancelable: false },
+          );
+        });
+        if (!confirmed) return;
+      }
+
       if (["PICKED_UP", "IN_TRANSIT"].includes(status) && !isTrackingActive) {
         Alert.alert("Start live tracking", "Live GPS sharing is compulsory from pickup.");
         return;
@@ -888,7 +951,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
                 key={status}
                 title={labelize(status)}
                 onPress={() => updateStatus(status)}
-                disabled={saving}
+                disabled={saving || isStatusLocked(status)}
                 style={styles.gridButton}
               />
             ))}

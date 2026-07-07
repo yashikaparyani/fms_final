@@ -116,6 +116,8 @@ const createLoad = async (req, res) => {
       hazmat,
       chassisRent,
       railContainer,
+      dryVan,
+      reefer,
       accChargesEmail,
       podEmail,
       deliveryEmail,
@@ -166,6 +168,8 @@ const createLoad = async (req, res) => {
       hazmat,
       chassisRent,
       railContainer,
+      dryVan,
+      reefer,
       accChargesEmail,
       podEmail,
       deliveryEmail,
@@ -543,9 +547,23 @@ const updateLoad = async (req, res) => {
       };
     }
 
+    // ── Multiple origins / destinations ─────────────────────────────────────
+    // Persist the full arrays and keep the legacy single pickup/drop in sync
+    // with the first element so existing displays keep working.
+    if (Array.isArray(req.body.pickups)) {
+      load.pickups = req.body.pickups;
+      if (req.body.pickups[0]) load.pickup = req.body.pickups[0];
+    }
+    if (Array.isArray(req.body.drops)) {
+      load.drops = req.body.drops;
+      if (req.body.drops[0]) load.drop = req.body.drops[0];
+    }
+
     // ── Address completeness flag ───────────────────────────────────────────
-    const pickupDone = load.pickup?.city && load.pickup?.address;
-    const dropDone = load.drop?.city && load.drop?.address;
+    const pickupList = load.pickups?.length ? load.pickups : [load.pickup];
+    const dropList = load.drops?.length ? load.drops : [load.drop];
+    const pickupDone = pickupList.some((p) => p?.city && p?.address);
+    const dropDone = dropList.some((d) => d?.city && d?.address);
     load.adressAdded = !!(pickupDone && dropDone);
 
     // ── Status transitions ──────────────────────────────────────────────────
@@ -809,12 +827,56 @@ const updateTransportStatus = async (req, res) => {
     }
 
     // ─────────────────────────────────────────────
-    // PREVENT DUPLICATE STATUS UPDATE
+    // ONE-WAY STATUS PROGRESSION
+    // A status can only move forward — never back to an earlier stage.
+    // Exception: a load with multiple origins may be marked PICKED_UP once
+    // per origin (the client asks the driver to confirm which origin).
     // ─────────────────────────────────────────────
-    if (load.transportStatus === transportStatus) {
+    const STATUS_ORDER = [
+      "ASSIGNED",
+      "READY_TO_PICKUP",
+      "PICKED_UP",
+      "IN_TRANSIT",
+      "REACHED_DESTINATION",
+      "DELIVERED",
+    ];
+
+    const originCount =
+      Array.isArray(load.pickups) && load.pickups.length
+        ? load.pickups.length
+        : 1;
+    const pickedUpCount = (load.transportStatusHistory || []).filter(
+      (h) => h.status === "PICKED_UP",
+    ).length;
+    const isExtraOriginPickup =
+      transportStatus === "PICKED_UP" &&
+      originCount >= 2 &&
+      pickedUpCount < originCount;
+
+    if (load.transportStatus === transportStatus && !isExtraOriginPickup) {
       return res.status(400).json({
         success: false,
         message: "Load is already in this status.",
+      });
+    }
+
+    const currentIdx = STATUS_ORDER.indexOf(load.transportStatus);
+    const nextIdx = STATUS_ORDER.indexOf(transportStatus);
+    if (
+      currentIdx !== -1 &&
+      nextIdx !== -1 &&
+      nextIdx < currentIdx &&
+      !isExtraOriginPickup
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot move status back to "${transportStatus.replace(
+          /_/g,
+          " ",
+        )}" — the load is already at "${load.transportStatus.replace(
+          /_/g,
+          " ",
+        )}".`,
       });
     }
 
@@ -1134,6 +1196,15 @@ const assignFleetOwner = async (req, res) => {
           "assignedFleetOwner.fleetOwnerName": fleetOwnerName,
           "assignedFleetOwner.assignedAt": new Date(),
           transportStatus: "ASSIGNED",
+          // Direct assignment bypasses bidding entirely. Neutralise the bid
+          // window so the cron never re-opens/closes it or mails a "bid won".
+          // A later re-bid (on reject/terminate) resets these via rebidLoad.
+          bidStatus: "CLOSED",
+        },
+        $unset: {
+          bidStartTime: "",
+          bidEndTime: "",
+          winningBid: "",
         },
       },
       { returnDocument: "after" },

@@ -7,7 +7,7 @@ import AppSelect from "../../components/AppSelect";
 import { notify } from "../../utils/swal";
 import ScheduleBidding from "../ScheduleBidding";
 
-const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, fmtDate, fmtDateTime } =
+const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, fmtDate } =
   LoadTable;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -222,6 +222,36 @@ const VerifiedLoadsTable = () => {
       header: "Destination",
       render: (row) => <AddressCell data={row.drop} />,
     },
+    {
+      key: "pickupDate",
+      header: "Pickup Date",
+      width: "110px",
+      render: (row) => (
+        <span className="text-xs text-gray-700">
+          {row.pickup?.pickupDate ? fmtDate(row.pickup.pickupDate) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "destDate",
+      header: "Dest. Date",
+      width: "110px",
+      render: (row) => (
+        <span className="text-xs text-gray-700">
+          {row.drop?.deliveryDate ? fmtDate(row.drop.deliveryDate) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "lfd",
+      header: "LFD",
+      width: "110px",
+      render: (row) => (
+        <span className="text-xs text-gray-700">
+          {row.lastFreeDate ? fmtDate(row.lastFreeDate) : "—"}
+        </span>
+      ),
+    },
   {
   key: "bidStatus",
   header: "Bid Status",
@@ -264,7 +294,7 @@ const VerifiedLoadsTable = () => {
     {
       key: "actions",
       header: "Actions",
-      width: "280px", // 👈 fixed width here
+      width: "320px", // 👈 fixed width here
       render: (row) => <>{desktopActions(row)}</>,
     },
   ];
@@ -287,16 +317,6 @@ const VerifiedLoadsTable = () => {
 
     return (
       <div className="flex items-center gap-2 justify-center">
-        {/* Assign Button */}
-        {/* <button
-          onClick={() => setOpenRow(row.loadId)}
-          className={`${
-            assignedName ? "btn-secondary-small" : "btn-primary-small"
-          }`}
-        >
-          {assignedName ? "Reassign" : "Assign Load"}
-        </button> */}
-
         {/* ✅ Schedule Bid Button */}
         <button
           onClick={() => {
@@ -306,6 +326,14 @@ const VerifiedLoadsTable = () => {
           className="btn-primary-small"
         >
           {row.bidStartTime ? "Reschedule Bid" : "Schedule Bid"}
+        </button>
+
+        {/* ✅ Direct Assign (no bidding) */}
+        <button
+          onClick={() => setOpenRow(row.loadId)}
+          className="btn-secondary-small"
+        >
+          {assignedName ? "Reassign" : "Assign Driver"}
         </button>
       </div>
     );
@@ -339,14 +367,12 @@ const VerifiedLoadsTable = () => {
                 fields={[
                   { label: "Truck Type", value: row.truckType },
                   { label: "Container #", value: row.containerNo },
+                  { label: "Pickup Date", value: row.pickup?.pickupDate ? fmtDate(row.pickup.pickupDate) : "—" },
+                  { label: "Dest. Date", value: row.drop?.deliveryDate ? fmtDate(row.drop.deliveryDate) : "—" },
+                  { label: "LFD", value: row.lastFreeDate ? fmtDate(row.lastFreeDate) : "—" },
                   { label: "Carrier", value: assignedName || "Not assigned" },
                 ]}
                 actions={[
-                  // {
-                  //   label: assignedName ? "Reassign" : "Assign Load",
-                  //   color: assignedName ? "#f59e0b" : "#2563eb",
-                  //   onClick: () => setOpenRow(row.loadId),
-                  // },
                   {
                     label: row.bidStartTime ? "Reschedule Bid" : "Schedule Bid",
                     color: "#16a34a",
@@ -354,6 +380,11 @@ const VerifiedLoadsTable = () => {
                       setSelectedLoad(row);
                       setScheduleOpen(true);
                     },
+                  },
+                  {
+                    label: assignedName ? "Reassign" : "Assign Driver",
+                    color: "#2563eb",
+                    onClick: () => setOpenRow(row.loadId),
                   },
                 ]}
                 // actions={

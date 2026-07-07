@@ -25,10 +25,19 @@ const LoadHeader = ({
   load,
   userRole,
   onUpdateStatus,
+  onEditLoad,
+  onRebid,
   searchId,
   setSearchId,
   handleSearch,
-}) => (
+}) => {
+  // Admin/staff can edit any load; clients only before it's verified.
+  const canEditLoad =
+    ["admin", "staff"].includes(userRole) ||
+    (userRole === "client" &&
+      ["DRAFT", "PENDING_VERIFICATION", "REQUIRES_CHANGES"].includes(load.status));
+
+  return (
   <Card>
     {/* ───────────────── HEADER ───────────────── */}
     <div className="p-4 md:p-6 space-y-4">
@@ -61,6 +70,16 @@ const LoadHeader = ({
             value={load.transportStatus}
             map={TRANSPORT_STATUS_COLOR}
           />
+
+          {canEditLoad && (
+            <button
+              onClick={onEditLoad}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-indigo-600 border border-indigo-600 rounded-lg text-white hover:bg-indigo-700 transition"
+            >
+              <EditIcon fontSize="inherit" />
+              Edit Load
+            </button>
+          )}
 
           {["staff", "admin"].includes(userRole) && (
             <div className="flex gap-2">
@@ -99,6 +118,7 @@ const LoadHeader = ({
       <MetaBadge label="Last Updated" value={fmtFull(load.updatedAt)} />
     </div>
   </Card>
-);
+  );
+};
 
 export default LoadHeader;
