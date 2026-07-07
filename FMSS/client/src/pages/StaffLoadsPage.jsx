@@ -14,12 +14,17 @@ const StaffLoadsPage = () => {
   const [loading, setLoading] = useState(true);
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const role = JSON.parse(localStorage.getItem("user") || "{}")?.role || "staff";
+  const dateParam = params.get("date"); // YYYY-MM-DD — filter to a single day
   const transportStatus = params.get("transportStatus") || "LOAD_PLANNER";
+  // When filtering by a specific day, pull every load and narrow client-side.
+  const fetchStatus = dateParam ? "All" : transportStatus;
 
   useEffect(() => {
     const fetchLoads = async () => {
       try {
-        const res = await api.get(`/loads?transportStatus=${transportStatus}`);
+        setLoading(true);
+        const res = await api.get(`/loads?transportStatus=${fetchStatus}`);
         setRows(res.data);
       } catch (err) {
         console.error(err);
@@ -28,7 +33,16 @@ const StaffLoadsPage = () => {
       }
     };
     fetchLoads();
-  }, [transportStatus]);
+  }, [fetchStatus]);
+
+  // Local YYYY-MM-DD for a load's creation date.
+  const toLocalDate = (v) => {
+    if (!v) return null;
+    const d = new Date(v);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+  };
 
   const transportStatusOptions = [
     {key:"All", label:"All"},
@@ -107,15 +121,15 @@ const StaffLoadsPage = () => {
       <button
         onClick={() =>
           row.transportStatus === "LOAD_PLANNER"
-            ? navigate(`/staff/load/status/${row.loadId}`)
-            : navigate(`/staff/load/${row.loadId}`)
+            ? navigate(`/${role}/load/status/${row.loadId}`)
+            : navigate(`/${role}/load/${row.loadId}`)
         }
         className="btn-primary text-xs py-1"
       >
         {row.transportStatus === "LOAD_PLANNER" ? "Plan Load" : "Update Status"}
       </button>
       <button
-        onClick={() => navigate(`/staff/track-load/${row.loadId}`)}
+        onClick={() => navigate(`/${role}/track-load/${row.loadId}`)}
         className="btn-secondary text-xs py-1"
       >
         Track
@@ -123,18 +137,23 @@ const StaffLoadsPage = () => {
     </div>
   );
 
-  const filteredRows = rows.filter((r) => r.status !== "REQUIRES_CHANGES");
+  let filteredRows = rows.filter((r) => r.status !== "REQUIRES_CHANGES");
+  if (dateParam) {
+    filteredRows = filteredRows.filter((r) => toLocalDate(r.createdAt) === dateParam);
+  }
 
   return (
     <div className={uiStyles.page}>
       {/* Header */}
       <div className={`${uiStyles.cardHeader} flex-col md:flex-row gap-2`}>
         <h2 className="h4 text-gray-500">
-          Load Status For — {transportStatus.replace(/_/g, " ")}
+          {dateParam
+            ? `Loads for ${new Date(dateParam + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}`
+            : `Load Status For — ${transportStatus.replace(/_/g, " ")}`}
         </h2>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-300 ">
+        {/* Tabs (hidden when viewing a specific day) */}
+        <div className={`border-b border-gray-300 ${dateParam ? "hidden" : ""}`}>
           <div className="hidden xl:block ">
             {transportStatusOptions.map((tab) => {
               const isActive = transportStatus === tab.key;
@@ -212,14 +231,14 @@ const StaffLoadsPage = () => {
                   variant: "solid",
                   onClick: () =>
                     row.transportStatus === "LOAD_PLANNER"
-                      ? navigate(`/staff/load/status/${row.loadId}`)
-                      : navigate(`/staff/load/${row.loadId}`),
+                      ? navigate(`/${role}/load/status/${row.loadId}`)
+                      : navigate(`/${role}/load/${row.loadId}`),
                 },
                 {
                   label: "Track",
                   color: "#4338ca",
                   variant: "outline",
-                  onClick: () => navigate(`/staff/track-load/${row.loadId}`),
+                  onClick: () => navigate(`/${role}/track-load/${row.loadId}`),
                 },
               ]}
             />

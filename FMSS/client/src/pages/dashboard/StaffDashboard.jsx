@@ -28,6 +28,7 @@ const StaffDashboard = () => {
   const [weeklyStats, setWeeklyStats] = useState([]); 
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const role = JSON.parse(localStorage.getItem("user") || "{}")?.role || "staff";
 
 useEffect(() => {
   const fetchStats = async () => {
@@ -282,7 +283,15 @@ useEffect(() => {
 
         <div className={uiStyles.weekleyGrid}>
           {weeklyStats.map((col) => (
-            <WeeklySummaryCard key={col.weekDay} stats={col} />
+            <WeeklySummaryCard
+              key={col.weekDay}
+              stats={col}
+              onClick={
+                col.date
+                  ? () => navigate(`/${role}/loads?date=${col.date}`)
+                  : undefined
+              }
+            />
           ))}
         </div>
       </div>

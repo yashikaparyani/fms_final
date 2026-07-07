@@ -66,10 +66,15 @@ export const SummaryCard = ({ stats = [] }) => {
   );
 };
 
-export const WeeklySummaryCard = ({ stats }) => {
+export const WeeklySummaryCard = ({ stats, onClick }) => {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition">
-      
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition ${
+        onClick ? "cursor-pointer hover:border-indigo-300" : ""
+      }`}
+    >
+
       {/* Day */}
       <div className="text-sm text-gray-500 mb-3 font-medium text-center">
         {stats.weekDay}
