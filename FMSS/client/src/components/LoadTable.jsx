@@ -27,9 +27,9 @@ const statusRowColor = {
 
 const defaultRowColor = { bg: "#ffffff", border: "#e5e7eb" };
 
-const getRowColor = (load, colorBy) => {
+const getRowColor = (load, colorBy, colorMap) => {
   const val = load[colorBy];
-  return statusRowColor[val] || defaultRowColor;
+  return (colorMap || statusRowColor)[val] || defaultRowColor;
 };
 
 // ── Formatters ───────────────────────────────────────────────
@@ -55,7 +55,17 @@ const fmtDateTime = (v) => {
   });
 };
 
-const isExpired = (v) => v && new Date(v) < new Date();
+// Compare calendar days, not instants: a date stored at midnight would
+// otherwise read as expired for the whole of the day it actually falls on.
+const isExpired = (v) => {
+  if (!v) return false;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return false;
+  d.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return d < today;
+};
 
 // ── Address Cell ─────────────────────────────────────────────
 const AddressCell = ({ data, label }) => {
@@ -214,6 +224,9 @@ const LoadTable = ({
   columns,
   actions,
   colorBy = "transportStatus",
+  // Optional { [value]: { bg, border } } map, letting a caller tint rows by
+  // something other than a status (e.g. an urgency bucket).
+  colorMap,
   loading = false,
   pageSize = 10,
   emptyMessage = "No loads found.",
@@ -300,7 +313,7 @@ const LoadTable = ({
               </thead>
               <tbody>
                 {paginatedLoads.map((load, idx) => {
-                  const rowColor = getRowColor(load, colorBy);
+                  const rowColor = getRowColor(load, colorBy, colorMap);
                   return (
                     <tr
                       key={load.loadId || load._id}

@@ -554,7 +554,10 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
             <div className={`${uiStyles.grid2} mt-3`}>
               <div className="relative">
                 <input type="date" className={uiStyles.input} value={data[isPickup ? 'pickupDate' : 'deliveryDate'] ? (new Date(data[isPickup ? 'pickupDate' : 'deliveryDate']).toISOString().slice(0,10)) : ''} onChange={(e) => set(isPickup ? 'pickupDate' : 'deliveryDate', e.target.value)} disabled={loading} />
-                <label className="input-label">{isPickup ? 'Pickup Date' : 'Delivery Date'}</label>
+                <label className="input-label">
+                  {isPickup ? 'Pickup Date' : 'Delivery Date'}
+                  {isPickup && <span className="text-red-500 font-bold"> *</span>}
+                </label>
               </div>
               <div className="relative">
                 <input type="time" className={uiStyles.input} value={data.fromTime || ''} onChange={(e) => set('fromTime', e.target.value)} disabled={loading} />
@@ -606,6 +609,7 @@ const LoadForm = () => {
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState([]);     // for Step 1 customer dropdown
   const [allCompanies, setAllCompanies] = useState([]); // shared across both StopForms
+  const [shippingLines, setShippingLines] = useState([]); // shipping line master
   const [savedLoadId, setSavedLoadId] = useState(null);
   const [savedLoadLabel, setSavedLoadLabel] = useState(null);
 
@@ -646,7 +650,17 @@ const LoadForm = () => {
     }
     // Steps 2 & 3: load companies master
     api.get("/companies").then((res) => setAllCompanies(res.data)).catch(() => {});
+    // Step 1: shipping line master (admins maintain it under /admin/shipping-lines)
+    api
+      .get("/shipping-lines", { params: { active: true } })
+      .then((res) => setShippingLines(res.data))
+      .catch(() => {});
   }, [role, setValue]);
+
+  const shippingLineOptions = shippingLines.map((l) => ({
+    value: l.name,
+    label: l.code ? `${l.name} (${l.code})` : l.name,
+  }));
 
   // ΓöÇΓöÇ Step 1 Submit ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const onStep1Submit = async (data, status = "PENDING_VERIFICATION") => {
@@ -676,6 +690,10 @@ const LoadForm = () => {
     }
     if (!pickup.selectedAddressId) {
       toast.error("Please select an address for the pickup location");
+      return;
+    }
+    if (!pickup.pickupDate) {
+      toast.error("Pickup date is required");
       return;
     }
     setLoading(true);
@@ -909,7 +927,33 @@ const LoadForm = () => {
                 {[
                   { name: "bookingNo",   label: "Booking #"     },
                   { name: "orderBillDate", label: "Order Bill Date", type: "date" },
-                  { name: "shippingLine", label: "Shipping Line" },
+                ].map(({ name, label, type }) => (
+                  <div key={name} className="relative">
+                    <input type={type || "text"} className={uiStyles.input} placeholder={type ? undefined : label} {...register(name)} disabled={loading} />
+                    <label className="input-label">{label}</label>
+                  </div>
+                ))}
+
+                <div className="relative">
+                  <Controller
+                    name="shippingLine"
+                    control={control}
+                    render={({ field }) => (
+                      <AppSelect
+                        options={shippingLineOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={shippingLineOptions.length ? "Select..." : "No shipping lines yet"}
+                        noOptionsMessage={() => "No shipping lines. Add them under Admin → Shipping Lines."}
+                        isClearable
+                        isDisabled={loading}
+                      />
+                    )}
+                  />
+                  <label className="input-label">Shipping Line</label>
+                </div>
+
+                {[
                   { name: "containerNo", label: "Container #"   },
                   { name: "pickupNo",    label: "Pickup #"      },
                   { name: "sealNo",      label: "Seal #"        },

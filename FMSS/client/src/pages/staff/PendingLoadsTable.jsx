@@ -1,9 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import Swal from "sweetalert2";
 import { notify } from "../../utils/swal";
+import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import {
+  URGENCY_COLORS,
+  URGENCY_LABEL,
+  dropDateOf,
+  isLfdAlarming,
+  pickupDateOf,
+  sortByUrgency,
+} from "../../utils/loadUrgency";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell } = LoadTable;
 
@@ -26,6 +35,8 @@ const PendingLoadsTable = () => {
     };
     fetchLoads();
   }, []);
+
+  const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
 
   const verifyLoad = async (id) => {
     const result = await Swal.fire({
@@ -110,15 +121,18 @@ const PendingLoadsTable = () => {
 
   // ── Desktop columns ──────────────────────────────────────────
 const columns = [
-  { key: "load",         header: "Load",          width: "10%", render: (row) => <LoadIdCell load={row} /> },
-  { key: "customer",     header: "Customer",      width: "12%", render: (row) => <CustomerCell load={row} /> },
-  { key: "origin",       header: "Origin",        width: "16%", render: (row) => <AddressCell data={row.pickup} /> },
-  { key: "pickupNo",     header: "Pickup #",      width: "8%",  render: (row) => <span className="text-xs font-medium text-gray-700">{row.pickupNo || "—"}</span> },
-  { key: "destination",  header: "Destination",   width: "16%", render: (row) => <AddressCell data={row.drop} /> },
-  { key: "truckType",    header: "Truck Type",    width: "8%",  render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
-  { key: "refNo",        header: "Ref No",        width: "8%",  render: (row) => <span className="text-xs text-gray-700">{row.refNo || "—"}</span> },
-  { key: "lastFreeDate", header: "Last Free Date",width: "8%",  render: (row) => <DateCell value={row.lastFreeDate} showExpiry /> },
-  { key: "orderDate",    header: "Order Date",    width: "8%",  render: (row) => <DateCell value={row.orderBillDate} /> },
+  { key: "load",         header: "Load",          width: "9%",  render: (row) => <LoadIdCell load={row} /> },
+  { key: "priority",     header: "Priority",      width: "7%",  render: (row) => <UrgencyBadge urgency={row.urgency} /> },
+  { key: "customer",     header: "Customer",      width: "10%", render: (row) => <CustomerCell load={row} /> },
+  { key: "origin",       header: "Origin",        width: "14%", render: (row) => <AddressCell data={row.pickup} /> },
+  { key: "pickupDate",   header: "Pickup Date",   width: "8%",  render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
+  { key: "pickupNo",     header: "Pickup #",      width: "7%",  render: (row) => <span className="text-xs font-medium text-gray-700">{row.pickupNo || "—"}</span> },
+  { key: "destination",  header: "Destination",   width: "14%", render: (row) => <AddressCell data={row.drop} /> },
+  { key: "deliveryDate", header: "Delivery Date", width: "8%",  render: (row) => <DateCell value={dropDateOf(row)} /> },
+  { key: "truckType",    header: "Truck Type",    width: "7%",  render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
+  { key: "refNo",        header: "Ref No",        width: "6%",  render: (row) => <span className="text-xs text-gray-700">{row.refNo || "—"}</span> },
+  { key: "lastFreeDate", header: "Last Free Date",width: "8%",  render: (row) => <LfdCell row={row} /> },
+  { key: "orderDate",    header: "Order Date",    width: "6%",  render: (row) => <DateCell value={row.orderBillDate} /> },
   {
     key: "actions",
     header: "Actions",
@@ -138,31 +152,45 @@ const columns = [
     <div className="p-4 md:p-5">
       <div className="mb-4">
         <h2 className="text-lg font-bold text-gray-900">Pending Loads</h2>
-        <p className="text-sm text-gray-500">Loads awaiting verification</p>
+        <p className="text-sm text-gray-500">
+          Loads awaiting verification, most urgent pickup first
+        </p>
+
+        <UrgencyLegend />
       </div>
 
       {/* 📱 Mobile */}
       <div className="block xl:hidden space-y-3">
         {loading ? (
           <p className="text-center text-gray-500 py-10">Loading...</p>
-        ) : rows.length > 0 ? (
-          rows.map((row) => (
+        ) : sortedRows.length > 0 ? (
+          sortedRows.map((row) => (
             <MobileCard
               key={row.loadId}
-              statusKey="PENDING_VERIFICATION"
+              colorStyle={{
+                ...URGENCY_COLORS[row.urgency],
+                badge: { bg: "#fef3c7", text: "#92400e" },
+              }}
               title={row.loadId}
               subtitle={row.customerName || "—"}
-              badge={{ label: "⏳ Pending" }}
+              badge={{ label: URGENCY_LABEL[row.urgency].text }}
               locations={[
                 { label: "Origin",      data: row.pickup },
                 { label: "Destination", data: row.drop },
               ]}
               fields={[
-                { label: "Pickup #",       value: row.pickupNo },
-                { label: "Truck Type",     value: row.truckType },
-                { label: "Ref No",         value: row.refNo },
-                { label: "Last Free Date", value: fmtDate(row.lastFreeDate) },
-                { label: "Order Date",     value: fmtDate(row.orderBillDate) },
+                { label: "Pickup Date",   value: fmtDate(pickupDateOf(row)) },
+                { label: "Delivery Date", value: fmtDate(dropDateOf(row)) },
+                { label: "Pickup #",      value: row.pickupNo },
+                { label: "Truck Type",    value: row.truckType },
+                { label: "Ref No",        value: row.refNo },
+                {
+                  label: "Last Free Date",
+                  value: row.lastFreeDate
+                    ? `${fmtDate(row.lastFreeDate)}${isLfdAlarming(row) ? " 💡" : ""}`
+                    : null,
+                },
+                { label: "Order Date",   value: fmtDate(row.orderBillDate) },
               ]}
               actions={[
                 { label: "✓ Verify",          color: "#16a34a", onClick: () => verifyLoad(row.loadId) },
@@ -178,10 +206,11 @@ const columns = [
       {/* 💻 Desktop */}
       <div className="hidden xl:block">
         <LoadTable
-          loads={rows}
+          loads={sortedRows}
           columns={columns}
           //actions={actions}
-          colorBy="status"
+          colorBy="urgency"
+          colorMap={URGENCY_COLORS}
           loading={loading}
           emptyMessage="No pending loads found."
         />

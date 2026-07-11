@@ -20,6 +20,7 @@ import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import DirectionsBoatOutlinedIcon from "@mui/icons-material/DirectionsBoatOutlined";
 
 export const navItems = [
   {
@@ -154,5 +155,12 @@ export const navItems = [
     path: "reports",
     icon: AssessmentOutlinedIcon,
     visible: ["staff", "admin"],
+  },
+  {
+    label: "Shipping Lines",
+    path: "shipping-lines",
+    icon: DirectionsBoatOutlinedIcon,
+    visible: ["admin"],
+    description: "Manage the shipping line master",
   },
 ];

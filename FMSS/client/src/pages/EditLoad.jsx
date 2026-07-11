@@ -85,25 +85,50 @@ const StepIndicator = ({ step }) => {
 
 // ─── Stop Form (Pickup / Drop) ────────────────────────────────────────────────
 const emptyStop = {
-  company: "", address: "", city: "", state: "", zip: "",
+  company: "", address: "", city: "", state: "", zip: "", pickupDate: "", deliveryDate: "",
 };
 
-// Keep only the editable stop fields (drops server-generated _id, dates, etc.)
+// An <input type="date"> needs a bare YYYY-MM-DD; the API hands back an ISO
+// timestamp. Read the local calendar parts rather than slicing the ISO string,
+// so the date shown here matches the one the tables render via toLocaleDateString.
+const toDateInput = (v) => {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+// Keep only the editable stop fields (drops the server-generated _id).
+// The dates must survive this round-trip: the update controller replaces
+// `pickups`/`drops` wholesale, so anything omitted here is erased on save.
 const normalizeStop = (s = {}) => ({
   company: s.company || "",
   address: s.address || "",
   city:    s.city    || "",
   state:   s.state   || "",
   zip:     s.zip     || "",
+  pickupDate:   toDateInput(s.pickupDate),
+  deliveryDate: toDateInput(s.deliveryDate),
 });
 
-const StopForm = ({ data, onChange, loading }) => {
+// Shape a stop for the API. Only the date that belongs to this kind of stop is
+// sent, and a blank one goes as null — Mongoose cannot cast "" to a Date.
+const toStopPayload = (isPickup) => (s) => {
+  const { pickupDate, deliveryDate, ...rest } = s;
+  const date = isPickup ? pickupDate : deliveryDate;
+  return { ...rest, [isPickup ? "pickupDate" : "deliveryDate"]: date || null };
+};
+
+const StopForm = ({ data, onChange, loading, isPickup }) => {
   const set = (field, value) => onChange({ ...data, [field]: value });
 
   // ── Location cascade via AddressFields ───────────────────────────────────────
   const handleAddressChange = ({ state, city, zip }) => {
     onChange({ ...data, state, city, zip });
   };
+
+  const dateField = isPickup ? "pickupDate" : "deliveryDate";
 
   return (
     <div className="space-y-4">
@@ -126,12 +151,26 @@ const StopForm = ({ data, onChange, loading }) => {
         disabled={loading}
         required
       />
+
+      <div className="relative">
+        <input
+          type="date"
+          className={uiStyles.input}
+          value={data[dateField] || ""}
+          onChange={(e) => set(dateField, e.target.value)}
+          disabled={loading}
+        />
+        <label className="input-label">
+          {isPickup ? "Pickup Date" : "Delivery Date"}
+          {isPickup && <span className="text-red-400"> *</span>}
+        </label>
+      </div>
     </div>
   );
 };
 
 // ─── Repeatable list of stops (origins / destinations) ───────────────────────
-const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, removeStop }) => (
+const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, removeStop, isPickup }) => (
   <div className="space-y-4">
     {stops.map((s, idx) => (
       <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
@@ -148,7 +187,7 @@ const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, rem
             </button>
           )}
         </div>
-        <StopForm data={s} onChange={(next) => updateStop(stops, setStops, idx, next)} loading={loading} />
+        <StopForm data={s} onChange={(next) => updateStop(stops, setStops, idx, next)} loading={loading} isPickup={isPickup} />
       </div>
     ))}
     <button
@@ -228,6 +267,7 @@ const EditLoad = () => {
   const [loadStatus,  setLoadStatus]  = useState("");
   const [changesNote, setChangesNote] = useState("");
   const [customers,   setCustomers]   = useState([]);
+  const [shippingLines, setShippingLines] = useState([]);
   const [pickups,     setPickups]     = useState([{ ...emptyStop }]);
   const [drops,       setDrops]       = useState([{ ...emptyStop }]);
 
@@ -257,6 +297,7 @@ const EditLoad = () => {
   });
 
   const deliveryType = watch("deliveryType");
+  const shippingLine = watch("shippingLine");
 
   // ── Error helper ────────────────────────────────────────────────────────
   const inputErrorClass = `${uiStyles.input} ${uiStyles.inputError}`;
@@ -268,6 +309,27 @@ const EditLoad = () => {
       api.get("/customers").then((res) => setCustomers(res.data)).catch(() => {});
     }
   }, [role]);
+
+  // ── Fetch shipping line master ───────────────────────────────────────────
+  useEffect(() => {
+    api
+      .get("/shipping-lines", { params: { active: true } })
+      .then((res) => setShippingLines(res.data))
+      .catch(() => {});
+  }, []);
+
+  // A load saved before this master existed (or whose line was since removed or
+  // deactivated) keeps its value as an extra option, so editing never blanks it.
+  const shippingLineOptions = (() => {
+    const options = shippingLines.map((l) => ({
+      value: l.name,
+      label: l.code ? `${l.name} (${l.code})` : l.name,
+    }));
+    if (shippingLine && !options.some((o) => o.value === shippingLine)) {
+      options.unshift({ value: shippingLine, label: `${shippingLine} (not in master)` });
+    }
+    return options;
+  })();
 
   // ── Fetch & pre-populate ─────────────────────────────────────────────────
   useEffect(() => {
@@ -357,10 +419,14 @@ const EditLoad = () => {
       toast.error("Please fill all required fields (Address, City, State, Zip) for every origin");
       return;
     }
+    if (pickups.some((p) => !p.pickupDate)) {
+      toast.error("Pickup date is required for every origin");
+      return;
+    }
     setSubmitting(true);
     try {
       await api.put(`/loads/${loadId}`, {
-        pickups: pickups.map(normalizeStop),
+        pickups: pickups.map(toStopPayload(true)),
       });
       toast.success("Origins saved! Now review the destinations.");
       setStep(3);
@@ -380,7 +446,7 @@ const EditLoad = () => {
     setSubmitting(true);
     try {
       await api.put(`/loads/${loadId}`, {
-        drops: drops.map(normalizeStop),
+        drops: drops.map(toStopPayload(false)),
       });
       const isInternal = role === "admin" || role === "staff";
       toast.success(
@@ -595,7 +661,21 @@ const EditLoad = () => {
 
                 {/* Shipping Line */}
                 <div className="relative">
-                  <input className={uiStyles.input} placeholder="Shipping Line" {...register("shippingLine")} disabled={submitting} />
+                  <Controller
+                    name="shippingLine"
+                    control={control}
+                    render={({ field }) => (
+                      <AppSelect
+                        options={shippingLineOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={shippingLineOptions.length ? "Select..." : "No shipping lines yet"}
+                        noOptionsMessage={() => "No shipping lines. Add them under Admin → Shipping Lines."}
+                        isClearable
+                        isDisabled={submitting}
+                      />
+                    )}
+                  />
                   <label className="input-label">Shipping Line</label>
                 </div>
 
@@ -702,6 +782,7 @@ const EditLoad = () => {
                 updateStop={updateStop}
                 addStop={addStop}
                 removeStop={removeStop}
+                isPickup
               />
 
               <StepFooter

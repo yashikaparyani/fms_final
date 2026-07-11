@@ -45,6 +45,7 @@ import WonBids from "./pages/fleetOwner/WonBids";
 import MyBids from "./pages/fleetOwner/MyBids";
 import ReportsPage from "./pages/staff/ReportsPage";
 import Bids from "./pages/Bids";
+import ShippingLines from "./pages/admin/ShippingLines";
 import Seo from "./components/Seo";
 
 function App() {
@@ -97,6 +98,7 @@ function App() {
         >
           <Route path="dashboard" element={<StaffDashboard />} />
           <Route path="analytics" element={<h1>Analytics Page</h1>} />
+          <Route path="shipping-lines" element={<ShippingLines />} />
           <Route path="customers/:id/edit" element={<EditCustomerPage />} />
           <Route
             path="fleet-owners/:id/edit"

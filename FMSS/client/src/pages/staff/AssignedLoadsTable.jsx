@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import Swal from "sweetalert2";
 import AppSelect from "../../components/AppSelect";
 import { notify } from "../../utils/swal";
+import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import {
+  URGENCY_COLORS,
+  URGENCY_LABEL,
+  dropDateOf,
+  isLfdAlarming,
+  pickupDateOf,
+  sortByUrgency,
+} from "../../utils/loadUrgency";
 
-const { LoadIdCell, CustomerCell, AddressCell, StatusBadge } = LoadTable;
+const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, DateCell, fmtDate } = LoadTable;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getAssignedName = (load, fleetOwners) => {
@@ -107,6 +116,8 @@ const AssignedLoadsTable = () => {
   const [openRow, setOpenRow]         = useState(null);
   const [saving, setSaving]           = useState(false);
 
+  const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
+
   const fetchLoads = async () => {
     setLoading(true);
     try {
@@ -162,12 +173,16 @@ const AssignedLoadsTable = () => {
 
   // ── Desktop columns ──────────────────────────────────────────
   const columns = [
-    { key: "load",        header: "Load",                width: "130px", render: (row) => <LoadIdCell load={row} /> },
-    { key: "customer",    header: "Customer",            width: "150px", render: (row) => <CustomerCell load={row} /> },
-    { key: "origin",      header: "Origin",                              render: (row) => <AddressCell data={row.pickup} /> },
-    { key: "destination", header: "Destination",                         render: (row) => <AddressCell data={row.drop} /> },
-    { key: "bidStatus",   header: "Bid Status",          width: "110px", render: (row) => <StatusBadge value={row.bidStatus} /> },
-    { key: "carrier",     header: "Carrier / Assignment", width: "200px", render: (row) => <CarrierCell load={row} fleetOwners={fleetOwners} /> },
+    { key: "load",         header: "Load",                width: "130px", render: (row) => <LoadIdCell load={row} /> },
+    { key: "priority",     header: "Priority",            width: "90px",  render: (row) => <UrgencyBadge urgency={row.urgency} /> },
+    { key: "customer",     header: "Customer",            width: "150px", render: (row) => <CustomerCell load={row} /> },
+    { key: "origin",       header: "Origin",                              render: (row) => <AddressCell data={row.pickup} /> },
+    { key: "pickupDate",   header: "Pickup Date",         width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
+    { key: "destination",  header: "Destination",                         render: (row) => <AddressCell data={row.drop} /> },
+    { key: "deliveryDate", header: "Delivery Date",       width: "110px", render: (row) => <DateCell value={dropDateOf(row)} /> },
+    { key: "lfd",          header: "Last Free Date",      width: "120px", render: (row) => <LfdCell row={row} /> },
+    { key: "bidStatus",    header: "Bid Status",          width: "110px", render: (row) => <StatusBadge value={row.bidStatus} /> },
+    { key: "carrier",      header: "Carrier / Assignment", width: "200px", render: (row) => <CarrierCell load={row} fleetOwners={fleetOwners} /> },
       {
     key: "actions",
     header: "Actions",
@@ -205,28 +220,48 @@ const AssignedLoadsTable = () => {
 
   return (
     <div className="p-4 md:p-5">
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-gray-900">All Transit</h2>
+        <p className="text-sm text-gray-500">
+          Loads assigned to carriers, most urgent pickup first
+        </p>
+        <UrgencyLegend />
+      </div>
+
       {/* 📱 Mobile */}
       <div className="block xl:hidden space-y-3">
         {loading ? (
           <p className="text-center text-gray-500 py-10">Loading...</p>
-        ) : rows.length > 0 ? (
-          rows.map((row) => {
+        ) : sortedRows.length > 0 ? (
+          sortedRows.map((row) => {
             const assignedName = getAssignedName(row, fleetOwners);
             const isOpen = openRow === row.loadId;
             return (
               <MobileCard
                 key={row.loadId}
-                statusKey={row.transportStatus || "VERIFIED"}
+                colorStyle={{
+                  ...URGENCY_COLORS[row.urgency],
+                  badge: { bg: "#e0e7ff", text: "#3730a3" },
+                }}
                 title={row.loadId}
                 subtitle={row.customerName || "—"}
-                badge={row.bidStatus ? { label: row.bidStatus.replace(/_/g, " ") } : undefined}
+                badge={{ label: URGENCY_LABEL[row.urgency].text }}
                 locations={[
                   { label: "Origin",      data: row.pickup },
                   { label: "Destination", data: row.drop },
                 ]}
                 fields={[
+                  { label: "Pickup Date",   value: fmtDate(pickupDateOf(row)) },
+                  { label: "Delivery Date", value: fmtDate(dropDateOf(row)) },
+                  {
+                    label: "Last Free Date",
+                    value: row.lastFreeDate
+                      ? `${fmtDate(row.lastFreeDate)}${isLfdAlarming(row) ? " 💡" : ""}`
+                      : null,
+                  },
                   { label: "Truck Type",  value: row.truckType },
                   { label: "Container #", value: row.containerNo },
+                  { label: "Bid Status",  value: row.bidStatus?.replace(/_/g, " ") },
                   { label: "Carrier",     value: assignedName || "Not assigned" },
                 ]}
                 actions={
@@ -248,20 +283,20 @@ const AssignedLoadsTable = () => {
             );
           })
         ) : (
-          <p className="text-center text-gray-500 py-10">No assigned loads found.</p>
+          <p className="text-center text-gray-500 py-10">No loads in transit.</p>
         )}
       </div>
 
       {/* 💻 Desktop */}
       <div className="hidden xl:block">
         <LoadTable
-          loads={rows}
+          loads={sortedRows}
           columns={columns}
           //actions={desktopActions}
-          colorBy="transportStatus"
+          colorBy="urgency"
+          colorMap={URGENCY_COLORS}
           loading={loading}
-          title="Assigned Loads"
-          emptyMessage="No assigned loads found."
+          emptyMessage="No loads in transit."
         />
       </div>
     </div>

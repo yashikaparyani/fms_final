@@ -26,6 +26,7 @@ const addressRoutes = require("./routes/addressRoutes");
 const notificationRoutes = require("./routes/notificationRoute");
 const locationRoutes = require("./routes/locationRoutes");
 const trackingRoutes = require("./routes/trackingRoutes");
+const shippingLineRoutes = require("./routes/shippingLineRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const startCronJobs = require("./utils/cron");
 
@@ -80,6 +81,7 @@ app.use("/api/addresses", addressRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/tracking", trackingRoutes);
+app.use("/api/shipping-lines", shippingLineRoutes);
 
 
 // Error Middleware

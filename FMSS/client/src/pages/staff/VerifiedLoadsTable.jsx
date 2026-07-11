@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
@@ -6,8 +6,17 @@ import Swal from "sweetalert2";
 import AppSelect from "../../components/AppSelect";
 import { notify } from "../../utils/swal";
 import ScheduleBidding from "../ScheduleBidding";
+import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import {
+  URGENCY_COLORS,
+  URGENCY_LABEL,
+  dropDateOf,
+  isLfdAlarming,
+  pickupDateOf,
+  sortByUrgency,
+} from "../../utils/loadUrgency";
 
-const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, fmtDate } =
+const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, DateCell, fmtDate } =
   LoadTable;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -142,7 +151,7 @@ const VerifiedLoadsTable = () => {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedLoad, setSelectedLoad] = useState(null);
 
-  console.log("VerifiedLoadsTable render", { rows });
+  const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
 
   const fetchLoads = async () => {
     setLoading(true);
@@ -207,6 +216,12 @@ const VerifiedLoadsTable = () => {
       render: (row) => <LoadIdCell load={row} />,
     },
     {
+      key: "priority",
+      header: "Priority",
+      width: "90px",
+      render: (row) => <UrgencyBadge urgency={row.urgency} />,
+    },
+    {
       key: "customer",
       header: "Customer",
       width: "150px",
@@ -226,31 +241,19 @@ const VerifiedLoadsTable = () => {
       key: "pickupDate",
       header: "Pickup Date",
       width: "110px",
-      render: (row) => (
-        <span className="text-xs text-gray-700">
-          {row.pickup?.pickupDate ? fmtDate(row.pickup.pickupDate) : "—"}
-        </span>
-      ),
+      render: (row) => <DateCell value={pickupDateOf(row)} showExpiry />,
     },
     {
       key: "destDate",
       header: "Dest. Date",
       width: "110px",
-      render: (row) => (
-        <span className="text-xs text-gray-700">
-          {row.drop?.deliveryDate ? fmtDate(row.drop.deliveryDate) : "—"}
-        </span>
-      ),
+      render: (row) => <DateCell value={dropDateOf(row)} />,
     },
     {
       key: "lfd",
       header: "LFD",
       width: "110px",
-      render: (row) => (
-        <span className="text-xs text-gray-700">
-          {row.lastFreeDate ? fmtDate(row.lastFreeDate) : "—"}
-        </span>
-      ),
+      render: (row) => <LfdCell row={row} />,
     },
   {
   key: "bidStatus",
@@ -341,25 +344,32 @@ const VerifiedLoadsTable = () => {
 
   return (
     <div className="p-4 md:p-5">
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-gray-900">Dispatch Management</h2>
+        <p className="text-sm text-gray-500">
+          Loads cleared for bidding, most urgent pickup first
+        </p>
+        <UrgencyLegend />
+      </div>
+
       {/* 📱 Mobile */}
       <div className="block xl:hidden space-y-3">
         {loading ? (
           <p className="text-center text-gray-500 py-10">Loading...</p>
-        ) : rows.length > 0 ? (
-          rows.map((row) => {
+        ) : sortedRows.length > 0 ? (
+          sortedRows.map((row) => {
             const assignedName = getAssignedName(row, fleetOwners);
             const isOpen = openRow === row.loadId;
             return (
               <MobileCard
                 key={row.loadId}
-                statusKey={row.transportStatus || "VERIFIED"}
+                colorStyle={{
+                  ...URGENCY_COLORS[row.urgency],
+                  badge: { bg: "#e0e7ff", text: "#3730a3" },
+                }}
                 title={row.loadId}
                 subtitle={row.customerName || "—"}
-                badge={
-                  row.bidStatus
-                    ? { label: row.bidStatus.replace(/_/g, " ") }
-                    : undefined
-                }
+                badge={{ label: URGENCY_LABEL[row.urgency].text }}
                 locations={[
                   { label: "Origin", data: row.pickup },
                   { label: "Destination", data: row.drop },
@@ -367,9 +377,15 @@ const VerifiedLoadsTable = () => {
                 fields={[
                   { label: "Truck Type", value: row.truckType },
                   { label: "Container #", value: row.containerNo },
-                  { label: "Pickup Date", value: row.pickup?.pickupDate ? fmtDate(row.pickup.pickupDate) : "—" },
-                  { label: "Dest. Date", value: row.drop?.deliveryDate ? fmtDate(row.drop.deliveryDate) : "—" },
-                  { label: "LFD", value: row.lastFreeDate ? fmtDate(row.lastFreeDate) : "—" },
+                  { label: "Pickup Date", value: fmtDate(pickupDateOf(row)) },
+                  { label: "Dest. Date", value: fmtDate(dropDateOf(row)) },
+                  {
+                    label: "LFD",
+                    value: row.lastFreeDate
+                      ? `${fmtDate(row.lastFreeDate)}${isLfdAlarming(row) ? " 💡" : ""}`
+                      : null,
+                  },
+                  { label: "Bid Status", value: row.bidStatus?.replace(/_/g, " ") },
                   { label: "Carrier", value: assignedName || "Not assigned" },
                 ]}
                 actions={[
@@ -407,7 +423,7 @@ const VerifiedLoadsTable = () => {
           })
         ) : (
           <p className="text-center text-gray-500 py-10">
-            No verified loads found.
+            No loads ready for dispatch.
           </p>
         )}
       </div>
@@ -415,13 +431,13 @@ const VerifiedLoadsTable = () => {
       {/* 💻 Desktop */}
       <div className="hidden xl:block">
         <LoadTable
-          loads={rows}
+          loads={sortedRows}
           columns={columns}
           //actions={desktopActions}
-          colorBy="transportStatus"
+          colorBy="urgency"
+          colorMap={URGENCY_COLORS}
           loading={loading}
-          title="Verified Loads"
-          emptyMessage="No verified loads found."
+          emptyMessage="No loads ready for dispatch."
         />
       </div>
 

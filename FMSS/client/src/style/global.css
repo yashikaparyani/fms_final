@@ -141,3 +141,20 @@
     @apply text-gray-500 text-sm hover:text-indigo-600 transition duration-200;
   }
 }
+
+/* ── BLINKING URGENCY ALERT ── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.15; }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Anyone who asks for less motion gets a steady icon instead of a flashing one. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blink {
+    animation: none;
+  }
+}

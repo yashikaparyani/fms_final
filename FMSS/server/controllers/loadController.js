@@ -312,6 +312,59 @@ const uploadDocument = async (req, res) => {
 //   }
 // };
 
+// The three tabs of the Load Management screen. A free-text search spans them
+// so one query surfaces a match wherever the load currently sits.
+const SEARCHABLE_TAB_STATUSES = ["PENDING_VERIFICATION", "VERIFIED", "ASSIGNED"];
+
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Every load field a user could plausibly recall and type into the search box.
+const SEARCH_FIELDS = [
+  "loadId",
+  "refNo",
+  "bookingNo",
+  "containerNo",
+  "pickupNo",
+  "sealNo",
+  "shippingLine",
+  "containerType",
+  "commodity",
+  "truckType",
+  "material",
+  "description",
+  "remarks",
+  "status",
+  "transportStatus",
+  // Legacy single stop, kept in sync with the first element of each array.
+  "pickup.company", "pickup.address", "pickup.city", "pickup.state", "pickup.zip",
+  "drop.company",   "drop.address",   "drop.city",   "drop.state",   "drop.zip",
+  // Multi-stop arrays: a dotted path matches any element.
+  "pickups.company", "pickups.address", "pickups.city", "pickups.state", "pickups.zip",
+  "drops.company",   "drops.address",   "drops.city",   "drops.state",   "drops.zip",
+];
+
+/**
+ * Build the `$or` clause for a free-text load search. Customer name lives on a
+ * separate collection, so it is resolved to user ids first.
+ */
+const buildSearchClause = async (term) => {
+  const rx = new RegExp(escapeRegex(term), "i");
+  const or = SEARCH_FIELDS.map((field) => ({ [field]: rx }));
+
+  const customers = await Customer.find({ customerName: rx }, { user: 1 }).lean();
+  const customerUserIds = customers.map((c) => c.user).filter(Boolean);
+  if (customerUserIds.length) {
+    or.push({ customer: { $in: customerUserIds } });
+  }
+
+  // A bare number should also match the freight amount.
+  if (!Number.isNaN(Number(term))) {
+    or.push({ amount: Number(term) });
+  }
+
+  return or;
+};
+
 const getLoads = async (req, res) => {
   try {
     const query = {};
@@ -340,6 +393,16 @@ const getLoads = async (req, res) => {
       req.query.transportStatus.trim() !== "All"
     ) {
       query.transportStatus = req.query.transportStatus;
+    }
+
+    const term = (req.query.q || "").trim();
+    if (term) {
+      query.$or = await buildSearchClause(term);
+      // With no explicit status, a search spans the three tabs at once. The
+      // role scoping above still applies on top of this.
+      if (!req.query.status && req.user.role !== "fleetOwner") {
+        query.status = { $in: SEARCHABLE_TAB_STATUSES };
+      }
     }
 
     const loads = await Load.find(query).sort({ createdAt: -1 }).lean();
