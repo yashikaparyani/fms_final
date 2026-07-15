@@ -38,9 +38,17 @@ const TabBadge = ({ row }) => {
  * Flat, cross-tab result list for a load search. Rows keep the tint of the tab
  * they belong to, so a mixed list still reads as three groups at a glance.
  */
-const LoadSearchResults = ({ term, results, loading, onClear }) => {
+const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
   const navigate = useNavigate();
   const role = useSelector((state) => state.auth.user?.role);
+
+  // Human-readable description of the active search term and/or status filter.
+  const criteria = [
+    term ? `“${term}”` : null,
+    status ? `status “${status}”` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   // Group counts give the "3 tabs mixed" result an at-a-glance breakdown.
   const counts = results.reduce((acc, row) => {
@@ -79,7 +87,9 @@ const LoadSearchResults = ({ term, results, loading, onClear }) => {
         <div>
           <h2 className="text-lg font-bold text-gray-900">
             {loading ? "Searching…" : `${results.length} result${results.length === 1 ? "" : "s"}`}
-            {!loading && <span className="font-normal text-gray-500"> for “{term}”</span>}
+            {!loading && criteria && (
+              <span className="font-normal text-gray-500"> for {criteria}</span>
+            )}
           </h2>
           {!loading && results.length > 0 && (
             <p className="text-sm text-gray-500">
@@ -94,7 +104,7 @@ const LoadSearchResults = ({ term, results, loading, onClear }) => {
           )}
         </div>
         <button onClick={onClear} className="btn-secondary self-start sm:self-auto whitespace-nowrap">
-          ✕ Clear search
+          ✕ Clear filters
         </button>
       </div>
 
@@ -131,7 +141,7 @@ const LoadSearchResults = ({ term, results, loading, onClear }) => {
             />
           ))
         ) : (
-          <p className="text-center text-gray-500 py-10">No loads match “{term}”.</p>
+          <p className="text-center text-gray-500 py-10">No loads match {criteria}.</p>
         )}
       </div>
 
@@ -144,7 +154,7 @@ const LoadSearchResults = ({ term, results, loading, onClear }) => {
           colorBy="tabKey"
           colorMap={TAB_ROW_COLOR}
           loading={loading}
-          emptyMessage={`No loads match “${term}”.`}
+          emptyMessage={`No loads match ${criteria}.`}
         />
       </div>
     </div>

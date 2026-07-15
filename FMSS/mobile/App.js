@@ -46,6 +46,19 @@ const statusOptions = [
   "DELIVERED",
   "DRIVER_ON_WAITING",
   "DROP_IN_WAREHOUSE",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "TERMINATED",
+];
+
+// Terminal statuses that mean the load is "over" — it moves out of the
+// Assigned tab and into the Over tab.
+const completedStatuses = [
+  "DELIVERED",
+  "TERMINATED",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
 ];
 
 // Forward-only progression order. A stage already reached can't be redone,
@@ -549,7 +562,10 @@ function AssignedLoadsTab({ onTrack }) {
 
   return (
     <FlatList
-      data={loads.filter((item) => item && item.loadId)}
+      data={loads.filter(
+        (item) =>
+          item && item.loadId && !completedStatuses.includes(item.transportStatus),
+      )}
       keyExtractor={(item, index) => String(item._id || item.loadId || index)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
       ListEmptyComponent={
@@ -562,6 +578,49 @@ function AssignedLoadsTab({ onTrack }) {
               <PrimaryButton title="Confirm" tone="success" onPress={() => confirm(item.loadId)} />
             ) : null}
             <SecondaryButton title="Track and update" onPress={() => onTrack(item)} />
+          </View>
+        </LoadCard>
+      )}
+      contentContainerStyle={styles.listContent}
+    />
+  );
+}
+
+function OverLoadsTab({ onTrack }) {
+  const [loads, setLoads] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchLoads = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/fleet-owners/assignedLoad");
+      setLoads(res.data || []);
+    } catch (error) {
+      Alert.alert("Unable to fetch loads", error.response?.data?.message || error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLoads();
+  }, []);
+
+  return (
+    <FlatList
+      data={loads.filter(
+        (item) =>
+          item && item.loadId && completedStatuses.includes(item.transportStatus),
+      )}
+      keyExtractor={(item, index) => String(item._id || item.loadId || index)}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
+      ListEmptyComponent={
+        <Text style={styles.empty}>{loading ? "Loading loads..." : "No completed loads yet."}</Text>
+      }
+      renderItem={({ item }) => (
+        <LoadCard load={item}>
+          <View style={styles.actionRow}>
+            <SecondaryButton title="View documents" onPress={() => onTrack(item)} />
           </View>
         </LoadCard>
       )}
@@ -1031,6 +1090,7 @@ function FleetHomeScreen({ session, onLogout }) {
       { key: "assigned", label: "Assigned" },
       { key: "available", label: "Available" },
       { key: "myBids", label: "My Bids" },
+      { key: "over", label: "Over" },
     ],
     [],
   );
@@ -1067,6 +1127,7 @@ function FleetHomeScreen({ session, onLogout }) {
       {tab === "assigned" && <AssignedLoadsTab onTrack={setSelectedLoad} />}
       {tab === "available" && <AvailableBidsTab onOpenAssigned={() => setTab("assigned")} />}
       {tab === "myBids" && <MyBidsTab />}
+      {tab === "over" && <OverLoadsTab onTrack={setSelectedLoad} />}
     </SafeAreaView>
   );
 }

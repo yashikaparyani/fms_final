@@ -142,6 +142,7 @@ const loadSchema = new mongoose.Schema(
     bookingNo: String,
     shippingLine: String,
     containerNo: String,
+    chassisNo: String,
     pickupNo: String,
     sealNo: String,
 

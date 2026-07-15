@@ -31,6 +31,7 @@ const loadSchema = z.object({
   bookingNo: z.string().optional(),
   shippingLine: z.string().optional(),
   containerNo: z.string().optional(),
+  chassisNo: z.string().optional(),
   pickupNo: z.string().optional(),
   sealNo: z.string().optional(),
   hazmat: z.boolean(),
@@ -627,7 +628,7 @@ const LoadForm = () => {
       truckType: "", material: "", amount: "",
       lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "",
-      bookingNo: "", shippingLine: "", containerNo: "", pickupNo: "", sealNo: "",
+      bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "", pickupNo: "", sealNo: "",
       hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
@@ -955,6 +956,7 @@ const LoadForm = () => {
 
                 {[
                   { name: "containerNo", label: "Container #"   },
+                  { name: "chassisNo",   label: "Chassis #"     },
                   { name: "pickupNo",    label: "Pickup #"      },
                   { name: "sealNo",      label: "Seal #"        },
                 ].map(({ name, label, type }) => (

@@ -9,10 +9,36 @@ import api from "../api";
 import { notify } from "../utils/swal";
 
 const TABS = [
- 
+
   { key: "pending", label: "Pending", icon: <PendingActions fontSize="small" /> },
   { key: "verified", label: "Dispatch Management", icon: <CheckCircle fontSize="small" /> },
  { key: "assigned", label: "All Transit", icon: <LocationOn fontSize="small" /> },];
+
+// Transport-status values a staff user can filter the load list by. Mirrors the
+// transportStatus enum on the Load model.
+const STATUS_FILTERS = [
+  "LOAD_PLANNER",
+  "NEW_LOAD",
+  "ASSIGNED",
+  "READY_TO_PICKUP",
+  "PICKED_UP",
+  "IN_TRANSIT",
+  "REACHED_DESTINATION",
+  "DELIVERED",
+  "TERMINATED",
+  "PAPERWORK_PENDING",
+  "INVOICED",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "DRIVER_ON_WAITING",
+  "DROP_IN_WAREHOUSE",
+];
+
+const labelizeStatus = (value) =>
+  value
+    ? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : "";
 
 const Load = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,9 +47,14 @@ const Load = () => {
   // `q` is the *committed* term, only written when the user submits. The input
   // box has its own state so typing does not fire a request per keystroke.
   const term = searchParams.get("q") || "";
+  // Transport-status filter, committed straight to the URL on change.
+  const statusFilter = searchParams.get("status") || "";
   const [input, setInput] = useState(term);
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
+
+  // A term or a status filter both take over the content area from the tabs.
+  const isFiltering = Boolean(term) || Boolean(statusFilter);
 
   // Keep the box in step with the URL (back/forward, or a shared link).
   useEffect(() => {
@@ -31,7 +62,7 @@ const Load = () => {
   }, [term]);
 
   useEffect(() => {
-    if (!term) {
+    if (!term && !statusFilter) {
       setResults([]);
       return;
     }
@@ -39,8 +70,12 @@ const Load = () => {
     let cancelled = false;
     setSearching(true);
 
+    const params = {};
+    if (term) params.q = term;
+    if (statusFilter) params.transportStatus = statusFilter;
+
     api
-      .get("/loads", { params: { q: term } })
+      .get("/loads", { params })
       .then((res) => {
         if (!cancelled) setResults(res.data);
       })
@@ -58,21 +93,31 @@ const Load = () => {
     return () => {
       cancelled = true;
     };
-  }, [term]);
+  }, [term, statusFilter]);
 
   const handleTabChange = (tabKey) => {
-    // Choosing a tab leaves the search behind.
+    // Choosing a tab leaves the search and filters behind.
     setSearchParams({ tab: tabKey });
+  };
+
+  // Write the next set of URL params, keeping the active tab and any params not
+  // explicitly overridden.
+  const updateParams = (overrides) => {
+    const next = { tab: activeTab };
+    const nextTerm = "q" in overrides ? overrides.q : term;
+    const nextStatus = "status" in overrides ? overrides.status : statusFilter;
+    if (nextTerm) next.q = nextTerm;
+    if (nextStatus) next.status = nextStatus;
+    setSearchParams(next);
   };
 
   const submitSearch = (e) => {
     e?.preventDefault();
-    const next = input.trim();
-    if (!next) {
-      clearSearch();
-      return;
-    }
-    setSearchParams({ tab: activeTab, q: next });
+    updateParams({ q: input.trim() });
+  };
+
+  const changeStatus = (value) => {
+    updateParams({ status: value });
   };
 
   const clearSearch = () => {
@@ -106,7 +151,7 @@ const Load = () => {
           </h1>
 
           <p className="text-xs md:text-sm text-gray-500 mt-1">
-            {term
+            {isFiltering
               ? "Searching across Pending, Dispatch Management and All Transit."
               : (
                 <>
@@ -121,8 +166,27 @@ const Load = () => {
           </p>
         </div>
 
-        {/* Cross-tab load search */}
+        {/* Cross-tab load search + filters */}
         <form onSubmit={submitSearch} className="flex items-stretch gap-2 w-full sm:w-auto">
+          {/* Status filter — sits to the left of the search box */}
+          <select
+            value={statusFilter}
+            onChange={(e) => changeStatus(e.target.value)}
+            aria-label="Filter by status"
+            className={`py-2 pl-3 pr-7 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+              statusFilter
+                ? "border-indigo-500 text-indigo-700 bg-indigo-50 font-medium"
+                : "border-gray-300 text-gray-600 bg-white"
+            }`}
+          >
+            <option value="">All statuses</option>
+            {STATUS_FILTERS.map((s) => (
+              <option key={s} value={s}>
+                {labelizeStatus(s)}
+              </option>
+            ))}
+          </select>
+
           <div className="relative flex-1 sm:flex-none">
             <input
               type="text"
@@ -157,8 +221,8 @@ const Load = () => {
         <div className="border-b border-gray-300 bg-gray-50">
           <div className="flex gap-1 pt-2">
             {TABS.map((tab) => {
-              // While a search is showing, no tab owns the content below.
-              const isActive = !term && activeTab === tab.key;
+              // While a search/filter is showing, no tab owns the content below.
+              const isActive = !isFiltering && activeTab === tab.key;
 
               return (
                 <button
@@ -185,9 +249,10 @@ const Load = () => {
 
         {/* Content */}
         <div className="p-0 md:p-5">
-          {term ? (
+          {isFiltering ? (
             <LoadSearchResults
               term={term}
+              status={statusFilter ? labelizeStatus(statusFilter) : ""}
               results={results}
               loading={searching}
               onClear={clearSearch}

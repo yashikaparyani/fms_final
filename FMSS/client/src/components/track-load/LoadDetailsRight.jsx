@@ -24,6 +24,7 @@ const LoadDetailsRight = ({ load }) => (
       />
       <InfoRow label="Pickup #" value={load.pickupNo} />
       <InfoRow label="Container #" value={load.containerNo} />
+      <InfoRow label="Chassis #" value={load.chassisNo} />
       <InfoRow label="Seal #" value={load.sealNo} />
       <InfoRow label="Booking #" value={load.bookingNo} />
       <InfoRow label="Shipping Line" value={load.shippingLine} />

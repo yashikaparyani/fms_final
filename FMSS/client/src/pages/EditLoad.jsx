@@ -31,6 +31,7 @@ const loadSchema = z.object({
   bookingNo:       z.string().optional(),
   shippingLine:    z.string().optional(),
   containerNo:     z.string().optional(),
+  chassisNo:       z.string().optional(),
   pickupNo:        z.string().optional(),
   sealNo:          z.string().optional(),
   hazmat:          z.boolean(),
@@ -288,7 +289,7 @@ const EditLoad = () => {
       customer: "", refNo: "", deliveryType: "ROUNDED", singleType: "Pick Up",
       truckType: "", material: "", amount: "", lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "", bookingNo: "", shippingLine: "",
-      containerNo: "", pickupNo: "", sealNo: "",
+      containerNo: "", chassisNo: "", pickupNo: "", sealNo: "",
       hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
@@ -374,6 +375,7 @@ const EditLoad = () => {
           bookingNo:       load.bookingNo       || "",
           shippingLine:    load.shippingLine    || "",
           containerNo:     load.containerNo     || "",
+          chassisNo:       load.chassisNo       || "",
           pickupNo:        load.pickupNo        || "",
           sealNo:          load.sealNo          || "",
           hazmat:          load.hazmat          || false,
@@ -683,6 +685,12 @@ const EditLoad = () => {
                 <div className="relative">
                   <input className={uiStyles.input} placeholder="Container #" {...register("containerNo")} disabled={submitting} />
                   <label className="input-label">Container #</label>
+                </div>
+
+                {/* Chassis # */}
+                <div className="relative">
+                  <input className={uiStyles.input} placeholder="Chassis #" {...register("chassisNo")} disabled={submitting} />
+                  <label className="input-label">Chassis #</label>
                 </div>
 
                 {/* Pickup # */}
