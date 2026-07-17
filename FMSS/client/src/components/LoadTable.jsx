@@ -127,7 +127,7 @@ const LoadIdCell = ({ load, onClick }) => {
           {load.containerNo}
         </div>
       )}
-      {load.transportStatus && load.transportStatus !== "NEW_LOAD" && (
+      {load.transportStatus && load.transportStatus !== "NEW_LOAD" && load.transportStatus !== "LOAD_PLANNER" && (
         <span
           className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded"
           style={{
@@ -148,6 +148,11 @@ const LoadIdCell = ({ load, onClick }) => {
           }}
         >
           {load.transportStatus.replace(/_/g, " ")}
+        </span>
+      )}
+      {load.isUrgent && (
+        <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700 border border-red-200">
+          🚨 URGENT
         </span>
       )}
     </div>

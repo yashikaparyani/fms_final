@@ -22,6 +22,7 @@ import LoadDetailsRight from "../components/track-load/LoadDetailsRight";
 import StatusTimeline from "../components/track-load/StatusTimeline";
 import TransportStatusDialog from "../components/track-load/TransportStatusDialog";
 import RatingSection from "../components/track-load/RatingSection";
+import DriverPictures from "../components/track-load/DriverPictures";
 import DetailedLoadInfo from "../components/track-load/DetailedLoadInfo";
 import ScheduleBidding from "./ScheduleBidding";
 import Swal from "sweetalert2";
@@ -329,6 +330,7 @@ const DocumentsTab = ({ load, fetchLoad }) => (
         documents={load.documents || []}
         refresh={() => fetchLoad(load.loadId)}
       />
+      <DriverPictures load={load} />
     </div>
   </Card>
 );

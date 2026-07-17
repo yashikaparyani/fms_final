@@ -11,6 +11,7 @@ import {
   Select,
   FormControl,
   InputLabel,
+  OutlinedInput,
 } from "@mui/material";
 
 export const TRANSPORT_STATUSES = [
@@ -109,10 +110,12 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
 
       <DialogContent style={{ paddingTop: 8 }}>
         <FormControl fullWidth size="small">
-          <InputLabel>Transport Status</InputLabel>
+          {/* shrink + notched: the label must stay floated because displayEmpty
+              always renders placeholder content inside the field */}
+          <InputLabel shrink>Transport Status</InputLabel>
           <Select
             value={status}
-            label="Transport Status"
+            input={<OutlinedInput notched label="Transport Status" />}
             onChange={(e) => setStatus(e.target.value)}
             style={{ borderRadius: 8 }}
             displayEmpty

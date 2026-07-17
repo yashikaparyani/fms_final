@@ -33,9 +33,10 @@ const StaffDashboard = () => {
 useEffect(() => {
   const fetchStats = async () => {
     try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const [statsRes, weeklyRes] = await Promise.all([
         api.get("/stats"),
-        api.get("/stats/weekly"),
+        api.get("/stats/weekly", { params: { tz } }),
       ]);
       setStats(statsRes.data);
       setWeeklyStats(weeklyRes.data.weeklyStats); 

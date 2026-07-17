@@ -59,7 +59,7 @@ const AssignDropdown = ({
   return (
     <div className="flex flex-col gap-1.5 max-w-[280px]">
       <AppSelect
-        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.carrierName }))}
+        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.phone ? `${fo.carrierName} (${fo.phone})` : fo.carrierName }))}
         value={ownerId}
         onChange={setOwnerId}
         placeholder="Search fleet owner…"
@@ -99,7 +99,7 @@ const MobileAssignInline = ({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <AppSelect
-        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.carrierName }))}
+        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.phone ? `${fo.carrierName} (${fo.phone})` : fo.carrierName }))}
         value={ownerId}
         onChange={setOwnerId}
         placeholder="Search fleet owner…"
@@ -214,12 +214,6 @@ const VerifiedLoadsTable = () => {
       header: "Load",
       width: "130px",
       render: (row) => <LoadIdCell load={row} />,
-    },
-    {
-      key: "priority",
-      header: "Priority",
-      width: "90px",
-      render: (row) => <UrgencyBadge urgency={row.urgency} />,
     },
     {
       key: "customer",

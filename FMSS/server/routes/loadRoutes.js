@@ -21,6 +21,7 @@ const {
   rebidLoad,
   discardBid,
   reviseBid,
+  unassignLoad,
 } = require("../controllers/loadController");
 const upload = require("../middleware/upload");
 const { protect, authorizeRoles } = require("../middleware/auth");
@@ -130,6 +131,13 @@ router.put(
   protect,
   authorizeRoles("staff", "admin"),
   assignFleetOwner,
+);
+
+router.put(
+  "/:loadId/unassign",
+  protect,
+  authorizeRoles("staff", "admin"),
+  unassignLoad,
 );
 
 module.exports = router;

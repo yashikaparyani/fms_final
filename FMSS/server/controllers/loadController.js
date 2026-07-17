@@ -119,6 +119,7 @@ const createLoad = async (req, res) => {
       railContainer,
       dryVan,
       reefer,
+      isUrgent,
       accChargesEmail,
       podEmail,
       deliveryEmail,
@@ -172,6 +173,7 @@ const createLoad = async (req, res) => {
       railContainer,
       dryVan,
       reefer,
+      isUrgent: !!isUrgent,
       accChargesEmail,
       podEmail,
       deliveryEmail,
@@ -828,8 +830,9 @@ const updateTransportStatus = async (req, res) => {
 
     // ─────────────────────────────────────────────
     // REQUIRE GPS FOR MOVEMENT STATUSES
+    // Staff / admin web updates are exempt — they update administratively.
     // ─────────────────────────────────────────────
-    if (locationRequiredStatuses.includes(transportStatus)) {
+    if (locationRequiredStatuses.includes(transportStatus) && !["staff", "admin"].includes(role)) {
       parsedLat = parseFloat(latitude);
       parsedLng = parseFloat(longitude);
 
@@ -1788,6 +1791,41 @@ const reviseBid = async (req, res) => {
   }
 };
 
+// ========================= UNASSIGN LOAD =========================
+// Removes the fleet owner assignment and resets the load back to
+// NEW_LOAD so it re-appears in Dispatch Management.
+const unassignLoad = async (req, res) => {
+  try {
+    const { loadId } = req.params;
+    const load = await Load.findOne({ loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const updated = await Load.findOneAndUpdate(
+      { loadId },
+      {
+        $unset: { assignedFleetOwner: "" },
+        $set: {
+          transportStatus: "NEW_LOAD",
+          status: "VERIFIED",
+        },
+        $push: {
+          transportStatusHistory: {
+            status: "NEW_LOAD",
+            updatedBy: req.user._id,
+            updatedAt: new Date(),
+            note: "Unassigned by staff/admin — returned to Dispatch Management",
+          },
+        },
+      },
+      { new: true }
+    );
+
+    res.json({ message: "Load unassigned successfully", load: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ========================= EXPORT =========================
 
 module.exports = {
@@ -1811,4 +1849,5 @@ module.exports = {
   rebidLoad,
   discardBid,
   reviseBid,
+  unassignLoad,
 };

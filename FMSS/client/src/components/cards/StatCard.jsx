@@ -76,9 +76,18 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
     >
 
       {/* Day */}
-      <div className="text-sm text-gray-500 mb-3 font-medium text-center">
+      <div className={`text-sm text-gray-500 font-medium text-center ${stats.weekDay === "Today" && stats.date ? "mb-0.5" : "mb-3"}`}>
         {stats.weekDay}
       </div>
+      {stats.weekDay === "Today" && stats.date && (
+        <div className="text-[11px] text-indigo-600 font-semibold text-center mb-3">
+          {new Date(stats.date + "T00:00:00").toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-2 text-center">

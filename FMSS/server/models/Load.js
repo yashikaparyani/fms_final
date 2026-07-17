@@ -128,6 +128,7 @@ const loadSchema = new mongoose.Schema(
     putOnHold: { type: Boolean, default: false },
     hotShipment: { type: Boolean, default: false },
     isAccessorialCharges: { type: Boolean, default: false },
+    isUrgent: { type: Boolean, default: false },
 
     containerType: {
       type: String,

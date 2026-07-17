@@ -39,6 +39,7 @@ const loadSchema = z.object({
   railContainer: z.boolean(),
   dryVan: z.boolean(),
   reefer: z.boolean(),
+  isUrgent: z.boolean(),
   accChargesEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid accessorial charges email" }),
   podEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid POD email" }),
   deliveryEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid delivery email" }),
@@ -557,7 +558,6 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
                 <input type="date" className={uiStyles.input} value={data[isPickup ? 'pickupDate' : 'deliveryDate'] ? (new Date(data[isPickup ? 'pickupDate' : 'deliveryDate']).toISOString().slice(0,10)) : ''} onChange={(e) => set(isPickup ? 'pickupDate' : 'deliveryDate', e.target.value)} disabled={loading} />
                 <label className="input-label">
                   {isPickup ? 'Pickup Date' : 'Delivery Date'}
-                  {isPickup && <span className="text-red-500 font-bold"> *</span>}
                 </label>
               </div>
               <div className="relative">
@@ -629,7 +629,7 @@ const LoadForm = () => {
       lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "",
       bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "", pickupNo: "", sealNo: "",
-      hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false,
+      hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false, isUrgent: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
       driverRequirement: "Solo Driver",
@@ -691,10 +691,6 @@ const LoadForm = () => {
     }
     if (!pickup.selectedAddressId) {
       toast.error("Please select an address for the pickup location");
-      return;
-    }
-    if (!pickup.pickupDate) {
-      toast.error("Pickup date is required");
       return;
     }
     setLoading(true);
@@ -973,6 +969,12 @@ const LoadForm = () => {
                     <input type="checkbox" className="rounded" {...register(name)} disabled={loading} /> {label}
                   </label>
                 ))}
+
+                {/* Urgent — highlighted separately */}
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-100 transition">
+                  <input type="checkbox" className="rounded accent-red-600" {...register("isUrgent")} disabled={loading} />
+                  🚨 Urgent
+                </label>
               </div>
 
               <h3 className="form-subtitle">Emails</h3>

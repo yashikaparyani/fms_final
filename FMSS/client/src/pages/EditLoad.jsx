@@ -1,5 +1,5 @@
 // pages/EditLoad.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useForm, Controller } from "react-hook-form";
@@ -9,6 +9,145 @@ import { uiStyles } from "../style/uiStyles";
 import api from "../api";
 import AppSelect from "../components/AppSelect";
 import AddressFields from "../components/AddressFields";
+
+// ─── Add Company Modal ────────────────────────────────────────────────────────
+const COMPANY_TYPES = ["Shipper", "Consignee", "Warehouse", "Terminal", "Other"];
+const AddCompanyModal = ({ onClose, onSaved }) => {
+  const [form, setForm] = useState({
+    name: "", type: "Other", contactName: "", contactPhone: "", contactEmail: "", notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { toast.error("Company name is required"); return; }
+    setSaving(true);
+    try {
+      const res = await api.post("/companies", form);
+      toast.success(`Company "${res.data.name}" created!`);
+      onSaved(res.data);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Error creating company");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-gray-800">Register New Company</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-3">
+          <div className="relative">
+            <input className={uiStyles.input} placeholder="Company Name *" value={form.name} onChange={(e) => set("name", e.target.value)} disabled={saving} autoFocus />
+            <label className="input-label">Name <span className="text-red-400">*</span></label>
+          </div>
+          <div className="relative">
+            <AppSelect options={COMPANY_TYPES.map((t) => ({ value: t, label: t }))} value={form.type} onChange={(val) => set("type", val)} isSearchable={false} isDisabled={saving} />
+            <label className="input-label">Type</label>
+          </div>
+          <div className={uiStyles.grid2}>
+            <div className="relative">
+              <input className={uiStyles.input} placeholder="Contact Name" value={form.contactName} onChange={(e) => set("contactName", e.target.value)} disabled={saving} />
+              <label className="input-label">Contact Name</label>
+            </div>
+            <div className="relative">
+              <input className={uiStyles.input} placeholder="Phone" value={form.contactPhone} onChange={(e) => set("contactPhone", e.target.value)} disabled={saving} />
+              <label className="input-label">Phone</label>
+            </div>
+          </div>
+          <div className="relative">
+            <input className={uiStyles.input} placeholder="Email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} disabled={saving} />
+            <label className="input-label">Email</label>
+          </div>
+          <div className="relative">
+            <textarea rows={2} className={uiStyles.textarea} placeholder="Notes (optional)" value={form.notes} onChange={(e) => set("notes", e.target.value)} disabled={saving} />
+            <label className="input-label">Notes</label>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
+            {saving ? "Saving..." : "Save Company"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Add Address Modal ────────────────────────────────────────────────────────
+const AddAddressModal = ({ company, onClose, onSaved }) => {
+  const [form, setForm] = useState({ street: "", suite: "", city: "", state: "", zip: "", directions: "" });
+  const [saving, setSaving] = useState(false);
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const handleAddrChange = ({ state, city, zip }) => setForm((prev) => ({ ...prev, state, city, zip }));
+
+  const handleSave = async () => {
+    if (!form.street || !form.city || !form.state || !form.zip) {
+      toast.error("Street, City, State and Zip are required"); return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.post(`/companies/${company._id}/addresses`, form);
+      toast.success("Address added!");
+      onSaved(res.data);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Error adding address");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-bold text-gray-800">Add New Address</h3>
+            <p className="text-xs text-gray-400">for <span className="font-semibold text-gray-600">{company.name}</span></p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-3">
+          <div className="relative">
+            <input className={uiStyles.input} placeholder="Street *" value={form.street} onChange={(e) => set("street", e.target.value)} disabled={saving} autoFocus />
+            <label className="input-label">Street <span className="text-red-400">*</span></label>
+          </div>
+          <div className="relative">
+            <input className={uiStyles.input} placeholder="Suite / Unit" value={form.suite} onChange={(e) => set("suite", e.target.value)} disabled={saving} />
+            <label className="input-label">Suite / Unit</label>
+          </div>
+          <AddressFields state={form.state || ""} city={form.city || ""} zip={form.zip || ""} onChange={handleAddrChange} disabled={saving} required />
+          <div className="relative mt-3">
+            <textarea rows={2} className={uiStyles.textarea} placeholder="Directions (optional)" value={form.directions} onChange={(e) => set("directions", e.target.value)} disabled={saving} />
+            <label className="input-label">Directions</label>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
+            {saving ? "Saving..." : "Save Address"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
 const loadSchema = z.object({
@@ -39,6 +178,7 @@ const loadSchema = z.object({
   railContainer:   z.boolean(),
   dryVan:          z.boolean(),
   reefer:          z.boolean(),
+  isUrgent:        z.boolean(),
   accChargesEmail: z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid accessorial charges email" }),
   podEmail:        z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid POD email" }),
   deliveryEmail:   z.string().optional().refine((val) => !val || z.string().email().safeParse(val).success, { message: "Invalid delivery email" }),
@@ -86,7 +226,11 @@ const StepIndicator = ({ step }) => {
 
 // ─── Stop Form (Pickup / Drop) ────────────────────────────────────────────────
 const emptyStop = {
-  company: "", address: "", city: "", state: "", zip: "", pickupDate: "", deliveryDate: "",
+  selectedCompanyId: "",
+  selectedAddressId: "",
+  company: "",   // companyName resolved
+  address: "", city: "", state: "", zip: "",
+  pickupDate: "", deliveryDate: "",
 };
 
 // An <input type="date"> needs a bare YYYY-MM-DD; the API hands back an ISO
@@ -101,9 +245,9 @@ const toDateInput = (v) => {
 };
 
 // Keep only the editable stop fields (drops the server-generated _id).
-// The dates must survive this round-trip: the update controller replaces
-// `pickups`/`drops` wholesale, so anything omitted here is erased on save.
 const normalizeStop = (s = {}) => ({
+  selectedCompanyId: "",
+  selectedAddressId: "",
   company: s.company || "",
   address: s.address || "",
   city:    s.city    || "",
@@ -113,46 +257,156 @@ const normalizeStop = (s = {}) => ({
   deliveryDate: toDateInput(s.deliveryDate),
 });
 
-// Shape a stop for the API. Only the date that belongs to this kind of stop is
-// sent, and a blank one goes as null — Mongoose cannot cast "" to a Date.
+// Shape a stop for the API.
 const toStopPayload = (isPickup) => (s) => {
-  const { pickupDate, deliveryDate, ...rest } = s;
+  const { pickupDate, deliveryDate, selectedCompanyId, selectedAddressId, ...rest } = s;
   const date = isPickup ? pickupDate : deliveryDate;
   return { ...rest, [isPickup ? "pickupDate" : "deliveryDate"]: date || null };
 };
 
-const StopForm = ({ data, onChange, loading, isPickup }) => {
+const StopForm = ({ data, onChange, loading, isPickup, allCompanies, setAllCompanies }) => {
   const set = (field, value) => onChange({ ...data, [field]: value });
+  const dateField = isPickup ? "pickupDate" : "deliveryDate";
 
-  // ── Location cascade via AddressFields ───────────────────────────────────────
-  const handleAddressChange = ({ state, city, zip }) => {
-    onChange({ ...data, state, city, zip });
+  const [addresses, setAddresses]           = useState([]);
+  const [loadingAddr, setLoadingAddr]       = useState(false);
+  const [showAddCompany, setShowAddCompany] = useState(false);
+  const [showAddAddress, setShowAddAddress] = useState(false);
+
+  const closeMenus = () => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); };
+  const openAddCompany = () => { closeMenus(); setShowAddCompany(true); };
+  const openAddAddress = () => { closeMenus(); setShowAddAddress(true); };
+
+  const fetchAddresses = useCallback(async (companyId) => {
+    if (!companyId) { setAddresses([]); return; }
+    setLoadingAddr(true);
+    try {
+      const res = await api.get(`/companies/${companyId}/addresses`);
+      setAddresses(res.data);
+    } catch { toast.error("Failed to load addresses"); }
+    finally { setLoadingAddr(false); }
+  }, []);
+
+  useEffect(() => { fetchAddresses(data.selectedCompanyId); }, [data.selectedCompanyId, fetchAddresses]);
+
+  const handleCompanyChange = (companyId) => {
+    const c = allCompanies.find((c) => c._id === companyId);
+    onChange({ ...data, selectedCompanyId: companyId, selectedAddressId: "", company: c?.name || "", address: "", city: "", state: "", zip: "" });
   };
 
-  const dateField = isPickup ? "pickupDate" : "deliveryDate";
+  const handleAddressChange = (addressId) => {
+    const a = addresses.find((a) => a._id === addressId);
+    onChange({ ...data, selectedAddressId: addressId, address: a?.street || "", city: a?.city || "", state: a?.state || "", zip: a?.zip || "" });
+  };
+
+  const handleCompanySaved = (newCompany) => {
+    setAllCompanies((prev) => [...prev, newCompany]);
+    onChange({ ...data, selectedCompanyId: newCompany._id, selectedAddressId: "", company: newCompany.name || "", address: "", city: "", state: "", zip: "" });
+    setShowAddCompany(false);
+  };
+
+  const handleAddressSaved = (newAddress) => {
+    setAddresses((prev) => [...prev, newAddress]);
+    onChange({ ...data, selectedAddressId: newAddress._id, address: newAddress.street || "", city: newAddress.city || "", state: newAddress.state || "", zip: newAddress.zip || "" });
+    setShowAddAddress(false);
+  };
+
+  const selectedCompanyObj = allCompanies.find((c) => c._id === data.selectedCompanyId);
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <input className={uiStyles.input} value={data.company} onChange={(e) => set("company", e.target.value)} disabled={loading} placeholder="Company" />
-        <label className="input-label">Company</label>
+
+      {/* ── Company selector ── */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Company</h3>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <AppSelect
+              options={allCompanies.map((c) => ({ value: c._id, label: c.name }))}
+              value={data.selectedCompanyId}
+              onChange={handleCompanyChange}
+              placeholder="Search company..."
+              isDisabled={loading}
+            />
+            <label className="input-label">Company</label>
+          </div>
+          <button
+            type="button"
+            onClick={openAddCompany}
+            disabled={loading}
+            className="shrink-0 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center gap-1.5 disabled:opacity-50"
+            title="Register a new company"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New
+          </button>
+        </div>
       </div>
 
-      <div className="relative">
-        <input className={uiStyles.input} value={data.address} onChange={(e) => set("address", e.target.value)} disabled={loading} placeholder="Address *" />
-        <label className="input-label">Address <span className="text-red-400">*</span></label>
-      </div>
+      {/* ── Address selector (visible once company chosen) ── */}
+      {data.selectedCompanyId && (
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Address</h3>
+          {loadingAddr ? (
+            <p className="text-sm text-gray-400">Loading addresses…</p>
+          ) : addresses.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 flex items-center gap-4">
+              <p className="text-sm text-gray-500 flex-1">No addresses for this company.</p>
+              <button type="button" onClick={openAddAddress} className="shrink-0 btn-primary text-sm">+ Add Address</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <AppSelect
+                  options={addresses.map((a) => ({
+                    value: a._id,
+                    label: `${a.street}${a.suite ? `, ${a.suite}` : ""} - ${a.city}, ${a.state} ${a.zip}`,
+                  }))}
+                  value={data.selectedAddressId}
+                  onChange={handleAddressChange}
+                  placeholder="Search address..."
+                  isDisabled={loading}
+                />
+                <label className="input-label">Address <span className="text-red-400">*</span></label>
+              </div>
+              <button
+                type="button"
+                onClick={openAddAddress}
+                disabled={loading}
+                className="shrink-0 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                title="Add a new address"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* If no company selected yet — show manual address fallback */}
+      {!data.selectedCompanyId && (
+        <div className="relative">
+          <input className={uiStyles.input} value={data.address} onChange={(e) => onChange({ ...data, address: e.target.value })} disabled={loading} placeholder="Address *" />
+          <label className="input-label">Address <span className="text-red-400">*</span></label>
+        </div>
+      )}
 
       {/* State → City → Zip cascade */}
       <AddressFields
         state={data.state || ""}
         city={data.city || ""}
         zip={data.zip || ""}
-        onChange={handleAddressChange}
+        onChange={({ state, city, zip }) => onChange({ ...data, state, city, zip })}
         disabled={loading}
         required
       />
 
+      {/* Date */}
       <div className="relative">
         <input
           type="date"
@@ -163,15 +417,20 @@ const StopForm = ({ data, onChange, loading, isPickup }) => {
         />
         <label className="input-label">
           {isPickup ? "Pickup Date" : "Delivery Date"}
-          {isPickup && <span className="text-red-400"> *</span>}
         </label>
       </div>
+
+      {/* Modals */}
+      {showAddCompany && <AddCompanyModal onClose={() => setShowAddCompany(false)} onSaved={handleCompanySaved} />}
+      {showAddAddress && selectedCompanyObj && (
+        <AddAddressModal company={selectedCompanyObj} onClose={() => setShowAddAddress(false)} onSaved={handleAddressSaved} />
+      )}
     </div>
   );
 };
 
 // ─── Repeatable list of stops (origins / destinations) ───────────────────────
-const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, removeStop, isPickup }) => (
+const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, removeStop, isPickup, allCompanies, setAllCompanies }) => (
   <div className="space-y-4">
     {stops.map((s, idx) => (
       <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
@@ -188,7 +447,14 @@ const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, rem
             </button>
           )}
         </div>
-        <StopForm data={s} onChange={(next) => updateStop(stops, setStops, idx, next)} loading={loading} isPickup={isPickup} />
+        <StopForm
+          data={s}
+          onChange={(next) => updateStop(stops, setStops, idx, next)}
+          loading={loading}
+          isPickup={isPickup}
+          allCompanies={allCompanies}
+          setAllCompanies={setAllCompanies}
+        />
       </div>
     ))}
     <button
@@ -267,10 +533,11 @@ const EditLoad = () => {
   const [submitting,  setSubmitting]  = useState(false);
   const [loadStatus,  setLoadStatus]  = useState("");
   const [changesNote, setChangesNote] = useState("");
-  const [customers,   setCustomers]   = useState([]);
+  const [customers,    setCustomers]    = useState([]);
   const [shippingLines, setShippingLines] = useState([]);
-  const [pickups,     setPickups]     = useState([{ ...emptyStop }]);
-  const [drops,       setDrops]       = useState([{ ...emptyStop }]);
+  const [allCompanies, setAllCompanies] = useState([]);
+  const [pickups,      setPickups]      = useState([{ ...emptyStop }]);
+  const [drops,        setDrops]        = useState([{ ...emptyStop }]);
 
   // ── Multi-stop helpers (shared by origins & destinations) ────────────────
   const updateStop = (list, setList, index, next) =>
@@ -290,7 +557,7 @@ const EditLoad = () => {
       truckType: "", material: "", amount: "", lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "", bookingNo: "", shippingLine: "",
       containerNo: "", chassisNo: "", pickupNo: "", sealNo: "",
-      hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false,
+      hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false, isUrgent: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
       driverRequirement: "Solo Driver",
@@ -310,6 +577,11 @@ const EditLoad = () => {
       api.get("/customers").then((res) => setCustomers(res.data)).catch(() => {});
     }
   }, [role]);
+
+  // ── Fetch companies (for stop company dropdowns) ─────────────────────────
+  useEffect(() => {
+    api.get("/companies").then((res) => setAllCompanies(res.data)).catch(() => {});
+  }, []);
 
   // ── Fetch shipping line master ───────────────────────────────────────────
   useEffect(() => {
@@ -383,6 +655,7 @@ const EditLoad = () => {
           railContainer:   load.railContainer   || false,
           dryVan:          load.dryVan          || false,
           reefer:          load.reefer          || false,
+          isUrgent:        load.isUrgent        || false,
           accChargesEmail: load.accChargesEmail || "",
           podEmail:        load.podEmail        || "",
           deliveryEmail:   load.deliveryEmail   || "",
@@ -419,10 +692,6 @@ const EditLoad = () => {
     const invalid = pickups.some((p) => !p.address || !p.city || !p.state || !p.zip);
     if (invalid) {
       toast.error("Please fill all required fields (Address, City, State, Zip) for every origin");
-      return;
-    }
-    if (pickups.some((p) => !p.pickupDate)) {
-      toast.error("Pickup date is required for every origin");
       return;
     }
     setSubmitting(true);
@@ -720,6 +989,12 @@ const EditLoad = () => {
                     {label}
                   </label>
                 ))}
+
+                {/* Urgent — highlighted separately */}
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-100 transition">
+                  <input type="checkbox" className="rounded accent-red-600" {...register("isUrgent")} disabled={submitting} />
+                  🚨 Urgent
+                </label>
               </div>
 
               {/* Emails */}
@@ -791,6 +1066,8 @@ const EditLoad = () => {
                 addStop={addStop}
                 removeStop={removeStop}
                 isPickup
+                allCompanies={allCompanies}
+                setAllCompanies={setAllCompanies}
               />
 
               <StepFooter
@@ -828,6 +1105,8 @@ const EditLoad = () => {
                 updateStop={updateStop}
                 addStop={addStop}
                 removeStop={removeStop}
+                allCompanies={allCompanies}
+                setAllCompanies={setAllCompanies}
               />
 
               <StepFooter

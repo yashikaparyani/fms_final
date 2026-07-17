@@ -122,7 +122,6 @@ const PendingLoadsTable = () => {
   // ── Desktop columns ──────────────────────────────────────────
 const columns = [
   { key: "load",         header: "Load",          width: "9%",  render: (row) => <LoadIdCell load={row} /> },
-  { key: "priority",     header: "Priority",      width: "7%",  render: (row) => <UrgencyBadge urgency={row.urgency} /> },
   { key: "customer",     header: "Customer",      width: "10%", render: (row) => <CustomerCell load={row} /> },
   { key: "origin",       header: "Origin",        width: "14%", render: (row) => <AddressCell data={row.pickup} /> },
   { key: "pickupDate",   header: "Pickup Date",   width: "8%",  render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },

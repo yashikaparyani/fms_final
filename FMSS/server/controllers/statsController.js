@@ -459,50 +459,108 @@ const getWeeklyStats = async (req, res) => {
     if (role === "staff" || role === "admin") {
       const weeklyStats = [];
 
+      // Use client timezone if provided, otherwise fall back to UTC
+      const tz = req.query.tz || "UTC";
+
+      // Helper: get start-of-day and end-of-day in the given timezone for an
+      // offset of `i` days from today (in that same timezone).
+      const getLocalDayBounds = (offsetDays) => {
+        // Get the current date string in the target timezone (YYYY-MM-DD)
+        const nowInTz = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tz,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
+
+        // Build a Date from that YYYY-MM-DD string, then add offset days
+        const [year, month, day] = nowInTz.split("-").map(Number);
+        const localDate = new Date(Date.UTC(year, month - 1, day + offsetDays));
+
+        // Compute midnight in the target tz for that calendar date
+        const localDateStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tz,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(localDate);
+
+        // Parse start-of-day (00:00:00) in target tz as UTC instant
+        const startOfDay = new Date(
+          new Intl.DateTimeFormat("en-US", {
+            timeZone: tz,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          })
+            .formatToParts(new Date(`${localDateStr}T00:00:00`))
+            .reduce((acc, p) => {
+              if (p.type !== "literal") acc[p.type] = p.value;
+              return acc;
+            }, {})
+        );
+
+        // Use simple approach: treat YYYY-MM-DDT00:00:00 in that tz
+        const start = new Date(`${localDateStr}T00:00:00`);
+        // Adjust for tz offset by computing the UTC offset
+        const tzOffset = -start.getTimezoneOffset(); // local machine offset (minutes)
+        // Instead, compute properly using Intl
+        const startUTC = getUTCFromLocal(`${localDateStr}T00:00:00`, tz);
+        const endUTC   = getUTCFromLocal(`${localDateStr}T23:59:59.999`, tz);
+
+        return { startUTC, endUTC, localDateStr };
+      };
+
+      const getUTCFromLocal = (localISO, timezone) => {
+        // localISO like "2026-07-17T00:00:00"
+        // We need to find what UTC time corresponds to midnight in `timezone`
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: timezone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        });
+
+        // Binary search / offset trick: parse localISO as if UTC, then correct
+        const guessUTC = new Date(localISO + "Z");
+        const parts = formatter.formatToParts(guessUTC);
+        const p = {};
+        parts.forEach(({ type, value }) => { if (type !== "literal") p[type] = value; });
+        const guessLocal = new Date(
+          `${p.year}-${p.month}-${p.day}T${p.hour === "24" ? "00" : p.hour}:${p.minute}:${p.second}Z`
+        );
+        const diff = guessLocal - guessUTC; // ms offset
+        return new Date(new Date(localISO + "Z") - diff);
+      };
+
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
       for (let i = 0; i < 7; i++) {
-        const day = new Date();
-        day.setDate(day.getDate() + i);
+        const { startUTC, endUTC, localDateStr } = getLocalDayBounds(i);
 
-        // Start and end of this day (UTC midnight boundaries)
-        const startOfDay = new Date(day);
-        startOfDay.setHours(0, 0, 0, 0);
+        const dateFilter = { $gte: startUTC, $lte: endUTC };
 
-        const endOfDay = new Date(day);
-        endOfDay.setHours(23, 59, 59, 999);
+        const [delivered, pickup, drop] = await Promise.all([
+          Load.countDocuments({ createdAt: dateFilter, transportStatus: "DELIVERED" }),
+          Load.countDocuments({ createdAt: dateFilter, singleType: "Pick Up" }),
+          Load.countDocuments({ createdAt: dateFilter, singleType: "Drop" }),
+        ]);
 
-        const dateFilter = { $gte: startOfDay, $lte: endOfDay };
-
-        // Delivered = transportStatus DELIVERED, filtered by creation date
-        const delivered = await Load.countDocuments({
-          createdAt: dateFilter,
-          transportStatus: "DELIVERED",
-        });
-
-        // Pickup = singleType "Pick Up", filtered by creation date
-        const pickup = await Load.countDocuments({
-          createdAt: dateFilter,
-          singleType: "Pick Up",
-        });
-
-        // Drop = singleType "Drop", filtered by creation date
-        const drop = await Load.countDocuments({
-          createdAt: dateFilter,
-          singleType: "Drop",
-        });
-
-        const dayNames = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ];
+        // Get day-of-week from the local date string
+        const [y, m, d] = localDateStr.split("-").map(Number);
+        const dowIndex = new Date(y, m - 1, d).getDay();
 
         weeklyStats.push({
-          weekDay: i === 0 ? "Today" : dayNames[day.getDay()],
-          date: startOfDay.toISOString().split("T")[0],
+          weekDay: i === 0 ? "Today" : dayNames[dowIndex],
+          date: localDateStr,
           Delivery: delivered,
           Pickup: pickup,
           Drop: drop,
@@ -515,6 +573,7 @@ const getWeeklyStats = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 const csvEscape = (val) => {
   if (val === null || val === undefined) return "";

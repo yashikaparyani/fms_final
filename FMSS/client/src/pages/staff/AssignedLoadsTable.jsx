@@ -17,6 +17,25 @@ import {
 
 const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, DateCell, fmtDate } = LoadTable;
 
+// ─── Transport Status Options ─────────────────────────────────────────────────
+const TRANSPORT_STATUS_OPTIONS = [
+  { value: "NEW_LOAD",             label: "New Load" },
+  { value: "ASSIGNED",             label: "Assigned" },
+  { value: "READY_TO_PICKUP",      label: "Ready to Pickup" },
+  { value: "PICKED_UP",            label: "Picked Up" },
+  { value: "IN_TRANSIT",           label: "In Transit" },
+  { value: "REACHED_DESTINATION",  label: "Reached Destination" },
+  { value: "DELIVERED",            label: "Delivered" },
+  { value: "TERMINATED",           label: "Terminated" },
+  { value: "PAPERWORK_PENDING",    label: "Paperwork Pending" },
+  { value: "INVOICED",             label: "Invoiced" },
+  { value: "STREET_TURN",          label: "Street Turn" },
+  { value: "EMPTY_IN_YARD",        label: "Empty in Yard" },
+  { value: "LOADED_IN_YARD",       label: "Loaded in Yard" },
+  { value: "DRIVER_ON_WAITING",    label: "Driver on Waiting" },
+  { value: "DROP_IN_WAREHOUSE",    label: "Drop in Warehouse" },
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getAssignedName = (load, fleetOwners) => {
   if (load?.assignedFleetOwner?.fleetOwnerName)
@@ -49,7 +68,7 @@ const AssignDropdown = ({ loadId, fleetOwners, onConfirm, onCancel, saving }) =>
   return (
     <div className="flex flex-col gap-1.5 max-w-[280px]">
       <AppSelect
-        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.carrierName }))}
+        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.phone ? `${fo.carrierName} (${fo.phone})` : fo.carrierName }))}
         value={ownerId}
         onChange={setOwnerId}
         placeholder="Search fleet owner…"
@@ -74,13 +93,93 @@ const AssignDropdown = ({ loadId, fleetOwners, onConfirm, onCancel, saving }) =>
   );
 };
 
+// ─── Update Status Modal ──────────────────────────────────────────────────────
+const UpdateStatusModal = ({ load, onClose, onSaved }) => {
+  const [status, setStatus] = useState(load.transportStatus || "");
+  const [note, setNote]     = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!status) { notify.error("Please select a status"); return; }
+    setSaving(true);
+    try {
+      await api.put(`/loads/${load.loadId}/transport-status`, { transportStatus: status, note, source: "web" });
+      notify.success(`Status updated to "${TRANSPORT_STATUS_OPTIONS.find(o => o.value === status)?.label}"`);
+      onSaved();
+    } catch (err) {
+      notify.error(err?.response?.data?.message || "Failed to update status");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-800">Update Transport Status</h3>
+              <p className="text-xs text-gray-400">Load <span className="font-semibold text-gray-600">{load.loadId}</span></p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          <div className="relative">
+            <AppSelect
+              options={TRANSPORT_STATUS_OPTIONS}
+              value={status}
+              onChange={setStatus}
+              placeholder="Select new status…"
+              isDisabled={saving}
+            />
+            <label className="input-label">Transport Status <span className="text-red-400">*</span></label>
+          </div>
+          <div className="relative">
+            <textarea
+              rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 pt-5 pb-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              placeholder="Optional note…"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={saving}
+            />
+            <label className="input-label">Note (optional)</label>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
+            {saving ? "Saving…" : "Update Status"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Mobile Assign Inline ─────────────────────────────────────────────────────
 const MobileAssignInline = ({ loadId, fleetOwners, onConfirm, onCancel, saving }) => {
   const [ownerId, setOwnerId] = useState("");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <AppSelect
-        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.carrierName }))}
+        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.phone ? `${fo.carrierName} (${fo.phone})` : fo.carrierName }))}
         value={ownerId}
         onChange={setOwnerId}
         placeholder="Search fleet owner…"
@@ -110,11 +209,15 @@ const MobileAssignInline = ({ loadId, fleetOwners, onConfirm, onCancel, saving }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 const AssignedLoadsTable = () => {
-  const [rows, setRows]               = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [fleetOwners, setFleetOwners] = useState([]);
-  const [openRow, setOpenRow]         = useState(null);
-  const [saving, setSaving]           = useState(false);
+  const [rows, setRows]                   = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [fleetOwners, setFleetOwners]     = useState([]);
+  const [openRow, setOpenRow]             = useState(null);      // reassign inline open
+  const [saving, setSaving]               = useState(false);
+  const [statusModal, setStatusModal]     = useState(null);      // load object for status modal
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
 
   const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
 
@@ -137,12 +240,10 @@ const AssignedLoadsTable = () => {
       .catch((err) => console.error("Failed to fetch fleet owners:", err));
   }, []);
 
+  // ── Reassign ────────────────────────────────────────────────────────────────
   const handleAssign = async (loadId, ownerId, owners) => {
     const owner = owners.find((o) => o._id === ownerId);
-    if (!owner) {
-      notify.error("Owner not found");
-      return;
-    }
+    if (!owner) { notify.error("Owner not found"); return; }
     const result = await Swal.fire({
       title: "Assign Fleet Owner?",
       html: `Assign <strong>${owner.carrierName}</strong> to load <strong>${loadId}</strong>?`,
@@ -171,29 +272,54 @@ const AssignedLoadsTable = () => {
     }
   };
 
+  // ── Unassign ────────────────────────────────────────────────────────────────
+  const handleUnassign = async (row) => {
+    const result = await Swal.fire({
+      title: "Unassign Load?",
+      html: `Load <strong>${row.loadId}</strong> will be returned to <strong>Dispatch Management</strong> and will be available for bidding / reassignment.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "✓ Yes, Unassign",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+    setSaving(true);
+    try {
+      await api.put(`/loads/${row.loadId}/unassign`);
+      await fetchLoads();
+      notify.success(`Load ${row.loadId} unassigned — back in Dispatch Management.`);
+    } catch (err) {
+      notify.error(err?.response?.data?.message || "Unassign failed. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ── Desktop columns ──────────────────────────────────────────
   const columns = [
-    { key: "load",         header: "Load",                width: "130px", render: (row) => <LoadIdCell load={row} /> },
-    { key: "priority",     header: "Priority",            width: "90px",  render: (row) => <UrgencyBadge urgency={row.urgency} /> },
-    { key: "customer",     header: "Customer",            width: "150px", render: (row) => <CustomerCell load={row} /> },
-    { key: "origin",       header: "Origin",                              render: (row) => <AddressCell data={row.pickup} /> },
-    { key: "pickupDate",   header: "Pickup Date",         width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
-    { key: "destination",  header: "Destination",                         render: (row) => <AddressCell data={row.drop} /> },
-    { key: "deliveryDate", header: "Delivery Date",       width: "110px", render: (row) => <DateCell value={dropDateOf(row)} /> },
-    { key: "lfd",          header: "Last Free Date",      width: "120px", render: (row) => <LfdCell row={row} /> },
-    { key: "bidStatus",    header: "Bid Status",          width: "110px", render: (row) => <StatusBadge value={row.bidStatus} /> },
-    { key: "carrier",      header: "Carrier / Assignment", width: "200px", render: (row) => <CarrierCell load={row} fleetOwners={fleetOwners} /> },
-      {
-    key: "actions",
-    header: "Actions",
-    width: "280px", // 👈 fixed width here
-    render: (row) => desktopActions(row),
-  },
+    { key: "load",         header: "Load",                 width: "130px", render: (row) => <LoadIdCell load={row} /> },
+    { key: "customer",     header: "Customer",             width: "150px", render: (row) => <CustomerCell load={row} /> },
+    { key: "origin",       header: "Origin",                               render: (row) => <AddressCell data={row.pickup} /> },
+    { key: "pickupDate",   header: "Pickup Date",          width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
+    { key: "destination",  header: "Destination",                          render: (row) => <AddressCell data={row.drop} /> },
+    { key: "deliveryDate", header: "Delivery Date",        width: "110px", render: (row) => <DateCell value={dropDateOf(row)} /> },
+    { key: "lfd",          header: "Last Free Date",       width: "120px", render: (row) => <LfdCell row={row} /> },
+    { key: "bidStatus",    header: "Bid Status",           width: "110px", render: (row) => <StatusBadge value={row.bidStatus} /> },
+    { key: "carrier",      header: "Carrier / Assignment", width: "180px", render: (row) => <CarrierCell load={row} fleetOwners={fleetOwners} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      width: "320px",
+      render: (row) => desktopActions(row),
+    },
   ];
 
   const desktopActions = (row) => {
     const assignedName = getAssignedName(row, fleetOwners);
     const isOpen = openRow === row.loadId;
+
     if (isOpen) {
       return (
         <AssignDropdown
@@ -205,15 +331,39 @@ const AssignedLoadsTable = () => {
         />
       );
     }
+
     return (
-      <div className="flex items-center justify-center">
-      <button
-        onClick={() => setOpenRow(row.loadId)}
-        className={`${ assignedName ? "btn-secondary-small disabled:opacity-50" : "btn-primary-small disabled:opacity-50" }`}
-                //style={{ background:}}
-      >
-        {assignedName ? "Reassign" : "Assign Load"}
-      </button>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Reassign / Assign */}
+        <button
+          onClick={() => setOpenRow(row.loadId)}
+          disabled={saving}
+          className={`${assignedName ? "btn-secondary-small" : "btn-primary-small"} disabled:opacity-50`}
+        >
+          {assignedName ? "Reassign" : "Assign Load"}
+        </button>
+
+        {/* Update Status — staff/admin only */}
+        {isStaffOrAdmin && (
+          <button
+            onClick={() => setStatusModal(row)}
+            disabled={saving}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition disabled:opacity-50 whitespace-nowrap"
+          >
+            Update Status
+          </button>
+        )}
+
+        {/* Unassign — staff/admin only */}
+        {isStaffOrAdmin && assignedName && (
+          <button
+            onClick={() => handleUnassign(row)}
+            disabled={saving}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition disabled:opacity-50 whitespace-nowrap"
+          >
+            Unassign
+          </button>
+        )}
       </div>
     );
   };
@@ -259,16 +409,17 @@ const AssignedLoadsTable = () => {
                       ? `${fmtDate(row.lastFreeDate)}${isLfdAlarming(row) ? " 💡" : ""}`
                       : null,
                   },
-                  { label: "Truck Type",  value: row.truckType },
-                  { label: "Container #", value: row.containerNo },
-                  { label: "Bid Status",  value: row.bidStatus?.replace(/_/g, " ") },
-                  { label: "Carrier",     value: assignedName || "Not assigned" },
+                  { label: "Truck Type",        value: row.truckType },
+                  { label: "Container #",       value: row.containerNo },
+                  { label: "Bid Status",        value: row.bidStatus?.replace(/_/g, " ") },
+                  { label: "Transport Status",  value: row.transportStatus?.replace(/_/g, " ") },
+                  { label: "Carrier",           value: assignedName || "Not assigned" },
                 ]}
-                actions={
-                  !isOpen
-                    ? [{ label: assignedName ? "Reassign" : "Assign Load", color: assignedName ? "#f59e0b" : "#2563eb", onClick: () => setOpenRow(row.loadId) }]
-                    : []
-                }
+                actions={[
+                  ...(!isOpen ? [{ label: assignedName ? "Reassign" : "Assign Load", color: assignedName ? "#f59e0b" : "#2563eb", onClick: () => setOpenRow(row.loadId) }] : []),
+                  ...(isStaffOrAdmin ? [{ label: "Update Status", color: "#2563eb", onClick: () => setStatusModal(row) }] : []),
+                  ...(isStaffOrAdmin && assignedName ? [{ label: "Unassign", color: "#dc2626", onClick: () => handleUnassign(row) }] : []),
+                ]}
               >
                 {isOpen && (
                   <MobileAssignInline
@@ -292,13 +443,24 @@ const AssignedLoadsTable = () => {
         <LoadTable
           loads={sortedRows}
           columns={columns}
-          //actions={desktopActions}
           colorBy="urgency"
           colorMap={URGENCY_COLORS}
           loading={loading}
           emptyMessage="No loads in transit."
         />
       </div>
+
+      {/* Update Status Modal */}
+      {statusModal && (
+        <UpdateStatusModal
+          load={statusModal}
+          onClose={() => setStatusModal(null)}
+          onSaved={async () => {
+            setStatusModal(null);
+            await fetchLoads();
+          }}
+        />
+      )}
     </div>
   );
 };
