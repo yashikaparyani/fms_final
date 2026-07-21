@@ -72,6 +72,44 @@ const MAIN_ORDER = [
   "DELIVERED",
 ];
 
+// ─── Status colour maps (mirrors the web StatusChip so every status the web
+// shows is displayed with the same colour on mobile) ────────────────────────
+const TRANSPORT_STATUS_COLOR = {
+  LOAD_PLANNER: { bg: "#ede9fe", color: "#7c3aed", border: "#c4b5fd" },
+  NEW_LOAD: { bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
+  ASSIGNED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  READY_TO_PICKUP: { bg: "#e0f2fe", color: "#0369a1", border: "#7dd3fc" },
+  PICKED_UP: { bg: "#cffafe", color: "#0e7490", border: "#67e8f9" },
+  IN_TRANSIT: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  REACHED_DESTINATION: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  DELIVERED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  TERMINATED: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
+  PAPERWORK_PENDING: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  INVOICED: { bg: "#ede9fe", color: "#7c3aed", border: "#c4b5fd" },
+  STREET_TURN: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
+  EMPTY_IN_YARD: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" },
+  LOADED_IN_YARD: { bg: "#fdf4ff", color: "#86198f", border: "#f0abfc" },
+  DRIVER_ON_WAITING: { bg: "#fff7ed", color: "#c2410c", border: "#fdba74" },
+  DROP_IN_WAREHOUSE: { bg: "#faf5ff", color: "#6b21a8", border: "#d8b4fe" },
+};
+
+const LOAD_STATUS_COLOR = {
+  DRAFT: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" },
+  PENDING_VERIFICATION: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  REQUIRES_CHANGES: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
+  VERIFIED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  ASSIGNED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  REJECTED: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
+};
+
+const BID_STATUS_COLOR = {
+  UPCOMING: { bg: "#e0f2fe", color: "#0369a1", border: "#7dd3fc" },
+  OPEN: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  CLOSED: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" },
+};
+
+const STATUS_FALLBACK = { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" };
+
 const uploadableDocumentTypes = [
   "Bill Of Lading",
   "Scale Ticket",
@@ -158,6 +196,28 @@ const labelize = (value) =>
 const money = (value) =>
   value || value === 0 ? `$ ${Number(value).toLocaleString()}` : "-";
 
+const fmtDate = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? "-"
+    : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+};
+
+const fmtDateTime = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? "-"
+    : d.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+};
+
 const toLocationPayload = (position) => ({
   latitude: position.coords.latitude,
   longitude: position.coords.longitude,
@@ -217,6 +277,20 @@ function Pill({ children, tone = "default" }) {
     <Text style={[styles.pill, { backgroundColor: toneStyle.backgroundColor, color: toneStyle.color }]}>
       {children}
     </Text>
+  );
+}
+
+// Colour-coded status badge that supports every status the web shows.
+function StatusChip({ value, map = TRANSPORT_STATUS_COLOR, style }) {
+  const s = map[value] || STATUS_FALLBACK;
+  return (
+    <View
+      style={[styles.statusChip, { backgroundColor: s.bg, borderColor: s.border }, style]}
+    >
+      <Text style={[styles.statusChipText, { color: s.color }]} numberOfLines={1}>
+        {(value || "—").replace(/_/g, " ")}
+      </Text>
+    </View>
   );
 }
 
@@ -328,31 +402,49 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-function LoadCard({ load, children }) {
-  return (
-    <View style={styles.card}>
+function LoadCard({ load, children, onPress }) {
+  const header = (
+    <>
       <View style={styles.cardHeader}>
-        <View>
+        <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={styles.loadId}>{load.loadId}</Text>
           <Text style={styles.muted}>
             {load.pickup?.city || "-"} to {load.drop?.city || "-"}
           </Text>
         </View>
-        <Pill tone={load.transportStatus === "DELIVERED" ? "success" : "default"}>
-          {labelize(load.transportStatus || load.bidStatus)}
-        </Pill>
+        {load.transportStatus ? (
+          <StatusChip value={load.transportStatus} />
+        ) : (
+          <StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />
+        )}
       </View>
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>{load.truckType || "Truck -"}</Text>
         {/* Show the fleet-owner payout (vendor rate), not the customer base rate. */}
         <Text style={styles.metaText}>{money(load.vendorRate ?? load.amount)}</Text>
       </View>
+    </>
+  );
+
+  return (
+    <View style={styles.card}>
+      {onPress ? (
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }, styles.cardTapArea]}
+        >
+          {header}
+          <Text style={styles.detailHint}>View full details ›</Text>
+        </Pressable>
+      ) : (
+        header
+      )}
       {children}
     </View>
   );
 }
 
-function AvailableBidsTab({ onOpenAssigned }) {
+function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
   const [loads, setLoads] = useState([]);
   const [amountByLoad, setAmountByLoad] = useState({});
   const [loading, setLoading] = useState(false);
@@ -398,7 +490,7 @@ function AvailableBidsTab({ onOpenAssigned }) {
         <Text style={styles.empty}>{loading ? "Loading open bids..." : "No open bids right now."}</Text>
       }
       renderItem={({ item }) => (
-        <LoadCard load={item}>
+        <LoadCard load={item} onPress={() => onOpenDetail(item)}>
           <View style={styles.bidRow}>
             <TextInput
               value={amountByLoad[item.loadId] || ""}
@@ -420,7 +512,7 @@ function AvailableBidsTab({ onOpenAssigned }) {
   );
 }
 
-function MyBidsTab() {
+function MyBidsTab({ onOpenDetail }) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState({});
@@ -487,7 +579,7 @@ function MyBidsTab() {
         const isSaving = savingId === item.loadId;
 
         return (
-          <LoadCard load={item}>
+          <LoadCard load={item} onPress={() => onOpenDetail(item)}>
             <View style={styles.metaRow}>
               <Text style={styles.metaText}>Bid: {money(item.bidAmount || item.amount)}</Text>
               <Pill tone={result === "WON" ? "success" : result === "LOST" ? "danger" : "warning"}>
@@ -530,7 +622,7 @@ function MyBidsTab() {
   );
 }
 
-function AssignedLoadsTab({ onTrack }) {
+function AssignedLoadsTab({ onTrack, onOpenDetail }) {
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -572,7 +664,7 @@ function AssignedLoadsTab({ onTrack }) {
         <Text style={styles.empty}>{loading ? "Loading assigned loads..." : "No assigned loads."}</Text>
       }
       renderItem={({ item }) => (
-        <LoadCard load={item}>
+        <LoadCard load={item} onPress={() => onOpenDetail(item)}>
           <View style={styles.actionRow}>
             {item.transportStatus === "ASSIGNED" ? (
               <PrimaryButton title="Confirm" tone="success" onPress={() => confirm(item.loadId)} />
@@ -586,7 +678,7 @@ function AssignedLoadsTab({ onTrack }) {
   );
 }
 
-function OverLoadsTab({ onTrack }) {
+function OverLoadsTab({ onTrack, onOpenDetail }) {
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -618,7 +710,7 @@ function OverLoadsTab({ onTrack }) {
         <Text style={styles.empty}>{loading ? "Loading loads..." : "No completed loads yet."}</Text>
       }
       renderItem={({ item }) => (
-        <LoadCard load={item}>
+        <LoadCard load={item} onPress={() => onOpenDetail(item)}>
           <View style={styles.actionRow}>
             <SecondaryButton title="View documents" onPress={() => onTrack(item)} />
           </View>
@@ -682,6 +774,361 @@ function SignatureModal({ visible, onClose, onSigned }) {
   );
 }
 
+// Space-efficient status selector: one field that opens a scrollable,
+// colour-coded list — replaces the old grid of status buttons.
+function StatusPickerModal({ visible, onClose, options, isLocked, onSelect }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.pickerSheet} onPress={() => {}}>
+          <Text style={styles.sectionTitle}>Select next status</Text>
+          <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+            {options.map((status) => {
+              const locked = isLocked(status);
+              const palette = TRANSPORT_STATUS_COLOR[status] || STATUS_FALLBACK;
+              return (
+                <Pressable
+                  key={status}
+                  disabled={locked}
+                  onPress={() => onSelect(status)}
+                  style={({ pressed }) => [
+                    styles.pickerRow,
+                    { opacity: locked ? 0.4 : pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <View style={[styles.statusDot, { backgroundColor: palette.color }]} />
+                  <Text style={styles.pickerRowText}>{labelize(status)}</Text>
+                  {locked && <Text style={styles.pickerRowNote}>✓ passed</Text>}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <SecondaryButton title="Cancel" onPress={onClose} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ─── Read-only load detail screen ───────────────────────────────────────────
+function DetailRow({ label, value }) {
+  const display =
+    value === null || value === undefined || value === "" ? "-" : value;
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      {typeof display === "string" || typeof display === "number" ? (
+        <Text style={styles.detailValue}>{String(display)}</Text>
+      ) : (
+        <View style={styles.detailValueNode}>{display}</View>
+      )}
+    </View>
+  );
+}
+
+function DetailSection({ title, children }) {
+  return (
+    <View style={styles.detailSection}>
+      <Text style={styles.detailSectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function StopBlock({ stop, index, kind }) {
+  const dateField = kind === "pickup" ? stop.pickupDate : stop.deliveryDate;
+  return (
+    <View style={styles.stopBlock}>
+      <Text style={styles.stopTitle}>
+        {kind === "pickup" ? "Origin" : "Destination"} #{index + 1}
+      </Text>
+      <Text style={styles.stopCompany}>{stop.company || "-"}</Text>
+      {!!stop.address && <Text style={styles.muted}>{stop.address}</Text>}
+      <Text style={styles.muted}>
+        {[stop.city, stop.state, stop.zip].filter(Boolean).join(", ") || "-"}
+      </Text>
+      <View style={styles.stopMetaGrid}>
+        <DetailRow label="Date" value={fmtDate(dateField)} />
+        <DetailRow
+          label="Time"
+          value={`${stop.fromTime || "-"} – ${stop.toTime || "-"}`}
+        />
+        <DetailRow label="Appt.#" value={stop.apptNumber} />
+        <DetailRow label="Appt. Given By" value={stop.apptGivenBy} />
+        <DetailRow label="PO #" value={stop.poNumber} />
+        <DetailRow label="Pieces" value={stop.pieces} />
+        <DetailRow label="Weight" value={stop.weight} />
+      </View>
+    </View>
+  );
+}
+
+function LoadDetailScreen({ load: initialLoad, onBack }) {
+  const [load, setLoad] = useState(initialLoad);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get(`/loads/${initialLoad.loadId}`)
+      .then((res) => {
+        if (active && res.data) setLoad(res.data);
+      })
+      .catch(() => null)
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [initialLoad.loadId]);
+
+  const pickups = load.pickups?.length
+    ? load.pickups
+    : load.pickup
+    ? [load.pickup]
+    : [];
+  const drops = load.drops?.length ? load.drops : load.drop ? [load.drop] : [];
+
+  const flags = [
+    ["Hazmat", load.hazmat],
+    ["Hot Shipment", load.hotShipment],
+    ["Urgent", load.isUrgent],
+    ["On Hold", load.putOnHold],
+    ["Booking Problem", load.bookingProblem],
+    ["Chassis Rent", load.chassisRent],
+    ["Rail Container", load.railContainer],
+    ["Dry Van", load.dryVan],
+    ["Reefer", load.reefer],
+    ["Accessorial Charges", load.isAccessorialCharges],
+  ].filter(([, on]) => on);
+
+  const history = (load.transportStatusHistory || load.statusHistory || [])
+    .slice()
+    .reverse();
+  const documents = load.documents || [];
+  const contactPersons = load.contactPersons || [];
+  const lastLocation = load.liveTracking?.lastLocation;
+
+  const openDocument = async (filePath) => {
+    const url = getDocumentUrl(filePath);
+    if (!url) {
+      Alert.alert("View unavailable", "No file is available for this document.");
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("View failed", "Unable to open the document.");
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={styles.screenContent}>
+        <View style={styles.topBar}>
+          <SecondaryButton title="Back" onPress={onBack} />
+          {loading ? <ActivityIndicator color={colors.primary} /> : <View />}
+        </View>
+
+        {/* Header */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={styles.loadId}>{load.loadId}</Text>
+              <Text style={styles.muted}>
+                {load.pickup?.city || "-"} to {load.drop?.city || "-"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.chipRow}>
+            <StatusChip value={load.transportStatus} />
+            {!!load.status && <StatusChip value={load.status} map={LOAD_STATUS_COLOR} />}
+            {!!load.bidStatus && (
+              <StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />
+            )}
+          </View>
+        </View>
+
+        <DetailSection title="Identification">
+          <DetailRow label="Load ID" value={load.loadId} />
+          <DetailRow label="Ref #" value={load.refNo} />
+          <DetailRow label="Customer" value={load.customerName || load.customer?.name} />
+          <DetailRow label="Created By" value={load.createdBy} />
+          <DetailRow label="Created On" value={fmtDateTime(load.createdAt)} />
+          <DetailRow label="Updated On" value={fmtDateTime(load.updatedAt)} />
+          <DetailRow
+            label="Assigned Fleet Owner"
+            value={load.assignedFleetOwner?.fleetOwnerName}
+          />
+          <DetailRow
+            label="Assigned On"
+            value={fmtDateTime(load.assignedFleetOwner?.assignedAt)}
+          />
+        </DetailSection>
+
+        <DetailSection title="Equipment & Cargo">
+          <DetailRow label="Truck Type" value={load.truckType} />
+          <DetailRow label="Driver Requirement" value={load.driverRequirement} />
+          <DetailRow label="Material" value={load.material} />
+          <DetailRow label="Commodity" value={load.commodity} />
+          <DetailRow label="Delivery Type" value={load.deliveryType} />
+          <DetailRow label="Container Type" value={load.containerType} />
+          <DetailRow label="Container #" value={load.containerNo} />
+          <DetailRow label="Chassis #" value={load.chassisNo} />
+          <DetailRow label="Seal #" value={load.sealNo} />
+          <DetailRow label="Booking #" value={load.bookingNo} />
+          <DetailRow label="Pickup #" value={load.pickupNo} />
+          <DetailRow label="Shipping Line" value={load.shippingLine} />
+          <DetailRow label="Last Free Date" value={fmtDate(load.lastFreeDate)} />
+          <DetailRow label="Order Bill Date" value={fmtDate(load.orderBillDate)} />
+        </DetailSection>
+
+        <DetailSection title="Flags">
+          {flags.length ? (
+            <View style={styles.chipRow}>
+              {flags.map(([label]) => (
+                <View key={label} style={styles.flagChip}>
+                  <Text style={styles.flagChipText}>{label}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.muted}>No flags set.</Text>
+          )}
+        </DetailSection>
+
+        <DetailSection title="Financials">
+          <DetailRow label="Fleet Owner Payout" value={money(load.vendorRate)} />
+          <DetailRow
+            label="Winning Bid"
+            value={load.winningBid?.amount != null ? money(load.winningBid.amount) : "-"}
+          />
+          <DetailRow label="Winning Fleet Owner" value={load.winningBid?.fleetOwnerName} />
+        </DetailSection>
+
+        <DetailSection title="Routing">
+          <DetailRow label="Pier Termination" value={load.pierTermination} />
+          <DetailRow label="Empty Return" value={load.emptyReturn} />
+          {contactPersons.length === 0 ? (
+            <DetailRow label="Contact Person(s)" value="-" />
+          ) : (
+            contactPersons.map((c, i) => (
+              <View key={i} style={styles.stopBlock}>
+                <Text style={styles.stopCompany}>{c.name || "-"}</Text>
+                {!!c.phone && <Text style={styles.muted}>{c.phone}</Text>}
+                {!!c.email && <Text style={styles.muted}>{c.email}</Text>}
+              </View>
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title={`Origin(s) — ${pickups.length}`}>
+          {pickups.length === 0 ? (
+            <Text style={styles.muted}>No origin added yet.</Text>
+          ) : (
+            pickups.map((p, i) => (
+              <StopBlock key={i} stop={p} index={i} kind="pickup" />
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title={`Destination(s) — ${drops.length}`}>
+          {drops.length === 0 ? (
+            <Text style={styles.muted}>No destination added yet.</Text>
+          ) : (
+            drops.map((d, i) => (
+              <StopBlock key={i} stop={d} index={i} kind="drop" />
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title="Bid & Assignment">
+          <DetailRow
+            label="Bid Status"
+            value={<StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />}
+          />
+          <DetailRow label="Bid Start" value={fmtDateTime(load.bidStartTime)} />
+          <DetailRow label="Bid End" value={fmtDateTime(load.bidEndTime)} />
+        </DetailSection>
+
+        <DetailSection title="Live Tracking">
+          <DetailRow
+            label="Status"
+            value={labelize(load.liveTracking?.status || "NOT_STARTED")}
+          />
+          <DetailRow
+            label="Last Location"
+            value={
+              lastLocation
+                ? `${Number(lastLocation.latitude).toFixed(5)}, ${Number(
+                    lastLocation.longitude,
+                  ).toFixed(5)}`
+                : "-"
+            }
+          />
+          <DetailRow
+            label="Last Update"
+            value={fmtDateTime(load.liveTracking?.lastHeartbeatAt)}
+          />
+        </DetailSection>
+
+        <DetailSection title="Description & Remarks">
+          <Text style={styles.detailLabel}>Description</Text>
+          <Text style={styles.detailParagraph}>{load.description || "-"}</Text>
+          <Text style={[styles.detailLabel, { marginTop: 10 }]}>Remarks</Text>
+          <Text style={styles.detailParagraph}>{load.remarks || "-"}</Text>
+        </DetailSection>
+
+        <DetailSection title={`Status History — ${history.length}`}>
+          {history.length === 0 ? (
+            <Text style={styles.muted}>No status history available.</Text>
+          ) : (
+            history.map((entry, i) => (
+              <View key={i} style={styles.historyRow}>
+                <StatusChip value={entry.status || entry.transportStatus} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.historyTime}>
+                    {fmtDateTime(entry.changedAt || entry.timestamp || entry.updatedAt)}
+                  </Text>
+                  {!!(entry.note || entry.comment) && (
+                    <Text style={styles.muted}>{entry.note || entry.comment}</Text>
+                  )}
+                  {!!entry.location?.address && (
+                    <Text style={styles.muted}>{entry.location.address}</Text>
+                  )}
+                </View>
+              </View>
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title={`Documents — ${documents.length}`}>
+          {documents.length === 0 ? (
+            <Text style={styles.muted}>No documents on this load.</Text>
+          ) : (
+            documents.map((doc, i) => (
+              <Pressable
+                key={i}
+                onPress={() => openDocument(doc.filePath)}
+                style={({ pressed }) => [styles.docRow, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.detailValue}>{doc.documentType}</Text>
+                  <Text style={styles.muted} numberOfLines={1}>
+                    {doc.fileName || "-"}
+                  </Text>
+                  <Text style={styles.muted}>{fmtDate(doc.dateReceived)}</Text>
+                </View>
+                <Text style={styles.docViewLink}>View ›</Text>
+              </Pressable>
+            ))
+          )}
+        </DetailSection>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 function TrackingScreen({ load: initialLoad, onBack }) {
   const [load, setLoad] = useState(initialLoad);
   const [tracking, setTracking] = useState(null);
@@ -690,6 +1137,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
   const [proofImages, setProofImages] = useState([]);
   const [signatureData, setSignatureData] = useState("");
   const [signatureOpen, setSignatureOpen] = useState(false);
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const watcherRef = useRef(null);
   const pendingDeliveryStatusRef = useRef(null);
@@ -1004,17 +1452,14 @@ function TrackingScreen({ load: initialLoad, onBack }) {
             style={[styles.input, styles.noteInput]}
             placeholderTextColor="#98a2b3"
           />
-          <View style={styles.actionGrid}>
-            {statusOptions.map((status) => (
-              <SecondaryButton
-                key={status}
-                title={labelize(status)}
-                onPress={() => updateStatus(status)}
-                disabled={saving || isStatusLocked(status)}
-                style={styles.gridButton}
-              />
-            ))}
-          </View>
+          <Pressable
+            onPress={() => setStatusPickerOpen(true)}
+            disabled={saving}
+            style={({ pressed }) => [styles.pickerField, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={styles.pickerFieldText}>Select next status…</Text>
+            <Text style={styles.pickerChevron}>▾</Text>
+          </Pressable>
           <SecondaryButton title={`Pickup proof images: ${proofImages.length}`} onPress={pickProofImages} />
           <SecondaryButton
             title={signatureData ? "Signature captured" : "Capture delivery signature"}
@@ -1059,6 +1504,17 @@ function TrackingScreen({ load: initialLoad, onBack }) {
         </View>
       )}
 
+      <StatusPickerModal
+        visible={statusPickerOpen}
+        onClose={() => setStatusPickerOpen(false)}
+        options={statusOptions}
+        isLocked={(s) => saving || isStatusLocked(s)}
+        onSelect={(status) => {
+          setStatusPickerOpen(false);
+          updateStatus(status);
+        }}
+      />
+
       <SignatureModal
         visible={signatureOpen}
         onClose={() => {
@@ -1084,6 +1540,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
 function FleetHomeScreen({ session, onLogout }) {
   const [tab, setTab] = useState("assigned");
   const [selectedLoad, setSelectedLoad] = useState(null);
+  const [detailLoad, setDetailLoad] = useState(null);
 
   const tabs = useMemo(
     () => [
@@ -1097,6 +1554,10 @@ function FleetHomeScreen({ session, onLogout }) {
 
   if (selectedLoad) {
     return <TrackingScreen load={selectedLoad} onBack={() => setSelectedLoad(null)} />;
+  }
+
+  if (detailLoad) {
+    return <LoadDetailScreen load={detailLoad} onBack={() => setDetailLoad(null)} />;
   }
 
   return (
@@ -1124,10 +1585,17 @@ function FleetHomeScreen({ session, onLogout }) {
         ))}
       </View>
 
-      {tab === "assigned" && <AssignedLoadsTab onTrack={setSelectedLoad} />}
-      {tab === "available" && <AvailableBidsTab onOpenAssigned={() => setTab("assigned")} />}
-      {tab === "myBids" && <MyBidsTab />}
-      {tab === "over" && <OverLoadsTab onTrack={setSelectedLoad} />}
+      {tab === "assigned" && (
+        <AssignedLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />
+      )}
+      {tab === "available" && (
+        <AvailableBidsTab
+          onOpenAssigned={() => setTab("assigned")}
+          onOpenDetail={setDetailLoad}
+        />
+      )}
+      {tab === "myBids" && <MyBidsTab onOpenDetail={setDetailLoad} />}
+      {tab === "over" && <OverLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />}
     </SafeAreaView>
   );
 }
@@ -1515,6 +1983,217 @@ const styles = StyleSheet.create({
   },
   savingText: {
     color: "#fff",
+    fontWeight: "800",
+  },
+
+  // ── Status chip ──
+  statusChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    maxWidth: 170,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
+
+  // ── Tappable card ──
+  cardTapArea: {
+    gap: 12,
+  },
+  detailHint: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  // ── Status picker field + modal ──
+  pickerField: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pickerFieldText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  pickerChevron: {
+    color: colors.muted,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "flex-end",
+  },
+  pickerSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 28,
+    gap: 12,
+  },
+  pickerList: {
+    maxHeight: 380,
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eef2f7",
+  },
+  pickerRowText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  pickerRowNote: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+
+  // ── Detail screen ──
+  detailSection: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginBottom: 12,
+    gap: 6,
+    ...shadow,
+  },
+  detailSectionTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  detailLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    flexShrink: 0,
+    maxWidth: "50%",
+  },
+  detailValue: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "right",
+    flex: 1,
+  },
+  detailValueNode: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  detailParagraph: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 19,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#eef2f7",
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 4,
+  },
+  stopBlock: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 3,
+    backgroundColor: "#fbfdff",
+  },
+  stopTitle: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  stopCompany: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  stopMetaGrid: {
+    marginTop: 6,
+  },
+  flagChip: {
+    borderWidth: 1,
+    borderColor: "#fdba74",
+    backgroundColor: "#fff7ed",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  flagChipText: {
+    color: "#c2410c",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  historyTime: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  docViewLink: {
+    color: colors.primary,
+    fontSize: 13,
     fontWeight: "800",
   },
 });
