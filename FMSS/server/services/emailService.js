@@ -74,6 +74,57 @@ const sendBidWon = ({ load, fleetOwner, winningBid, email }) =>
     template: templates.bidWon({ load, fleetOwner, winningBid }),
   });
 
+/**
+ * Notifies every party on a confirmed street turn: the delivery partner, the
+ * shipping line, the chassis company, the carrier (who passes it to the
+ * driver) and each admin.
+ *
+ * Recipients are emailed independently — one bad address must not stop the
+ * rest — and the per-recipient outcome is returned so the caller can record
+ * it on the load.
+ *
+ * @returns {Promise<Array<{party, email, sent, reason}>>}
+ */
+const sendStreetTurnNotifications = async ({ load, streetTurn, recipients }) => {
+  const targets = recipients
+    .filter((r) => r.email)
+    .map((r) => ({ ...r, email: String(r.email).trim() }))
+    .filter((r) => r.email);
+
+  // The same address in two roles (e.g. carrier also listed as admin) should
+  // only be written to once.
+  const seen = new Set();
+  const unique = targets.filter((r) => {
+    const key = r.email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const results = await Promise.allSettled(
+    unique.map((recipient) =>
+      sendTemplate({
+        to: recipient.email,
+        template: templates.streetTurnConfirmed({
+          load,
+          streetTurn,
+          recipientLabel: recipient.party,
+        }),
+      }),
+    ),
+  );
+
+  return results.map((result, i) => ({
+    party: unique[i].party,
+    email: unique[i].email,
+    sent: result.status === "fulfilled" && !!result.value?.sent,
+    reason:
+      result.status === "rejected"
+        ? result.reason?.message || "Send failed"
+        : result.value?.reason || null,
+  }));
+};
+
 module.exports = {
   sendBidWon,
   sendBiddingNowOpen,
@@ -81,5 +132,6 @@ module.exports = {
   sendCustomerCredentials,
   sendFleetOwnerCredentials,
   sendLoadRequiresChanges,
+  sendStreetTurnNotifications,
   toEmailStatus,
 };

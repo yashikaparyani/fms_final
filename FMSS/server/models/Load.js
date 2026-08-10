@@ -144,6 +144,9 @@ const loadSchema = new mongoose.Schema(
     shippingLine: String,
     containerNo: String,
     chassisNo: String,
+    // Name from the ChassisCompany master, stored as a string so master edits
+    // never mutate historical loads.
+    chassisCompany: String,
     pickupNo: String,
     sealNo: String,
 
@@ -326,6 +329,35 @@ const loadSchema = new mongoose.Schema(
         "DROP_IN_WAREHOUSE",
       ],
       default: "NEW_LOAD",
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // STREET TURN CONFIRMATION
+    // Captured from the confirmation box when transportStatus is set to
+    // STREET_TURN. The three party names are copies of the master values at
+    // confirmation time, so later master edits never rewrite what was agreed.
+    // ═══════════════════════════════════════════════════════════
+    streetTurn: {
+      deliveryPartner: String,
+      deliveryPartnerEmail: String,
+      shippingLine: String,
+      shippingLineEmail: String,
+      chassisCompany: String,
+      chassisCompanyEmail: String,
+      note: String,
+      confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      confirmedAt: Date,
+      // One entry per recipient the confirmation email was attempted for, so
+      // a failed send is visible rather than silently lost.
+      notifications: [
+        {
+          party: String, // "Delivery Partner" | "Shipping Line" | ...
+          email: String,
+          sent: Boolean,
+          reason: String,
+          attemptedAt: { type: Date, default: Date.now },
+        },
+      ],
     },
 
     pickedUpAt: Date,

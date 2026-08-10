@@ -163,7 +163,7 @@ const AssignedLoad = () => {
                 { label: "Drop",   data: row.drop },
               ]}
               fields={[
-                { label: "Truck Type",     value: row.truckType },
+                { label: "Load Type",     value: row.truckType },
                 { label: "Amount",         value: row.amount ? `$ ${row.amount.toLocaleString()}` : null },
                 { label: "Last Free Date", value: fmtDate(row.lastFreeDate) },
               ]}

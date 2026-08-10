@@ -249,7 +249,7 @@ const LiveBidding = () => {
                     ["Material", loadDetails.material],
                     ["Container", loadDetails.containerType],
                     ["Commodity", loadDetails.commodity],
-                    ["Truck Type", loadDetails.truckType],
+                    ["Load Type", loadDetails.truckType],
                     ["Team Req.", loadDetails.driverRequirement],
                     ["Rate After Margin", getVendorRate(loadDetails) ? `$${Number(getVendorRate(loadDetails)).toLocaleString()}` : "—"],
                     ["Hazmat", loadDetails.hazmat ? "Yes" : "No"],

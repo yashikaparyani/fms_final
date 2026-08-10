@@ -4,7 +4,7 @@ import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 
 const REPORTS = [
-  { type: "loads", title: "Loads Report", description: "Load lifecycle, customer, assignment, and transport status." },
+  { type: "loads", title: "Loads Report", description: "Load lifecycle, customer, assignment, and status." },
   { type: "bids", title: "Bids Report", description: "Bid amounts, ranking status, fleet-owner rating, and submitted date." },
   { type: "ratings", title: "Ratings Report", description: "Staff ratings used in the 30% past-performance bid score." },
 ];

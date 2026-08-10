@@ -4,6 +4,8 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import MenuIcon from "@mui/icons-material/Menu";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
+import HandshakeOutlinedIcon from "@mui/icons-material/HandshakeOutlined";
+import RvHookupOutlinedIcon from "@mui/icons-material/RvHookupOutlined";
 import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
@@ -162,5 +164,19 @@ export const navItems = [
     icon: DirectionsBoatOutlinedIcon,
     visible: ["admin"],
     description: "Manage the shipping line master",
+  },
+  {
+    label: "Delivery Partners",
+    path: "delivery-partners",
+    icon: HandshakeOutlinedIcon,
+    visible: ["admin"],
+    description: "Manage the delivery partner master",
+  },
+  {
+    label: "Chassis Companies",
+    path: "chassis-companies",
+    icon: RvHookupOutlinedIcon,
+    visible: ["admin"],
+    description: "Manage the chassis company master",
   },
 ];

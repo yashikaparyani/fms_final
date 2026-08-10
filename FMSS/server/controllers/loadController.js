@@ -6,10 +6,14 @@ const Address = require("../models/common/Address");
 const Bid = require("../models/bidSchema");
 const TrackingEvent = require("../models/TrackingEvent");
 const fs = require("fs");
+const DeliveryPartner = require("../models/DeliveryPartner");
+const ChassisCompany = require("../models/ChassisCompany");
+const ShippingLine = require("../models/ShippingLine");
 const {
   sendLoadRequiresChanges,
   sendBidWon,
   sendBiddingScheduled,
+  sendStreetTurnNotifications,
 } = require("../services/emailService");
 
 // Resolve a fleet owner's primary contact email (falls back to first contact)
@@ -17,6 +21,102 @@ const getFleetOwnerEmail = (fleetOwner) =>
   fleetOwner?.contactPersons?.find((c) => c.isPrimary)?.email ||
   fleetOwner?.contactPersons?.[0]?.email ||
   null;
+
+// The transport-status route accepts multipart (mobile sends proof images
+// alongside), which flattens nested objects into JSON strings.
+const parseJsonField = (value) => {
+  if (!value) return null;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Validates the street-turn confirmation payload and resolves each party
+ * against its master. Emails always come from the master rather than the
+ * request, so a client cannot redirect a notification to an arbitrary address.
+ *
+ * @returns {Promise<{error?: string, streetTurn?: object}>}
+ */
+const resolveStreetTurn = async (rawPayload) => {
+  const payload = parseJsonField(rawPayload);
+
+  if (!payload) {
+    return { error: "Street turn confirmation details are required." };
+  }
+
+  const partnerName = String(payload.deliveryPartner || "").trim();
+  if (!partnerName) {
+    return { error: "A delivery partner must be selected to confirm a street turn." };
+  }
+
+  const partner = await DeliveryPartner.findOne({ name: partnerName });
+  if (!partner) {
+    return { error: `Delivery partner "${partnerName}" is not in the master list.` };
+  }
+
+  // Shipping line and chassis company are optional on the load, so they are
+  // only resolved when the confirmation actually names one.
+  const lineName = String(payload.shippingLine || "").trim();
+  const line = lineName ? await ShippingLine.findOne({ name: lineName }) : null;
+  if (lineName && !line) {
+    return { error: `Shipping line "${lineName}" is not in the master list.` };
+  }
+
+  const chassisName = String(payload.chassisCompany || "").trim();
+  const chassis = chassisName
+    ? await ChassisCompany.findOne({ name: chassisName })
+    : null;
+  if (chassisName && !chassis) {
+    return { error: `Chassis company "${chassisName}" is not in the master list.` };
+  }
+
+  return {
+    streetTurn: {
+      deliveryPartner: partner.name,
+      deliveryPartnerEmail: partner.email || "",
+      shippingLine: line?.name || "",
+      shippingLineEmail: line?.email || "",
+      chassisCompany: chassis?.name || "",
+      chassisCompanyEmail: chassis?.email || "",
+      note: String(payload.note || "").trim(),
+    },
+  };
+};
+
+/**
+ * Builds the recipient list for a confirmed street turn and sends to each.
+ * The carrier's primary contact stands in for the assigned driver: the system
+ * has no driver records, so the carrier forwards it on.
+ */
+const notifyStreetTurn = async (load, streetTurn) => {
+  const recipients = [
+    { party: "Delivery Partner", email: streetTurn.deliveryPartnerEmail },
+    { party: "Shipping Line", email: streetTurn.shippingLineEmail },
+    { party: "Chassis Company", email: streetTurn.chassisCompanyEmail },
+  ];
+
+  const fleetOwnerId = load.assignedFleetOwner?.fleetOwnerId;
+  if (fleetOwnerId) {
+    const fleetOwner = await FleetOwner.findById(fleetOwnerId).lean();
+    const carrierEmail = getFleetOwnerEmail(fleetOwner);
+    if (carrierEmail) {
+      recipients.push({ party: "Assigned Carrier / Driver", email: carrierEmail });
+    }
+  }
+
+  const admins = await User.find({ role: "admin", isActive: true })
+    .select("email")
+    .lean();
+  for (const admin of admins) {
+    recipients.push({ party: "Admin", email: admin.email });
+  }
+
+  return sendStreetTurnNotifications({ load, streetTurn, recipients });
+};
 const { buildPodDocument } = require("../services/podDocumentService");
 const { publishTrackingUpdate } = require("../services/trackingBroadcaster");
 const {
@@ -592,6 +692,10 @@ const updateLoad = async (req, res) => {
       "status",
       "transportStatus",
       "transportStatusHistory",
+      // Written only by the street-turn confirmation flow, which validates the
+      // parties against their masters and emails them. A plain load edit must
+      // not be able to rewrite what was confirmed.
+      "streetTurn",
     ];
 
     for (const [key, value] of Object.entries(req.body)) {
@@ -964,9 +1068,35 @@ const updateTransportStatus = async (req, res) => {
     }
 
     // ─────────────────────────────────────────────
+    // STREET TURN REQUIRES A CONFIRMATION
+    // Resolved before anything is mutated so a bad payload leaves the load
+    // untouched rather than half-updated.
+    // ─────────────────────────────────────────────
+    let confirmedStreetTurn = null;
+    if (transportStatus === "STREET_TURN") {
+      const { error, streetTurn } = await resolveStreetTurn(req.body.streetTurn);
+      if (error) {
+        return res.status(400).json({ success: false, message: error });
+      }
+      confirmedStreetTurn = {
+        ...streetTurn,
+        confirmedBy: req.user._id,
+        confirmedAt: new Date(),
+      };
+    }
+
+    // ─────────────────────────────────────────────
     // UPDATE CURRENT STATUS
     // ─────────────────────────────────────────────
     load.transportStatus = transportStatus;
+
+    if (confirmedStreetTurn) {
+      load.streetTurn = confirmedStreetTurn;
+      // Keep the load's own chassis company in step with what was agreed.
+      if (confirmedStreetTurn.chassisCompany) {
+        load.chassisCompany = confirmedStreetTurn.chassisCompany;
+      }
+    }
 
     // ─── Capture Pickup/Delivery Details ───
     if (transportStatus === "PICKED_UP") {
@@ -1083,10 +1213,32 @@ const updateTransportStatus = async (req, res) => {
       await load.save();
     }
 
+    // ─────────────────────────────────────────────
+    // STREET TURN NOTIFICATIONS
+    // Sent after the status is safely persisted. A mail failure must not undo
+    // a confirmed street turn, so the outcome is recorded on the load instead
+    // of thrown — the caller sees which parties were reached.
+    // ─────────────────────────────────────────────
+    let streetTurnNotifications = null;
+    if (confirmedStreetTurn) {
+      try {
+        streetTurnNotifications = await notifyStreetTurn(load, confirmedStreetTurn);
+      } catch (err) {
+        console.error("Street turn notifications failed:", err);
+        streetTurnNotifications = [];
+      }
+
+      load.streetTurn.notifications = streetTurnNotifications;
+      await load.save();
+    }
+
     return res.json({
       success: true,
       message: "Transport status updated successfully",
       data: load,
+      ...(streetTurnNotifications
+        ? { streetTurnNotifications }
+        : {}),
     });
   } catch (error) {
     if (generatedPodDocument?.filePath) {

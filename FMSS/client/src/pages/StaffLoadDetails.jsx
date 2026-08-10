@@ -144,7 +144,7 @@ const StaffLoadDetails = () => {
     { field: "loadId", headerName: "Load ID", flex: 1 },
     { field: "customerName", headerName: "Customer", flex: 1 },
     { field: "refNo", headerName: "Ref No", flex: 1 },
-    { field: "truckType", headerName: "Truck Type", flex: 1 },
+    { field: "truckType", headerName: "Load Type", flex: 1 },
     { field: "material", headerName: "Material", flex: 1 },
     { field: "driverRequirement", headerName: "Team Required", flex: 1 },
     { field: "amount", headerName: "Amount", flex: 1 },
@@ -153,6 +153,7 @@ const StaffLoadDetails = () => {
   const containerColumns = [
     { field: "containerType", headerName: "Container Type", flex: 1 },
     { field: "containerNo", headerName: "Container No", flex: 1 },
+    { field: "chassisCompany", headerName: "Chassis Company", flex: 1 },
     { field: "bookingNo", headerName: "Booking No", flex: 1 },
     { field: "shippingLine", headerName: "Shipping Line", flex: 1 },
     { field: "sealNo", headerName: "Seal No", flex: 1 },
@@ -234,7 +235,7 @@ const StaffLoadDetails = () => {
       ),
     },
     { field: "status", headerName: "Load Status", flex: 1 },
-    { field: "transportStatus", headerName: "Transport Status", flex: 1 },
+    { field: "transportStatus", headerName: "Status", flex: 1 },
     { field: "accChargesEmail", headerName: "Acc Charges Email", flex: 1.5 },
     { field: "billingEmail", headerName: "Billing Email", flex: 1.5 },
     { field: "deliveryEmail", headerName: "Delivery Email", flex: 1.5 },
@@ -672,7 +673,7 @@ const StaffLoadDetails = () => {
 
       {/* TRANSPORT STATUS */}
       <div className="bg-white p-4 rounded shadow">
-        <h3 className="font-semibold text-gray-700 mb-4">Transport Status</h3>
+        <h3 className="font-semibold text-gray-700 mb-4">Status</h3>
         <div className="flex gap-2 flex-wrap">
           {[
             "NEW_LOAD",

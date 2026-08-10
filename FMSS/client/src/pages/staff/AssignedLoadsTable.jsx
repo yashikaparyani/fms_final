@@ -4,6 +4,7 @@ import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import Swal from "sweetalert2";
 import AppSelect from "../../components/AppSelect";
+import StreetTurnConfirmDialog from "../../components/StreetTurnConfirmDialog";
 import { notify } from "../../utils/swal";
 import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
 import {
@@ -128,19 +129,32 @@ const UpdateStatusModal = ({ load, onClose, onSaved }) => {
   const [status, setStatus] = useState(load.transportStatus || "");
   const [note, setNote]     = useState("");
   const [saving, setSaving] = useState(false);
+  // A street turn needs the handover details before it can be saved.
+  const [showStreetTurn, setShowStreetTurn] = useState(false);
 
-  const handleSave = async () => {
-    if (!status) { notify.error("Please select a status"); return; }
+  const save = async (streetTurn) => {
     setSaving(true);
     try {
-      await api.put(`/loads/${load.loadId}/transport-status`, { transportStatus: status, note, source: "web" });
+      await api.put(`/loads/${load.loadId}/transport-status`, {
+        transportStatus: status,
+        note,
+        source: "web",
+        ...(streetTurn ? { streetTurn } : {}),
+      });
       notify.success(`Status updated to "${TRANSPORT_STATUS_OPTIONS.find(o => o.value === status)?.label}"`);
+      setShowStreetTurn(false);
       onSaved();
     } catch (err) {
       notify.error(err?.response?.data?.message || "Failed to update status");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = () => {
+    if (!status) { notify.error("Please select a status"); return; }
+    if (status === "STREET_TURN") { setShowStreetTurn(true); return; }
+    save(null);
   };
 
   return (
@@ -155,7 +169,7 @@ const UpdateStatusModal = ({ load, onClose, onSaved }) => {
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-bold text-gray-800">Update Transport Status</h3>
+              <h3 className="text-base font-bold text-gray-800">Update Status</h3>
               <p className="text-xs text-gray-400">Load <span className="font-semibold text-gray-600">{load.loadId}</span></p>
             </div>
           </div>
@@ -176,7 +190,7 @@ const UpdateStatusModal = ({ load, onClose, onSaved }) => {
               placeholder="Select new status…"
               isDisabled={saving}
             />
-            <label className="input-label">Transport Status <span className="text-red-400">*</span></label>
+            <label className="input-label">Status <span className="text-red-400">*</span></label>
           </div>
           <div className="relative">
             <textarea
@@ -199,6 +213,14 @@ const UpdateStatusModal = ({ load, onClose, onSaved }) => {
           </button>
         </div>
       </div>
+
+      <StreetTurnConfirmDialog
+        isShow={showStreetTurn}
+        load={load}
+        saving={saving}
+        onCancel={() => setShowStreetTurn(false)}
+        onConfirm={save}
+      />
     </div>
   );
 };
@@ -440,10 +462,10 @@ const AssignedLoadsTable = () => {
                       ? `${fmtDate(row.lastFreeDate)}${isLfdAlarming(row) ? " 💡" : ""}`
                       : null,
                   },
-                  { label: "Truck Type",        value: row.truckType },
+                  { label: "Load Type",        value: row.truckType },
                   { label: "Container #",       value: row.containerNo },
                   { label: "Bid Status",        value: row.bidStatus?.replace(/_/g, " ") },
-                  { label: "Transport Status",  value: row.transportStatus?.replace(/_/g, " ") },
+                  { label: "Status",  value: row.transportStatus?.replace(/_/g, " ") },
                   {
                     label: "Carrier",
                     value: assignedOwner

@@ -16,7 +16,7 @@ const loadSchema = z.object({
   refNo: z.string().optional(),
   deliveryType: z.enum(["ROUNDED", "SINGLE"]),
   singleType: z.enum(["Pick Up", "Delivery", "Drop"]).optional(),
-  truckType: z.string().min(1, "Truck type is required"),
+  truckType: z.string().min(1, "Load type is required"),
   material: z.string().min(1, "Material is required"),
   amount: z
     .string()
@@ -32,6 +32,7 @@ const loadSchema = z.object({
   shippingLine: z.string().optional(),
   containerNo: z.string().optional(),
   chassisNo: z.string().optional(),
+  chassisCompany: z.string().optional(),
   pickupNo: z.string().optional(),
   sealNo: z.string().optional(),
   hazmat: z.boolean(),
@@ -611,6 +612,7 @@ const LoadForm = () => {
   const [customers, setCustomers] = useState([]);     // for Step 1 customer dropdown
   const [allCompanies, setAllCompanies] = useState([]); // shared across both StopForms
   const [shippingLines, setShippingLines] = useState([]); // shipping line master
+  const [chassisCompanies, setChassisCompanies] = useState([]); // chassis company master
   const [savedLoadId, setSavedLoadId] = useState(null);
   const [savedLoadLabel, setSavedLoadLabel] = useState(null);
 
@@ -628,7 +630,7 @@ const LoadForm = () => {
       truckType: "", material: "", amount: "",
       lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "",
-      bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "", pickupNo: "", sealNo: "",
+      bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "", chassisCompany: "", pickupNo: "", sealNo: "",
       hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false, isUrgent: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
@@ -656,12 +658,20 @@ const LoadForm = () => {
       .get("/shipping-lines", { params: { active: true } })
       .then((res) => setShippingLines(res.data))
       .catch(() => {});
+    // Step 1: chassis company master (admins maintain it under /admin/chassis-companies)
+    api
+      .get("/chassis-companies", { params: { active: true } })
+      .then((res) => setChassisCompanies(res.data))
+      .catch(() => {});
   }, [role, setValue]);
 
-  const shippingLineOptions = shippingLines.map((l) => ({
-    value: l.name,
-    label: l.code ? `${l.name} (${l.code})` : l.name,
-  }));
+  const toMasterOption = (row) => ({
+    value: row.name,
+    label: row.code ? `${row.name} (${row.code})` : row.name,
+  });
+
+  const shippingLineOptions = shippingLines.map(toMasterOption);
+  const chassisCompanyOptions = chassisCompanies.map(toMasterOption);
 
   // ΓöÇΓöÇ Step 1 Submit ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const onStep1Submit = async (data, status = "PENDING_VERIFICATION") => {
@@ -858,13 +868,13 @@ const LoadForm = () => {
                         options={truckTypeOptions.map((t) => ({ value: t, label: t }))}
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder="Select truck type..."
+                        placeholder="Select load type..."
                         error={!!errors.truckType}
                         isDisabled={loading}
                       />
                     )}
                   />
-                  <label className="input-label">Truck Type <span className="text-red-400">*</span></label>
+                  <label className="input-label">Load Type <span className="text-red-400">*</span></label>
                   {errors.truckType && <p className="text-xs text-red-500 mt-1">{errors.truckType.message}</p>}
                 </div>
 
@@ -948,6 +958,25 @@ const LoadForm = () => {
                     )}
                   />
                   <label className="input-label">Shipping Line</label>
+                </div>
+
+                <div className="relative">
+                  <Controller
+                    name="chassisCompany"
+                    control={control}
+                    render={({ field }) => (
+                      <AppSelect
+                        options={chassisCompanyOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={chassisCompanyOptions.length ? "Select..." : "No chassis companies yet"}
+                        noOptionsMessage={() => "No chassis companies. Add them under Admin → Chassis Companies."}
+                        isClearable
+                        isDisabled={loading}
+                      />
+                    )}
+                  />
+                  <label className="input-label">Chassis Company</label>
                 </div>
 
                 {[

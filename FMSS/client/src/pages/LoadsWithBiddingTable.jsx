@@ -75,7 +75,7 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
     },
     {
       key: "truckType",
-      header: "Truck Type",
+      header: "Load Type",
       width: "110px",
       render: (row) => (
         <span className="text-xs text-gray-700">{row.truckType || "—"}</span>

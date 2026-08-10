@@ -70,7 +70,7 @@ const ClientLoads = () => {
     },
     {
       key: "truckType",
-      header: "Truck Type",
+      header: "Load Type",
       width: "110px",
       render: (row) => (
         <span className="text-xs text-gray-700">{row.truckType || "—"}</span>
@@ -231,7 +231,7 @@ const ClientLoads = () => {
                 { label: "Destination", data: row.drop },
               ]}
               fields={[
-                { label: "Truck Type",    value: row.truckType },
+                { label: "Load Type",    value: row.truckType },
                 { label: "Material",      value: row.material },
                 { label: "Amount",        value: row.amount ? `$${Number(row.amount).toLocaleString()}` : null },
                 { label: "Bidding",       value: row.status === "VERIFIED" ? (row.bidStatus || "N/A") : null },

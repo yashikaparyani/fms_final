@@ -307,7 +307,7 @@ const BidDetails = () => {
               ["Material",    load.material],
               ["Source",      `${load.pickup?.city || "—"}, ${load.pickup?.state || ""}`],
               ["Destination", `${load.drop?.city   || "—"}, ${load.drop?.state   || ""}`],
-              ["Truck Type",  load.truckType],
+              ["Load Type",  load.truckType],
               ["Rate",        load.amount ? `$${load.amount.toLocaleString()}` : "—"],
               ["Load Status", load.status || load.transportStatus],
             ].map(([label, value]) => (

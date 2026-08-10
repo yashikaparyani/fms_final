@@ -155,7 +155,7 @@ const loadSchema = z.object({
   refNo: z.string().optional(),
   deliveryType: z.enum(["ROUNDED", "SINGLE"]),
   singleType: z.enum(["Pick Up", "Delivery", "Drop"]).optional(),
-  truckType: z.string().min(1, "Truck type is required"),
+  truckType: z.string().min(1, "Load type is required"),
   material: z.string().min(1, "Material is required"),
   amount: z
     .string()
@@ -171,6 +171,7 @@ const loadSchema = z.object({
   shippingLine:    z.string().optional(),
   containerNo:     z.string().optional(),
   chassisNo:       z.string().optional(),
+  chassisCompany:  z.string().optional(),
   pickupNo:        z.string().optional(),
   sealNo:          z.string().optional(),
   hazmat:          z.boolean(),
@@ -535,6 +536,7 @@ const EditLoad = () => {
   const [changesNote, setChangesNote] = useState("");
   const [customers,    setCustomers]    = useState([]);
   const [shippingLines, setShippingLines] = useState([]);
+  const [chassisCompanies, setChassisCompanies] = useState([]);
   const [allCompanies, setAllCompanies] = useState([]);
   const [pickups,      setPickups]      = useState([{ ...emptyStop }]);
   const [drops,        setDrops]        = useState([{ ...emptyStop }]);
@@ -556,7 +558,7 @@ const EditLoad = () => {
       customer: "", refNo: "", deliveryType: "ROUNDED", singleType: "Pick Up",
       truckType: "", material: "", amount: "", lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "", bookingNo: "", shippingLine: "",
-      containerNo: "", chassisNo: "", pickupNo: "", sealNo: "",
+      containerNo: "", chassisNo: "", chassisCompany: "", pickupNo: "", sealNo: "",
       hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false, isUrgent: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
@@ -566,6 +568,7 @@ const EditLoad = () => {
 
   const deliveryType = watch("deliveryType");
   const shippingLine = watch("shippingLine");
+  const chassisCompany = watch("chassisCompany");
 
   // ── Error helper ────────────────────────────────────────────────────────
   const inputErrorClass = `${uiStyles.input} ${uiStyles.inputError}`;
@@ -583,26 +586,33 @@ const EditLoad = () => {
     api.get("/companies").then((res) => setAllCompanies(res.data)).catch(() => {});
   }, []);
 
-  // ── Fetch shipping line master ───────────────────────────────────────────
+  // ── Fetch shipping line + chassis company masters ────────────────────────
   useEffect(() => {
     api
       .get("/shipping-lines", { params: { active: true } })
       .then((res) => setShippingLines(res.data))
       .catch(() => {});
+    api
+      .get("/chassis-companies", { params: { active: true } })
+      .then((res) => setChassisCompanies(res.data))
+      .catch(() => {});
   }, []);
 
-  // A load saved before this master existed (or whose line was since removed or
+  // A load saved before a master existed (or whose value was since removed or
   // deactivated) keeps its value as an extra option, so editing never blanks it.
-  const shippingLineOptions = (() => {
-    const options = shippingLines.map((l) => ({
-      value: l.name,
-      label: l.code ? `${l.name} (${l.code})` : l.name,
+  const buildMasterOptions = (rows, current) => {
+    const options = rows.map((row) => ({
+      value: row.name,
+      label: row.code ? `${row.name} (${row.code})` : row.name,
     }));
-    if (shippingLine && !options.some((o) => o.value === shippingLine)) {
-      options.unshift({ value: shippingLine, label: `${shippingLine} (not in master)` });
+    if (current && !options.some((o) => o.value === current)) {
+      options.unshift({ value: current, label: `${current} (not in master)` });
     }
     return options;
-  })();
+  };
+
+  const shippingLineOptions = buildMasterOptions(shippingLines, shippingLine);
+  const chassisCompanyOptions = buildMasterOptions(chassisCompanies, chassisCompany);
 
   // ── Fetch & pre-populate ─────────────────────────────────────────────────
   useEffect(() => {
@@ -648,6 +658,7 @@ const EditLoad = () => {
           shippingLine:    load.shippingLine    || "",
           containerNo:     load.containerNo     || "",
           chassisNo:       load.chassisNo       || "",
+          chassisCompany:  load.chassisCompany  || "",
           pickupNo:        load.pickupNo        || "",
           sealNo:          load.sealNo          || "",
           hazmat:          load.hazmat          || false,
@@ -840,7 +851,7 @@ const EditLoad = () => {
               {/* Details & Commodity */}
               <h3 className="form-subtitle">Details & Commodity</h3>
               <div className={uiStyles.grid2}>
-                {/* Truck Type */}
+                {/* Load Type */}
                 <div className="relative">
                   <Controller
                     name="truckType"
@@ -850,13 +861,13 @@ const EditLoad = () => {
                         options={truckTypeOptions.map((t) => ({ value: t, label: t }))}
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder="Select truck type..."
+                        placeholder="Select load type..."
                         error={!!errors.truckType}
                         isDisabled={submitting}
                       />
                     )}
                   />
-                  <label className="input-label">Truck Type <span className="text-red-400">*</span></label>
+                  <label className="input-label">Load Type <span className="text-red-400">*</span></label>
                   {errors.truckType && <p className="text-xs text-red-500 mt-1">{errors.truckType.message}</p>}
                 </div>
 
@@ -948,6 +959,26 @@ const EditLoad = () => {
                     )}
                   />
                   <label className="input-label">Shipping Line</label>
+                </div>
+
+                {/* Chassis Company */}
+                <div className="relative">
+                  <Controller
+                    name="chassisCompany"
+                    control={control}
+                    render={({ field }) => (
+                      <AppSelect
+                        options={chassisCompanyOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={chassisCompanyOptions.length ? "Select..." : "No chassis companies yet"}
+                        noOptionsMessage={() => "No chassis companies. Add them under Admin → Chassis Companies."}
+                        isClearable
+                        isDisabled={submitting}
+                      />
+                    )}
+                  />
+                  <label className="input-label">Chassis Company</label>
                 </div>
 
                 {/* Container # */}

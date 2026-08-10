@@ -198,7 +198,7 @@ const MobileAddressCard = ({ row, onEdit }) => {
       {/* Details */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
         {[
-          { label: "Truck Type", value: row.truckType },
+          { label: "Load Type", value: row.truckType },
           { label: "Created",    value: row.createdAt
               ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
               : null },
@@ -262,7 +262,7 @@ const UpdateAddressPage = () => {
     { key: "customer",      header: "Customer",        width: "150px", render: (row) => <CustomerCell load={row} /> },
     { key: "pickup",        header: "Pickup",                          render: (row) => <AddressCell data={row.pickup} /> },
     { key: "drop",          header: "Drop",                            render: (row) => <AddressCell data={row.drop} /> },
-    { key: "truckType",     header: "Truck Type",      width: "110px", render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
+    { key: "truckType",     header: "Load Type",      width: "110px", render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
     { key: "status",        header: "Load Status",     width: "140px", render: (row) => <StatusBadge value={row.status} /> },
     {
       key: "addressStatus", header: "Address Status",  width: "110px",

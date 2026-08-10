@@ -67,7 +67,7 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
     { key: "pickupDate",  header: "Pickup Date",  width: "9%",  render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
     { key: "destination", header: "Destination",  width: "15%", render: (row) => <AddressCell data={row.drop} /> },
     { key: "deliveryDate",header: "Delivery Date",width: "9%",  render: (row) => <DateCell value={dropDateOf(row)} /> },
-    { key: "truckType",   header: "Truck Type",   width: "8%",  render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
+    { key: "truckType",   header: "Load Type",   width: "8%",  render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
     { key: "refNo",       header: "Ref No",       width: "7%",  render: (row) => <span className="text-xs text-gray-700">{row.refNo || "—"}</span> },
     { key: "lastFreeDate",header: "Last Free Date",width: "9%", render: (row) => <DateCell value={row.lastFreeDate} showExpiry /> },
   ];
@@ -130,7 +130,7 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
               fields={[
                 { label: "Pickup Date",   value: fmtDate(pickupDateOf(row)) },
                 { label: "Delivery Date", value: fmtDate(dropDateOf(row)) },
-                { label: "Truck Type",    value: row.truckType },
+                { label: "Load Type",    value: row.truckType },
                 { label: "Ref No",        value: row.refNo },
                 { label: "Container #",   value: row.containerNo },
                 { label: "Last Free Date",value: fmtDate(row.lastFreeDate) },

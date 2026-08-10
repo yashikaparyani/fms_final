@@ -369,7 +369,7 @@ const VerifiedLoadsTable = () => {
                   { label: "Destination", data: row.drop },
                 ]}
                 fields={[
-                  { label: "Truck Type", value: row.truckType },
+                  { label: "Load Type", value: row.truckType },
                   { label: "Container #", value: row.containerNo },
                   { label: "Pickup Date", value: fmtDate(pickupDateOf(row)) },
                   { label: "Dest. Date", value: fmtDate(dropDateOf(row)) },

@@ -79,7 +79,7 @@ const PlaceBid = () => {
             <p><span className="font-semibold">Customer:</span> {load.customerName}</p>
             <p><span className="font-semibold">Pickup:</span> {load.pickup.city}, {load.pickup.state}</p>
             <p><span className="font-semibold">Drop:</span> {load.drop.city}, {load.drop.state}</p>
-            <p><span className="font-semibold">Truck Type:</span> {load.truckType}</p>
+            <p><span className="font-semibold">Load Type:</span> {load.truckType}</p>
             <p><span className="font-semibold">Team Required:</span> {load.driverRequirement}</p>
             <p><span className="font-semibold">Material:</span> {load.material}</p>
             <p><span className="font-semibold">Rate:</span> ${(load.vendorRate || load.amount).toLocaleString()}</p>

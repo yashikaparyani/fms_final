@@ -67,7 +67,7 @@ const LoadDetailsLeft = ({ load }) => (
       <SectionHeader label="Routing" accent="#8b5cf6" />
       <InfoRow label="Delivery Type" value={load.deliveryType} />
       <InfoRow label="Single Type" value={load.singleType} />
-      <InfoRow label="Truck Type" value={load.truckType} />
+      <InfoRow label="Load Type" value={load.truckType} />
       <InfoRow label="Material" value={load.material} />
       <InfoRow
         label="Amount"

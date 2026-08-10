@@ -229,7 +229,7 @@ const LoadForm = ({ onSubmit, title, submitButtonText }) => {
           value={formData.truckType}
           onChange={handleChange}
         >
-          <option value="">Truck Type</option>
+          <option value="">Load Type</option>
           {truckTypeOptions.map((t) => (
             <option key={t}>{t}</option>
           ))}

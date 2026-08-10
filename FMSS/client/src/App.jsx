@@ -46,6 +46,8 @@ import MyBids from "./pages/fleetOwner/MyBids";
 import ReportsPage from "./pages/staff/ReportsPage";
 import Bids from "./pages/Bids";
 import ShippingLines from "./pages/admin/ShippingLines";
+import DeliveryPartners from "./pages/admin/DeliveryPartners";
+import ChassisCompanies from "./pages/admin/ChassisCompanies";
 import Seo from "./components/Seo";
 
 function App() {
@@ -99,6 +101,8 @@ function App() {
           <Route path="dashboard" element={<StaffDashboard />} />
           <Route path="analytics" element={<h1>Analytics Page</h1>} />
           <Route path="shipping-lines" element={<ShippingLines />} />
+          <Route path="delivery-partners" element={<DeliveryPartners />} />
+          <Route path="chassis-companies" element={<ChassisCompanies />} />
           <Route path="customers/:id/edit" element={<EditCustomerPage />} />
           <Route
             path="fleet-owners/:id/edit"

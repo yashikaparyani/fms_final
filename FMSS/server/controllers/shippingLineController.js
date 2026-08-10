@@ -35,7 +35,7 @@ const getShippingLines = async (req, res) => {
  * Body: { name, code?, isActive? }
  */
 const createShippingLine = async (req, res) => {
-  const { name, code, isActive } = req.body || {};
+  const { name, code, email, isActive } = req.body || {};
 
   if (!name || !name.trim()) {
     return res.status(400).json({ message: "Shipping line name is required" });
@@ -51,6 +51,7 @@ const createShippingLine = async (req, res) => {
     const line = await ShippingLine.create({
       name: trimmed,
       code: (code || "").trim(),
+      email: (email || "").trim(),
       isActive: isActive !== false,
     });
 
@@ -68,7 +69,7 @@ const createShippingLine = async (req, res) => {
  * Body: { name?, code?, isActive? }
  */
 const updateShippingLine = async (req, res) => {
-  const { name, code, isActive } = req.body || {};
+  const { name, code, email, isActive } = req.body || {};
 
   try {
     const line = await ShippingLine.findById(req.params.id);
@@ -88,6 +89,7 @@ const updateShippingLine = async (req, res) => {
     }
 
     if (code !== undefined) line.code = (code || "").trim();
+    if (email !== undefined) line.email = (email || "").trim();
     if (isActive !== undefined) line.isActive = Boolean(isActive);
 
     await line.save();

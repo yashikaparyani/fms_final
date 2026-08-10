@@ -11,6 +11,9 @@ const shippingLineSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true, unique: true },
     // SCAC or internal short code, e.g. "MAEU"
     code: { type: String, trim: true, uppercase: true, default: "" },
+    // Notified when a street turn is confirmed on a load carrying this line.
+    // Optional, so lines added before street-turn notifications keep working.
+    email: { type: String, trim: true, lowercase: true, default: "" },
     // Inactive lines stay in the master but drop out of the load-form dropdown
     isActive: { type: Boolean, default: true },
   },

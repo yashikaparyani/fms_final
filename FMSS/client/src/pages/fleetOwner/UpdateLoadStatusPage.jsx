@@ -239,7 +239,7 @@ const UpdateLoadStatusPage = () => {
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Update Status</div>
-              <div style={{ fontSize: 11, color: "#9ca3af" }}>Change transport status</div>
+              <div style={{ fontSize: 11, color: "#9ca3af" }}>Change status</div>
             </div>
           </div>
 

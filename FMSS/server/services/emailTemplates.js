@@ -98,6 +98,49 @@ const bidWon = ({ load, fleetOwner, winningBid }) => ({
   `,
 });
 
+/**
+ * Sent to every party involved when a load is confirmed as a street turn.
+ * `recipientLabel` names the party being written to (e.g. "Delivery Partner"),
+ * so the same body can be addressed to each of them.
+ */
+const streetTurnConfirmed = ({ load, streetTurn, recipientLabel }) => {
+  const rows = [
+    ["Load", load.loadId],
+    ["Route", routeText(load)],
+    ["Container #", load.containerNo],
+    ["Chassis #", load.chassisNo],
+    ["Delivery Partner", streetTurn.deliveryPartner],
+    ["Shipping Line", streetTurn.shippingLine],
+    ["Chassis Company", streetTurn.chassisCompany],
+  ].filter(([, value]) => value);
+
+  return {
+    subject: `FMS - Street Turn Confirmed: Load ${load.loadId}`,
+    text:
+      [
+        `A street turn has been confirmed for load ${load.loadId}.`,
+        `You are receiving this as the ${recipientLabel}.`,
+      ].join("\n") +
+      "\n\n" +
+      rows.map(([label, value]) => `${label}: ${value}`).join("\n") +
+      (streetTurn.note ? `\n\nNote: ${streetTurn.note}` : ""),
+    html: `
+    <h3>Street Turn Confirmed</h3>
+    <p>A street turn has been confirmed for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
+    <p>You are receiving this as the <strong>${escapeHtml(recipientLabel)}</strong>.</p>
+    <table cellpadding="6" cellspacing="0" border="0">
+      ${rows
+        .map(
+          ([label, value]) =>
+            `<tr><td><strong>${escapeHtml(label)}</strong></td><td>${escapeHtml(value)}</td></tr>`,
+        )
+        .join("")}
+    </table>
+    ${streetTurn.note ? `<p><strong>Note:</strong> ${escapeHtml(streetTurn.note)}</p>` : ""}
+  `,
+  };
+};
+
 module.exports = {
   biddingNowOpen,
   biddingScheduled,
@@ -105,4 +148,5 @@ module.exports = {
   customerCredentials,
   fleetOwnerCredentials,
   loadRequiresChanges,
+  streetTurnConfirmed,
 };

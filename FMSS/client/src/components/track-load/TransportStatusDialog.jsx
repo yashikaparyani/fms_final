@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import api from "../../api";
+import StreetTurnConfirmDialog from "../StreetTurnConfirmDialog";
 import {
   Button,
   Dialog,
@@ -46,10 +47,13 @@ const MAIN_ORDER = [
 const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  // A street turn needs the handover details before it can be saved.
+  const [showStreetTurn, setShowStreetTurn] = useState(false);
 
   useEffect(() => {
     // Start blank so the user must pick the next stage explicitly.
     setStatus("");
+    setShowStreetTurn(false);
   }, [load]);
 
   const originCount = load?.pickups?.length || 1;
@@ -68,7 +72,26 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
     return idx <= currentIdx;
   };
 
-  const handleSave = async () => {
+  const save = async (streetTurn) => {
+    try {
+      setSaving(true);
+      await api.put(`/loads/${load.loadId}/transport-status`, {
+        transportStatus: status,
+        source: "web",
+        ...(streetTurn ? { streetTurn } : {}),
+      });
+      toast.success("Status updated");
+      setShowStreetTurn(false);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = () => {
     if (!status) {
       toast.error("Please select a status");
       return;
@@ -78,20 +101,12 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
       const originNo = pickedUpCount + 1;
       if (!window.confirm(`Is this the pickup for origin #${originNo}?`)) return;
     }
-    try {
-      setSaving(true);
-      await api.put(`/loads/${load.loadId}/transport-status`, {
-        transportStatus: status,
-        source: "web",
-      });
-      toast.success("Transport status updated");
-      onSuccess();
-      onClose();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Update failed");
-    } finally {
-      setSaving(false);
+    // A street turn needs the handover details before it can be saved.
+    if (status === "STREET_TURN") {
+      setShowStreetTurn(true);
+      return;
     }
+    save(null);
   };
 
   return (
@@ -105,17 +120,17 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
       <DialogTitle
         style={{ fontWeight: 700, fontSize: 15, color: "#1f2937", paddingBottom: 8 }}
       >
-        Update Transport Status
+        Update Status
       </DialogTitle>
 
       <DialogContent style={{ paddingTop: 8 }}>
         <FormControl fullWidth size="small">
           {/* shrink + notched: the label must stay floated because displayEmpty
               always renders placeholder content inside the field */}
-          <InputLabel shrink>Transport Status</InputLabel>
+          <InputLabel shrink>Status</InputLabel>
           <Select
             value={status}
-            input={<OutlinedInput notched label="Transport Status" />}
+            input={<OutlinedInput notched label="Status" />}
             onChange={(e) => setStatus(e.target.value)}
             style={{ borderRadius: 8 }}
             displayEmpty
@@ -158,6 +173,14 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
           {saving ? "Saving…" : "Save Changes"}
         </Button>
       </DialogActions>
+
+      <StreetTurnConfirmDialog
+        isShow={showStreetTurn}
+        load={load}
+        saving={saving}
+        onCancel={() => setShowStreetTurn(false)}
+        onConfirm={save}
+      />
     </Dialog>
   );
 };
