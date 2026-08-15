@@ -9,6 +9,7 @@ const {
   updateLocation,
 } = require("../controllers/trackingController");
 const { protect, authorizeRoles } = require("../middleware/auth");
+const { requireDriverLicense } = require("../middleware/driverCompliance");
 const { getJwtSecret } = require("../utils/jwtSecret");
 
 const router = express.Router();
@@ -35,30 +36,25 @@ const protectStream = async (req, res, next) => {
   }
 };
 
+// Drivers are carrier-side everywhere below: a driver sub-account is the account
+// that is actually in the cab, so starting a trip, streaming GPS and closing it
+// out are theirs to do. The controller resolves them to their own carrier
+// (utils/carrierAccount.js), so the assignment check is unchanged.
+const carrierSide = authorizeRoles("fleetOwner", "driver");
+
 router.get("/:loadId/stream", protectStream, streamTracking);
 router.get(
   "/:loadId",
   protect,
-  authorizeRoles("staff", "admin", "client", "fleetOwner"),
+  authorizeRoles("staff", "admin", "client", "fleetOwner", "driver"),
   getTrackingSnapshot,
 );
-router.post(
-  "/:loadId/start",
-  protect,
-  authorizeRoles("fleetOwner"),
-  startTracking,
-);
-router.post(
-  "/:loadId/location",
-  protect,
-  authorizeRoles("fleetOwner"),
-  updateLocation,
-);
-router.post(
-  "/:loadId/stop",
-  protect,
-  authorizeRoles("fleetOwner"),
-  stopTracking,
-);
+// Starting a trip is gated with the status updates, not separately: the app
+// requires live tracking to be running before PICKED_UP, so letting a driver
+// start a trip and then refusing the pickup would fail them halfway through the
+// job instead of before it.
+router.post("/:loadId/start", protect, carrierSide, requireDriverLicense, startTracking);
+router.post("/:loadId/location", protect, carrierSide, updateLocation);
+router.post("/:loadId/stop", protect, carrierSide, stopTracking);
 
 module.exports = router;

@@ -8,12 +8,12 @@ const config = {
   endpoint: "/shipping-lines",
   namePlaceholder: "e.g. Maersk",
   fields: [
-    { name: "code", label: "Code", placeholder: "e.g. MAEU" },
+    { name: "phone", label: "Phone Number", placeholder: "e.g. +1 555 0100" },
     {
       name: "email",
-      label: "Email",
+      label: "Email Address",
       type: "email",
-      placeholder: "Optional",
+      placeholder: "e.g. ops@maersk.com",
       hint: "If set, notified when a street turn is confirmed.",
     },
   ],

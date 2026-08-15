@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import LoadTable from "../components/LoadTable";
 import MobileCard from "../components/MobileCard";
 import { useSelector } from "react-redux";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
@@ -25,19 +26,25 @@ const ClientLoads = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // `silent` keeps the background refresh from re-toasting on a blip and from
+  // touching the spinner.
+  const fetchLoads = async ({ silent = false } = {}) => {
+    try {
+      const res = await api.get("/loads");
+      setRows(res.data);
+    } catch {
+      if (!silent) toast.error("Failed to fetch loads");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLoads = async () => {
-      try {
-        const res = await api.get("/loads");
-        setRows(res.data);
-      } catch {
-        toast.error("Failed to fetch loads");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchLoads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useAutoRefresh(() => fetchLoads({ silent: true }));
 
   // ── Desktop columns ──────────────────────────────────────────
   const columns = [
@@ -112,8 +119,13 @@ const ClientLoads = () => {
       key: "changesNote",
       header: "Changes Notes",
       width: "140px",
+      // A note only applies while the load is actually waiting for changes.
+      // Loads resubmitted before the note was cleared server-side still carry
+      // an old one, so gate on the status rather than on the field.
       render: (row) => (
-        <span className="text-gray-400 text-xs">{row.changesNote || "—"}</span>
+        <span className="text-gray-400 text-xs">
+          {row.status === "REQUIRES_CHANGES" ? row.changesNote || "—" : "—"}
+        </span>
       ),
     },
     {
@@ -235,7 +247,7 @@ const ClientLoads = () => {
                 { label: "Material",      value: row.material },
                 { label: "Amount",        value: row.amount ? `$${Number(row.amount).toLocaleString()}` : null },
                 { label: "Bidding",       value: row.status === "VERIFIED" ? (row.bidStatus || "N/A") : null },
-                { label: "Changes Note",  value: row.changesNote },
+                { label: "Changes Note",  value: row.status === "REQUIRES_CHANGES" ? row.changesNote : null },
               ]}
               actions={mobileActions(row)}
             />

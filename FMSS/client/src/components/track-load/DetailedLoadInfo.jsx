@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
 import SectionHeader from "./SectionHeader";
 import InfoRow from "./InfoRow";
@@ -28,19 +29,109 @@ const money = (v) =>
     ? "—"
     : `$${Number(v).toLocaleString()}`;
 
-const CheckboxDisplay = ({ label, checked }) => (
-  <div className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">{label}</span>
-    <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${checked ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-transparent border border-gray-200'}`}>
-      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-      </svg>
-    </div>
+// Operational flags staff/admin may toggle straight from this page, in the two
+// columns the Order Status card lays them out in. Clients keep the read-only
+// view. Saved through the normal load update endpoint.
+const FLAG_COLUMNS = [
+  [
+    { name: "bookingProblem", label: "Booking Problem" },
+    { name: "putOnHold", label: "Put on Hold" },
+  ],
+  [
+    { name: "chassisRent", label: "Chassis Rent" },
+    { name: "hotShipment", label: "Hot Shipment" },
+    { name: "isAccessorialCharges", label: "Is Accessorial Charges" },
+  ],
+];
+
+const FLAGS = FLAG_COLUMNS.flat();
+
+const readFlags = (load) =>
+  Object.fromEntries(FLAGS.map((f) => [f.name, !!load?.[f.name]]));
+
+const CheckBadge = ({ checked }) => (
+  <div
+    className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+      checked
+        ? "bg-indigo-600 text-white shadow-sm"
+        : "bg-gray-100 text-transparent border border-gray-200"
+    }`}
+  >
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+    </svg>
   </div>
 );
 
-const DetailedLoadInfo = ({ load }) => {
+const rowClass =
+  "flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0";
+const labelClass =
+  "text-[11px] font-bold text-gray-500 uppercase tracking-tight";
+
+const CheckboxDisplay = ({ label, checked }) => (
+  <div className={rowClass}>
+    <span className={labelClass}>{label}</span>
+    <CheckBadge checked={checked} />
+  </div>
+);
+
+const CheckboxEditor = ({ label, checked, disabled, onChange }) => (
+  <label
+    className={`${rowClass} ${disabled ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-gray-50/70"} -mx-1 px-1 rounded`}
+  >
+    <span className={labelClass}>{label}</span>
+    <span className="relative flex items-center">
+      <input
+        type="checkbox"
+        className="peer absolute inset-0 w-full h-full opacity-0 m-0"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="rounded peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 peer-focus-visible:ring-offset-1">
+        <CheckBadge checked={checked} />
+      </span>
+    </span>
+  </label>
+);
+
+const DetailedLoadInfo = ({ load, canEditFlags = false, onSaveFlags }) => {
+  const [flags, setFlags] = useState(() => readFlags(load));
+  const [saving, setSaving] = useState(false);
+
+  const saved = readFlags(load);
+  const dirty = FLAGS.some((f) => flags[f.name] !== saved[f.name]);
+
+  // Read by the re-seed effect below, which must not depend on `dirty` itself:
+  // it has to run on a new load, not on every toggle.
+  const dirtyRef = useRef(dirty);
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  });
+
+  // Re-seed the draft whenever a fresh load lands (initial fetch, refetch after
+  // save, or switching to another load), so it never shows stale toggles —
+  // unless the user has unsaved toggles, which the periodic auto-refresh would
+  // otherwise wipe out from under them.
+  useEffect(() => {
+    if (dirtyRef.current) return;
+    setFlags(readFlags(load));
+  }, [load]);
+
   if (!load) return null;
+
+  const editable = canEditFlags && typeof onSaveFlags === "function";
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSaveFlags(flags);
+    } catch {
+      // The parent surfaces the error; keep the draft so nothing is lost.
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Prefer the multi-stop arrays; fall back to the legacy single pickup/drop.
   const pickups = load.pickups?.length ? load.pickups : load.pickup ? [load.pickup] : [];
@@ -59,7 +150,27 @@ const DetailedLoadInfo = ({ load }) => {
             <SectionHeader label="Identification" accent="#6366f1" />
             <div className="p-4 pt-2 grid grid-cols-2 gap-x-6">
               <InfoRow label="Ref.#" value={load.refNo} />
-              <InfoRow label="Assigned To" value={load.assignedTo || load.assignedFleetOwner?.fleetOwnerName} />
+              {/* The carrier, and the one person to call about it. A load can
+                  carry several drivers; none of them is the contact, and naming
+                  them here is how a driver gets rung mid-run about a booking
+                  question. Drivers live on the load's driverAssignments and are
+                  deliberately not shown. */}
+              <InfoRow
+                label="Assigned To"
+                value={
+                  load.accountPerson?.name ? (
+                    <span>
+                      {load.assignedTo || load.assignedFleetOwner?.fleetOwnerName}
+                      <span className="block text-[11px] text-gray-500">
+                        {load.accountPerson.name}
+                        {load.accountPerson.phone ? ` · ${load.accountPerson.phone}` : ""}
+                      </span>
+                    </span>
+                  ) : (
+                    load.assignedTo || load.assignedFleetOwner?.fleetOwnerName
+                  )
+                }
+              />
               <InfoRow label="Invoice No" value={load.invoiceNo} />
               <InfoRow label="Load ID" value={<span className="font-bold text-indigo-600">{load.loadId}</span>} />
             </div>
@@ -76,16 +187,51 @@ const DetailedLoadInfo = ({ load }) => {
                 <InfoRow label="Person Bill" value={load.personBill} />
               </div>
               <div className="grid grid-cols-2 gap-x-8 border-t border-gray-100 pt-4">
-                <div className="space-y-1">
-                  <CheckboxDisplay label="Booking Problem" checked={load.bookingProblem} />
-                  <CheckboxDisplay label="Put on Hold" checked={load.putOnHold} />
-                </div>
-                <div className="space-y-1">
-                  <CheckboxDisplay label="Chassis Rent" checked={load.chassisRent} />
-                  <CheckboxDisplay label="Hot Shipment" checked={load.hotShipment} />
-                  <CheckboxDisplay label="Is Accessorial Charges" checked={load.isAccessorialCharges} />
-                </div>
+                {FLAG_COLUMNS.map((column, idx) => (
+                  <div key={idx} className="space-y-1">
+                    {column.map((flag) =>
+                      editable ? (
+                        <CheckboxEditor
+                          key={flag.name}
+                          label={flag.label}
+                          checked={flags[flag.name]}
+                          disabled={saving}
+                          onChange={(checked) =>
+                            setFlags((prev) => ({ ...prev, [flag.name]: checked }))
+                          }
+                        />
+                      ) : (
+                        <CheckboxDisplay
+                          key={flag.name}
+                          label={flag.label}
+                          checked={load[flag.name]}
+                        />
+                      ),
+                    )}
+                  </div>
+                ))}
               </div>
+
+              {editable && dirty && (
+                <div className="flex items-center justify-end gap-2 mt-3 border-t border-gray-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setFlags(saved)}
+                    disabled={saving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-50"
+                  >
+                    {saving ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -99,6 +245,28 @@ const DetailedLoadInfo = ({ load }) => {
                   <p className="text-sm text-slate-600">{load.pickup?.address || "—"}</p>
                   <p className="text-sm text-slate-600">{[load.pickup?.city, load.pickup?.state, load.pickup?.zip].filter(Boolean).join(", ")}</p>
                </div>
+               {/* Carrier and equipment for this leg. Rendered as plain rows
+                   rather than InfoRow so the labels stay visible on a load that
+                   has not had them filled in yet. */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                     <p className="text-xs font-bold text-slate-400 uppercase mb-2">Shipping Line</p>
+                     <p className="text-sm font-semibold text-slate-700">{load.shippingLine || "—"}</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                     <p className="text-xs font-bold text-slate-400 uppercase mb-2">Chassis Details</p>
+                     <p className="text-sm font-semibold text-slate-700">{load.chassisCompany || "—"}</p>
+                     <p className="text-sm text-slate-600">Chassis #: {load.chassisNo || "—"}</p>
+                     {/* A Drop moves two containers, so it has a second chassis. */}
+                     {load.chassisNo2 && (
+                        <p className="text-sm text-slate-600">Chassis #2: {load.chassisNo2}</p>
+                     )}
+                     <p className="text-sm text-slate-600">
+                        Chassis Rent: {load.chassisRent ? "Yes" : "No"}
+                     </p>
+                  </div>
+               </div>
+
                <div className="grid grid-cols-1 gap-1">
                   <InfoRow label="Pier Termination / Empty Return" value={load.pierTermination} />
                   <InfoRow label="Contact Person(s)" value={load.contactPerson} />
@@ -117,6 +285,9 @@ const DetailedLoadInfo = ({ load }) => {
               <InfoRow label="Pickup #" value={load.pickupNo || load.pickup?.poNumber} />
               <InfoRow label="Container #" value={load.containerNo} />
               <InfoRow label="Chassis #" value={load.chassisNo} />
+              {/* Only a Drop carries a second pair; InfoRow hides empties. */}
+              <InfoRow label="Container #2" value={load.containerNo2} />
+              <InfoRow label="Chassis #2" value={load.chassisNo2} />
               <InfoRow label="Pieces" value={load.pieces || load.pickup?.pieces} />
               <InfoRow label="Weight" value={load.weight || load.pickup?.weight} />
               <InfoRow label="Commodity" value={load.commodity} />

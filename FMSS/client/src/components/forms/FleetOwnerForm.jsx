@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import AllLocationsWriteNotice, {
+  writesBlocked,
+} from "../AllLocationsWriteNotice";
 import { uiStyles } from "../../style/uiStyles";
 import AddressFields from "../AddressFields";
 
@@ -77,7 +80,13 @@ const FleetOwnerForm = ({
       navigate("/staff/fleet-owners");
     } catch (error) {
       console.error(error);
-      toast.error("An error occurred. Please try again.");
+      // The server's message is the actionable half — it names the duplicate
+      // email, or the fact that a location has to be picked before anything can
+      // be created. "An error occurred" sends the user looking for a permission
+      // problem they do not have.
+      toast.error(
+        error.response?.data?.message || "An error occurred. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -96,6 +105,11 @@ const FleetOwnerForm = ({
         <div className="mb-6">
           <h1 className="page-title">{title}</h1>
           <p className="page-subtitle">Fill in the carrier details, payment address, and contact persons.</p>
+        </div>
+
+        {/* Said before the form rather than after a rejected submit. */}
+        <div className="mb-4">
+          <AllLocationsWriteNotice what="add a carrier" />
         </div>
 
         {/* Card */}
@@ -351,7 +365,12 @@ const FleetOwnerForm = ({
               <button
                 type="submit"
                 className="btn-primary disabled:opacity-50"
-                disabled={loading}
+                disabled={loading || writesBlocked()}
+                title={
+                  writesBlocked()
+                    ? "Pick a single location from the switcher first"
+                    : undefined
+                }
               >
                 {loading ? "Saving..." : (
                   <>

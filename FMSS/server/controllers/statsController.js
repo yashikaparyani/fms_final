@@ -2,6 +2,10 @@ const Load = require("../models/Load");
 const User = require("../models/User");
 const Bid = require("../models/bidSchema");
 const FleetOwner = require("../models/FleetOwner");
+const { resolveTimeZone, dayRangeInTz } = require("../utils/timezone");
+const { lfdFilter } = require("../utils/lfdBuckets");
+const { pickupDayFilter, accessorialFilter } = require("../utils/dashboardBuckets");
+const { findCarrierFor } = require("../utils/carrierAccount");
 
 // @desc    Get dashboard stats based on user role
 // @route   GET /api/stats
@@ -181,6 +185,41 @@ const getStats = async (req, res) => {
         transportStatus: "DROP_IN_WAREHOUSE",
       });
 
+      // Its own stage in the transport pipeline, set by staff — not derived
+      // from delivery or paperwork state.
+      const invoiceableLoads = await Load.countDocuments({
+        ...baseFilter,
+        transportStatus: "INVOICED",
+      });
+
+      // ─── Date-sensitive counts ───────────────────────────────────────────
+      // Resolved in the viewer's timezone so "today" means the staff member's
+      // today, not the server's.
+      const tz = resolveTimeZone(req.query.tz);
+      const today = dayRangeInTz(tz, 0);
+      const dayRange = (offset) => dayRangeInTz(tz, offset);
+
+      // Loads picking up today / tomorrow, and loads carrying accessorial
+      // charges. The same filters back `GET /loads?pickupDay=…` and
+      // `?accessorial=true`, so each tile and the list it opens always agree.
+      const [sameDayLoads, nextDayLoads] = await Promise.all(
+        ["today", "tomorrow"].map((day) =>
+          Load.countDocuments(pickupDayFilter(day, dayRange)),
+        ),
+      );
+
+      const accessorialLoads = await Load.countDocuments(accessorialFilter());
+
+      // ─── LFD buckets ─────────────────────────────────────────────────────
+      // Three mutually exclusive groups; see utils/lfdBuckets.js. The same
+      // filters back `GET /loads?lfd=…`, so each tile and the list it opens
+      // always agree.
+      const [lfdExpiredLoads, lfdTodayLoads, upcomingLfdLoads] = await Promise.all(
+        ["expired", "today", "upcoming"].map((bucket) =>
+          Load.countDocuments(lfdFilter(bucket, today)),
+        ),
+      );
+
       // const loadPlanner = await Load.countDocuments({ transportStatus: "LOAD_PLANNER" });
       // const newLoads = await Load.countDocuments({ transportStatus: "NEW_LOAD" });
       // const assignedLoads = await Load.countDocuments({ transportStatus: "ASSIGNED" });
@@ -210,13 +249,13 @@ const getStats = async (req, res) => {
       })
         .sort({ createdAt: -1 })
         .limit(5)
-        .select("loadId customer pickup drop status amount createdAt");
+        .select("loadId customer customerName pickup drop status amount createdAt");
 
       // Recent active bidding
       const recentActiveBidding = await Load.find({ bidStatus: "OPEN" })
         .sort({ bidEndTime: 1 })
         .limit(5)
-        .select("loadId customer pickup drop bidStatus bidEndTime bids");
+        .select("loadId customer customerName pickup drop bidStatus bidEndTime bids");
 
       return res.json({
         totalCustomers,
@@ -243,6 +282,17 @@ const getStats = async (req, res) => {
         loadedYard,
         driverWaiting,
         dropWarehouse,
+        invoiceableLoads,
+
+        // 📅 Date-sensitive
+        sameDayLoads,
+        nextDayLoads,
+        accessorialLoads,
+
+        // ⏳ Last Free Date buckets
+        lfdExpiredLoads,
+        lfdTodayLoads,
+        upcomingLfdLoads,
 
         // Bidding
         upcomingBidding,
@@ -311,9 +361,11 @@ const getStats = async (req, res) => {
     //   });
     // }
 
-    if (role === "fleetOwner") {
-      // Find fleet owner document using logged in user
-      const fleetOwner = await FleetOwner.findOne({ userId: _id });
+    // Drivers see their carrier's numbers: they are looking at the same fleet of
+    // trips from the cab. Resolved from their account rather than from the
+    // request — see utils/carrierAccount.js.
+    if (role === "fleetOwner" || role === "driver") {
+      const fleetOwner = await findCarrierFor(req.user);
 
       if (!fleetOwner) {
         return res.json({
@@ -409,7 +461,7 @@ const getStats = async (req, res) => {
       })
         .sort({ bidEndTime: 1 })
         .limit(5)
-        .select("loadId customer pickup drop amount bidEndTime");
+        .select("loadId customer customerName pickup drop amount bidEndTime");
 
       // =========================
       // MY RECENT BIDS
@@ -460,98 +512,27 @@ const getWeeklyStats = async (req, res) => {
       const weeklyStats = [];
 
       // Use client timezone if provided, otherwise fall back to UTC
-      const tz = req.query.tz || "UTC";
-
-      // Helper: get start-of-day and end-of-day in the given timezone for an
-      // offset of `i` days from today (in that same timezone).
-      const getLocalDayBounds = (offsetDays) => {
-        // Get the current date string in the target timezone (YYYY-MM-DD)
-        const nowInTz = new Intl.DateTimeFormat("en-CA", {
-          timeZone: tz,
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(new Date());
-
-        // Build a Date from that YYYY-MM-DD string, then add offset days
-        const [year, month, day] = nowInTz.split("-").map(Number);
-        const localDate = new Date(Date.UTC(year, month - 1, day + offsetDays));
-
-        // Compute midnight in the target tz for that calendar date
-        const localDateStr = new Intl.DateTimeFormat("en-CA", {
-          timeZone: tz,
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(localDate);
-
-        // Parse start-of-day (00:00:00) in target tz as UTC instant
-        const startOfDay = new Date(
-          new Intl.DateTimeFormat("en-US", {
-            timeZone: tz,
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false,
-          })
-            .formatToParts(new Date(`${localDateStr}T00:00:00`))
-            .reduce((acc, p) => {
-              if (p.type !== "literal") acc[p.type] = p.value;
-              return acc;
-            }, {})
-        );
-
-        // Use simple approach: treat YYYY-MM-DDT00:00:00 in that tz
-        const start = new Date(`${localDateStr}T00:00:00`);
-        // Adjust for tz offset by computing the UTC offset
-        const tzOffset = -start.getTimezoneOffset(); // local machine offset (minutes)
-        // Instead, compute properly using Intl
-        const startUTC = getUTCFromLocal(`${localDateStr}T00:00:00`, tz);
-        const endUTC   = getUTCFromLocal(`${localDateStr}T23:59:59.999`, tz);
-
-        return { startUTC, endUTC, localDateStr };
-      };
-
-      const getUTCFromLocal = (localISO, timezone) => {
-        // localISO like "2026-07-17T00:00:00"
-        // We need to find what UTC time corresponds to midnight in `timezone`
-        const formatter = new Intl.DateTimeFormat("en-US", {
-          timeZone: timezone,
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        });
-
-        // Binary search / offset trick: parse localISO as if UTC, then correct
-        const guessUTC = new Date(localISO + "Z");
-        const parts = formatter.formatToParts(guessUTC);
-        const p = {};
-        parts.forEach(({ type, value }) => { if (type !== "literal") p[type] = value; });
-        const guessLocal = new Date(
-          `${p.year}-${p.month}-${p.day}T${p.hour === "24" ? "00" : p.hour}:${p.minute}:${p.second}Z`
-        );
-        const diff = guessLocal - guessUTC; // ms offset
-        return new Date(new Date(localISO + "Z") - diff);
-      };
+      const tz = resolveTimeZone(req.query.tz);
 
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
       for (let i = 0; i < 7; i++) {
-        const { startUTC, endUTC, localDateStr } = getLocalDayBounds(i);
+        const { start, end, dateStr: localDateStr } = dayRangeInTz(tz, i);
 
-        const dateFilter = { $gte: startUTC, $lte: endUTC };
+        const dateFilter = { $gte: start, $lt: end };
 
         const [delivered, pickup, drop] = await Promise.all([
           Load.countDocuments({ createdAt: dateFilter, transportStatus: "DELIVERED" }),
-          Load.countDocuments({ createdAt: dateFilter, singleType: "Pick Up" }),
-          Load.countDocuments({ createdAt: dateFilter, singleType: "Drop" }),
+          // "Pick Up" is the pre-rename value; count it alongside "Pick" so the
+          // chart stays continuous across loads created either side of it.
+          Load.countDocuments({
+            createdAt: dateFilter,
+            singleType: { $in: ["Pick", "Pick Up"] },
+          }),
+          Load.countDocuments({
+            createdAt: dateFilter,
+            singleType: { $in: ["Drop", "Delivery"] },
+          }),
         ]);
 
         // Get day-of-week from the local date string

@@ -25,6 +25,9 @@ const LoadDetailsRight = ({ load }) => (
       <InfoRow label="Pickup #" value={load.pickupNo} />
       <InfoRow label="Container #" value={load.containerNo} />
       <InfoRow label="Chassis #" value={load.chassisNo} />
+      {/* Only a Drop carries a second pair; InfoRow hides an empty value. */}
+      <InfoRow label="Container #2" value={load.containerNo2} />
+      <InfoRow label="Chassis #2" value={load.chassisNo2} />
       <InfoRow label="Chassis Company" value={load.chassisCompany} />
       <InfoRow label="Seal #" value={load.sealNo} />
       <InfoRow label="Booking #" value={load.bookingNo} />

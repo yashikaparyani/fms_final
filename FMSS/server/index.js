@@ -19,12 +19,30 @@ const loadRoutes = require("./routes/loadRoutes");
 const bidRoutes = require("./routes/bidRoutes");
 const configRoutes = require("./routes/configRoutes");
 const fleetOwnerRoutes = require("./routes/fleetOwnerRoutes");
+// Driver sub-accounts, added by the carrier who employs them.
+const driverRoutes = require("./routes/driverRoutes");
 const customerRoutes = require("./routes/customerRoutes");
+// Staff accounts and the module/location permission grid — admin only.
+const staffRoutes = require("./routes/staffRoutes");
+// Carrier onboarding: the two signed agreements, drivers and their licences.
+const onboardingRoutes = require("./routes/onboardingRoutes");
+// Insurance certificates, including the carrier's agency filing them by link.
+const insuranceRoutes = require("./routes/insuranceRoutes");
+// Per-load receivables, payables, driver payroll and the reports built on them.
+const accountingRoutes = require("./routes/accountingRoutes");
+const whatsappRoutes = require("./routes/whatsappRoutes");
+// Cross-load audit views. A single load's trail lives under /api/loads/:id/audit.
+const auditRoutes = require("./routes/auditRoutes");
+// Operational and financial report generation, with CSV export.
+const reportRoutes = require("./routes/reportRoutes");
 const companyRoutes = require("./routes/companyRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const notificationRoutes = require("./routes/notificationRoute");
 const locationRoutes = require("./routes/locationRoutes");
+// Operating locations (branches) — the tenant. Mounted at /api/branches because
+// /api/locations is already the state/city geography lookup.
+const branchRoutes = require("./routes/branchRoutes");
 const trackingRoutes = require("./routes/trackingRoutes");
 const shippingLineRoutes = require("./routes/shippingLineRoutes");
 const deliveryPartnerRoutes = require("./routes/deliveryPartnerRoutes");
@@ -37,6 +55,17 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Express 5 leaves req.body undefined when a request arrives with no body or no
+// content-type — which is exactly what a bodyless POST like "reset this user's
+// password" looks like. Every handler that reaches for req.body.something then
+// throws a TypeError and answers 500 instead of doing the job. One line here
+// beats a `?.` on every read.
+app.use((req, _res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
+
 app.use(helmet());
 app.use(morgan("dev"));
 
@@ -76,12 +105,21 @@ app.use("/api/loads", loadRoutes);
 app.use("/api/bidRoutes", bidRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/fleet-owners", fleetOwnerRoutes);
+app.use("/api/drivers", driverRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/onboarding", onboardingRoutes);
+app.use("/api/insurance", insuranceRoutes);
+app.use("/api/accounting", accountingRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/audit", auditRoutes);
+app.use("/api/reports", reportRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/locations", locationRoutes);
+app.use("/api/branches", branchRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/shipping-lines", shippingLineRoutes);
 app.use("/api/delivery-partners", deliveryPartnerRoutes);

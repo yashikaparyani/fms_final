@@ -115,7 +115,13 @@ const createRoutePinIcon = (L, { background, border, text, size = 34 }) =>
     popupAnchor: [0, -(size + 2)],
   });
 
-const LeafletMap = ({ points = [], height = 280 }) => {
+/**
+ * `connect` draws a route line through the points, which is right for one load's
+ * journey and wrong for a scatter of unrelated positions — a line joining three
+ * different trucks reads as a route none of them is driving. Pass false for a
+ * fleet view.
+ */
+const LeafletMap = ({ points = [], height = 280, connect = true }) => {
   const mapRef = useRef(null);
   const instanceRef = useRef(null);
   const [failed, setFailed] = useState(false);
@@ -187,7 +193,11 @@ const LeafletMap = ({ points = [], height = 280 }) => {
         });
 
         if (polylinePoints.length > 1) {
-          L.polyline(polylinePoints, { color: "#2563eb", weight: 5, opacity: 0.9 }).addTo(map);
+          // Framing still uses every point even when the line is suppressed —
+          // a fleet view has to fit all the trucks on screen.
+          if (connect) {
+            L.polyline(polylinePoints, { color: "#2563eb", weight: 5, opacity: 0.9 }).addTo(map);
+          }
           map.fitBounds(polylinePoints, { padding: [28, 28] });
         } else if (polylinePoints.length === 1) {
           map.setView(polylinePoints[0], 12);
@@ -200,7 +210,7 @@ const LeafletMap = ({ points = [], height = 280 }) => {
     return () => {
       cancelled = true;
     };
-  }, [points]);
+  }, [points, connect]);
 
   if (failed) {
     return (

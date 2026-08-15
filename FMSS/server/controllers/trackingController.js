@@ -1,10 +1,10 @@
 const Load = require("../models/Load");
-const FleetOwner = require("../models/FleetOwner");
 const TrackingEvent = require("../models/TrackingEvent");
 const {
   publishTrackingUpdate,
   subscribeToLoadTracking,
 } = require("../services/trackingBroadcaster");
+const { findCarrierFor, isCarrierSide } = require("../utils/carrierAccount");
 
 const ACTIVE_TRACKING_STATUSES = new Set([
   "READY_TO_PICKUP",
@@ -61,9 +61,9 @@ const publicLocation = (event) => ({
 });
 
 const getAssignedFleetOwner = async (req, load) => {
-  const fleetOwner = await FleetOwner.findOne({ userId: req.user._id }).select(
-    "_id carrierName",
-  );
+  // Resolved from the account, so a driver sub-account answers as their own
+  // carrier and no other — see utils/carrierAccount.js.
+  const fleetOwner = await findCarrierFor(req.user, "_id carrierName");
 
   if (!fleetOwner) return null;
 
@@ -85,7 +85,10 @@ const canViewTracking = async (req, load) => {
     );
   }
 
-  if (req.user.role === "fleetOwner") {
+  // Drivers are checked exactly as their carrier is: the resolver maps them onto
+  // the carrier record, so a driver can watch their own carrier's run and no
+  // other carrier's.
+  if (isCarrierSide(req.user)) {
     return Boolean(await getAssignedFleetOwner(req, load));
   }
 

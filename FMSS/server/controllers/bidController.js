@@ -333,10 +333,22 @@ const getMyAllBidsWithStatus = async (req, res) => {
         const accepted =
           isAssignedToMe && load.transportStatus === "READY_TO_PICKUP";
 
+        // Only a still-open offer is worth surfacing; once answered the amount
+        // above already reflects the outcome.
+        const pendingOffer =
+          bid.negotiation?.status === "PENDING"
+            ? {
+                amount: bid.negotiation.amount,
+                previousAmount: bid.negotiation.previousAmount,
+                offeredAt: bid.negotiation.offeredAt,
+              }
+            : null;
+
         return {
           bidId: bid._id,
           amount: bid.amount,
           bidStatus: bid.status,
+          negotiation: pendingOffer,
 
           loadId: load.loadId,
           pickup: load.pickup,
@@ -472,6 +484,10 @@ const acceptBid = async (req, res) => {
       amount: winningBid.amount,
       submittedAt: winningBid.submittedAt,
     };
+    // Keep the carrier payout on the load in step with the settled bid — the
+    // apps read vendorRate for it, and the pre-bid target would be a different
+    // number than the one that was agreed.
+    load.vendorRate = winningBid.amount;
     load.bidStatus = "CLOSED";
     load.status = "ASSIGNED";
     load.assignedFleetOwner = {

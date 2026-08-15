@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 // models/ChassisCompany.js
 const mongoose = require("mongoose");
 
@@ -23,5 +24,9 @@ const chassisCompanySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+chassisCompanySchema.plugin(tenantScope, { modelName: "ChassisCompany" });
 
 module.exports = mongoose.model("ChassisCompany", chassisCompanySchema);

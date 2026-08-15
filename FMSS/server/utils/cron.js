@@ -3,10 +3,17 @@ const Load = require("../models/Load");
 const { sendBidWon, sendBiddingNowOpen } = require("../services/emailService");
 const { notifyBiddingClosed, notifyBiddingScheduled } = require("../services/NotificationService");
 const FleetOwner = require("../models/FleetOwner");
+const { runUnscoped } = require("./tenantContext");
+const { drainQueue } = require("../services/whatsappService");
 
 const startCronJobs = () => {
-  // Run every minute
-  cron.schedule("* * * * *", async () => {
+  // Run every minute.
+  //
+  // The sweep runs outside any request, so there is no active location — and it
+  // must genuinely act on every branch: bidding windows close on their own
+  // schedule wherever the load lives. runUnscoped is therefore correct here, not
+  // a workaround. Everything inside stays unscoped, including the saves.
+  cron.schedule("* * * * *", () => runUnscoped(async () => {
     try {
       const now = new Date();
 
@@ -84,8 +91,27 @@ const startCronJobs = () => {
     } catch (error) {
       console.error("Error running cron jobs", error);
     }
+  }));
+  // ── WhatsApp outbox ───────────────────────────────────────────────────────
+  // Its own schedule rather than folded into the sweep above: a slow Meta call
+  // must not hold up bid closing, and the queue drains at its own rate limit.
+  // drainQueue opens its own unscoped context — the outbox spans every branch.
+  cron.schedule("* * * * *", async () => {
+    try {
+      const result = await drainQueue();
+      if (result.sent || result.failed) {
+        console.log(
+          `WhatsApp queue: ${result.sent} sent, ${result.failed} failed.`,
+        );
+      }
+    } catch (error) {
+      console.error("WhatsApp queue drain failed:", error.message);
+    }
   });
-  console.log("Cron jobs initialized (auto-open bids, auto-close & select winner).");
+
+  console.log(
+    "Cron jobs initialized (auto-open bids, auto-close & select winner, WhatsApp queue).",
+  );
 };
 
 module.exports = startCronJobs;

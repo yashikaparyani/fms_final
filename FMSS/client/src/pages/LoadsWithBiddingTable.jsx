@@ -5,6 +5,8 @@ import api from "../api";
 import { format } from "date-fns";
 import LoadTable from "../components/LoadTable";
 import { useSelector } from "react-redux";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import UnassignedNote from "../components/UnassignedNote";
 
 const { LoadIdCell, CustomerCell, AddressCell, StatusBadge } = LoadTable;
 
@@ -14,12 +16,23 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    setLoading(true);
-    api.get(`/loads?bidStatus=${bidStatus}`)
+  // `silent` leaves the spinner alone so the background refresh is invisible.
+  const fetchLoads = ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    return api
+      .get(`/loads?bidStatus=${bidStatus}`)
       .then((res) => setRows(res.data))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchLoads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bidStatus]);
+
+  useAutoRefresh(() => fetchLoads({ silent: true }));
 
   const fmtDT = (v) => (v ? format(new Date(v), "MMM dd, yyyy HH:mm") : "—");
 
@@ -94,8 +107,13 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
     {
       key: "bidStatus",
       header: "Bid Status",
-      width: "100px",
-      render: (row) => <StatusBadge value={row.bidStatus} />,
+      width: "150px",
+      render: (row) => (
+        <div className="leading-tight">
+          <StatusBadge value={row.bidStatus} />
+          <UnassignedNote load={row} />
+        </div>
+      ),
     },
     {
       key: "bidTiming",

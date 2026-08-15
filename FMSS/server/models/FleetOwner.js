@@ -1,4 +1,6 @@
+const tenantScope = require("../plugins/tenantScope");
 const mongoose = require("mongoose");
+const { nextSequence } = require("../utils/sequence");
 //const addressSchema = require("./common/Address");
 
 const contactPersonSchema = new mongoose.Schema({
@@ -14,6 +16,15 @@ const fleetOwnerSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+
+    // Human-readable identity, "FO-0001", assigned once on first save and never
+    // reused — the same shape as loadId. Deliberately NOT called `fleetOwnerId`:
+    // that name is already taken across the Load model for the Mongo ObjectId
+    // (`assignedFleetOwner.fleetOwnerId`, `winningBid.fleetOwnerId`), and having
+    // one name mean two different things is how the wrong value gets stored.
+    // `sparse` so fleet owners created before this field existed — who hold null
+    // until the backfill runs — do not collide on the unique index.
+    fleetOwnerCode: { type: String, unique: true, sparse: true, index: true },
 
     carrierName: String,
     phone: String,
@@ -63,5 +74,18 @@ const fleetOwnerSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+// ===================== AUTO FLEET OWNER CODE =====================
+// Same counter mechanism as loadId. Runs on Model.create too, so every creation
+// path — staff form, self-registration, seed — gets a code without repeating it.
+fleetOwnerSchema.pre("save", async function () {
+  if (this.fleetOwnerCode) return; // already set
+
+  this.fleetOwnerCode = await nextSequence("fleetOwner", this.locationId);
+});
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+fleetOwnerSchema.plugin(tenantScope, { modelName: "FleetOwner" });
 
 module.exports = mongoose.model("FleetOwner", fleetOwnerSchema);

@@ -46,8 +46,23 @@ import MyBids from "./pages/fleetOwner/MyBids";
 import ReportsPage from "./pages/staff/ReportsPage";
 import Bids from "./pages/Bids";
 import ShippingLines from "./pages/admin/ShippingLines";
+import Locations from "./pages/admin/Locations";
 import DeliveryPartners from "./pages/admin/DeliveryPartners";
 import ChassisCompanies from "./pages/admin/ChassisCompanies";
+import StaffManagement from "./pages/admin/StaffManagement";
+import Permissions from "./pages/admin/Permissions";
+import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
+import WhatsAppSettings from "./pages/admin/WhatsAppSettings";
+import Drivers from "./pages/fleetOwner/Drivers";
+import Onboarding from "./pages/fleetOwner/Onboarding";
+import CarrierOnboardingGate from "./components/onboarding/CarrierOnboardingGate";
+import DriverLocations from "./pages/fleetOwner/DriverLocations";
+import MyLicense from "./pages/driver/MyLicense";
+import AccountingSummary from "./pages/accounting/AccountingSummary";
+import LoadAccounting from "./pages/accounting/LoadAccounting";
+import ReportCentre from "./pages/reports/ReportCentre";
+import InsuranceSubmission from "./pages/insurance/InsuranceSubmission";
+import PermissionGate from "./components/PermissionGate";
 import Seo from "./components/Seo";
 
 function App() {
@@ -89,6 +104,11 @@ function App() {
         <Route path="/staff-login" element={<StaffLogin />} />
         <Route path="/client/register" element={<CustomerRegister />} />
 
+        {/* PUBLIC — the carrier's insurance agency files certificates from a
+            one-off emailed link. They have no account here; the token in the URL
+            is the authorisation and the server checks it. */}
+        <Route path="/insurance/:token" element={<InsuranceSubmission />} />
+
         {/* ================= ADMIN ================= */}
         <Route
           path="/admin"
@@ -100,6 +120,53 @@ function App() {
         >
           <Route path="dashboard" element={<StaffDashboard />} />
           <Route path="analytics" element={<h1>Analytics Page</h1>} />
+          {/* Staff & permission administration. Gated per screen because
+              ProtectedRoute above guards the whole /admin area at once — see
+              components/PermissionGate.jsx. */}
+          <Route
+            path="staff"
+            element={
+              <PermissionGate permission="staff.view">
+                <StaffManagement />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="permissions"
+            element={
+              <PermissionGate permission="permissions.view">
+                <Permissions />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="whatsapp"
+            element={
+              <PermissionGate permission="settings.view">
+                <WhatsAppPanel />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="whatsapp-settings"
+            element={
+              <PermissionGate permission="settings.manage">
+                <WhatsAppSettings />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="locations"
+            element={
+              <PermissionGate permission="locations.view">
+                <Locations />
+              </PermissionGate>
+            }
+          />
+          <Route path="drivers" element={<Drivers />} />
+          {/* The office completes onboarding on a carrier's behalf — a good half
+              of these get finished over the phone. `?fleetOwnerId=` picks whose. */}
+          <Route path="carrier-onboarding" element={<Onboarding />} />
           <Route path="shipping-lines" element={<ShippingLines />} />
           <Route path="delivery-partners" element={<DeliveryPartners />} />
           <Route path="chassis-companies" element={<ChassisCompanies />} />
@@ -122,6 +189,12 @@ function App() {
           <Route path="loads" element={<StaffLoadsPage />} />
           <Route path="load/:loadId" element={<UpdateLoadStatusPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          {/* Per-load books and the summary built on them. Back office only —
+              the margin between billed and paid is not the customer's or the
+              carrier's business, which is why there is no filtered version. */}
+          <Route path="accounting" element={<PermissionGate permission="reports.view"><AccountingSummary /></PermissionGate>} />
+          <Route path="report-centre" element={<PermissionGate permission="reports.view"><ReportCentre /></PermissionGate>} />
+          <Route path="accounting/:loadId" element={<PermissionGate permission="loads.view"><LoadAccounting /></PermissionGate>} />
           <Route
             path="create-fleet-owner"
             element={<StaffCreateFleetOwner />}
@@ -155,6 +228,10 @@ function App() {
         >
           <Route path="dashboard" element={<StaffDashboard />} />
           <Route path="analytics" element={<h1>Analytics Page</h1>} />
+          {/* The back office can see and manage any carrier's roster at their
+              location — a carrier phoning in a new driver should not need to log
+              in to do it. */}
+          <Route path="drivers" element={<Drivers />} />
           <Route path="customers/:id/edit" element={<EditCustomerPage />} />
           <Route
             path="fleet-owners/:id/edit"
@@ -174,6 +251,12 @@ function App() {
           <Route path="loads" element={<StaffLoadsPage />} />
           <Route path="load/:loadId" element={<UpdateLoadStatusPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          {/* Per-load books and the summary built on them. Back office only —
+              the margin between billed and paid is not the customer's or the
+              carrier's business, which is why there is no filtered version. */}
+          <Route path="accounting" element={<PermissionGate permission="reports.view"><AccountingSummary /></PermissionGate>} />
+          <Route path="report-centre" element={<PermissionGate permission="reports.view"><ReportCentre /></PermissionGate>} />
+          <Route path="accounting/:loadId" element={<PermissionGate permission="loads.view"><LoadAccounting /></PermissionGate>} />
           <Route
             path="create-fleet-owner"
             element={<StaffCreateFleetOwner />}
@@ -224,7 +307,10 @@ function App() {
           path="/fleetOwner"
           element={
             <ProtectedRoute allowedRole="fleetOwner">
-              <Dashboard />
+              {/* Closed until both agreements are signed — see the gate. */}
+              <CarrierOnboardingGate>
+                <Dashboard />
+              </CarrierOnboardingGate>
             </ProtectedRoute>
           }
         >
@@ -235,7 +321,7 @@ function App() {
           />
           <Route path="trips" element={<h1>Trips</h1>} />
           <Route path="vehicles" element={<h1>Vehicles</h1>} />
-          <Route path="drivers" element={<h1>Drivers</h1>} />
+          <Route path="drivers" element={<Drivers />} />
           <Route
             path="available-bids"
             element={<LoadsWithBiddingTable userRole="fleetOwner" />}
@@ -247,8 +333,33 @@ function App() {
           <Route path="open-available-bids/:id" element={<LiveBidding />} />
           <Route path="place-bid/:loadId" element={<PlaceBid />} />
           <Route path="assigned-loads" element={<AssignedLoad />} />
+          <Route path="onboarding" element={<Onboarding />} />
+          <Route path="driver-locations" element={<DriverLocations />} />
 
           <Route path="load/:loadId" element={<UpdateLoadStatusPage />} />
+        </Route>
+
+        {/* ================= DRIVER (sub-account of a fleet owner) ============
+            Drivers live mostly in the mobile app; this is the small web surface
+            they need — the trips assigned to their carrier, and the screens for
+            updating one. Everything is resolved from their own account to their
+            carrier server-side, so there is nothing here a driver can point at
+            another carrier's loads. */}
+        <Route
+          path="/driver"
+          element={
+            <ProtectedRoute allowedRole="driver">
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="dashboard" element={<AssignedLoad />} />
+          <Route path="assigned-loads" element={<AssignedLoad />} />
+          {/* The one screen a driver must be able to reach without a licence on
+              file — it is where they fix exactly that. */}
+          <Route path="my-license" element={<MyLicense />} />
+          <Route path="load/:loadId" element={<UpdateLoadStatusPage />} />
+          <Route path="track-load/:loadId" element={<TrackLoadPage />} />
         </Route>
 
         <Route path="loads" element={<StaffLoadsPage />} />

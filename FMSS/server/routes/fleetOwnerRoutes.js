@@ -11,7 +11,14 @@ const {
 } = require("../controllers/fleetOwnerController");
 const { protect, authorizeRoles } = require("../middleware/auth");
 
-router.get("/assignedLoad", protect, authorizeRoles("fleetOwner"), getAssignedLoadToConfirm);
+// Drivers see the same list as their carrier: it is the list of runs they may be
+// asked to make, and the resolver narrows it to their carrier's own loads.
+router.get(
+  "/assignedLoad",
+  protect,
+  authorizeRoles("fleetOwner", "driver"),
+  getAssignedLoadToConfirm,
+);
 
 router.route("/")
   .get(protect, authorizeRoles("staff", "admin"), getFleetOwners)

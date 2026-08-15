@@ -1,6 +1,7 @@
 const request = require("supertest");
 const express = require("express");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { seed } = require("./helpers/tenantTestContext");
 const loadRoutes = require("../routes/loadRoutes");
 const bidRoutes = require("../routes/bidRoutes");
 const User = require("../models/User");
@@ -38,7 +39,9 @@ const authorize = (...roles) => {
 };
 
 // Overwrite auth middleware for testing
-jest.mock("../middleware/auth", () => ({ protect, authorizeRoles: authorize }));
+jest.mock("../middleware/auth", () =>
+  require("./helpers/tenantTestContext").authMock({ defaultRole: "staff" }),
+);
 
 // Re-import routes after mock
 const loadRoutesMocked = require("../routes/loadRoutes");
@@ -74,10 +77,10 @@ describe("Load & Bidding API", () => {
         .set("Authorization", `Bearer TestUser staff ${staffId}`)
         .send({
           loadId: "LD1001",
-          customer: "Test Customer",
+          customer: clientId,
           pickup: { city: "NY", state: "NY" },
           drop: { city: "LA", state: "CA" },
-          truckType: "32 ft Container",
+          truckType: "Container",
           material: "Boxes",
           amount: 1000,
           date: "2026-03-10"
@@ -92,10 +95,10 @@ describe("Load & Bidding API", () => {
         .post("/api/loads")
         .send({
           loadId: "LD1002",
-          customer: "Test Customer",
+          customer: clientId,
           pickup: { city: "NY", state: "NY" },
           drop: { city: "LA", state: "CA" },
-          truckType: "32 ft Container",
+          truckType: "Container",
           material: "Boxes",
           amount: 1000,
           date: "2026-03-10"
@@ -105,18 +108,18 @@ describe("Load & Bidding API", () => {
     });
 
     it("should allow getting all loads", async () => {
-      await Load.create({
+      await seed(() => Load.create({
           loadId: "LD1001",
-          customer: "Test Customer",
+          customer: clientId,
           pickup: { city: "NY", state: "NY" },
           drop: { city: "LA", state: "CA" },
-          truckType: "32 ft Container",
+          truckType: "Container",
           material: "Boxes",
           amount: 1000,
           date: "2026-03-10",
           createdBy: "staff",
           creatorId: staffId
-      });
+      }));
 
       // Staff can see all loads
       const res = await request(app)
@@ -133,26 +136,26 @@ describe("Load & Bidding API", () => {
     let loadIdStr;
 
     beforeEach(async () => {
-       const load = await Load.create({
+       const load = await seed(() => Load.create({
           loadId: "LD9999",
-          customer: "Test Customer",
+          customer: clientId,
           pickup: { city: "NY", state: "NY" },
           drop: { city: "LA", state: "CA" },
-          truckType: "32 ft Container",
+          truckType: "Container",
           material: "Boxes",
           amount: 1000,
           date: "2026-03-10",
           createdBy: "staff",
           creatorId: staffId,
           bidStatus: "OPEN"
-      });
+      }));
       loadIdStr = load.loadId;
 
-      await FleetOwner.create({
+      await seed(() => FleetOwner.create({
         carrierName: "Test Fleet",
         phone: "111",
         userId: fleetOwnerId
-      });
+      }));
     });
 
     it("should allow a fleet owner to place a bid", async () => {

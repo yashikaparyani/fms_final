@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "../api";
-
-const POLL_INTERVAL_MS = 300000;
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -9,7 +8,6 @@ export const useNotifications = () => {
   const [loading, setLoading]             = useState(false);
   const [page, setPage]                   = useState(1);
   const [hasMore, setHasMore]             = useState(true);
-  const pollingRef = useRef(null);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -76,9 +74,11 @@ export const useNotifications = () => {
 
   useEffect(() => {
     fetchNotifications(1, true);
-    pollingRef.current = setInterval(fetchUnreadCount, POLL_INTERVAL_MS);
-    return () => clearInterval(pollingRef.current);
-  }, [fetchNotifications, fetchUnreadCount]);
+  }, [fetchNotifications]);
+
+  // Only the badge count is polled — re-pulling the list would fight with the
+  // pages the user has already scrolled through.
+  useAutoRefresh(fetchUnreadCount);
 
   return {
     notifications,

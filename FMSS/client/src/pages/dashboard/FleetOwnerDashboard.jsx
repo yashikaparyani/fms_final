@@ -20,6 +20,7 @@ import {
   WeeklySummaryCard,
 } from "../../components/cards/StatCard";
 import QuickActionCard from "../../components/cards/QuickActionCard";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 const FleetOwnerDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -27,19 +28,25 @@ const FleetOwnerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // `silent` swaps the numbers in without dropping back to the full-page
+  // spinner, so the background refresh is invisible.
+  const fetchStats = async ({ silent = false } = {}) => {
+    try {
+      const res = await api.get("/stats");
+      setStats(res.data);
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await api.get("/stats");
-        setStats(res.data);
-      } catch (error) {
-        console.error("Failed to fetch stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useAutoRefresh(() => fetchStats({ silent: true }));
 
   if (loading) {
     return (
@@ -283,14 +290,16 @@ const FleetOwnerDashboard = () => {
                   }
                   style={{ cursor: "pointer" }}
                 >
-                  <div>
+                  <div className="min-w-0 flex-1 mr-2">
                     <p className="text-sm font-medium">{load.loadId}</p>
-                    <p className="text-muted-md">
+                    <p className="text-muted-md truncate">
                       {load.pickup?.city} → {load.drop?.city}
                     </p>
-                    <p className="text-muted">{load.customer}</p>
+                    <p className="text-muted truncate max-w-[120px] md:max-w-[160px] lg:max-w-[110px] xl:max-w-[150px]" title={load.customerName || load.customer}>
+                      {load.customerName || load.customer}
+                    </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right min-w-0 flex-shrink-0">
                     <p className="text-sm font-medium">${load.amount}</p>
                     <p className="text-xs text-purple-600">
                       {load.bids?.length || 0} bids

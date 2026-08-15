@@ -70,17 +70,17 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition ${
+      className={`bg-white rounded-xl border border-gray-200 shadow-sm p-2.5 xl:p-2 hover:shadow-md transition ${
         onClick ? "cursor-pointer hover:border-indigo-300" : ""
       }`}
     >
 
       {/* Day */}
-      <div className={`text-sm text-gray-500 font-medium text-center ${stats.weekDay === "Today" && stats.date ? "mb-0.5" : "mb-3"}`}>
+      <div className={`text-sm text-gray-500 font-medium text-center whitespace-nowrap ${stats.weekDay === "Today" && stats.date ? "mb-0.5" : "mb-3"}`}>
         {stats.weekDay}
       </div>
       {stats.weekDay === "Today" && stats.date && (
-        <div className="text-[11px] text-indigo-600 font-semibold text-center mb-3">
+        <div className="text-[11px] text-indigo-600 font-semibold text-center mb-3 whitespace-nowrap">
           {new Date(stats.date + "T00:00:00").toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
@@ -108,9 +108,9 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
           </p>
         </div>
 
-        {/* Drop */}
+        {/* Drop — a drop-and-pick move, so "D/P" rather than "DR" */}
         <div className="bg-purple-50 rounded-lg py-2 flex flex-row justify-center gap-2 items-center">
-          <p className="text-xs font-normal text-gray-500">DR</p>
+          <p className="text-xs font-normal text-gray-500">D/P</p>
           <p className="text-sm font-normal text-purple-600">
             {stats.Drop}
           </p>

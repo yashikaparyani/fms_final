@@ -6,8 +6,10 @@ import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../redux/authSlice";
-import { navItems } from "./navItems";
+import { visibleNavItems } from "./navItems";
 import NotificationBell from "./NotificationBell"; // 👈 import
+import LocationSwitcher from "./LocationSwitcher";
+import { clearActiveLocation } from "../utils/activeLocation";
 
 const Topbar = () => {
   const [isProfileOpen, setIsProfileOpen]       = useState(false);
@@ -20,6 +22,9 @@ const Topbar = () => {
   const role     = user?.role;
 
   const handleLogout = () => {
+    // Drop the stored branch too — otherwise the next person to sign in on this
+    // machine starts pointed at a location that may not be theirs.
+    clearActiveLocation();
     dispatch(logout());
     navigate(`/${role}-login`);
   };
@@ -32,9 +37,9 @@ const Topbar = () => {
   const isActive = (path) =>
     window.location.pathname === `/${role}/${path}`;
 
-  const filteredNavItems = navItems.filter((item) =>
-    item.visible.includes(role)
-  );
+  // Same filter the sidebar uses, so the mobile menu can never offer a link the
+  // desktop rail hides — see navItems.js.
+  const filteredNavItems = visibleNavItems(user);
 
   return (
     <>
@@ -46,6 +51,9 @@ const Topbar = () => {
 
         {/* Right section */}
         <div className="flex justify-end px-4 md:px-8 h-full w-full items-center gap-4">
+
+          {/* 📍 Active location — renders nothing for single-location users */}
+          <LocationSwitcher />
 
           {/* 🔔 Notification Bell — replaces the old <span> */}
           <NotificationBell

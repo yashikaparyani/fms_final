@@ -3,6 +3,8 @@ import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import api from "../../api";
 import { useNavigate } from "react-router-dom";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import AssignDriversDialog from "../../components/fleetOwner/AssignDriversDialog";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
@@ -21,21 +23,29 @@ const AssignedLoad = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  // The load whose drivers are being set, or null when the dialog is closed.
+  const [assigning, setAssigning] = useState(null);
 
-  const fetchAssignedData = async () => {
+  // `silent` keeps the background refresh from touching the spinner or raising
+  // an error banner over data that is still on screen.
+  const fetchAssignedData = async ({ silent = false } = {}) => {
     try {
       const res = await api.get("/fleet-owners/assignedLoad");
       setData(res.data);
     } catch (error) {
-      setError(error.response?.data?.message || error.message);
+      if (!silent) setError(error.response?.data?.message || error.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchAssignedData();
   }, []);
+
+  useAutoRefresh(() => fetchAssignedData({ silent: true }), {
+    enabled: !assigning,
+  });
 
   const confirmRide = async (loadId) => {
     try {
@@ -104,6 +114,31 @@ const AssignedLoad = () => {
       header: "Status",
       width: "130px",
       render: (row) => <StatusBadge value={row.transportStatus} />,
+    },
+    {
+      key: "drivers",
+      header: "Drivers",
+      width: "170px",
+      render: (row) => {
+        const assigned = row.driverAssignments || [];
+        return (
+          <div className="leading-tight">
+            {assigned.length ? (
+              <span className="text-xs font-semibold text-gray-800">
+                {assigned.length} driver{assigned.length === 1 ? "" : "s"} on {assigned.length === 1 ? "this leg" : "legs"}
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400 italic">None yet</span>
+            )}
+            <button
+              onClick={() => setAssigning(row)}
+              className="link block text-xs mt-0.5"
+            >
+              {assigned.length ? "Change" : "Assign drivers"}
+            </button>
+          </div>
+        );
+      },
     },
     {
       key: "action",
@@ -180,12 +215,22 @@ const AssignedLoad = () => {
           color: "#f97316",   // consistent blue, not gray
           onClick: () => navigate(`/fleetOwner/load/${row.loadId}`),
         },
+        {
+          label: (row.driverAssignments || []).length ? "🚚 Drivers" : "🚚 Assign drivers",
+          color: "#4338ca",
+          onClick: () => setAssigning(row),
+        },
       ]
     : [
         {
           label: "👁 View",
           color: "#f97316",
           onClick: () => navigate(`/fleetOwner/load/${row.loadId}`),
+        },
+        {
+          label: (row.driverAssignments || []).length ? "🚚 Drivers" : "🚚 Assign drivers",
+          color: "#4338ca",
+          onClick: () => setAssigning(row),
         },
       ]
 }
@@ -210,6 +255,13 @@ const AssignedLoad = () => {
           subtitle="Loads assigned to your company"
         />
       </div>
+
+      <AssignDriversDialog
+        open={Boolean(assigning)}
+        load={assigning}
+        onClose={() => setAssigning(null)}
+        onSaved={() => fetchAssignedData({ silent: true })}
+      />
     </div>
   );
 };

@@ -6,8 +6,10 @@ import api from "../api";
 import { toast } from "react-toastify";
 import DocumentUpload from "../components/DocumentUpload";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 const DOCUMENT_TYPES = [
+  "Load Document",
   "Bare Chassis In-Gate/Out-Gate",
   "Bill Of Lading",
   "Out-Gate Interchange",
@@ -58,13 +60,21 @@ const StaffLoadDetails = () => {
     if (loadId) fetchLoad();
   }, [loadId]);
 
-  const fetchLoad = async () => {
+  // The form below keeps its own state, so refreshing the load underneath it
+  // does not disturb anything the user has typed. Held while a save or upload
+  // is in flight.
+  useAutoRefresh(() => fetchLoad({ silent: true }), {
+    enabled: !loading && !uploading,
+  });
+
+  // `silent` keeps the background refresh from toasting on a blip.
+  const fetchLoad = async ({ silent = false } = {}) => {
     try {
       const res = await api.get(`/loads/${loadId}`);
       setLoad(res.data);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to fetch load");
+      if (!silent) toast.error("Failed to fetch load");
     }
   };
 
@@ -153,13 +163,14 @@ const StaffLoadDetails = () => {
   const containerColumns = [
     { field: "containerType", headerName: "Container Type", flex: 1 },
     { field: "containerNo", headerName: "Container No", flex: 1 },
+    // Populated only on a Drop, which moves two containers.
+    { field: "containerNo2", headerName: "Container No 2", flex: 1 },
     { field: "chassisCompany", headerName: "Chassis Company", flex: 1 },
     { field: "bookingNo", headerName: "Booking No", flex: 1 },
     { field: "shippingLine", headerName: "Shipping Line", flex: 1 },
     { field: "sealNo", headerName: "Seal No", flex: 1 },
     { field: "pickupNo", headerName: "Pickup No", flex: 1 },
-    { field: "deliveryType", headerName: "Delivery Type", flex: 1 },
-    { field: "singleType", headerName: "Single Type", flex: 1 },
+    { field: "singleType", headerName: "Type", flex: 1 },
   ];
 
   const routeColumns = [
@@ -317,6 +328,15 @@ const StaffLoadDetails = () => {
               value={extraData.assignedTo}
               onChange={handleChange}
             />
+            {/* Who to actually call at the carrier. Drivers are on the load's
+                driverAssignments and are deliberately not listed — the office
+                deals with the account person, not whoever is behind the wheel. */}
+            {load?.accountPerson?.name && (
+              <p className="text-[11px] text-gray-500 mt-1">
+                Contact: {load.accountPerson.name}
+                {load.accountPerson.phone ? ` · ${load.accountPerson.phone}` : ""}
+              </p>
+            )}
           </div>
           <div>
             <label className={labelClass}>Order Status</label>

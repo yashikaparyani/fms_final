@@ -2,6 +2,7 @@ const FleetOwner = require("../models/FleetOwner");
 const User = require("../models/User");
 const Load = require("../models/Load")
 const { sendFleetOwnerCredentials } = require("../services/emailService");
+const { findCarrierFor } = require("../utils/carrierAccount");
 const mongoose = require("mongoose");
 
 // Generate random password
@@ -116,7 +117,13 @@ const createFleetOwner = async (req, res) => {
             email,
             password: generatedPassword,
             role: 'fleetOwner',
-            isVerified: true
+            isVerified: true,
+            // The carrier has to be a member of the location its record was
+            // filed under. Without this the account authenticates but cannot
+            // resolve a location, so every request after sign-in comes back
+            // 403 NO_LOCATION — an account that exists and cannot be used.
+            locations: [fleetOwner.locationId],
+            defaultLocation: fleetOwner.locationId,
           });
 
           // Link user to fleet owner
@@ -136,6 +143,17 @@ const createFleetOwner = async (req, res) => {
           // Link existing user
           fleetOwner.userId = existingUser._id;
           await fleetOwner.save();
+
+          // Same membership rule as above. An account that already existed may
+          // have been created before this location did, or by a path that did
+          // not grant one — so it is added rather than assumed.
+          const has = (existingUser.locations || []).map(String);
+          if (!has.includes(String(fleetOwner.locationId))) {
+            existingUser.locations = [...has, fleetOwner.locationId];
+            existingUser.defaultLocation =
+              existingUser.defaultLocation || fleetOwner.locationId;
+            await existingUser.save();
+          }
         }
       }
     }
@@ -215,7 +233,28 @@ const sendCredentialsToFleetOwner = async (req, res) => {
       return res.status(400).json({ message: "No email found for this fleet owner" });
     }
 
-    let user = await User.findOne({ _id: fleetOwner.userId });
+    // Only ever a carrier account. A stale or mislinked `userId` can point at
+    // somebody else entirely — a customer who happens to share the contact
+    // email — and resetting that person's password from the Fleet Owners screen
+    // would lock a customer out of their own portal.
+    const linked = fleetOwner.userId
+      ? await User.findOne({ _id: fleetOwner.userId })
+      : null;
+
+    let user = linked && linked.role === "fleetOwner" ? linked : null;
+
+    if (!user) {
+      const byEmail = await User.findOne({ email });
+      if (byEmail && byEmail.role !== "fleetOwner") {
+        return res.status(409).json({
+          message:
+            `${email} already belongs to a ${byEmail.role} account. ` +
+            `Give this carrier a different contact email, or remove that account first.`,
+        });
+      }
+      user = byEmail || null;
+    }
+
     const generatedPassword = generatePassword();
 
     if (!user) {
@@ -226,7 +265,11 @@ const sendCredentialsToFleetOwner = async (req, res) => {
         email,
         password: generatedPassword,
         role: 'fleetOwner',
-        isVerified: true
+        isVerified: true,
+        // Without membership the account authenticates and then 403s on every
+        // request — see resolveLocation. Same rule as createFleetOwner.
+        locations: [fleetOwner.locationId],
+        defaultLocation: fleetOwner.locationId,
       });
 
       fleetOwner.userId = user._id;
@@ -234,7 +277,20 @@ const sendCredentialsToFleetOwner = async (req, res) => {
     } else {
       // Reset password
       user.password = generatedPassword;
+
+      // Repair membership on the way past: an account issued before locations
+      // existed would otherwise get a working password and still not load.
+      if (!(user.locations || []).length && fleetOwner.locationId) {
+        user.locations = [fleetOwner.locationId];
+        user.defaultLocation = fleetOwner.locationId;
+      }
+
       await user.save();
+
+      if (String(fleetOwner.userId) !== String(user._id)) {
+        fleetOwner.userId = user._id;
+        await fleetOwner.save();
+      }
     }
 
     const emailStatus =
@@ -263,11 +319,10 @@ const sendCredentialsToFleetOwner = async (req, res) => {
 
 const getAssignedLoadToConfirm = async (req, res) => {
   try {
-    // Logged-in user id from token
-    const userId = req.user.id;
-
-    // Find fleet owner using linked userId
-    const fleetOwner = await FleetOwner.findOne({ userId });
+    // Resolved from the account rather than from the request, so a driver
+    // sub-account lands on their own carrier's roster and nobody else's — see
+    // utils/carrierAccount.js.
+    const fleetOwner = await findCarrierFor(req.user);
 
     if (!fleetOwner) {
       return res.status(404).json({ message: "Fleet owner not found" });

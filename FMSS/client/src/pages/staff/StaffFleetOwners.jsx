@@ -10,6 +10,8 @@ import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import { uiStyles } from "../../style/uiStyles";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import { fleetOwnerCode } from "../../utils/fleetOwner";
 
 const StaffFleetOwners = () => {
   const [fleetOwners, setFleetOwners] = useState([]);
@@ -22,14 +24,18 @@ const StaffFleetOwners = () => {
     fetchFleetOwners();
   }, []);
 
-  const fetchFleetOwners = async () => {
+  useAutoRefresh(() => fetchFleetOwners({ silent: true }));
+
+  // `silent` keeps the background refresh from toasting on a blip or touching
+  // the spinner.
+  const fetchFleetOwners = async ({ silent = false } = {}) => {
     try {
       const res = await api.get("/fleet-owners");
       setFleetOwners(res.data);
     } catch {
-      notify.error("Failed to fetch fleet owners");
+      if (!silent) notify.error("Failed to fetch fleet owners");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -88,11 +94,23 @@ const StaffFleetOwners = () => {
     (f) =>
       f.carrierName?.toLowerCase().includes(search.toLowerCase()) ||
       f.city?.toLowerCase().includes(search.toLowerCase()) ||
-      f.phone?.includes(search)
+      f.phone?.includes(search) ||
+      // Staff quote the code to each other, so it has to be searchable.
+      f.fleetOwnerCode?.toLowerCase().includes(search.toLowerCase())
   );
 
   // ── Desktop columns ──────────────────────────────────────────
   const columns = [
+    {
+      key: "fleetOwnerCode",
+      header: "Fleet Owner ID",
+      width: "110px",
+      render: (row) => (
+        <span className="text-xs font-mono font-semibold text-gray-700">
+          {fleetOwnerCode(row)}
+        </span>
+      ),
+    },
     {
       key: "carrier",
       header: "Carrier",
@@ -166,6 +184,7 @@ const StaffFleetOwners = () => {
                 subtitle={f.mcLicense ? `MC: ${f.mcLicense}` : undefined}
                 badge={{ label: isActive ? "Active" : "Inactive" }}
                 fields={[
+                  { label: "Fleet Owner ID", value: fleetOwnerCode(f) },
                   { label: "City",  value: f.city },
                   { label: "State", value: f.state },
                   { label: "Phone", value: f.phone },

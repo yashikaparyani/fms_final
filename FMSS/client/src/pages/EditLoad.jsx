@@ -43,7 +43,9 @@ const AddCompanyModal = ({ onClose, onSaved }) => {
             </div>
             <h3 className="text-base font-bold text-gray-800">Register New Company</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          {/* type="button" matters: these modals render inside the page form,
+              where an untyped button submits it. */}
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -117,7 +119,9 @@ const AddAddressModal = ({ company, onClose, onSaved }) => {
             <h3 className="text-base font-bold text-gray-800">Add New Address</h3>
             <p className="text-xs text-gray-400">for <span className="font-semibold text-gray-600">{company.name}</span></p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          {/* type="button" matters: these modals render inside the page form,
+              where an untyped button submits it. */}
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -150,11 +154,35 @@ const AddAddressModal = ({ company, onClose, onSaved }) => {
 };
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
+// A Drop moves two containers — one dropped, one taken away — so it needs both
+// container and both chassis numbers. A Pick only ever uses the first pair.
+const requireTwoContainersOnDrop = (data, ctx) => {
+  if (data.singleType !== "Drop") return;
+
+  [
+    ["containerNo", "Container # is required for a Drop"],
+    ["containerNo2", "Container #2 is required for a Drop"],
+    ["chassisNo", "Chassis # is required for a Drop"],
+    ["chassisNo2", "Chassis #2 is required for a Drop"],
+  ].forEach(([path, message]) => {
+    if (!String(data[path] || "").trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    }
+  });
+};
+
+// Loads created before the move types were reduced to Drop / Pick carry the
+// old values. A rounded trip is the same two-container move as a Drop, and a
+// "Delivery" is a drop-off, so both fold into Drop.
+const toMoveType = (load) => {
+  if (load.deliveryType === "ROUNDED") return "Drop";
+  return ["Drop", "Delivery"].includes(load.singleType) ? "Drop" : "Pick";
+};
+
 const loadSchema = z.object({
   customer: z.string().min(1, "Please select a customer"),
   refNo: z.string().optional(),
-  deliveryType: z.enum(["ROUNDED", "SINGLE"]),
-  singleType: z.enum(["Pick Up", "Delivery", "Drop"]).optional(),
+  singleType: z.enum(["Drop", "Pick"]),
   truckType: z.string().min(1, "Load type is required"),
   material: z.string().min(1, "Material is required"),
   amount: z
@@ -171,6 +199,8 @@ const loadSchema = z.object({
   shippingLine:    z.string().optional(),
   containerNo:     z.string().optional(),
   chassisNo:       z.string().optional(),
+  containerNo2:    z.string().optional(),
+  chassisNo2:      z.string().optional(),
   chassisCompany:  z.string().optional(),
   pickupNo:        z.string().optional(),
   sealNo:          z.string().optional(),
@@ -187,43 +217,7 @@ const loadSchema = z.object({
   description:     z.string().optional(),
   remarks:         z.string().optional(),
   driverRequirement: z.enum(["Solo Driver", "Team Driver"]),
-});
-
-// ─── Step Indicator ───────────────────────────────────────────────────────────
-const StepIndicator = ({ step }) => {
-  const steps = [
-    { num: 1, label: "Load Details" },
-    { num: 2, label: "Pickup Address" },
-    { num: 3, label: "Drop Address" },
-  ];
-  return (
-    <div className="flex items-center gap-0 mb-8">
-      {steps.map((s, i) => (
-        <div key={s.num} className="flex items-center flex-1 last:flex-none">
-          <div className="flex flex-col items-center">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all duration-300 ${
-              step > s.num ? "bg-green-500 border-green-500 text-white"
-              : step === s.num ? "bg-indigo-600 border-indigo-600 text-white"
-              : "bg-white border-gray-200 text-gray-400"
-            }`}>
-              {step > s.num ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : s.num}
-            </div>
-            <span className={`hidden md:block text-xs mt-1.5 font-semibold whitespace-nowrap ${step >= s.num ? "text-gray-800" : "text-gray-400"}`}>
-              {s.label}
-            </span>
-          </div>
-          {i < steps.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-2 mb-5 transition-all duration-500 ${step > s.num ? "bg-green-400" : "bg-gray-200"}`} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-};
+}).superRefine(requireTwoContainersOnDrop);
 
 // ─── Stop Form (Pickup / Drop) ────────────────────────────────────────────────
 const emptyStop = {
@@ -469,17 +463,6 @@ const StopList = ({ singular, stops, setStops, loading, updateStop, addStop, rem
   </div>
 );
 
-// ─── Chevron SVGs ─────────────────────────────────────────────────────────────
-const ChevronRight = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-  </svg>
-);
-const ChevronLeft = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-  </svg>
-);
 const CheckIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -492,19 +475,7 @@ const PinIcon = () => (
   </svg>
 );
 
-// ─── Step nav footer ─────────────────────────────────────────────────────────
-const StepFooter = ({ onBack, onNext, nextLabel, nextClass = "btn-primary", submitting, backLabel = "Back" }) => (
-  <div className={`${uiStyles.flexBetween} gap-3 pt-6 border-t border-gray-200 mt-6`}>
-    <button type="button" onClick={onBack} disabled={submitting} className="btn-secondary disabled:opacity-50">
-      <ChevronLeft /> {backLabel}
-    </button>
-    <button type="button" onClick={onNext} disabled={submitting} className={`${nextClass} disabled:opacity-50`}>
-      {submitting ? "Saving…" : <>{nextLabel}</>}
-    </button>
-  </div>
-);
-
-// ─── Address step info banner ────────────────────────────────────────────────
+// ─── Address section info banner ────────────────────────────────────────────────
 const AddressBanner = ({ color = "indigo", icon, title, note }) => {
   const palette = {
     indigo: "bg-indigo-50 border-indigo-100 text-indigo-700",
@@ -529,7 +500,6 @@ const EditLoad = () => {
   const user       = JSON.parse(localStorage.getItem("user"));
   const role       = user?.role;
 
-  const [step,        setStep]        = useState(1);
   const [pageLoading, setPageLoading] = useState(true);
   const [submitting,  setSubmitting]  = useState(false);
   const [loadStatus,  setLoadStatus]  = useState("");
@@ -555,10 +525,11 @@ const EditLoad = () => {
   const { register, handleSubmit, watch, reset, control, formState: { errors } } = useForm({
     resolver: zodResolver(loadSchema),
     defaultValues: {
-      customer: "", refNo: "", deliveryType: "ROUNDED", singleType: "Pick Up",
+      customer: "", refNo: "", singleType: "Pick",
       truckType: "", material: "", amount: "", lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "", bookingNo: "", shippingLine: "",
-      containerNo: "", chassisNo: "", chassisCompany: "", pickupNo: "", sealNo: "",
+      containerNo: "", chassisNo: "", containerNo2: "", chassisNo2: "",
+      chassisCompany: "", pickupNo: "", sealNo: "",
       hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false, isUrgent: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
@@ -566,7 +537,9 @@ const EditLoad = () => {
     },
   });
 
-  const deliveryType = watch("deliveryType");
+  // A Drop carries a second container/chassis pair; a Pick does not.
+  const singleType = watch("singleType");
+  const isDrop = singleType === "Drop";
   const shippingLine = watch("shippingLine");
   const chassisCompany = watch("chassisCompany");
 
@@ -645,8 +618,7 @@ const EditLoad = () => {
         reset({
           customer:        load.customer        || load.customerId || "",
           refNo:           load.refNo           || "",
-          deliveryType:    load.deliveryType    || "ROUNDED",
-          singleType:      load.singleType      || "Pick Up",
+          singleType:      toMoveType(load),
           truckType:       load.truckType       || "",
           material:        load.material        || "",
           amount:          load.amount          ? String(load.amount) : "",
@@ -658,6 +630,8 @@ const EditLoad = () => {
           shippingLine:    load.shippingLine    || "",
           containerNo:     load.containerNo     || "",
           chassisNo:       load.chassisNo       || "",
+          containerNo2:    load.containerNo2    || "",
+          chassisNo2:      load.chassisNo2      || "",
           chassisCompany:  load.chassisCompany  || "",
           pickupNo:        load.pickupNo        || "",
           sealNo:          load.sealNo          || "",
@@ -686,48 +660,26 @@ const EditLoad = () => {
   }, [loadId, navigate, role, reset]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const onStep1Submit = async (data) => {
-    setSubmitting(true);
-    try {
-      await api.put(`/loads/${loadId}`, data);
-      toast.success("Load details updated! Now review the pickup address.");
-      setStep(2);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to update load details");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // Everything on the page saves in one request. The addresses are held in
+  // component state rather than the form, so they are checked here — zod has
+  // already passed by the time this runs.
+  const onSubmit = async (data) => {
+    const stopIsIncomplete = (s) => !s.address || !s.city || !s.state || !s.zip;
 
-  const onStep2Submit = async () => {
-    const invalid = pickups.some((p) => !p.address || !p.city || !p.state || !p.zip);
-    if (invalid) {
-      toast.error("Please fill all required fields (Address, City, State, Zip) for every origin");
+    if (pickups.some(stopIsIncomplete)) {
+      toast.error("Please fill Address, City, State and Zip for every origin");
       return;
     }
+    if (drops.some(stopIsIncomplete)) {
+      toast.error("Please fill Address, City, State and Zip for every destination");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.put(`/loads/${loadId}`, {
+        ...data,
         pickups: pickups.map(toStopPayload(true)),
-      });
-      toast.success("Origins saved! Now review the destinations.");
-      setStep(3);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Error saving pickup address");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const onStep3Submit = async () => {
-    const invalid = drops.some((d) => !d.address || !d.city || !d.state || !d.zip);
-    if (invalid) {
-      toast.error("Please fill all required fields (Address, City, State, Zip) for every destination");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await api.put(`/loads/${loadId}`, {
         drops: drops.map(toStopPayload(false)),
       });
       const isInternal = role === "admin" || role === "staff";
@@ -738,10 +690,16 @@ const EditLoad = () => {
       );
       navigate(`/${role}/track-load/${loadId}`);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Error saving drop address");
+      toast.error(err?.response?.data?.message || "Failed to update the load");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Field errors sit next to their input, but the address sections are far
+  // enough down the page that a failed submit needs pointing at.
+  const onInvalid = () => {
+    toast.error("Some fields need attention — check the highlighted inputs.");
   };
 
   if (pageLoading) {
@@ -773,15 +731,13 @@ const EditLoad = () => {
           </div>
         )}
 
-        {/* ── Step Indicator ── */}
-        <StepIndicator step={step} />
-
         {/* ── Card ── */}
+        {/* One page: load details, origins and destinations are all editable
+            together and save in a single request. */}
         <div className={uiStyles.card}>
 
-          {/* ════════ STEP 1: Load Details ════════ */}
-          {step === 1 && (
-            <form onSubmit={(e) => e.preventDefault()}>
+          <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
+            <div>
               <h2 className="h4 mb-4">Load Details</h2>
 
               {/* Customer / Ref */}
@@ -816,24 +772,18 @@ const EditLoad = () => {
               <h3 className="form-subtitle">Delivery Modality</h3>
               <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-8">
                 <div className="flex items-center gap-6">
-                  {["ROUNDED", "SINGLE"].map((val) => (
+                  {["Drop", "Pick"].map((val) => (
                     <label key={val} className="flex items-center gap-2 cursor-pointer label">
-                      <input type="radio" value={val} {...register("deliveryType")} disabled={submitting} />
-                      {val === "ROUNDED" ? "Rounded Trip" : "Single Delivery"}
+                      <input type="radio" value={val} {...register("singleType")} disabled={submitting} />
+                      {val}
                     </label>
                   ))}
                 </div>
-                {deliveryType === "SINGLE" && (
+                {isDrop && (
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 md:ml-auto w-full md:w-auto">
-                    <label className="label whitespace-nowrap !mb-0">Type:</label>
-                    <select
-                      className="text-sm border-none bg-transparent focus:outline-none text-indigo-700 font-medium w-full md:w-auto"
-                      {...register("singleType")} disabled={submitting}
-                    >
-                      <option value="Pick Up">Pick Up</option>
-                      <option value="Delivery">Delivery</option>
-                      <option value="Drop">Drop</option>
-                    </select>
+                    <span className="text-xs font-medium text-indigo-700">
+                      A Drop moves 2 containers — both container and chassis numbers are required below.
+                    </span>
                   </div>
                 )}
               </div>
@@ -981,17 +931,27 @@ const EditLoad = () => {
                   <label className="input-label">Chassis Company</label>
                 </div>
 
-                {/* Container # */}
-                <div className="relative">
-                  <input className={uiStyles.input} placeholder="Container #" {...register("containerNo")} disabled={submitting} />
-                  <label className="input-label">Container #</label>
-                </div>
-
-                {/* Chassis # */}
-                <div className="relative">
-                  <input className={uiStyles.input} placeholder="Chassis #" {...register("chassisNo")} disabled={submitting} />
-                  <label className="input-label">Chassis #</label>
-                </div>
+                {/* Container / chassis numbers. The second pair only exists on
+                    a Drop, where all four are required. */}
+                {[
+                  { name: "containerNo",  label: "Container #",  required: isDrop },
+                  { name: "chassisNo",    label: "Chassis #",    required: isDrop },
+                  { name: "containerNo2", label: "Container #2", required: true, dropOnly: true },
+                  { name: "chassisNo2",   label: "Chassis #2",   required: true, dropOnly: true },
+                ]
+                  .filter(({ dropOnly }) => !dropOnly || isDrop)
+                  .map(({ name, label, required }) => (
+                    <div key={name} className="relative">
+                      <input className={cx(name)} placeholder={label} {...register(name)} disabled={submitting} />
+                      <label className="input-label">
+                        {label}
+                        {required && <span className="text-red-400"> *</span>}
+                      </label>
+                      {errors[name] && (
+                        <p className="text-xs text-red-500 mt-1">{errors[name].message}</p>
+                      )}
+                    </div>
+                  ))}
 
                 {/* Pickup # */}
                 <div className="relative">
@@ -1058,32 +1018,13 @@ const EditLoad = () => {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className={`${uiStyles.flexBetween} gap-3 pt-6 border-t border-gray-200 mt-6`}>
-                <button type="button" onClick={() => navigate(-1)} className="btn-secondary" disabled={submitting}>
-                  Cancel
-                </button>
-                <button type="button" onClick={handleSubmit(onStep1Submit)} disabled={submitting} className="btn-primary disabled:opacity-50">
-                  {submitting ? "Saving…" : <> Save & Continue <ChevronRight /> </>}
-                </button>
-              </div>
-            </form>
-          )}
+            </div>
 
-          {/* ════════ STEP 2: Pickup Address ════════ */}
-          {step === 2 && (
-            <div>
-              <div className={`${uiStyles.flexBetween} mb-5`}>
-                <div>
-                  <h2 className="h4">Pickup / Origin Address</h2>
-                  <p className="page-subtitle mt-0.5">Review and update the origin(s). Add more if the load has multiple pickups.</p>
-                </div>
-                <span className="badge-green">
-                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Details Saved
-                </span>
+            {/* ════════ Origins ════════ */}
+            <div className="pt-8 mt-8 border-t border-gray-200">
+              <div className="mb-5">
+                <h2 className="h4">Pickup / Origin Address</h2>
+                <p className="page-subtitle mt-0.5">Review and update the origin(s). Add more if the load has multiple pickups.</p>
               </div>
 
               <AddressBanner color="indigo" icon={<PinIcon />} title="Origin(s) / Pickup" />
@@ -1100,30 +1041,13 @@ const EditLoad = () => {
                 allCompanies={allCompanies}
                 setAllCompanies={setAllCompanies}
               />
-
-              <StepFooter
-                onBack={() => setStep(1)}
-                onNext={onStep2Submit}
-                nextLabel={<> Save Origins & Continue <ChevronRight /></>}
-                submitting={submitting}
-              />
             </div>
-          )}
 
-          {/* ════════ STEP 3: Drop Address ════════ */}
-          {step === 3 && (
-            <div>
-              <div className={`${uiStyles.flexBetween} mb-5`}>
-                <div>
-                  <h2 className="h4">Drop / Destination Address</h2>
-                  <p className="page-subtitle mt-0.5">Final step — review the destination(s). Add more if the load has multiple drops.</p>
-                </div>
-                <span className="badge-green">
-                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Origins Saved
-                </span>
+            {/* ════════ Destinations ════════ */}
+            <div className="pt-8 mt-8 border-t border-gray-200">
+              <div className="mb-5">
+                <h2 className="h4">Drop / Destination Address</h2>
+                <p className="page-subtitle mt-0.5">Review and update the destination(s). Add more if the load has multiple drops.</p>
               </div>
 
               <AddressBanner color="amber" icon={<PinIcon />} title="Destination(s) / Drop" />
@@ -1139,20 +1063,28 @@ const EditLoad = () => {
                 allCompanies={allCompanies}
                 setAllCompanies={setAllCompanies}
               />
-
-              <StepFooter
-                onBack={() => setStep(2)}
-                onNext={onStep3Submit}
-                nextLabel={
-                  role === "admin" || role === "staff"
-                    ? <> <CheckIcon /> Save Changes </>
-                    : <> <CheckIcon /> Save & Resubmit for Verification </>
-                }
-                nextClass="btn-primary !bg-green-600 !border-green-600 hover:!bg-green-700"
-                submitting={submitting}
-              />
             </div>
-          )}
+
+            {/* ════════ One footer for the whole page ════════ */}
+            <div className={`${uiStyles.flexBetween} gap-3 pt-6 border-t border-gray-200 mt-8`}>
+              <button type="button" onClick={() => navigate(-1)} className="btn-secondary" disabled={submitting}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="btn-primary !bg-green-600 !border-green-600 hover:!bg-green-700 disabled:opacity-50"
+              >
+                {submitting ? (
+                  "Saving…"
+                ) : role === "admin" || role === "staff" ? (
+                  <> <CheckIcon /> Save Changes </>
+                ) : (
+                  <> <CheckIcon /> Save & Resubmit for Verification </>
+                )}
+              </button>
+            </div>
+          </form>
 
         </div>
       </div>

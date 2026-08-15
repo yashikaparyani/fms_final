@@ -1,24 +1,13 @@
 const request = require("supertest");
 const express = require("express");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { seed } = require("./helpers/tenantTestContext");
 const User = require("../models/User");
 
 // Mock auth middleware before importing routes
-jest.mock("../middleware/auth", () => {
-  const mongoose = require("mongoose");
-  return {
-    protect: (req, res, next) => {
-      req.user = { _id: new mongoose.Types.ObjectId(), role: req.headers.role || "staff" };
-      next();
-    },
-    authorizeRoles: (...roles) => (req, res, next) => {
-      if (!req.user || !roles.includes(req.user.role)) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      next();
-    }
-  };
-});
+jest.mock("../middleware/auth", () =>
+  require("./helpers/tenantTestContext").authMock({ defaultRole: "staff" }),
+);
 
 const customerRoutes = require("../routes/customerRoutes");
 

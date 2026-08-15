@@ -12,6 +12,7 @@ import {
 import { uiStyles } from "../../style/uiStyles";
 import { StatCard, SummaryCard } from "../../components/cards/StatCard";
 import QuickActionCard from "../../components/cards/QuickActionCard";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 const ClientDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -19,19 +20,25 @@ const ClientDashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // `silent` swaps the numbers in without dropping back to the full-page
+  // spinner, so the background refresh is invisible.
+  const fetchStats = async ({ silent = false } = {}) => {
+    try {
+      const res = await api.get("/stats");
+      setStats(res.data);
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await api.get("/stats");
-        setStats(res.data);
-      } catch (error) {
-        console.error("Failed to fetch stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useAutoRefresh(() => fetchStats({ silent: true }));
 
   if (loading) {
     return (

@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 // models/DeliveryPartner.js
 const mongoose = require("mongoose");
 
@@ -22,5 +23,9 @@ const deliveryPartnerSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+deliveryPartnerSchema.plugin(tenantScope, { modelName: "DeliveryPartner" });
 
 module.exports = mongoose.model("DeliveryPartner", deliveryPartnerSchema);

@@ -12,6 +12,8 @@ import { RiLoader5Fill } from "react-icons/ri";
 import SectionHeader from "../components/SectionHeader";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import UnassignedNote from "../components/UnassignedNote";
 
 // ─── API layer ────────────────────────────────────────────────────────────────
 const bidDetailsApi = {
@@ -72,30 +74,31 @@ const BidDetails = () => {
   const [sendingMail, setSendingMail] = useState(false);
 
   // ─── Fetch load details ───────────────────────────────────────────────
-  const fetchLoad = useCallback(async () => {
+  // `silent` leaves the spinner alone so the background refresh is invisible.
+  const fetchLoad = useCallback(async ({ silent = false } = {}) => {
     if (!loadId) return;
-    setFetching(true);
+    if (!silent) setFetching(true);
     try {
       const res = await bidDetailsApi.fetchLoad(loadId);
       setLoad(res.data);
     } catch (err) {
       console.error("Failed to fetch load:", err);
     } finally {
-      setFetching(false);
+      if (!silent) setFetching(false);
     }
   }, [loadId]);
 
   // ─── Fetch all bids (scored + ranked, with fleetOwnerName) ───────────
-  const fetchBids = useCallback(async () => {
+  const fetchBids = useCallback(async ({ silent = false } = {}) => {
     if (!loadId) return;
-    setFetchingBids(true);
+    if (!silent) setFetchingBids(true);
     try {
       const res = await bidDetailsApi.fetchAllBids(loadId);
       setBids(res.data);
     } catch (err) {
       console.error("Failed to fetch bids:", err);
     } finally {
-      setFetchingBids(false);
+      if (!silent) setFetchingBids(false);
     }
   }, [loadId]);
 
@@ -103,6 +106,15 @@ const BidDetails = () => {
     fetchLoad();
     fetchBids();
   }, [fetchLoad, fetchBids]);
+
+  // Bids land while this page is open; keep the leaderboard current. Held while
+  // the acceptance mail is going out so the row cannot move underneath it.
+  useAutoRefresh(
+    async () => {
+      await Promise.all([fetchLoad({ silent: true }), fetchBids({ silent: true })]);
+    },
+    { enabled: !sendingMail },
+  );
 
   // ─── Actions ─────────────────────────────────────────────────────────
   const handleAward = async (fleetOwnerId, fleetOwnerName, amount) => {
@@ -149,13 +161,17 @@ const BidDetails = () => {
     }
   };
 
+  // Staff no longer overwrite a carrier's bid: this sends a counter-offer the
+  // carrier has to accept, and accepting awards them the load automatically.
   const handleRevise = async (bidId, currentAmount) => {
     const { value: newAmount } = await Swal.fire({
-      title: "Revise Bid Amount",
+      title: "Negotiate Bid Amount",
+      text: "The carrier is asked to accept this amount. If they accept, the load is awarded to them automatically.",
       input: "number",
-      inputLabel: "New Amount ($)",
+      inputLabel: "Offer Amount ($)",
       inputValue: currentAmount,
       showCancelButton: true,
+      confirmButtonText: "Send Offer",
       inputValidator: (value) => {
         if (!value || value <= 0) return "Please enter a valid amount";
       }
@@ -163,12 +179,12 @@ const BidDetails = () => {
 
     if (newAmount) {
       try {
-        await bidDetailsApi.reviseBid(loadId, bidId, Number(newAmount));
-        toast.success("Bid revised successfully");
+        const res = await bidDetailsApi.reviseBid(loadId, bidId, Number(newAmount));
+        toast.success(res?.data?.message || "Offer sent to the carrier");
         fetchLoad();
         fetchBids();
       } catch (err) {
-        toast.error(err?.response?.data?.message || "Failed to revise bid");
+        toast.error(err?.response?.data?.message || "Failed to send the offer");
       }
     }
   };
@@ -324,6 +340,7 @@ const BidDetails = () => {
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${bidStatusColor(load.bidStatus)}`}>
                   {load.bidStatus}
                 </span>
+                <UnassignedNote load={load} />
               </div>
             </div>
 
@@ -409,6 +426,24 @@ const BidDetails = () => {
                               </span>
                             )} */}
                           </p>
+
+                          {/* Where a counter-offer stands. Accepting one awards
+                              the load to that carrier automatically. */}
+                          {bid.negotiation?.status === "PENDING" && (
+                            <p className="text-xs mt-1 font-semibold text-indigo-600">
+                              Offered ${Number(bid.negotiation.amount).toLocaleString()} — awaiting carrier response
+                            </p>
+                          )}
+                          {bid.negotiation?.status === "DECLINED" && (
+                            <p className="text-xs mt-1 font-semibold text-red-500">
+                              Carrier declined ${Number(bid.negotiation.amount).toLocaleString()}
+                            </p>
+                          )}
+                          {bid.negotiation?.status === "ACCEPTED" && (
+                            <p className="text-xs mt-1 font-semibold text-green-600">
+                              Carrier accepted ${Number(bid.negotiation.amount).toLocaleString()} — awarded automatically
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -431,7 +466,7 @@ const BidDetails = () => {
                               onClick={() => handleRevise(bid._id, bid.amount)}
                               className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
                             >
-                              Revise
+                              Negotiate
                             </button>
                             <button
                               onClick={() => handleDiscard(bid._id, bid.fleetOwnerName)}

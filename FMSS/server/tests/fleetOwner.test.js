@@ -2,25 +2,15 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { seed } = require("./helpers/tenantTestContext");
 const FleetOwner = require("../models/FleetOwner");
 const User = require("../models/User");
 
-// Mock auth middleware before importing routes
-jest.mock("../middleware/auth", () => {
-  const mongoose = require("mongoose");
-  return {
-    protect: (req, res, next) => {
-      req.user = { _id: new mongoose.Types.ObjectId(), role: req.headers.role || "staff" };
-      next();
-    },
-    authorizeRoles: (...roles) => (req, res, next) => {
-      if (!req.user || !roles.includes(req.user.role)) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      next();
-    }
-  };
-});
+// Mock auth middleware before importing routes. The shared mock also opens the
+// tenant context the real `protect` opens — see helpers/tenantTestContext.js.
+jest.mock("../middleware/auth", () =>
+  require("./helpers/tenantTestContext").authMock({ defaultRole: "staff" }),
+);
 
 const fleetOwnerRoutes = require("../routes/fleetOwnerRoutes");
 
@@ -74,7 +64,7 @@ describe("Fleet Owner API", () => {
       expect(res.body.credentialsGenerated).toBe(true);
 
       // Verify user was created
-      const user = await User.findOne({ email: "jane@carrier.com" });
+      const user = await seed(() => User.findOne({ email: "jane@carrier.com" }));
       expect(user).not.toBeNull();
       expect(user.role).toEqual("fleetOwner");
     });
@@ -82,14 +72,14 @@ describe("Fleet Owner API", () => {
 
   describe("GET /api/fleet-owners", () => {
     it("should return all fleet owners", async () => {
-      await FleetOwner.create({
+      await seed(() => FleetOwner.create({
         carrierName: "Carrier A",
         phone: "111-111-1111"
-      });
-      await FleetOwner.create({
+      }));
+      await seed(() => FleetOwner.create({
         carrierName: "Carrier B",
         phone: "222-222-2222"
-      });
+      }));
 
       const res = await request(app)
         .get("/api/fleet-owners")
@@ -102,11 +92,11 @@ describe("Fleet Owner API", () => {
 
   describe("GET /api/fleet-owners/:id", () => {
     it("should return a specific fleet owner", async () => {
-      const fleetOwner = await FleetOwner.create({
+      const fleetOwner = await seed(() => FleetOwner.create({
         carrierName: "Specific Carrier",
         phone: "333-333-3333",
         mcLicense: "MC999"
-      });
+      }));
 
       const res = await request(app)
         .get(`/api/fleet-owners/${fleetOwner._id}`)
@@ -128,10 +118,10 @@ describe("Fleet Owner API", () => {
 
   describe("PUT /api/fleet-owners/:id", () => {
     it("should update a fleet owner", async () => {
-      const fleetOwner = await FleetOwner.create({
+      const fleetOwner = await seed(() => FleetOwner.create({
         carrierName: "Original Name",
         phone: "444-444-4444"
-      });
+      }));
 
       const res = await request(app)
         .put(`/api/fleet-owners/${fleetOwner._id}`)
@@ -149,10 +139,10 @@ describe("Fleet Owner API", () => {
 
   describe("DELETE /api/fleet-owners/:id", () => {
     it("should delete a fleet owner", async () => {
-      const fleetOwner = await FleetOwner.create({
+      const fleetOwner = await seed(() => FleetOwner.create({
         carrierName: "To Be Deleted",
         phone: "555-555-5555"
-      });
+      }));
 
       const res = await request(app)
         .delete(`/api/fleet-owners/${fleetOwner._id}`)
@@ -162,20 +152,20 @@ describe("Fleet Owner API", () => {
       expect(res.body.message).toEqual("Fleet owner deleted");
 
       // Verify deletion
-      const deleted = await FleetOwner.findById(fleetOwner._id);
+      const deleted = await seed(() => FleetOwner.findById(fleetOwner._id));
       expect(deleted).toBeNull();
     });
   });
 
   describe("POST /api/fleet-owners/:id/send-credentials", () => {
     it("should generate and return credentials", async () => {
-      const fleetOwner = await FleetOwner.create({
+      const fleetOwner = await seed(() => FleetOwner.create({
         carrierName: "Credential Test Carrier",
         phone: "666-666-6666",
         contactPersons: [
           { name: "Test Contact", phone: "777-777-7777", email: "credentials@test.com", isPrimary: true }
         ]
-      });
+      }));
 
       const res = await request(app)
         .post(`/api/fleet-owners/${fleetOwner._id}/send-credentials`)
@@ -188,10 +178,10 @@ describe("Fleet Owner API", () => {
     });
 
     it("should fail if no email is available", async () => {
-      const fleetOwner = await FleetOwner.create({
+      const fleetOwner = await seed(() => FleetOwner.create({
         carrierName: "No Email Carrier",
         phone: "888-888-8888"
-      });
+      }));
 
       const res = await request(app)
         .post(`/api/fleet-owners/${fleetOwner._id}/send-credentials`)

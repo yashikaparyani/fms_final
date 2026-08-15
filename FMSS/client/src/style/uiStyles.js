@@ -3,7 +3,7 @@ export const uiStyles = {
   page: "space-y-6",
   card: "bg-white rounded-xl shadow-sm p-6 border border-gray-200",
   cardHeader: "flex items-center justify-between mb-4",
-weekleyGrid: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6 mt-6 break-words lg:whitespace-nowrap",
+weekleyGrid: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-2 mt-6 break-words lg:whitespace-nowrap",
   quickActionGrid: "grid grid-cols-2 gap-6 mt-3",
   grid4: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6",
   grid2: "grid grid-cols-1 lg:grid-cols-2 gap-6",

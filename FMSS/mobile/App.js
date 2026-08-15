@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -119,6 +120,14 @@ const uploadableDocumentTypes = [
 ];
 
 const POD_DOCUMENT_TYPE = "Proof of Delivery";
+
+// Office-side paperwork the driver has no business seeing. Filtered out of
+// every document list in this app; it is never in uploadableDocumentTypes
+// either, so a driver can neither view nor upload one.
+const DRIVER_HIDDEN_DOCUMENT_TYPES = new Set(["Load Document"]);
+
+const visibleToDriver = (documents = []) =>
+  documents.filter((doc) => !DRIVER_HIDDEN_DOCUMENT_TYPES.has(doc?.documentType));
 
 const getCleanDocumentPath = (filePath) => {
   if (!filePath) return null;
@@ -363,8 +372,16 @@ function LoginScreen({ onLogin }) {
     try {
       setLoading(true);
       const res = await api.post("/auth/login", { email, password });
-      if (res.data.user?.role !== "fleetOwner") {
-        Alert.alert("Fleet owners only", "This app is only for fleet-owner accounts.");
+      // Drivers are sub-accounts of a fleet owner and this app is where they
+      // actually work — the phone in the cab is what starts live tracking and
+      // uploads pickup proof. Everything they see is resolved from their own
+      // account to their carrier server-side, so a driver session reaches
+      // exactly what their carrier was assigned.
+      if (!["fleetOwner", "driver"].includes(res.data.user?.role)) {
+        Alert.alert(
+          "Carriers and drivers only",
+          "This app is for fleet-owner and driver accounts.",
+        );
         return;
       }
       await saveSession(res.data);
@@ -385,7 +402,7 @@ function LoginScreen({ onLogin }) {
       >
         <View style={styles.loginCard}>
           <Text style={styles.brand}>FMSS Fleet</Text>
-          <Text style={styles.subtitle}>Fleet-owner mobile app</Text>
+          <Text style={styles.subtitle}>For carriers and their drivers</Text>
           <Field label="Email" value={email} onChangeText={setEmail} placeholder="fleet@example.com" />
           <Field
             label="Password"
@@ -446,8 +463,11 @@ function LoadCard({ load, children, onPress }) {
       </View>
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>{load.truckType || "Load -"}</Text>
-        {/* Show the fleet-owner payout (vendor rate), not the customer base rate. */}
-        <Text style={styles.metaText}>{money(load.vendorRate ?? load.amount)}</Text>
+        {/* The settled bid wins over the pre-bid vendor rate, so an awarded
+            load shows the amount that was actually agreed. */}
+        <Text style={styles.metaText}>
+          {money(load.winningBid?.amount ?? load.vendorRate ?? load.amount)}
+        </Text>
       </View>
     </>
   );
@@ -590,6 +610,41 @@ function MyBidsTab({ onOpenDetail }) {
     }
   };
 
+  // Accepting a negotiated amount awards the load on the spot, so it is worth
+  // one confirmation before it goes.
+  const respondToOffer = async (item, accept) => {
+    const send = async () => {
+      try {
+        setSavingId(item.loadId);
+        const res = await api.post(`/loads/${item.loadId}/negotiation/respond`, {
+          bidId: item.bidId,
+          accept,
+        });
+        Alert.alert(
+          accept ? "Offer accepted" : "Offer declined",
+          res.data?.message ||
+            (accept ? "The load has been awarded to you." : "The offer was declined."),
+        );
+        fetchBids();
+      } catch (error) {
+        Alert.alert("Could not send response", error.response?.data?.message || error.message);
+      } finally {
+        setSavingId(null);
+      }
+    };
+
+    if (!accept) return send();
+
+    Alert.alert(
+      "Accept this amount?",
+      `Accepting ${money(item.negotiation.amount)} awards load ${item.loadId} to you.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Accept", onPress: send },
+      ],
+    );
+  };
+
   return (
     <FlatList
       data={bids.filter(Boolean)}
@@ -600,7 +655,9 @@ function MyBidsTab({ onOpenDetail }) {
       }
       renderItem={({ item }) => {
         const result = item.result || item.status || "PENDING";
-        const canEdit = result === "PENDING";
+        const offer = item.negotiation;
+        // While an offer is open, editing the bid would talk past it.
+        const canEdit = result === "PENDING" && !offer;
         const isEditing = Boolean(editing[item.loadId]);
         const isSaving = savingId === item.loadId;
 
@@ -612,6 +669,28 @@ function MyBidsTab({ onOpenDetail }) {
                 {result}
               </Pill>
             </View>
+
+            {offer && (
+              <View style={styles.offerBox}>
+                <Text style={styles.offerTitle}>Negotiated amount</Text>
+                <Text style={styles.offerAmount}>{money(offer.amount)}</Text>
+                <Text style={styles.muted}>
+                  Accepting awards this load to you at {money(offer.amount)}.
+                </Text>
+                <View style={styles.bidRow}>
+                  <SecondaryButton
+                    title="Decline"
+                    onPress={() => respondToOffer(item, false)}
+                    disabled={isSaving}
+                  />
+                  <PrimaryButton
+                    title={isSaving ? "Sending..." : "Accept"}
+                    onPress={() => respondToOffer(item, true)}
+                    disabled={isSaving}
+                  />
+                </View>
+              </View>
+            )}
 
             {canEdit && !isEditing && (
               <SecondaryButton
@@ -1091,7 +1170,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
   const history = (load.transportStatusHistory || load.statusHistory || [])
     .slice()
     .reverse();
-  const documents = load.documents || [];
+  const documents = visibleToDriver(load.documents);
   const contactPersons = load.contactPersons || [];
   const lastLocation = load.liveTracking?.lastLocation;
 
@@ -1497,6 +1576,20 @@ function TrackingScreen({ load: initialLoad, onBack }) {
         return;
       }
 
+      // Checked before the signature pad opens, not after: being asked to sign
+      // and only then told a photo is missing means signing twice.
+      if (
+        status === "DELIVERED" &&
+        proofImages.length === 0 &&
+        !(load?.deliveryProof?.images || []).length
+      ) {
+        Alert.alert(
+          "Delivery proof required",
+          "Photograph the container at the drop before completing the delivery.",
+        );
+        return;
+      }
+
       if (status === "DELIVERED" && !signatureOverride) {
         pendingDeliveryStatusRef.current = status;
         setSignatureOpen(true);
@@ -1534,7 +1627,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
       setLoad(res.data.data);
       setNote("");
       setStreetTurnOpen(false);
-      if (status === "PICKED_UP") setProofImages([]);
+      if (["PICKED_UP", "DELIVERED"].includes(status)) setProofImages([]);
       if (status === "DELIVERED") {
         watcherRef.current?.remove?.();
         watcherRef.current = null;
@@ -1550,7 +1643,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
   };
 
   const getDocumentByType = (type) =>
-    (load.documents || []).find(
+    visibleToDriver(load.documents).find(
       (doc) =>
         (doc.documentType === "Invoice" ? "Carrier Invoice" : doc.documentType) === type,
     );
@@ -1646,7 +1739,10 @@ function TrackingScreen({ load: initialLoad, onBack }) {
             <Text style={styles.pickerFieldText}>Select next status…</Text>
             <Text style={styles.pickerChevron}>▾</Text>
           </Pressable>
-          <SecondaryButton title={`Pickup proof images: ${proofImages.length}`} onPress={pickProofImages} />
+          <SecondaryButton
+            title={`Proof photos: ${proofImages.length}`}
+            onPress={pickProofImages}
+          />
           <SecondaryButton
             title={signatureData ? "Signature captured" : "Capture delivery signature"}
             onPress={() => setSignatureOpen(true)}
@@ -1679,7 +1775,11 @@ function TrackingScreen({ load: initialLoad, onBack }) {
             ))}
           </View>
 
-          <Text style={styles.muted}>{load.documents?.length || 0} document(s) on this load</Text>
+          {/* Counts only what this screen lists, so the number cannot disagree
+              with the cards above it. */}
+          <Text style={styles.muted}>
+            {visibleToDriver(load.documents).length} document(s) on this load
+          </Text>
         </View>
       </ScrollView>
 
@@ -1733,10 +1833,221 @@ function TrackingScreen({ load: initialLoad, onBack }) {
   );
 }
 
+// ─── My licence ───────────────────────────────────────────────────────────────
+// A driver cannot report a pickup or a delivery until a copy of their licence is
+// on file — the carrier warrants in both signed agreements that every driver is
+// properly licensed, and the server enforces it on every status update.
+//
+// This is where a driver clears that, in the place they actually work: the phone
+// in the cab. A driver whose carrier already uploaded a licence during onboarding
+// never sees this screen — the check is on the record, not on who filled it.
+// ─────────────────────────────────────────────────────────────────────────────
+function LicenseScreen({ onBack, onUpdated }) {
+  const [loading, setLoading] = useState(true);
+  const [driver, setDriver] = useState(null);
+  const [compliance, setCompliance] = useState(null);
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [licenseState, setLicenseState] = useState("");
+  const [licenseExpiry, setLicenseExpiry] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    try {
+      const res = await api.get("/drivers/me");
+      setDriver(res.data.driver);
+      setCompliance(res.data.compliance);
+      setLicenseNumber(res.data.driver.licenseNumber || "");
+      setLicenseState(res.data.driver.licenseState || "");
+      setLicenseExpiry(
+        res.data.driver.licenseExpiry
+          ? String(res.data.driver.licenseExpiry).slice(0, 10)
+          : "",
+      );
+    } catch (error) {
+      Alert.alert(
+        "Could not load your details",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert(
+        "Camera permission required",
+        "Camera access is needed to photograph your licence.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (!result.canceled) setPhoto(result.assets[0]);
+  };
+
+  const chooseFromLibrary = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (!result.canceled) setPhoto(result.assets[0]);
+  };
+
+  const submit = async () => {
+    if (!photo) {
+      Alert.alert("Photo needed", "Take or choose a photo of your licence first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const formData = new FormData();
+      formData.append("license", assetToFile(photo, "licence.jpg"));
+      if (licenseNumber) formData.append("licenseNumber", licenseNumber);
+      if (licenseState) formData.append("licenseState", licenseState);
+      if (licenseExpiry) formData.append("licenseExpiry", licenseExpiry);
+
+      const res = await api.post("/drivers/me/license", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setDriver(res.data.driver);
+      setCompliance(res.data.compliance);
+      setPhoto(null);
+      onUpdated?.(res.data.compliance);
+      Alert.alert("Licence saved", res.data.message);
+    } catch (error) {
+      Alert.alert("Upload failed", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar style="dark" />
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>My licence</Text>
+          <Text style={styles.subtitle}>{driver?.name || ""}</Text>
+        </View>
+        <SecondaryButton title="Back" onPress={onBack} />
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+        {loading ? (
+          <Text style={styles.subtitle}>Loading…</Text>
+        ) : (
+          <>
+            <View
+              style={{
+                backgroundColor: compliance?.canUpdateLoads ? "#dcfce7" : "#fef3c7",
+                borderRadius: 12,
+                padding: 14,
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "700",
+                  color: compliance?.canUpdateLoads ? colors.success : colors.warning,
+                }}
+              >
+                {compliance?.canUpdateLoads
+                  ? "You are cleared to update your loads"
+                  : "You cannot update loads yet"}
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
+                {compliance?.canUpdateLoads
+                  ? "Your licence is on file. Nothing further is needed."
+                  : compliance?.message}
+              </Text>
+            </View>
+
+            <Field
+              label="Licence number"
+              value={licenseNumber}
+              onChangeText={setLicenseNumber}
+              placeholder="D1234567"
+            />
+            <Field
+              label="Issuing state"
+              value={licenseState}
+              onChangeText={setLicenseState}
+              placeholder="CA"
+            />
+            <Field
+              label="Expiry date (YYYY-MM-DD)"
+              value={licenseExpiry}
+              onChangeText={setLicenseExpiry}
+              placeholder="2030-04-01"
+            />
+
+            {photo && (
+              <Image
+                source={{ uri: photo.uri }}
+                style={{ width: "100%", height: 190, borderRadius: 12 }}
+                resizeMode="cover"
+              />
+            )}
+
+            <SecondaryButton
+              title={photo ? "Retake photo" : "Take a photo of your licence"}
+              onPress={takePhoto}
+            />
+            <SecondaryButton title="Choose from library" onPress={chooseFromLibrary} />
+
+            <PrimaryButton
+              title={saving ? "Uploading…" : "Save licence"}
+              onPress={submit}
+              disabled={saving || !photo}
+            />
+
+            {driver?.hasLicenseOnFile && (
+              <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
+                A copy is already on file. You only need to do this again when you
+                renew.
+              </Text>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 function FleetHomeScreen({ session, onLogout }) {
   const [tab, setTab] = useState("assigned");
   const [selectedLoad, setSelectedLoad] = useState(null);
   const [detailLoad, setDetailLoad] = useState(null);
+  const [showLicense, setShowLicense] = useState(false);
+  const [compliance, setCompliance] = useState(null);
+
+  const isDriver = session.user?.role === "driver";
+
+  // Checked on open rather than discovered on the first failed status update: a
+  // driver finding out at the dock that they cannot report a pickup is the exact
+  // situation this gate exists to avoid.
+  useEffect(() => {
+    if (!isDriver) return;
+
+    let cancelled = false;
+    api
+      .get("/drivers/me")
+      .then((res) => {
+        if (!cancelled) setCompliance(res.data.compliance);
+      })
+      .catch(() => {
+        /* non-fatal — the server still refuses the update and says why */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDriver]);
 
   const tabs = useMemo(
     () => [
@@ -1747,6 +2058,15 @@ function FleetHomeScreen({ session, onLogout }) {
     ],
     [],
   );
+
+  if (showLicense) {
+    return (
+      <LicenseScreen
+        onBack={() => setShowLicense(false)}
+        onUpdated={(next) => setCompliance(next)}
+      />
+    );
+  }
 
   if (selectedLoad) {
     return <TrackingScreen load={selectedLoad} onBack={() => setSelectedLoad(null)} />;
@@ -1764,8 +2084,34 @@ function FleetHomeScreen({ session, onLogout }) {
           <Text style={styles.title}>FMSS Fleet</Text>
           <Text style={styles.subtitle}>{session.user?.email}</Text>
         </View>
-        <SecondaryButton title="Logout" onPress={onLogout} />
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {isDriver && (
+            <SecondaryButton title="Licence" onPress={() => setShowLicense(true)} />
+          )}
+          <SecondaryButton title="Logout" onPress={onLogout} />
+        </View>
       </View>
+
+      {/* The blocker, stated where they land rather than at the dock. */}
+      {isDriver && compliance && !compliance.canUpdateLoads && (
+        <Pressable
+          onPress={() => setShowLicense(true)}
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 8,
+            backgroundColor: "#fef3c7",
+            borderRadius: 12,
+            padding: 12,
+          }}
+        >
+          <Text style={{ fontWeight: "700", color: colors.warning }}>
+            Action needed before you can update loads
+          </Text>
+          <Text style={{ color: colors.muted, marginTop: 3, fontSize: 13 }}>
+            {compliance.message} Tap here to do it now.
+          </Text>
+        </Pressable>
+      )}
 
       <View style={styles.tabs}>
         {tabs.map((item) => (
@@ -1799,6 +2145,8 @@ function FleetHomeScreen({ session, onLogout }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [booting, setBooting] = useState(true);
+  // Which of the two signed-out screens to show. Reset on logout so the next
+  // person to open the app lands on sign-in, not a half-filled signup form.
 
   useEffect(() => {
     getStoredSession()
@@ -2054,6 +2402,29 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: "center",
     flexWrap: "wrap",
+  },
+  // Staff counter-offer awaiting this carrier's answer.
+  offerBox: {
+    marginTop: 10,
+    marginBottom: 4,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "#eef2ff",
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+    gap: 6,
+  },
+  offerTitle: {
+    color: "#4338ca",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  offerAmount: {
+    color: "#312e81",
+    fontSize: 22,
+    fontWeight: "900",
   },
   bidInput: {
     flex: 1,

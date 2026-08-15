@@ -25,6 +25,10 @@ router.post(
   registerCustomer,
 );
 
+// There is deliberately no public carrier sign-up. A carrier account is opened
+// by the office (POST /api/fleet-owners) and the credentials are mailed out, so
+// nobody reaches the carrier portal without having been vetted first.
+
 // ADMIN
 router.post(
   "/admin/create-staff",
@@ -51,7 +55,7 @@ router.post(
 router.post(
   "/staff/create-fleet-owner",
   protect,
-  authorizeRoles("staff"),
+  authorizeRoles("staff", "admin"),
   validate(fleetOwnerSchemaZod),
   createFleetOwnerByStaff,
 );

@@ -50,6 +50,99 @@ const sendFleetOwnerCredentials = ({
     }),
   });
 
+const sendStaffCredentials = ({ firstName, email, password, locationNames }) =>
+  sendTemplate({
+    to: email,
+    template: templates.staffCredentials({
+      firstName,
+      email,
+      password,
+      locationNames,
+      frontendUrl: frontendUrl(),
+    }),
+  });
+
+const sendDriverCredentials = ({ driverName, email, password, carrierName }) =>
+  sendTemplate({
+    to: email,
+    template: templates.driverCredentials({
+      driverName,
+      email,
+      password,
+      carrierName,
+      frontendUrl: frontendUrl(),
+    }),
+  });
+
+// The broker named on the certificate. Read from config/carrierAgreements.js
+// rather than repeated here, so a change of counterparty is one edit.
+const BROKER = require("../config/carrierAgreements").AGREEMENT_BY_KEY.get("broker");
+const { COVERAGES } = require("../config/insuranceCoverages");
+
+const sendInsuranceRequest = ({
+  to,
+  agentName,
+  agencyName,
+  carrierName,
+  mcNumber,
+  dotNumber,
+  link,
+  expiresAt,
+  isReminder = false,
+}) =>
+  sendTemplate({
+    to,
+    template: templates.insuranceRequest({
+      agentName,
+      agencyName,
+      carrierName,
+      mcNumber,
+      dotNumber,
+      link,
+      expiresAt,
+      isReminder,
+      brokerName: BROKER.counterparty,
+      brokerAddress: BROKER.counterpartyAddress,
+      // Listed in the email so the agency can start pulling policies before
+      // they even open the form.
+      requiredCoverages: COVERAGES.filter((c) => c.required).map((c) =>
+        c.minLimit
+          ? `${c.label} — at least $${c.minLimit.toLocaleString("en-US")}`
+          : `${c.label}${c.statutory ? " — statutory limits" : ""}`,
+      ),
+    }),
+  });
+
+const sendInsuranceFiled = ({ to, carrierName, agencyName, policyCount, shortfalls }) =>
+  sendTemplate({
+    to,
+    template: templates.insuranceFiled({
+      carrierName,
+      agencyName,
+      policyCount,
+      shortfalls,
+    }),
+  });
+
+const sendDriverPaymentStatement = ({
+  to,
+  driverName,
+  statement,
+  total,
+  paidAt,
+  reference,
+}) =>
+  sendTemplate({
+    to,
+    template: templates.driverPaymentStatement({
+      driverName,
+      statement,
+      total,
+      paidAt,
+      reference,
+    }),
+  });
+
 const sendLoadRequiresChanges = ({ load, client, changesNote }) =>
   sendTemplate({
     to: client.email,
@@ -130,8 +223,13 @@ module.exports = {
   sendBiddingNowOpen,
   sendBiddingScheduled,
   sendCustomerCredentials,
+  sendDriverCredentials,
+  sendDriverPaymentStatement,
   sendFleetOwnerCredentials,
+  sendInsuranceFiled,
+  sendInsuranceRequest,
   sendLoadRequiresChanges,
+  sendStaffCredentials,
   sendStreetTurnNotifications,
   toEmailStatus,
 };

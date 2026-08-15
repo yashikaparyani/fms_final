@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 // models/ShippingLine.js
 const mongoose = require("mongoose");
 
@@ -9,8 +10,7 @@ const mongoose = require("mongoose");
 const shippingLineSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, unique: true },
-    // SCAC or internal short code, e.g. "MAEU"
-    code: { type: String, trim: true, uppercase: true, default: "" },
+    phone: { type: String, trim: true, default: "" },
     // Notified when a street turn is confirmed on a load carrying this line.
     // Optional, so lines added before street-turn notifications keep working.
     email: { type: String, trim: true, lowercase: true, default: "" },
@@ -19,5 +19,9 @@ const shippingLineSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+shippingLineSchema.plugin(tenantScope, { modelName: "ShippingLine" });
 
 module.exports = mongoose.model("ShippingLine", shippingLineSchema);

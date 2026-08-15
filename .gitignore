@@ -148,6 +148,8 @@ FMSS/server/uploads/**
 !FMSS/server/uploads/.gitkeep
 !FMSS/server/uploads/pod/
 !FMSS/server/uploads/pod/.gitkeep
+!FMSS/server/uploads/agreements/
+!FMSS/server/uploads/agreements/.gitkeep
 
 # Expo local cache / dev artifacts
 **/.expo/

@@ -1,5 +1,58 @@
+const tenantScope = require("../plugins/tenantScope");
 const mongoose = require("mongoose");
-const Counter = require("./Counter.model.js");
+const { nextSequence } = require("../utils/sequence");
+const { CHARGE_TYPES, totalsFor } = require("../config/chargeTypes");
+
+// ─── Accounting ledger ────────────────────────────────────────────────────────
+// One side of a load's books — receivables or payables — as a list of lines.
+//
+// Lines rather than a fixed column per charge: "Extra Stops" is genuinely two
+// stops on some loads, each with its own note and amount, and a single
+// `extraStops: Number` column throws that detail away. It also means adding a
+// charge type is one entry in config/chargeTypes.js and no migration.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ledgerLineSchema = new mongoose.Schema(
+  {
+    chargeType: {
+      type: String,
+      enum: CHARGE_TYPES.map((c) => c.key),
+      required: true,
+    },
+
+    amount: { type: Number, default: 0 },
+
+    // Both optional and both display-only — the line's `amount` is the figure
+    // that counts. Kept because "3 × $75" is how the charge was agreed, and a
+    // bare $225 on an invoice is what triggers the customer's phone call.
+    quantity: Number,
+    rate: Number,
+
+    note: { type: String, trim: true },
+
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    addedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
+const ledgerSchema = new mongoose.Schema(
+  {
+    lines: [ledgerLineSchema],
+
+    currency: { type: String, default: "USD" },
+
+    invoiceNumber: String,
+    invoicedAt: Date,
+    dueDate: Date,
+    paidAt: Date,
+
+    notes: String,
+
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { _id: false },
+);
 
 // Reusable stop shapes for multiple origins (pickups) and destinations (drops).
 const pickupStopSchema = new mongoose.Schema(
@@ -73,16 +126,22 @@ const loadSchema = new mongoose.Schema(
     // ═══════════════════════════════════════════════════════════
     // SECTION 2 — LOAD DETAILS (created by client)
     // ═══════════════════════════════════════════════════════════
+    // Every load is a single move now. "ROUNDED" is legacy — a rounded trip is
+    // expressed as a Drop, which carries the same two-container move — but the
+    // value stays in the enum so loads created before the change still
+    // validate when they are saved again.
     deliveryType: {
       type: String,
-      enum: ["ROUNDED", "SINGLE"],
-      default: "ROUNDED",
+      enum: ["SINGLE", "ROUNDED"],
+      default: "SINGLE",
     },
 
+    // The move type. "Pick Up" and "Delivery" are legacy values, kept for the
+    // same reason as ROUNDED above; the load form offers only Drop and Pick.
     singleType: {
       type: String,
-      enum: ["Pick Up", "Delivery", "Drop"],
-      default: "Pick Up",
+      enum: ["Drop", "Pick", "Pick Up", "Delivery"],
+      default: "Pick",
     },
 
     truckType: {
@@ -106,10 +165,66 @@ const loadSchema = new mongoose.Schema(
       default: "Solo Driver",
     },
 
+    // ─── Who is actually driving it ─────────────────────────────────────────
+    // The load is awarded to a carrier; the carrier then says which of their
+    // drivers runs it. More than one is normal — a long move is handed over
+    // partway, so each driver has their own leg with its own pickup and its own
+    // destination rather than sharing the load's.
+    //
+    // Deliberately NOT surfaced to the customer. The office and the customer
+    // deal with the carrier's account person, and a customer-facing screen that
+    // named three drivers would invite them to ring one directly. See
+    // `accountPersonFor` in utils/carrierAccount.js — the assigned section shows
+    // the account person, never these names.
+    driverAssignments: [
+      new mongoose.Schema(
+        {
+          driver: { type: mongoose.Schema.Types.ObjectId, ref: "Driver", required: true },
+          // Denormalised so a historical assignment still reads correctly after
+          // a driver is renamed or taken off the roster.
+          driverName: { type: String, trim: true },
+          driverCode: { type: String, trim: true },
+
+          // This driver's own leg. Free-form rather than pointing at the load's
+          // stops: a handover happens at a yard or a truck stop that is nobody's
+          // consignee and appears nowhere on the load.
+          pickup: {
+            address: { type: String, trim: true },
+            city: { type: String, trim: true },
+            state: { type: String, trim: true },
+            zip: { type: String, trim: true },
+          },
+          drop: {
+            address: { type: String, trim: true },
+            city: { type: String, trim: true },
+            state: { type: String, trim: true },
+            zip: { type: String, trim: true },
+          },
+
+          note: { type: String, trim: true },
+          assignedAt: { type: Date, default: Date.now },
+          assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        },
+        { _id: false },
+      ),
+    ],
+
     material: {
       type: String,
       required: true,
     },
+
+    // The customer's name as it stood when the load was created.
+    //
+    // Denormalised on purpose: the load board, the POD, every report and the
+    // driver app all show it, and joining back to the customer on each of those
+    // to print a name is work with no upside. It also means a load stays
+    // readable after a customer record is renamed or removed.
+    //
+    // Declared here because it was not: createLoad has always set it and the UI
+    // has always read it, but with no path on the schema Mongoose's strict mode
+    // dropped it on every save — so the column has been silently blank.
+    customerName: String,
 
     amount: {
       type: Number,
@@ -144,6 +259,10 @@ const loadSchema = new mongoose.Schema(
     shippingLine: String,
     containerNo: String,
     chassisNo: String,
+    // A Drop moves two containers — one dropped, one taken away — so it carries
+    // a second container and chassis number. Blank on a Pick.
+    containerNo2: String,
+    chassisNo2: String,
     // Name from the ChassisCompany master, stored as a string so master edits
     // never mutate historical loads.
     chassisCompany: String,
@@ -248,6 +367,9 @@ const loadSchema = new mongoose.Schema(
             "Lumper Receipt",
             "Misc.",
             "Carrier Invoice",
+            // Office-side paperwork. Deliberately kept out of the driver app —
+            // see DRIVER_HIDDEN_DOCUMENT_TYPES in mobile/App.js.
+            "Load Document",
           ],
           required: true,
         },
@@ -329,6 +451,17 @@ const loadSchema = new mongoose.Schema(
         "DROP_IN_WAREHOUSE",
       ],
       default: "NEW_LOAD",
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // DOCUMENTATION COMPLETION
+    // Stamped once every driver-uploadable document type is present on the
+    // load. A completed load drops out of the phone app entirely — the office
+    // still sees it on the web.
+    // ═══════════════════════════════════════════════════════════
+    documentation: {
+      completedAt: Date,
+      completedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     },
 
     // ═══════════════════════════════════════════════════════════
@@ -446,6 +579,29 @@ const loadSchema = new mongoose.Schema(
       submittedAt: Date,
     },
 
+    // ─── Proof of delivery photo ────────────────────────────────────────────
+    // The container actually being dropped, photographed at the warehouse.
+    // Required before a driver can complete a delivery — the signature alone
+    // proves somebody signed, not that the box was put where it was meant to go,
+    // and that is the gap a customer disputes weeks later.
+    //
+    // Same shape as pickupProof so the two read the same way on screen.
+    deliveryProof: {
+      images: [
+        {
+          fileName: String,
+          filePath: String,
+          uploadedAt: Date,
+        },
+      ],
+      location: {
+        latitude: Number,
+        longitude: Number,
+      },
+      submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      submittedAt: Date,
+    },
+
     bids: [],
     bidAcceptanceEmailSentAt: Date,
     completedAt: Date,
@@ -455,25 +611,86 @@ const loadSchema = new mongoose.Schema(
       ratedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       ratedAt: Date,
     },
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 9 — ACCOUNTING
+    // ═══════════════════════════════════════════════════════════
+    // What the customer is billed (receivables) against what the carrier and
+    // vendors are paid (payables), line by line, so every load carries its own
+    // profit and loss.
+    //
+    // The line kinds and why an advance must never be summed into a total are
+    // explained in config/chargeTypes.js — that file is the authority on the
+    // arithmetic, and everything here defers to it.
+    //
+    // `amount` above stays the load's headline figure and is kept in step with
+    // the receivables total by the pre-save hook below, so every existing screen
+    // that reads `amount` keeps working without knowing this section exists.
+    accounting: {
+      receivables: ledgerSchema,
+      payables: ledgerSchema,
+
+      // Driver pay for this load. Computed from the driver's own rate — see
+      // controllers/accountingController.js — but stored, because a rate change
+      // next month must not silently rewrite what somebody was already paid.
+      payroll: {
+        driver: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
+        driverName: String,
+        payType: {
+          type: String,
+          enum: ["PERCENTAGE", "FLAT", "PER_MILE", "HOURLY", ""],
+          default: "",
+        },
+        rate: Number,
+        miles: Number,
+        hours: Number,
+        // What the rate worked out to. Held rather than derived on read so a
+        // settled driver payment is a record, not a recalculation.
+        amount: Number,
+        calculatedAt: Date,
+        calculatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        note: String,
+        settledAt: Date,
+      },
+    },
   },
 
   { timestamps: true },
 );
 
 // ===================== AUTO LOAD ID =====================
+// "NY-LD-0001" — the branch code comes from locationId, which the tenant plugin
+// has already stamped by the time this runs (it hooks pre-validate, this is
+// pre-save). Each branch has its own counter, so numbering starts at 1 per
+// location while staying unique across the business.
 loadSchema.pre("save", async function () {
   if (this.loadId) return; // already set
 
-  const counter = await Counter.findByIdAndUpdate(
-    "load", // counter name/key
-    { $inc: { seq: 1 } }, // atomically increment
-    { returnDocument: "after", upsert: true }, // create if doesn't exist
-  );
-
-  // Zero-pad to 4 digits: 1 → "0001", 42 → "0042", 1000 → "1000"
-  this.loadId = `LD-${String(counter.seq).padStart(4, "0")}`;
+  this.loadId = await nextSequence("load", this.locationId);
 });
+
+// ===================== BASE AMOUNT FOLLOWS THE RECEIVABLES =====================
+// `amount` predates the accounting section and is read by the load table, the
+// bid screens, the dashboards and the POD. Once a load has receivable lines,
+// that headline figure IS the receivables total — the two disagreeing is how a
+// load shows $1,200 on the board and invoices at $1,475.
+//
+// Only ever recomputed when there are lines to recompute from: a load created
+// before this section existed, or one where the amount was simply typed in,
+// keeps the number it was given.
+loadSchema.pre("save", function syncAmountWithReceivables() {
+  const lines = this.accounting?.receivables?.lines;
+  if (!lines?.length) return;
+
+  this.amount = totalsFor(lines).total;
+});
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+// Must be applied BEFORE mongoose.model(): compiling the schema freezes its
+// hooks and paths, and a plugin added afterwards is silently ignored.
+loadSchema.plugin(tenantScope, { modelName: "Load" });
 
 // ===================== EXPORT =====================
 const Load = mongoose.model("Load", loadSchema);
+
 module.exports = Load;

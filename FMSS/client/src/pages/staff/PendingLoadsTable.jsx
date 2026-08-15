@@ -5,6 +5,7 @@ import MobileCard from "../../components/MobileCard";
 import Swal from "sweetalert2";
 import { notify } from "../../utils/swal";
 import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import {
   URGENCY_COLORS,
   URGENCY_LABEL,
@@ -24,17 +25,22 @@ const PendingLoadsTable = () => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // `silent` leaves the spinner alone so the background refresh is invisible.
+  const fetchLoads = async ({ silent = false } = {}) => {
+    try {
+      const res = await api.get("/loads?status=PENDING_VERIFICATION");
+      setRows(res.data);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLoads = async () => {
-      try {
-        const res = await api.get("/loads?status=PENDING_VERIFICATION");
-        setRows(res.data);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchLoads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useAutoRefresh(() => fetchLoads({ silent: true }));
 
   const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
 
@@ -54,8 +60,10 @@ const PendingLoadsTable = () => {
       await api.put(`/loads/${id}/status`, { status: "VERIFIED" });
       setRows((prev) => prev.filter((r) => r.loadId !== id));
       notify.success(`Load ${id} verified successfully!`);
-    } catch {
-      notify.error("Failed to verify load. Please try again.");
+    } catch (err) {
+      notify.error(
+        err?.response?.data?.message || "Failed to verify load. Please try again.",
+      );
     }
   };
 
@@ -114,8 +122,12 @@ const PendingLoadsTable = () => {
       });
       setRows((prev) => prev.filter((r) => r.loadId !== id));
       notify.warning(`Changes requested for load ${id}.`);
-    } catch {
-      notify.error("Failed to request changes. Please try again.");
+    } catch (err) {
+      // Show why it failed — the server rejects a blank note with a reason,
+      // and a generic message leaves staff with nothing to act on.
+      notify.error(
+        err?.response?.data?.message || "Failed to request changes. Please try again.",
+      );
     }
   };
 

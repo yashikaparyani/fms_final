@@ -7,6 +7,7 @@ import AppSelect from "../../components/AppSelect";
 import StreetTurnConfirmDialog from "../../components/StreetTurnConfirmDialog";
 import { notify } from "../../utils/swal";
 import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import {
   URGENCY_COLORS,
   URGENCY_LABEL,
@@ -273,15 +274,16 @@ const AssignedLoadsTable = () => {
 
   const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
 
-  const fetchLoads = async () => {
-    setLoading(true);
+  // `silent` leaves the spinner alone so the background refresh is invisible.
+  const fetchLoads = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get("/loads?status=ASSIGNED");
       setRows(res.data);
     } catch (err) {
       console.error("Failed to fetch loads:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -290,7 +292,14 @@ const AssignedLoadsTable = () => {
     api.get("/fleet-owners")
       .then((res) => setFleetOwners(res.data))
       .catch((err) => console.error("Failed to fetch fleet owners:", err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Hold the refresh while a reassign picker or the status modal is open, so a
+  // row cannot shift or vanish mid-action.
+  useAutoRefresh(() => fetchLoads({ silent: true }), {
+    enabled: !openRow && !saving && !statusModal,
+  });
 
   // ── Reassign ────────────────────────────────────────────────────────────────
   const handleAssign = async (loadId, ownerId, owners) => {

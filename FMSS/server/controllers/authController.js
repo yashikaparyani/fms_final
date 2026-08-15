@@ -2,13 +2,32 @@ const User = require("../models/User");
 const Customer = require("../models/Customer");
 const Address = require("../models/common/Address");
 const FleetOwner = require("../models/FleetOwner");
+const Branch = require("../models/Branch");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const { getJwtSecret } = require("../utils/jwtSecret");
+const { createOneStaff } = require("./staffController");
 
 
 // Generate JWT
+/**
+ * The branch a public signup should be filed under.
+ *
+ * Public routes have no tenant context to inherit, so the location has to come
+ * from the form. When only one branch exists the choice is unambiguous and the
+ * field is optional — that keeps single-location installs from having to show a
+ * picker with one entry in it.
+ */
+const resolveSignupBranch = async (locationId) => {
+  if (locationId) {
+    return Branch.findOne({ _id: locationId, active: true });
+  }
+
+  const active = await Branch.find({ active: true }).limit(2);
+  return active.length === 1 ? active[0] : null;
+};
+
 const generateToken = (id) => {
   return jwt.sign({ id }, getJwtSecret(), {
     expiresIn: "30d",
@@ -18,40 +37,27 @@ const generateToken = (id) => {
 // @desc Admin creates staff
 // @route POST /api/auth/admin/create-staff
 // @access Private (admin only)
+//
+// Kept for the callers that already point here; the account it produces is the
+// same one /api/staff produces, because it is the same function underneath.
+// Staff administration proper — bulk adds, permissions, locations — lives in
+// controllers/staffController.js.
 const createStaff = async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    const { user, password, emailStatus } = await createOneStaff({
+      input: req.body,
+      actor: req.user,
+      emailedFrom: req.body.channel || "email",
+    });
 
-    const { firstName, lastName, email, password } = req.body;
-
-    const exists = await User.findOne({ email });
-    if (exists) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: "User already exists" });
-    }
-
-    const user = await User.create(
-      {
-        firstName,
-        lastName,
-        email,
-        password,
-        role: "staff",
-        isVerified: true,
-      },
-      { session },
-    );
-    await session.commitTransaction();
-    session.endSession();
     res.status(201).json({
       message: "Staff created successfully",
       user,
+      password,
+      emailStatus,
     });
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 };
 
@@ -94,6 +100,19 @@ const registerCustomer = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    // Customers belong to one operating location. A public form carries no
+    // tenant context, so the branch has to be named (or inferred when the
+    // install has only one).
+    const branch = await resolveSignupBranch(req.body.locationId);
+    if (!branch) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        message: "Choose a valid location to register under.",
+        code: "LOCATION_REQUIRED",
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 2. Create User — pass session correctly inside array syntax
@@ -107,6 +126,8 @@ const registerCustomer = async (req, res) => {
           phone,
           role: "client",
           isVerified: false,
+          locations: [branch._id],
+          defaultLocation: branch._id,
         },
       ],
       { session }
@@ -134,6 +155,7 @@ const registerCustomer = async (req, res) => {
         sendInvoiceEmails: sendInvoiceEmails || false,
         creditLimitExceeded: creditLimitExceeded || false,
       },
+      locationId: branch._id,
       addresses: [], // 👈 important
     },
   ],
@@ -151,6 +173,7 @@ const registerCustomer = async (req, res) => {
           zip: zip || "",
           directions: directions || "",
           customer: createdCustomer._id, // 🔥 relation
+          locationId: branch._id,
         },
       ],
       { session }
@@ -503,6 +526,24 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // Checked after the password so a wrong guess cannot be used to find out
+    // which accounts exist and have been disabled. Removing a staff member or
+    // taking a driver off a roster has to stop them signing in, or the removal
+    // is cosmetic.
+    if (user.isDeleted) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        message: "This account has been deactivated. Contact your administrator.",
+        code: "ACCOUNT_DEACTIVATED",
+      });
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
     res.json({
       user,
       api_token: generateToken(user._id),
@@ -517,7 +558,10 @@ const loginUser = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id)
+      .populate("locations", "name code")
+      .lean();
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -528,7 +572,15 @@ const getMe = async (req, res) => {
       lastName: user.lastName,
       email: user.email,
       role: user.role,
-      access: user.access,
+      // The client hides nav entries and buttons from these; the server still
+      // re-checks every request, so this is a courtesy to the UI and never the
+      // thing that keeps anyone out.
+      permissions: user.permissions || [],
+      locations: user.locations || [],
+      defaultLocation: user.defaultLocation || null,
+      // Set on driver sub-accounts: the carrier they drive for.
+      parentAccount: user.parentAccount || null,
+      isActive: user.isActive !== false,
       isVerified: user.isVerified,
     });
   } catch (error) {

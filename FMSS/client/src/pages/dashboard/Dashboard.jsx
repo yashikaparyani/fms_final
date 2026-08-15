@@ -12,7 +12,7 @@ function Dashboard() {
       {/* Sidebar Wrapper (Width controlled here) */}
     <div
         className={` hidden md:block transition-all duration-300 flex-shrink-0 ${
-          isMenuOpen ? "w-62 min-w-[12rem] max-w-[12rem]" : "w-20 min-w-[5rem] max-w-[5rem]"
+          isMenuOpen ? "w-64 min-w-[16rem] max-w-[16rem]" : "w-20 min-w-[5rem] max-w-[5rem]"
         }`}
       >
         <Sidebar

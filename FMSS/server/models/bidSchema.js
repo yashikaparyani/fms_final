@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 const mongoose = require("mongoose");
 
 const bidSchema = new mongoose.Schema({
@@ -27,10 +28,30 @@ const bidSchema = new mongoose.Schema({
   },
   revisedAt: Date, // ✅ Track when bid was revised
 
-}, { timestamps: true }); 
+  // Staff counter-offer. The proposed amount sits here until the fleet owner
+  // answers — `amount` above is only rewritten once they accept, so a bid never
+  // changes under the bidder. Accepting awards the load automatically.
+  negotiation: {
+    amount: Number,
+    status: {
+      type: String,
+      enum: ["NONE", "PENDING", "ACCEPTED", "DECLINED"],
+      default: "NONE",
+    },
+    // What the bid stood at when the offer was made, for an audit trail.
+    previousAmount: Number,
+    offeredAt: Date,
+    respondedAt: Date,
+  },
+
+}, { timestamps: true });
 
 // prevent duplicate bids
 bidSchema.index({ loadId: 1, fleetOwnerId: 1 }, { unique: true });
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+bidSchema.plugin(tenantScope, { modelName: "Bid" });
 
 module.exports =
   mongoose.models.Bid || mongoose.model("Bid", bidSchema);

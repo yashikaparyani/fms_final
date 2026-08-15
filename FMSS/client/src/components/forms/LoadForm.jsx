@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useForm, Controller } from "react-hook-form";
@@ -9,13 +10,30 @@ import { uiStyles } from "../../style/uiStyles";
 import api from "../../api";
 import AddressFields from "../AddressFields";
 import MapPicker from "../MapPicker";
+import BaseAmountDialog from "../accounting/BaseAmountDialog";
 
+
+// A Drop moves two containers — one dropped, one taken away — so it needs both
+// container and both chassis numbers. A Pick only ever uses the first pair.
+const requireTwoContainersOnDrop = (data, ctx) => {
+  if (data.singleType !== "Drop") return;
+
+  [
+    ["containerNo", "Container # is required for a Drop"],
+    ["containerNo2", "Container #2 is required for a Drop"],
+    ["chassisNo", "Chassis # is required for a Drop"],
+    ["chassisNo2", "Chassis #2 is required for a Drop"],
+  ].forEach(([path, message]) => {
+    if (!String(data[path] || "").trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    }
+  });
+};
 
 const loadSchema = z.object({
   customer: z.string().min(1, "Please select a customer"),
   refNo: z.string().optional(),
-  deliveryType: z.enum(["ROUNDED", "SINGLE"]),
-  singleType: z.enum(["Pick Up", "Delivery", "Drop"]).optional(),
+  singleType: z.enum(["Drop", "Pick"]),
   truckType: z.string().min(1, "Load type is required"),
   material: z.string().min(1, "Material is required"),
   amount: z
@@ -32,6 +50,8 @@ const loadSchema = z.object({
   shippingLine: z.string().optional(),
   containerNo: z.string().optional(),
   chassisNo: z.string().optional(),
+  containerNo2: z.string().optional(),
+  chassisNo2: z.string().optional(),
   chassisCompany: z.string().optional(),
   pickupNo: z.string().optional(),
   sealNo: z.string().optional(),
@@ -48,7 +68,7 @@ const loadSchema = z.object({
   description: z.string().optional(),
   remarks: z.string().optional(),
   driverRequirement: z.enum(["Solo Driver", "Team Driver"]),
-});
+}).superRefine(requireTwoContainersOnDrop);
 
 const StepIndicator = ({ step, savedLoadId }) => {
   const steps = [
@@ -109,8 +129,11 @@ const AddCompanyModal = ({ onClose, onSaved }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+  // Portalled for the same reason as BaseAmountDialog: rendered in place, this
+  // covers only the dashboard's content column and slips under the sidebar and
+  // topbar instead of over them.
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -181,7 +204,8 @@ const AddCompanyModal = ({ onClose, onSaved }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -229,8 +253,11 @@ const AddAddressModal = ({ company, onClose, onSaved }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+  // Portalled for the same reason as BaseAmountDialog: rendered in place, this
+  // covers only the dashboard's content column and slips under the sidebar and
+  // topbar instead of over them.
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -304,7 +331,8 @@ const AddAddressModal = ({ company, onClose, onSaved }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -619,6 +647,12 @@ const LoadForm = () => {
   const [pickup, setPickup] = useState({ ...emptyStop });
   const [drop,   setDrop  ] = useState({ ...emptyStop });
 
+  // The charge breakdown behind the base amount. Held here rather than inside
+  // the dialog so it survives closing and reopening it, and so it can be sent
+  // with the load on submit.
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [receivableLines, setReceivableLines] = useState([]);
+
   const {
     register, handleSubmit, watch, setValue, control,
     formState: { errors },
@@ -626,11 +660,12 @@ const LoadForm = () => {
     resolver: zodResolver(loadSchema),
     defaultValues: {
       customer: role === "client" ? user._id : "",
-      refNo: "", deliveryType: "ROUNDED", singleType: "Pick Up",
+      refNo: "", singleType: "Pick",
       truckType: "", material: "", amount: "",
       lastFreeDate: "", orderBillDate: "",
       containerType: "", commodity: "",
-      bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "", chassisCompany: "", pickupNo: "", sealNo: "",
+      bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "",
+      containerNo2: "", chassisNo2: "", chassisCompany: "", pickupNo: "", sealNo: "",
       hazmat: false, chassisRent: false, railContainer: false, dryVan: false, reefer: false, isUrgent: false,
       accChargesEmail: "", podEmail: "", deliveryEmail: "", billingEmail: "",
       description: "", remarks: "",
@@ -638,7 +673,9 @@ const LoadForm = () => {
     },
   });
 
-  const deliveryType = watch("deliveryType");
+  // A Drop carries a second container/chassis pair; a Pick does not.
+  const singleType = watch("singleType");
+  const isDrop = singleType === "Drop";
 
   const truckTypeOptions     = ["Container", "Flatbed", "Reefer", "Van", "Dry Van", "Open Truck", "Refrigerated", "Other"];
   const containerTypeOptions = ["40 Std", "40 HC", "45", "20"];
@@ -677,7 +714,14 @@ const LoadForm = () => {
   const onStep1Submit = async (data, status = "PENDING_VERIFICATION") => {
     setLoading(true);
     try {
-      const res = await api.post("/loads", { ...data, status });
+      // The breakdown travels with the load so its receivables ledger arrives
+      // populated. The server re-derives `amount` from these lines, so the two
+      // cannot drift — see the syncAmountWithReceivables hook on the Load model.
+      const accounting = receivableLines.length
+        ? { receivables: { lines: receivableLines } }
+        : undefined;
+
+      const res = await api.post("/loads", { ...data, status, accounting });
       const load = res.data.data;
       setSavedLoadId(load.loadId);
       setSavedLoadLabel(load.loadId);
@@ -773,6 +817,18 @@ const LoadForm = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-0 md:px-4">
+      <BaseAmountDialog
+        open={showBreakdown}
+        onClose={() => setShowBreakdown(false)}
+        initialLines={receivableLines}
+        onApply={({ lines, total }) => {
+          setReceivableLines(lines);
+          // The form field is the total, so the rest of the form — and its
+          // validation — carries on working exactly as it did before.
+          setValue("amount", String(total), { shouldValidate: true });
+        }}
+      />
+
       <div className="max-w-4xl mx-auto">
 
         <div className="mb-6">
@@ -828,21 +884,17 @@ const LoadForm = () => {
               <h3 className="form-subtitle">Delivery Modality</h3>
               <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-8">
                 <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer label">
-                    <input type="radio" value="ROUNDED" {...register("deliveryType")} disabled={loading} /> Rounded Trip
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer label">
-                    <input type="radio" value="SINGLE"  {...register("deliveryType")} disabled={loading} /> Single Delivery
-                  </label>
+                  {["Drop", "Pick"].map((value) => (
+                    <label key={value} className="flex items-center gap-2 cursor-pointer label">
+                      <input type="radio" value={value} {...register("singleType")} disabled={loading} /> {value}
+                    </label>
+                  ))}
                 </div>
-                {deliveryType === "SINGLE" && (
+                {isDrop && (
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 md:ml-auto w-full md:w-auto">
-                    <label className="label whitespace-nowrap !mb-0">Type:</label>
-                    <select className="text-sm border-none bg-transparent focus:outline-none text-indigo-700 font-medium w-full md:w-auto" {...register("singleType")} disabled={loading}>
-                      <option value="Pick Up">Pick Up</option>
-                      <option value="Delivery">Delivery</option>
-                      <option value="Drop">Drop</option>
-                    </select>
+                    <span className="text-xs font-medium text-indigo-700">
+                      A Drop moves 2 containers — both container and chassis numbers are required below.
+                    </span>
                   </div>
                 )}
               </div>
@@ -887,7 +939,25 @@ const LoadForm = () => {
                 <div className="relative">
                   <input type="number" className={errors.amount ? inputErrorClass : uiStyles.input} placeholder="0.00" {...register("amount")} disabled={loading} />
                   <label className="input-label">Base Amount <span className="text-red-400">*</span></label>
+                  {/* The breakdown is what the base amount is *made of*, so it
+                      hangs off this field rather than living on its own screen.
+                      Typing a figure straight in still works for a quick quote. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBreakdown(true)}
+                    disabled={loading}
+                    className="absolute right-2 top-2 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-1"
+                  >
+                    {receivableLines.length ? `${receivableLines.length} charges` : "Break down"}
+                  </button>
                   {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount.message}</p>}
+                  {receivableLines.length > 0 && (
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Built from {receivableLines.length} charge
+                      {receivableLines.length === 1 ? "" : "s"} — the receivables
+                      ledger is saved with the load.
+                    </p>
+                  )}
                 </div>
 
                 <div className="relative">
@@ -979,17 +1049,34 @@ const LoadForm = () => {
                   <label className="input-label">Chassis Company</label>
                 </div>
 
+                {/* The second pair only exists on a Drop, where both are
+                    required — see requireTwoContainersOnDrop. */}
                 {[
-                  { name: "containerNo", label: "Container #"   },
-                  { name: "chassisNo",   label: "Chassis #"     },
-                  { name: "pickupNo",    label: "Pickup #"      },
-                  { name: "sealNo",      label: "Seal #"        },
-                ].map(({ name, label, type }) => (
-                  <div key={name} className="relative">
-                    <input type={type || "text"} className={uiStyles.input} placeholder={type ? undefined : label} {...register(name)} disabled={loading} />
-                    <label className="input-label">{label}</label>
-                  </div>
-                ))}
+                  { name: "containerNo",  label: "Container #",  required: isDrop },
+                  { name: "chassisNo",    label: "Chassis #",    required: isDrop },
+                  { name: "containerNo2", label: "Container #2", required: true, dropOnly: true },
+                  { name: "chassisNo2",   label: "Chassis #2",   required: true, dropOnly: true },
+                  { name: "pickupNo",     label: "Pickup #"      },
+                  { name: "sealNo",       label: "Seal #"        },
+                ]
+                  .filter(({ dropOnly }) => !dropOnly || isDrop)
+                  .map(({ name, label, required }) => (
+                    <div key={name} className="relative">
+                      <input
+                        className={errors[name] ? inputErrorClass : uiStyles.input}
+                        placeholder={label}
+                        {...register(name)}
+                        disabled={loading}
+                      />
+                      <label className="input-label">
+                        {label}
+                        {required && <span className="text-red-400"> *</span>}
+                      </label>
+                      {errors[name] && (
+                        <p className="text-xs text-red-500 mt-1">{errors[name].message}</p>
+                      )}
+                    </div>
+                  ))}
               </div>
 
               <div className="flex flex-wrap gap-6 mt-4">

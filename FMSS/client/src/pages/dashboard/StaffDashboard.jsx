@@ -21,6 +21,7 @@ import {
   WeeklySummaryCard,
 } from "../../components/cards/StatCard";
 import QuickActionCard from "../../components/cards/QuickActionCard";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 const StaffDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -30,25 +31,32 @@ const StaffDashboard = () => {
   const navigate = useNavigate();
   const role = JSON.parse(localStorage.getItem("user") || "{}")?.role || "staff";
 
+// `silent` swaps the numbers in without dropping back to the full-page
+// spinner, so the background refresh is invisible.
+const fetchStats = async ({ silent = false } = {}) => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Both endpoints bucket by calendar day, so both need the viewer's zone —
+    // otherwise "today" is wherever the API happens to be running.
+    const [statsRes, weeklyRes] = await Promise.all([
+      api.get("/stats", { params: { tz } }),
+      api.get("/stats/weekly", { params: { tz } }),
+    ]);
+    setStats(statsRes.data);
+    setWeeklyStats(weeklyRes.data.weeklyStats);
+  } catch (error) {
+    console.error("Failed to fetch stats:", error);
+  } finally {
+    if (!silent) setLoading(false);
+  }
+};
+
 useEffect(() => {
-  const fetchStats = async () => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const [statsRes, weeklyRes] = await Promise.all([
-        api.get("/stats"),
-        api.get("/stats/weekly", { params: { tz } }),
-      ]);
-      setStats(statsRes.data);
-      setWeeklyStats(weeklyRes.data.weeklyStats); 
-      console.log("Weekly Stats:", weeklyRes.data.weeklyStats);
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
   fetchStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+
+useAutoRefresh(() => fetchStats({ silent: true }));
 
   if (loading) {
     return (
@@ -95,100 +103,138 @@ useEffect(() => {
     "DROP_IN_WAREHOUSE",
   ];
 
+  // Every tile below opens the loads behind its own number. The transport-status
+  // counts are scoped to verified loads server-side, so the drill-down carries
+  // `status=VERIFIED` too — otherwise the list would show more rows than the
+  // figure the user just clicked.
+  const byTransportStatus = (status) =>
+    `/${role}/loads?transportStatus=${status}&status=VERIFIED`;
+
   // All 48 load summary stats
   const loadSummaryStats = [
     {
       label: "Load Planner",
       value: stats?.loadPlanner || 0,
       color: "blue",
-      onClick: () => navigate("/staff/loads?transportStatus=LOAD_PLANNER"),
+      onClick: () => navigate(byTransportStatus("LOAD_PLANNER")),
     },
     {
       label: "New",
       value: stats?.newLoads || 0,
       color: "blue",
-      onClick: () => navigate("/staff/loads?transportStatus=NEW_LOAD"),
+      onClick: () => navigate(byTransportStatus("NEW_LOAD")),
     },
     {
       label: "Assigned",
       value: stats?.assignedLoads || 0,
       color: "indigo",
-      onClick: () => navigate("/staff/loads?transportStatus=ASSIGNED"),
+      onClick: () => navigate(byTransportStatus("ASSIGNED")),
     },
     {
       label: "Picked Up",
       value: stats?.pickedupLoads || 0,
       color: "indigo",
-      onClick: () => navigate("/staff/loads?transportStatus=PICKED_UP"),
+      onClick: () => navigate(byTransportStatus("PICKED_UP")),
     },
     {
       label: "En-route",
       value: stats?.enrouteLoads || 0,
       color: "blue",
-      onClick: () => navigate("/staff/loads?transportStatus=IN_TRANSIT"),
+      onClick: () => navigate(byTransportStatus("IN_TRANSIT")),
     },
     {
       label: "Reached Destination",
       value: stats?.reachedDestinationLoads || 0,
-      onClick: () => navigate("/staff/loads?transportStatus=REACHED_DESTINATION"),
+      onClick: () => navigate(byTransportStatus("REACHED_DESTINATION")),
       color: "green",
     },
     {
       label: "Driver on Waiting",
       value: stats?.driverWaiting || 0,
       color: "yellow",
+      onClick: () => navigate(byTransportStatus("DRIVER_ON_WAITING")),
     },
     {
       label: "Drop in Warehouse",
       value: stats?.dropWarehouse || 0,
       color: "gray",
+      onClick: () => navigate(byTransportStatus("DROP_IN_WAREHOUSE")),
     },
-    { label: "Loaded in Yard", value: stats?.loadedYard || 0, color: "gray" },
-    { label: "Empty in Yard", value: stats?.emptyYard || 0, color: "gray" },
     {
-      label: "Delivered",
-      value: stats?.deliveredLoads || 0,
-      color: "green",
-      onClick: () => navigate("/staff/loads?transportStatus=DELIVERED"),
+      label: "Loaded in Yard",
+      value: stats?.loadedYard || 0,
+      color: "gray",
+      onClick: () => navigate(byTransportStatus("LOADED_IN_YARD")),
     },
-    { label: "Terminated", value: stats?.terminatedLoads || 0, color: "red" },
+    {
+      label: "Empty in Yard",
+      value: stats?.emptyYard || 0,
+      color: "gray",
+      onClick: () => navigate(byTransportStatus("EMPTY_IN_YARD")),
+    },
+    // Delivered is deliberately absent — the summary tracks work still in
+    // flight. The per-day DL figure on the weekday cards still reports it.
+    {
+      label: "Terminated",
+      value: stats?.terminatedLoads || 0,
+      color: "red",
+      onClick: () => navigate(byTransportStatus("TERMINATED")),
+    },
     {
       label: "Paperwork Pending",
       value: stats?.paperworkPending || 0,
       color: "yellow",
+      onClick: () => navigate(byTransportStatus("PAPERWORK_PENDING")),
     },
     {
       label: "Street Turn",
       value: stats?.streetTurn || 0,
       color: "orange",
-      onClick: () => navigate("/staff/loads?status=street-turn"),
+      onClick: () => navigate(byTransportStatus("STREET_TURN")),
     },
     {
       label: "Invoiceable",
       value: stats?.invoiceableLoads || 0,
       color: "purple",
+      onClick: () => navigate(byTransportStatus("INVOICED")),
     },
     {
       label: "Same Day Loads",
       value: stats?.sameDayLoads || 0,
       color: "orange",
+      onClick: () => navigate(`/${role}/loads?pickupDay=today`),
     },
-    { label: "Next Day Loads", value: stats?.nextDayLoads || 0, color: "blue" },
+    {
+      label: "Next Day Loads",
+      value: stats?.nextDayLoads || 0,
+      color: "blue",
+      onClick: () => navigate(`/${role}/loads?pickupDay=tomorrow`),
+    },
     {
       label: "Accessorial Charges",
       value: stats?.accessorialLoads || 0,
       color: "yellow",
+      onClick: () => navigate(`/${role}/loads?accessorial=true`),
     },
+    // Last Free Date, split into the three buckets the server counts. They are
+    // mutually exclusive and each opens exactly the loads behind its number.
     {
-      label: "Today's LFD Loads",
-      value: stats?.todayLfdLoads || 0,
-      color: "red",
-    },
-    {
-      label: "LFD Expired Loads",
+      label: "LFD Expired",
       value: stats?.lfdExpiredLoads || 0,
       color: "red",
-      onClick: () => navigate("/staff/loads?status=lfd-expired"),
+      onClick: () => navigate(`/${role}/loads?lfd=expired`),
+    },
+    {
+      label: "LFD Today",
+      value: stats?.lfdTodayLoads || 0,
+      color: "orange",
+      onClick: () => navigate(`/${role}/loads?lfd=today`),
+    },
+    {
+      label: "Upcoming LFD",
+      value: stats?.upcomingLfdLoads || 0,
+      color: "green",
+      onClick: () => navigate(`/${role}/loads?lfd=upcoming`),
     },
     {
       label: "Pending Verification",
@@ -206,6 +252,8 @@ useEffect(() => {
       label: "Requires Changes",
       value: stats?.requiresChanges || 0,
       color: "red",
+      onClick: () =>
+        navigate(`/${role}/loads?transportStatus=All&status=REQUIRES_CHANGES`),
     },
     {
       label: "Upcoming Bidding",
@@ -255,6 +303,7 @@ useEffect(() => {
         value={stats?.totalLoads || 0}
         icon={<LocalShipping fontSize="large" />}
         color="yellow"
+        onClick={() => navigate(`/${role}/loads?transportStatus=All`)}
       />
       <StatCard
         title="Active Bidding"
@@ -270,7 +319,7 @@ useEffect(() => {
       <div className={`${uiStyles.card} flex-1`}>
         <div className={uiStyles.flexBetween}>
           <h2 className="h4 mb-4 text-gray-500">Loads Summary</h2>
-          <button className="link" onClick={()=>navigate("/staff/loads?transportStatus=All")}>View All</button>
+          <button className="link" onClick={()=>navigate(`/${role}/loads?transportStatus=All`)}>View All</button>
           </div>
 
         <div className={uiStyles.grid4}>
@@ -280,6 +329,18 @@ useEffect(() => {
               stats={loadSummaryStats.filter((_, i) => i % 4 === col)}
             />
           ))}
+        </div>
+
+        <div className={`${uiStyles.flexBetween} mt-6`}>
+          <button
+            className="h4 text-gray-500 hover:text-indigo-600 transition-colors whitespace-nowrap"
+            onClick={() => navigate(`/${role}/verified-loads`)}
+          >
+            Dispatch Management
+          </button>
+          <button className="link" onClick={() => navigate(`/${role}/verified-loads`)}>
+            View All
+          </button>
         </div>
 
         <div className={uiStyles.weekleyGrid}>
@@ -364,15 +425,17 @@ useEffect(() => {
           {stats?.recentPendingLoads?.length > 0 ? (
             stats.recentPendingLoads.slice(0, 4).map((load) => (
               <div key={load.loadId} className={uiStyles.listItem}>
-                <div>
+                <div className="min-w-0 flex-1 mr-2">
                   <p className="text-sm font-medium">{load.loadId}</p>
-                  <p className="text-muted-md">
+                  <p className="text-muted-md truncate">
                     {load.pickup?.city} → {load.drop?.city}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right min-w-0 flex-shrink-0">
                   <p className="text-sm font-medium">${load.amount}</p>
-                  <p className="text-muted">{load.customer}</p>
+                  <p className="text-muted truncate max-w-[120px] md:max-w-[160px] lg:max-w-[110px] xl:max-w-[150px]" title={load.customerName || load.customer}>
+                    {load.customerName || load.customer}
+                  </p>
                 </div>
               </div>
             ))

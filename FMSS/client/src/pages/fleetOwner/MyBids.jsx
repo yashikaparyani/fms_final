@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import LoadTable from "../../components/LoadTable";
 import api from "../../api";
 import { useNavigate } from "react-router-dom";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } = LoadTable;
 
@@ -14,20 +15,24 @@ const MyBids = ({userRole}) => {
 
   console.log("MyBids component rendered", data);
 
-  const fetchMyBids = async () => {
+  // `silent` keeps the background refresh from touching the spinner or raising
+  // an error banner over data that is still on screen.
+  const fetchMyBids = async ({ silent = false } = {}) => {
     try {
       const res = await api.get("/bidRoutes/MyBids");
       setData(res.data);
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
+      if (!silent) setError(err.response?.data?.message || err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchMyBids();
   }, []);
+
+  useAutoRefresh(() => fetchMyBids({ silent: true }));
 
     const confirmRide = async (loadId) => {
     try {

@@ -8,9 +8,20 @@ import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined
 import { notify } from "../../utils/swal";
 import api from "../../api";
 
-const Login = ({ allowedRole, showRegister }) => {
+/**
+ * `allowedRole` accepts a single role or a list of them — one door can serve
+ * several roles (carriers and their drivers both sign in at /vendor-login).
+ * `title` overrides the heading for those shared doors, where naming one of the
+ * roles would read as excluding the other.
+ *
+ * `showRegister` is customer-only: carriers are onboarded by the office, so the
+ * carrier door deliberately has no sign-up link.
+ */
+const Login = ({ allowedRole, showRegister, title }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  const allowedRoles = Array.isArray(allowedRole) ? allowedRole : [allowedRole];
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +41,7 @@ const Login = ({ allowedRole, showRegister }) => {
       const data = response.data;
 
       // ✅ Role Check
-      if (data.user.role !== allowedRole) {
+      if (!allowedRoles.includes(data.user.role)) {
         setError("You are not allowed to login here");
         notify.warning("You are not allowed to login here");
         setLoading(false);
@@ -80,7 +91,7 @@ const Login = ({ allowedRole, showRegister }) => {
             Welcome to Freight
           </h1>
           <h2 className="text-xl font-bold text-center text-gray-900 mb-6">
-            {allowedRole.toUpperCase()} LOGIN
+            {title || `${allowedRoles[0].toUpperCase()} LOGIN`}
           </h2>
 
           {/* Form */}

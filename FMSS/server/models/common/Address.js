@@ -1,3 +1,4 @@
+const tenantScope = require("../../plugins/tenantScope");
 // models/Address.js
 const mongoose = require("mongoose");
 
@@ -23,5 +24,9 @@ const addressSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+addressSchema.plugin(tenantScope, { modelName: "Address" });
 
 module.exports = mongoose.model("Address", addressSchema);

@@ -9,6 +9,8 @@ import SearchIcon from "@mui/icons-material/Search";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import InfoIcon from "@mui/icons-material/Info";
 import DescriptionIcon from "@mui/icons-material/Description";
+import EmailIcon from "@mui/icons-material/Email";
+import HistoryIcon from "@mui/icons-material/History";
 
 import api from "../api";
 import DocumentUpload from "../components/DocumentUpload";
@@ -24,8 +26,10 @@ import TransportStatusDialog from "../components/track-load/TransportStatusDialo
 import RatingSection from "../components/track-load/RatingSection";
 import DriverPictures from "../components/track-load/DriverPictures";
 import DetailedLoadInfo from "../components/track-load/DetailedLoadInfo";
+import LoadAuditTrail from "../components/audit/LoadAuditTrail";
 import ScheduleBidding from "./ScheduleBidding";
 import Swal from "sweetalert2";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 const fmtShort = (v) =>
   v
@@ -73,6 +77,11 @@ const TABS = [
     key: "documents",
     label: "Documents",
     icon: <DescriptionIcon fontSize="small" />,
+  },
+  {
+    key: "audit",
+    label: "Audit & Notes",
+    icon: <HistoryIcon fontSize="small" />,
   },
 ];
 
@@ -300,9 +309,10 @@ const TrackingTab = ({ load, tracking }) => {
 };
 
 // ─── Tab: Details ─────────────────────────────────────────────────────────────
-const DetailsTab = ({ load, userRole, isStaff, ratingScore, setRatingScore, ratingRemark, setRatingRemark, savingRating, onSave }) => (
+const DetailsTab = ({ load, userRole, isStaff, ratingScore, setRatingScore, ratingRemark, setRatingRemark, savingRating, onSave, onSaveFlags }) => (
   <div className="space-y-8 pb-10">
-    <DetailedLoadInfo load={load} />
+    {/* Staff/admin toggle the operational flags in place; clients read them. */}
+    <DetailedLoadInfo load={load} canEditFlags={isStaff} onSaveFlags={onSaveFlags} />
 
     {/* Rating (staff/admin + DELIVERED only) */}
     {isStaff && load.transportStatus === "DELIVERED" && (
@@ -357,6 +367,57 @@ const TrackLoadPage = () => {
   const [savingRating, setSavingRating] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [liveTracking, setLiveTracking] = useState(null);
+  const [sendingMail, setSendingMail] = useState(false);
+
+  // Staff-composed note to the customer about this load. The server prepends the
+  // load reference block, so the box here is just the message itself.
+  const handleEmailCustomer = async () => {
+    const escape = (v) => String(v ?? "").replace(/"/g, "&quot;");
+
+    const { value } = await Swal.fire({
+      title: "Email customer",
+      html: `
+        <p style="font-size:12px;color:#6b7280;text-align:left;margin:0 0 10px">
+          Sends to the email on file for <b>${escape(load.customerName || "this customer")}</b>.
+          The load reference is added to the top of the message automatically.
+        </p>
+        <input id="mail-subject" class="swal2-input" style="margin:0 0 8px"
+               placeholder="Subject" value="Update on load ${escape(load.loadId)}">
+        <textarea id="mail-message" class="swal2-textarea" style="margin:0 0 8px"
+                  rows="6" placeholder="Your message to the customer…"></textarea>
+        <input id="mail-cc" class="swal2-input" style="margin:0"
+               placeholder="CC (optional)">
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: "Send",
+      confirmButtonColor: "#4338ca",
+      preConfirm: () => {
+        const subject = document.getElementById("mail-subject").value.trim();
+        const message = document.getElementById("mail-message").value.trim();
+        const cc = document.getElementById("mail-cc").value.trim();
+        if (!subject || !message) {
+          Swal.showValidationMessage("A subject and a message are both required.");
+          return false;
+        }
+        return { subject, message, cc };
+      },
+    });
+
+    if (!value) return;
+
+    try {
+      setSendingMail(true);
+      const res = await api.post(`/loads/${load.loadId}/email-customer`, value);
+      toast.success(res.data.message || "Message sent.");
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "The message could not be sent.",
+      );
+    } finally {
+      setSendingMail(false);
+    }
+  };
 
   const handleTabChange = (tabKey) => {
     setSearchParams((prev) => {
@@ -366,17 +427,19 @@ const TrackLoadPage = () => {
     });
   };
 
-  const fetchLoad = async (id) => {
+  // `silent` refreshes the data in place: an in-page save should not tear the
+  // detail view down and show the full-page spinner.
+  const fetchLoad = async (id, { silent = false } = {}) => {
     if (!id) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await api.get(`/loads/${id}`);
       setLoad(res.data);
     } catch {
       toast.error("Load not found");
-      setLoad(null);
+      if (!silent) setLoad(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -396,6 +459,18 @@ const TrackLoadPage = () => {
       fetchTracking(paramLoadId);
     }
   }, [paramLoadId]);
+
+  // Live GPS arrives over the SSE stream below; this keeps the rest of the load
+  // (status, documents, flags) current. Held while a dialog is open so nothing
+  // shifts mid-action.
+  useAutoRefresh(
+    async () => {
+      if (!load?.loadId) return;
+      await fetchLoad(load.loadId, { silent: true });
+      await fetchTracking(load.loadId);
+    },
+    { enabled: !transportOpen && !scheduleOpen },
+  );
 
   useEffect(() => {
     const token = apiToken || localStorage.getItem("api_token");
@@ -485,6 +560,21 @@ const TrackLoadPage = () => {
     }
   };
 
+  // The Details tab lets staff/admin flip the operational flags without opening
+  // the full edit form. PUT /loads/:loadId returns the raw document, while the
+  // page renders values GET resolves (customer name, addresses), so refetch
+  // instead of seeding state from the response.
+  const saveLoadFlags = async (flags) => {
+    try {
+      await api.put(`/loads/${load.loadId}`, flags);
+      await fetchLoad(load.loadId, { silent: true });
+      toast.success("Load details updated");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to update load details");
+      throw err;
+    }
+  };
+
   const saveRating = async () => {
     if (!ratingScore) return toast.error("Please select a score");
     try {
@@ -526,10 +616,13 @@ const TrackLoadPage = () => {
             setRatingRemark={setRatingRemark}
             savingRating={savingRating}
             onSave={saveRating}
+            onSaveFlags={saveLoadFlags}
           />
         );
       case "documents":
         return <DocumentsTab load={load} fetchLoad={fetchLoad} />;
+      case "audit":
+        return <LoadAuditTrail loadId={load.loadId} />;
       default:
         return <TrackingTab load={load} tracking={liveTracking} />;
     }
@@ -591,6 +684,21 @@ const TrackLoadPage = () => {
             onRebid={handleRebid}
             userRole={userRole}
           />
+
+          {/* Office-only actions. Clients and carriers must not be able to mail
+              the customer from here. */}
+          {isStaff && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleEmailCustomer}
+                disabled={sendingMail}
+                className="btn-secondary flex items-center gap-1.5 text-xs disabled:opacity-60"
+              >
+                <EmailIcon fontSize="small" />
+                {sendingMail ? "Sending…" : "Email Customer"}
+              </button>
+            </div>
+          )}
 
           {/* Tabbed Content */}
           <div className="bg-white overflow-hidden rounded-2xl border border-gray-100 shadow-sm">

@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 const mongoose = require("mongoose");
 
 const trackingEventSchema = new mongoose.Schema(
@@ -47,5 +48,9 @@ const trackingEventSchema = new mongoose.Schema(
 );
 
 trackingEventSchema.index({ load: 1, recordedAt: -1 });
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+trackingEventSchema.plugin(tenantScope, { modelName: "TrackingEvent" });
 
 module.exports = mongoose.model("TrackingEvent", trackingEventSchema);

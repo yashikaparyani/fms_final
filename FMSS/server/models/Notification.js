@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
@@ -63,5 +64,9 @@ const notificationSchema = new mongoose.Schema(
 // Index for fast queries
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, createdAt: -1 });
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+notificationSchema.plugin(tenantScope, { modelName: "Notification" });
 
 module.exports = mongoose.model("Notification", notificationSchema);

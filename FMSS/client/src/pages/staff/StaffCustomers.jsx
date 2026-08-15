@@ -9,6 +9,7 @@ import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import { uiStyles } from "../../style/uiStyles";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 const StaffCustomers = () => {
   const [customers, setCustomers] = useState([]);
@@ -22,14 +23,18 @@ const StaffCustomers = () => {
     fetchCustomers();
   }, []);
 
-  const fetchCustomers = async () => {
+  useAutoRefresh(() => fetchCustomers({ silent: true }));
+
+  // `silent` keeps the background refresh from toasting on a blip or touching
+  // the spinner.
+  const fetchCustomers = async ({ silent = false } = {}) => {
     try {
       const res = await api.get("/customers");
       setCustomers(res.data);
     } catch {
-      notify.error("Failed to fetch customers");
+      if (!silent) notify.error("Failed to fetch customers");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

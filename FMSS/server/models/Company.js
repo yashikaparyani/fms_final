@@ -1,3 +1,4 @@
+const tenantScope = require("../plugins/tenantScope");
 const mongoose = require("mongoose");
 
 // ─── Company Model ─────────────────────────────────────────────────────────────
@@ -42,5 +43,9 @@ companySchema.virtual("addresses", {
   localField:  "_id",
   foreignField: "company",
 });
+
+
+// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
+companySchema.plugin(tenantScope, { modelName: "Company" });
 
 module.exports = mongoose.model("Company", companySchema);

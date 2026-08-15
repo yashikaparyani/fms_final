@@ -34,11 +34,21 @@ const api = axios.create({
   timeout: 20000,
 });
 
+export const LOCATION_KEY = "fmss_location_id";
+
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Which operating location this carrier belongs to. Carriers hold exactly
+  // one, stored at sign-in; the server falls back to their default if absent.
+  const locationId = await AsyncStorage.getItem(LOCATION_KEY);
+  if (locationId) {
+    config.headers["x-location-id"] = locationId;
+  }
+
   return config;
 });
 
@@ -47,6 +57,12 @@ export const saveSession = async ({ api_token, user }) => {
     [TOKEN_KEY, api_token],
     [USER_KEY, JSON.stringify(user)],
   ]);
+
+  // Pin the carrier's location so every later request carries it.
+  const locationId = user?.defaultLocation || user?.locations?.[0];
+  if (locationId) {
+    await AsyncStorage.setItem(LOCATION_KEY, String(locationId));
+  }
 };
 
 export const getStoredSession = async () => {
@@ -63,7 +79,7 @@ export const getStoredSession = async () => {
 };
 
 export const clearSession = async () => {
-  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, LOCATION_KEY]);
 };
 
 export default api;

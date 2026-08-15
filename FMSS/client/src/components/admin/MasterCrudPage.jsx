@@ -6,6 +6,7 @@ import { notify } from "../../utils/swal";
 import api from "../../api";
 import LoadTable from "../LoadTable";
 import { uiStyles } from "../../style/uiStyles";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 // ─── Reusable admin master page ──────────────────────────────────────────────
 // Shipping lines, delivery partners and chassis companies are the same master
@@ -170,16 +171,22 @@ const MasterCrudPage = ({ config }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint]);
 
-  const fetchRows = async () => {
+  // `silent` keeps the background refresh from toasting on a blip or touching
+  // the spinner.
+  const fetchRows = async ({ silent = false } = {}) => {
     try {
       const res = await api.get(endpoint);
       setRows(res.data);
     } catch {
-      notify.error(`Failed to fetch ${plural.toLowerCase()}`);
+      if (!silent) notify.error(`Failed to fetch ${plural.toLowerCase()}`);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  // Paused while the add/edit modal is open so the row behind it cannot change
+  // under the form.
+  useAutoRefresh(() => fetchRows({ silent: true }), { enabled: !showModal });
 
   const openAdd = () => {
     setEditing(null);

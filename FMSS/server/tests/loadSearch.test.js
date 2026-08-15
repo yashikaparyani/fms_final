@@ -2,6 +2,7 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { seed } = require("./helpers/tenantTestContext");
 const Load = require("../models/Load");
 const Customer = require("../models/Customer");
 
@@ -9,24 +10,9 @@ const STAFF_ID = new mongoose.Types.ObjectId();
 const CLIENT_ID = new mongoose.Types.ObjectId();
 
 // Mock auth: the `role` header picks the caller, `userid` overrides the id.
-jest.mock("../middleware/auth", () => {
-  const mongoose = require("mongoose");
-  return {
-    protect: (req, res, next) => {
-      req.user = {
-        _id: req.headers.userid ? new mongoose.Types.ObjectId(req.headers.userid) : new mongoose.Types.ObjectId(),
-        role: req.headers.role || "staff",
-      };
-      next();
-    },
-    authorizeRoles: (...roles) => (req, res, next) => {
-      if (!req.user || !roles.includes(req.user.role)) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      next();
-    },
-  };
-});
+jest.mock("../middleware/auth", () =>
+  require("./helpers/tenantTestContext").authMock({ defaultRole: "staff" }),
+);
 
 const { getLoads } = require("../controllers/loadController");
 
@@ -66,13 +52,13 @@ describe("GET /api/loads?q= — load search", () => {
 
   describe("spans the three tabs", () => {
     beforeEach(async () => {
-      await Load.create([
+      await seed(() => Load.create([
         baseLoad({ loadId: "LD-0001", status: "PENDING_VERIFICATION", containerNo: "ABCD1234567" }),
         baseLoad({ loadId: "LD-0002", status: "VERIFIED", containerNo: "ABCD1234567" }),
         baseLoad({ loadId: "LD-0003", status: "ASSIGNED", containerNo: "ABCD1234567" }),
         baseLoad({ loadId: "LD-0004", status: "REJECTED", containerNo: "ABCD1234567" }),
         baseLoad({ loadId: "LD-0005", status: "DRAFT", containerNo: "ABCD1234567" }),
-      ]);
+      ]));
     });
 
     it("returns matches from pending, verified and assigned together", async () => {
@@ -95,7 +81,7 @@ describe("GET /api/loads?q= — load search", () => {
 
   describe("matches across load fields", () => {
     beforeEach(async () => {
-      await Load.create([
+      await seed(() => Load.create([
         baseLoad({ loadId: "LD-0010", status: "VERIFIED", refNo: "REF-777" }),
         baseLoad({ loadId: "LD-0011", status: "VERIFIED", bookingNo: "BK-999" }),
         baseLoad({ loadId: "LD-0012", status: "VERIFIED", sealNo: "SEAL-42" }),
@@ -106,7 +92,7 @@ describe("GET /api/loads?q= — load search", () => {
         baseLoad({ loadId: "LD-0017", status: "VERIFIED", drops: [{ company: "Acme Corp" }] }),
         baseLoad({ loadId: "LD-0018", status: "VERIFIED", amount: 4321 }),
         baseLoad({ loadId: "LD-0019", status: "VERIFIED", truckType: "Reefer" }),
-      ]);
+      ]));
     });
 
     const cases = [
@@ -147,11 +133,11 @@ describe("GET /api/loads?q= — load search", () => {
 
   it("matches by customer name", async () => {
     const customerUser = new mongoose.Types.ObjectId();
-    await Customer.create({ user: customerUser, customerName: "Yashika Paryani" });
-    await Load.create([
+    await seed(() => Customer.create({ user: customerUser, customerName: "Yashika Paryani" }));
+    await seed(() => Load.create([
       baseLoad({ loadId: "LD-0020", status: "ASSIGNED", customer: customerUser }),
       baseLoad({ loadId: "LD-0021", status: "ASSIGNED" }),
-    ]);
+    ]));
 
     const res = await search("yashika");
     expect(ids(res)).toEqual(["LD-0020"]);
@@ -159,10 +145,10 @@ describe("GET /api/loads?q= — load search", () => {
   });
 
   it("treats regex metacharacters as literal text", async () => {
-    await Load.create([
+    await seed(() => Load.create([
       baseLoad({ loadId: "LD-0030", status: "VERIFIED", refNo: "A.C" }),
       baseLoad({ loadId: "LD-0031", status: "VERIFIED", refNo: "ABC" }),
-    ]);
+    ]));
 
     // An unescaped "." would match the "B" in ABC too.
     const res = await search("A.C");
@@ -170,10 +156,10 @@ describe("GET /api/loads?q= — load search", () => {
   });
 
   it("ignores a blank or whitespace-only term and returns the unfiltered list", async () => {
-    await Load.create([
+    await seed(() => Load.create([
       baseLoad({ loadId: "LD-0040", status: "REJECTED" }),
       baseLoad({ loadId: "LD-0041", status: "VERIFIED" }),
-    ]);
+    ]));
 
     const res = await search("   ");
     // No search term means no tab restriction either, so REJECTED is included.
@@ -181,10 +167,10 @@ describe("GET /api/loads?q= — load search", () => {
   });
 
   it("keeps a client scoped to their own loads while searching", async () => {
-    await Load.create([
+    await seed(() => Load.create([
       baseLoad({ loadId: "LD-0050", status: "VERIFIED", shippingLine: "Maersk", creatorId: CLIENT_ID }),
       baseLoad({ loadId: "LD-0051", status: "VERIFIED", shippingLine: "Maersk", creatorId: STAFF_ID }),
-    ]);
+    ]));
 
     const res = await search("maersk", { role: "client", userid: String(CLIENT_ID) });
     expect(ids(res)).toEqual(["LD-0050"]);

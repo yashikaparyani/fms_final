@@ -9,12 +9,62 @@ const fs = require("fs");
 const DeliveryPartner = require("../models/DeliveryPartner");
 const ChassisCompany = require("../models/ChassisCompany");
 const ShippingLine = require("../models/ShippingLine");
+const Driver = require("../models/Driver");
+const { resolveTimeZone, dayRangeInTz } = require("../utils/timezone");
+const { LFD_BUCKETS, lfdFilter } = require("../utils/lfdBuckets");
+const {
+  PICKUP_DAYS,
+  pickupDayFilter,
+  accessorialFilter,
+} = require("../utils/dashboardBuckets");
 const {
   sendLoadRequiresChanges,
   sendBidWon,
   sendBiddingScheduled,
   sendStreetTurnNotifications,
 } = require("../services/emailService");
+
+const { sendEmail, EMAIL_STATUS } = require("../utils/mailer");
+const { findCarrierFor, accountPersonFor } = require("../utils/carrierAccount");
+const whatsapp = require("../services/whatsappEvents");
+const { isValidCharge, money } = require("../config/chargeTypes");
+const audit = require("../services/auditService");
+
+/**
+ * The receivables ledger a load was created with, if the form built one.
+ *
+ * The base amount on a load IS its receivables total — see the
+ * syncAmountWithReceivables hook on the Load model — so accepting these lines at
+ * creation is what lets a load arrive with its books already open rather than
+ * needing a second visit to the accounting screen.
+ *
+ * Unknown charge types are dropped rather than stored: a line the catalog does
+ * not recognise contributes nothing to any total, and keeping it would show a
+ * charge on the invoice that no report can account for.
+ */
+const receivableLinesFrom = (body, user) => {
+  const submitted = body?.accounting?.receivables?.lines;
+  if (!Array.isArray(submitted) || !submitted.length) return null;
+
+  const lines = submitted
+    .filter((line) => isValidCharge(line?.chargeType, "receivable"))
+    .map((line) => ({
+      chargeType: line.chargeType,
+      amount: money(Number(line.amount) || 0),
+      quantity: Number(line.quantity) || undefined,
+      rate: Number(line.rate) || undefined,
+      note: String(line.note || "").trim(),
+      addedBy: user?._id,
+      addedAt: new Date(),
+    }))
+    .filter((line) => line.amount !== 0 || line.note);
+
+  if (!lines.length) return null;
+
+  return {
+    accounting: { receivables: { lines, currency: "USD", updatedBy: user?._id } },
+  };
+};
 
 // Resolve a fleet owner's primary contact email (falls back to first contact)
 const getFleetOwnerEmail = (fleetOwner) =>
@@ -140,6 +190,8 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   "Lumper Receipt",
   "Misc.",
   "Carrier Invoice",
+  // Office-side paperwork, hidden from the driver app.
+  "Load Document",
 ]);
 
 const normalizeStopInput = (stop) => {
@@ -212,6 +264,8 @@ const createLoad = async (req, res) => {
       shippingLine,
       containerNo,
       chassisNo,
+      containerNo2,
+      chassisNo2,
       pickupNo,
       sealNo,
       hazmat,
@@ -231,6 +285,26 @@ const createLoad = async (req, res) => {
       drop,
     } = req.body;
 
+    // A Drop moves two containers, so both container and both chassis numbers
+    // have to be on the load. A Pick only ever carries the first pair.
+    if (singleType === "Drop") {
+      const missing = [
+        ["containerNo", "Container #", containerNo],
+        ["containerNo2", "Container #2", containerNo2],
+        ["chassisNo", "Chassis #", chassisNo],
+        ["chassisNo2", "Chassis #2", chassisNo2],
+      ].filter(([, , value]) => !String(value || "").trim());
+
+      if (missing.length) {
+        return res.status(400).json({
+          success: false,
+          message: `A Drop needs two containers: ${missing
+            .map(([, label]) => label)
+            .join(", ")} ${missing.length === 1 ? "is" : "are"} required.`,
+        });
+      }
+    }
+
     let customerName = "";
     if (customer) {
       const findCustomer = await User.findById(customer);
@@ -244,6 +318,21 @@ const createLoad = async (req, res) => {
       return res
         .status(400)
         .json({ message: "Customer is required", success: false });
+    }
+
+    // A customer flagged over their credit limit is frozen: no new work goes on
+    // the books until that flag is cleared on the customer record. Enforced for
+    // every role — a client cannot raise the load itself, and staff cannot
+    // raise one on the customer's behalf either.
+    const customerAccount = await Customer.findOne({ user: customer })
+      .select("preferences customerName")
+      .lean();
+
+    if (customerAccount?.preferences?.creditLimitExceeded) {
+      return res.status(403).json({
+        success: false,
+        message: `${customerAccount.customerName || customerName} has exceeded their credit limit. No new loads can be created for this customer until the credit limit is cleared.`,
+      });
     }
 
     const normalizedPickup = normalizeStopInput(pickup);
@@ -266,6 +355,8 @@ const createLoad = async (req, res) => {
       shippingLine,
       containerNo,
       chassisNo,
+      containerNo2,
+      chassisNo2,
       pickupNo,
       sealNo,
       hazmat,
@@ -288,15 +379,30 @@ const createLoad = async (req, res) => {
         normalizedDrop?.city &&
         normalizedDrop?.address
       ),
+      // Office-created loads are trusted; a customer's go to the queue. Admin
+      // counts as office — an admin is a superset of staff, so their load must
+      // not need somebody else to verify it.
       status:
         status ||
-        (req.user.role === "staff" ? "VERIFIED" : "PENDING_VERIFICATION"),
+        (["staff", "admin"].includes(req.user.role)
+          ? "VERIFIED"
+          : "PENDING_VERIFICATION"),
       transportStatus: "LOAD_PLANNER",
       createdBy: req.user.role,
       creatorId: req.user._id,
+      // The receivables breakdown behind the base amount, when the load form's
+      // breakdown dialog was used. Sanitised rather than trusted: the lines come
+      // from a form, and an unknown charge type would total to nothing and drag
+      // every downstream figure with it.
+      ...(receivableLinesFrom(req.body, req.user) || {}),
     };
 
     const load = await Load.create(newLoad);
+
+    // Opens the trail. Awaited rather than fired and forgotten so the first
+    // entry is on file before the response returns — a client that immediately
+    // reloads the load should not see an empty history.
+    await audit.recordCreated(load, req.user, req);
 
     // Notify staff and admin about the new load
     if (load.status === "PENDING_VERIFICATION") {
@@ -500,6 +606,42 @@ const getLoads = async (req, res) => {
       query.transportStatus = req.query.transportStatus;
     }
 
+    // `?lfd=expired|today|upcoming` opens the loads behind a dashboard LFD tile.
+    // It carries its own status scoping, so it replaces whatever the caller
+    // passed rather than intersecting with it — otherwise the list would be a
+    // subset of the tile it was opened from.
+    if (req.query.lfd && req.user.role !== "fleetOwner") {
+      const tz = resolveTimeZone(req.query.tz);
+      const bucket = lfdFilter(req.query.lfd, dayRangeInTz(tz, 0));
+      if (!bucket) {
+        return res.status(400).json({
+          message: `Unknown lfd filter "${req.query.lfd}". Expected one of: ${LFD_BUCKETS.join(", ")}.`,
+        });
+      }
+      Object.assign(query, bucket);
+    }
+
+    // `?pickupDay=today|tomorrow` and `?accessorial=true` open the loads behind
+    // the Same Day / Next Day / Accessorial Charges dashboard tiles. Like the
+    // LFD buckets they carry their own status scoping, so they replace what the
+    // caller passed rather than narrowing it.
+    if (req.query.pickupDay && req.user.role !== "fleetOwner") {
+      const tz = resolveTimeZone(req.query.tz);
+      const bucket = pickupDayFilter(req.query.pickupDay, (offset) =>
+        dayRangeInTz(tz, offset),
+      );
+      if (!bucket) {
+        return res.status(400).json({
+          message: `Unknown pickupDay filter "${req.query.pickupDay}". Expected one of: ${Object.keys(PICKUP_DAYS).join(", ")}.`,
+        });
+      }
+      Object.assign(query, bucket);
+    }
+
+    if (req.query.accessorial === "true" && req.user.role !== "fleetOwner") {
+      Object.assign(query, accessorialFilter());
+    }
+
     const term = (req.query.q || "").trim();
     if (term) {
       query.$or = await buildSearchClause(term);
@@ -636,6 +778,15 @@ const getLoadById = async (req, res) => {
       transportStatusHistory: transportHistory,
     };
 
+    // Who to contact about this load. A load can carry several drivers, and none
+    // of them is that person — see accountPersonFor in utils/carrierAccount.js.
+    if (load.assignedFleetOwner?.fleetOwnerId) {
+      const carrier = await FleetOwner.findById(load.assignedFleetOwner.fleetOwnerId)
+        .select("contactPersons")
+        .lean();
+      responsePayload.accountPerson = accountPersonFor(carrier);
+    }
+
     // 🔒 Customers (clients) must NOT see bid status/amounts — only the
     // assigned bidder (allotment) and transit updates. Strip bid financials.
     if (req.user?.role === "client") {
@@ -644,6 +795,9 @@ const getLoadById = async (req, res) => {
       delete responsePayload.margin;
       delete responsePayload.vendorRate;
       delete responsePayload.bidCount;
+      // Who is driving is between the office and the carrier. A customer with
+      // driver names on screen rings a driver mid-run about a booking question.
+      delete responsePayload.driverAssignments;
     }
 
     res.json(responsePayload);
@@ -661,6 +815,13 @@ const updateLoad = async (req, res) => {
   try {
     const load = await Load.findOne({ loadId: req.params.loadId });
     if (!load) return res.status(404).json({ message: "Load not found" });
+
+    // The pre-image the audit diff is taken against. A plain object rather than
+    // the document: Mongoose hands out live references into the document, so
+    // holding the document itself would give us a "before" that mutates into the
+    // "after" as the fields below are assigned, and every diff would come out
+    // empty.
+    const beforeEdit = load.toObject();
 
     // ── Client permission gate ──────────────────────────────────────────────
     if (req.user.role === "client") {
@@ -744,16 +905,38 @@ const updateLoad = async (req, res) => {
       load.status = "PENDING_VERIFICATION";
       // Reset transport status so staff reviews the fresh submission
       load.transportStatus = "NEW_LOAD";
+      // The note described the submission being replaced. Leaving it behind
+      // keeps the "changes requested" banner and the Changes Note column
+      // showing on a load that has already been resubmitted.
+      load.changesNote = undefined;
     }
 
     if (["staff", "admin"].includes(req.user.role)) {
       // Staff / admin may set any explicit status sent in the body
-      if (req.body.status) load.status = req.body.status;
+      if (req.body.status) {
+        load.status = req.body.status;
+        // Same reasoning as above — a note only belongs on a load that is
+        // actually waiting for changes.
+        if (req.body.status !== "REQUIRES_CHANGES") load.changesNote = undefined;
+      }
       if (req.body.transportStatus)
         load.transportStatus = req.body.transportStatus;
     }
 
     await load.save();
+
+    // Writes nothing when nothing tracked actually moved — a save that only
+    // touched `updatedAt` is not an event, and logging it would bury the ones
+    // that are. `changesNote` carries the reason when staff asked for changes.
+    await audit.recordFieldChanges({
+      load,
+      before: beforeEdit,
+      after: load.toObject(),
+      user: req.user,
+      req,
+      note: req.body.auditNote || undefined,
+    });
+
     res.json(load);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -797,6 +980,8 @@ const updateLoadStatus = async (req, res) => {
     const load = await Load.findOne({ loadId: req.params.loadId });
     if (!load) return res.status(404).json({ message: "Load not found" });
 
+    const previousStatus = load.status;
+
     load.status = status;
 
     // Store the changes note on the load so the client can see it in their dashboard
@@ -833,6 +1018,20 @@ const updateLoadStatus = async (req, res) => {
           changesNote: changesNote.trim(),
         });
       }
+    }
+
+    // The reason travels with the entry, so "why was this sent back?" is
+    // answerable from the trail rather than only from the client's dashboard.
+    if (previousStatus !== load.status) {
+      await audit.recordStatusChange({
+        load,
+        field: "status",
+        from: previousStatus,
+        to: load.status,
+        note: load.changesNote,
+        user: req.user,
+        req,
+      });
     }
 
     res.json({
@@ -1054,6 +1253,47 @@ const updateTransportStatus = async (req, res) => {
     }
 
     if (transportStatus === "DELIVERED") {
+      // ─────────────────────────────────────────────
+      // DELIVERY PROOF REQUIRED
+      // ─────────────────────────────────────────────
+      // A photo of the container actually being dropped, not just a signature.
+      // The signature proves somebody signed; the picture proves the box went
+      // where it was meant to, which is the thing a customer disputes weeks
+      // later when nobody can remember the stop.
+      //
+      // Carrier-side only, matching the pickup-proof rule above. Staff and admin
+      // marking a load delivered are correcting the record from the office —
+      // they were not at the warehouse and have no photo to give, and blocking
+      // them would leave the load stuck at the previous status instead.
+      if (["fleetOwner", "driver"].includes(role)) {
+        const hasNewProof = req.files && req.files.length > 0;
+        const hasExistingProof = (load.deliveryProof?.images || []).length > 0;
+
+        if (!hasNewProof && !hasExistingProof) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "A photo of the container at the drop is required before you can complete this delivery.",
+          });
+        }
+
+        if (hasNewProof) {
+          load.deliveryProof = {
+            images: req.files.map((f) => ({
+              fileName: f.originalname,
+              filePath: f.path,
+              uploadedAt: new Date(),
+            })),
+            location: {
+              latitude: parsedLat,
+              longitude: parsedLng,
+            },
+            submittedBy: req.user._id,
+            submittedAt: new Date(),
+          };
+        }
+      }
+
       if (!signatureData) {
         return res.status(400).json({
           success: false,
@@ -1088,6 +1328,7 @@ const updateTransportStatus = async (req, res) => {
     // ─────────────────────────────────────────────
     // UPDATE CURRENT STATUS
     // ─────────────────────────────────────────────
+    const previousTransportStatus = load.transportStatus;
     load.transportStatus = transportStatus;
 
     if (confirmedStreetTurn) {
@@ -1159,6 +1400,38 @@ const updateTransportStatus = async (req, res) => {
     });
 
     await load.save();
+
+    // `transportStatusHistory` on the load already records the sequence for the
+    // tracking timeline; this puts the same event on the audit trail alongside
+    // the edits, notes and financial changes, so one screen answers "what
+    // happened to this load" rather than three.
+    if (previousTransportStatus !== transportStatus) {
+      await audit.recordStatusChange({
+        load,
+        field: "transportStatus",
+        from: previousTransportStatus,
+        to: transportStatus,
+        note,
+        user: req.user,
+        req,
+      });
+
+      // WhatsApp alerts. Not awaited into the response and never able to throw
+      // — a driver marking a load delivered must not see an error because the
+      // messaging integration is misconfigured. See services/whatsappEvents.js.
+      //
+      // Pickup and delivery go to the customer and have their own wording; every
+      // other move is an internal one the carrier's contact gets.
+      if (transportStatus === "PICKED_UP") {
+        whatsapp.onPickupConfirmed(load, req.user);
+      } else if (transportStatus === "DELIVERED") {
+        whatsapp.onDelivered(load, req.user);
+      } else if (transportStatus === "INVOICED") {
+        whatsapp.onLoadCompleted(load, req.user);
+      } else {
+        whatsapp.onStatusChanged(load, transportStatus, req.user);
+      }
+    }
 
     if (hasValidLocation) {
       TrackingEvent.create({
@@ -1408,6 +1681,13 @@ const assignFleetOwner = async (req, res) => {
   try {
     const { fleetOwnerId, fleetOwnerName } = req.body;
 
+    // Read before the update so the trail can say who the load moved *from* —
+    // a reassignment is exactly the change somebody later asks about, and
+    // findOneAndUpdate only hands back one side of it.
+    const previous = await Load.findOne({ loadId: req.params.loadId })
+      .select("assignedFleetOwner")
+      .lean();
+
     const load = await Load.findOneAndUpdate(
       { loadId: req.params.loadId },
       {
@@ -1432,6 +1712,14 @@ const assignFleetOwner = async (req, res) => {
     );
 
     if (!load) return res.status(404).json({ message: "Load not found" });
+
+    await audit.recordAssignment({
+      load,
+      carrierName: fleetOwnerName,
+      previousName: previous?.assignedFleetOwner?.fleetOwnerName,
+      user: req.user,
+      req,
+    });
 
     res.json(load);
   } catch (err) {
@@ -1477,12 +1765,139 @@ const rebidLoad = async (req, res) => {
 };
 
 // CONTROLLER
+// @desc    Set which of the carrier's drivers run this load
+// @route   PUT /api/loads/:loadId/drivers
+// @access  Private (the assigned carrier; staff/admin on their behalf)
+//
+// A load is awarded to a carrier, and the carrier decides who drives it. More
+// than one driver is normal: a long move gets handed over partway, so each
+// assignment carries its own pickup and its own destination rather than sharing
+// the load's.
+//
+// The whole list is replaced rather than appended to. Dispatch is a decision
+// about who is on the load right now, and merging would leave a driver who was
+// swapped out still attached with no way to say so.
+const setLoadDrivers = async (req, res) => {
+  try {
+    const office = ["staff", "admin"].includes(req.user.role);
+
+    // The carrier is read off the account for a carrier-side caller so a driver
+    // sub-account can only ever touch their own carrier's load. The office has
+    // to name one, and tenant scope keeps that to their own location.
+    const carrier = office
+      ? null
+      : await findCarrierFor(req.user, "_id carrierName contactPersons");
+
+    if (!office && !carrier) {
+      return res.status(404).json({ message: "No carrier is linked to your account." });
+    }
+
+    const query = { loadId: req.params.loadId };
+    if (carrier) query["assignedFleetOwner.fleetOwnerId"] = carrier._id;
+
+    const load = await Load.findOne(query);
+    if (!load) {
+      return res.status(404).json({
+        message: office
+          ? "Load not found at this location."
+          : "That load is not assigned to you.",
+      });
+    }
+
+    const rows = Array.isArray(req.body.drivers) ? req.body.drivers : [];
+
+    if (rows.length > 10) {
+      return res.status(400).json({
+        message: `That is ${rows.length} drivers on one load — check the list.`,
+      });
+    }
+
+    // Every driver must belong to the carrier the load is assigned to. Checked
+    // against the roster rather than trusted from the request, or a carrier
+    // could attach somebody else's driver to their load.
+    const carrierId = carrier?._id || load.assignedFleetOwner?.fleetOwnerId;
+    if (rows.length && !carrierId) {
+      return res.status(400).json({
+        message: "Assign the load to a carrier before naming drivers.",
+      });
+    }
+
+    const ids = rows.map((r) => String(r.driver || r.driverId || "")).filter(Boolean);
+
+    if (ids.length !== rows.length) {
+      return res.status(400).json({ message: "Every row needs a driver." });
+    }
+
+    if (new Set(ids).size !== ids.length) {
+      return res.status(400).json({ message: "The same driver is listed twice." });
+    }
+
+    const roster = ids.length
+      ? await Driver.find({ _id: { $in: ids }, fleetOwner: carrierId })
+          .select("_id name driverCode")
+          .lean()
+      : [];
+
+    if (roster.length !== ids.length) {
+      return res.status(400).json({
+        message: "One or more of those drivers is not on this carrier's roster.",
+      });
+    }
+
+    const byId = new Map(roster.map((d) => [String(d._id), d]));
+    const stop = (raw = {}) => ({
+      address: String(raw.address || "").trim(),
+      city: String(raw.city || "").trim(),
+      state: String(raw.state || "").trim(),
+      zip: String(raw.zip || "").trim(),
+    });
+
+    const previous = new Map(
+      (load.driverAssignments || []).map((a) => [String(a.driver), a]),
+    );
+
+    load.driverAssignments = rows.map((row) => {
+      const id = String(row.driver || row.driverId);
+      const driver = byId.get(id);
+      const before = previous.get(id);
+
+      return {
+        driver: driver._id,
+        driverName: driver.name,
+        driverCode: driver.driverCode || "",
+        pickup: stop(row.pickup),
+        drop: stop(row.drop),
+        note: String(row.note || "").trim(),
+        // A driver who was already on the load keeps their original timestamp —
+        // editing another driver's leg is not a re-assignment of this one.
+        assignedAt: before?.assignedAt || new Date(),
+        assignedBy: before?.assignedBy || req.user._id,
+      };
+    });
+
+    await load.save();
+
+    // Tells each driver about their own leg. Fire-and-forget.
+    if (load.driverAssignments.length) {
+      whatsapp.onDriversAssigned(load, load.driverAssignments, req.user);
+    }
+
+    res.json({
+      message: load.driverAssignments.length
+        ? `${load.driverAssignments.length} driver(s) on load ${load.loadId}.`
+        : `Drivers cleared from load ${load.loadId}.`,
+      driverAssignments: load.driverAssignments,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 const confirmAssignedLoadByFleetOwner = async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    // Find logged-in fleet owner
-    const fleetOwner = await FleetOwner.findOne({ userId });
+    // Resolved from the account so a driver sub-account confirms on behalf of
+    // their own carrier and nobody else's — see utils/carrierAccount.js.
+    const fleetOwner = await findCarrierFor(req.user);
 
     if (!fleetOwner) {
       return res.status(404).json({ message: "Fleet owner not found" });
@@ -1538,6 +1953,103 @@ const confirmAssignedLoadByFleetOwner = async (req, res) => {
   }
 };
 
+
+// @desc    Email the customer directly about one load, from the tracking page
+// @route   POST /api/loads/:loadId/email-customer
+// @access  Private (staff/admin)
+//
+// Every other mail the system sends is triggered by an event. This one is
+// composed by a staff member, so the body is theirs — the load reference is
+// prepended as a header block so the customer always knows which move the note
+// is about, and the reply-to is the sender's own address.
+const emailCustomer = async (req, res) => {
+  try {
+    const { subject, message, cc } = req.body;
+
+    if (!String(subject || "").trim() || !String(message || "").trim()) {
+      return res
+        .status(400)
+        .json({ message: "Both a subject and a message are required." });
+    }
+
+    const load = await Load.findOne({ loadId: req.params.loadId }).lean();
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    // The customer's login address is the reliable one; the Customer record's
+    // per-purpose addresses (POD, delivery) are optional extras.
+    const customerUser = load.customer
+      ? await User.findById(load.customer).select("email firstName lastName").lean()
+      : null;
+
+    const customerRecord = load.customer
+      ? await Customer.findOne({ user: load.customer })
+          .select("customerName emails")
+          .lean()
+      : null;
+
+    const to = customerUser?.email || customerRecord?.emails?.deliveryEmail;
+    if (!to) {
+      return res.status(400).json({
+        message:
+          "This customer has no email address on record, so the message cannot be sent.",
+      });
+    }
+
+    const origin = [load.pickup?.city, load.pickup?.state].filter(Boolean).join(", ");
+    const destination = [load.drop?.city, load.drop?.state].filter(Boolean).join(", ");
+
+    const reference = [
+      ["Load", load.loadId],
+      ["Reference", load.refNo],
+      ["Container", load.containerNo],
+      ["Route", origin && destination ? `${origin} → ${destination}` : null],
+      ["Status", load.transportStatus?.replace(/_/g, " ")],
+    ].filter(([, value]) => value);
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;font-size:14px;color:#111">
+        <table style="border-collapse:collapse;margin-bottom:16px">
+          ${reference
+            .map(
+              ([label, value]) =>
+                `<tr><td style="padding:2px 12px 2px 0;color:#666">${label}</td><td style="padding:2px 0;font-weight:600">${value}</td></tr>`,
+            )
+            .join("")}
+        </table>
+        <div style="white-space:pre-wrap;line-height:1.5">${String(message)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")}</div>
+      </div>
+    `;
+
+    const text = `${reference.map(([l, v]) => `${l}: ${v}`).join("\n")}\n\n${message}`;
+
+    const result = await sendEmail({
+      to: cc ? `${to}, ${cc}` : to,
+      subject,
+      text,
+      html,
+    });
+
+    // sendEmail never throws — it reports. A disabled or misconfigured mail
+    // setup must not read as a successful send on the staff member's screen.
+    if (!result.sent) {
+      return res.status(502).json({
+        success: false,
+        reason: result.reason,
+        message:
+          result.reason === EMAIL_STATUS.DISABLED
+            ? "Email is switched off in Email Settings, so nothing was sent."
+            : result.message || "The message could not be sent.",
+      });
+    }
+
+    res.json({ success: true, message: `Message sent to ${to}.`, to });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 const rateCompletedLoad = async (req, res) => {
   try {
@@ -1618,6 +2130,53 @@ const rateCompletedLoad = async (req, res) => {
   }
 };
 // ═══════════════════════════════════════════════════════════════════════════════
+// Award a load to a fleet owner at a settled amount.
+//
+// Shared by the manual award and by the auto-award that fires when a fleet
+// owner accepts a negotiated amount, so both routes leave the load in exactly
+// the same state — including `vendorRate`, which is rewritten to the agreed
+// amount. That matters: the apps show `vendorRate` as the carrier payout, so
+// leaving the pre-bid target rate there would display a number the parties
+// never agreed on. `targetRate` and `margin` still hold the original figures.
+// ═══════════════════════════════════════════════════════════════════════════════
+const applyBidAward = async (load, { fleetOwner, amount, bidId }) => {
+  const settledAmount = Number(amount);
+
+  load.winningBid = {
+    ...(bidId ? { id: bidId } : {}),
+    fleetOwnerId: fleetOwner._id,
+    fleetOwnerName: fleetOwner.carrierName,
+    amount: settledAmount,
+    submittedAt: new Date(),
+  };
+
+  // Single source of truth for "what this carrier is paid".
+  load.vendorRate = settledAmount;
+
+  load.bidStatus = "CLOSED";
+  load.assignedFleetOwner = {
+    fleetOwnerId: fleetOwner._id,
+    fleetOwnerName: fleetOwner.carrierName,
+    assignedAt: new Date(),
+  };
+  load.status = "ASSIGNED";
+  load.transportStatus = "ASSIGNED";
+
+  await load.save();
+
+  await Bid.updateOne(
+    { loadId: load._id, fleetOwnerId: fleetOwner._id },
+    { $set: { status: "WINNING" } },
+  );
+  await Bid.updateMany(
+    { loadId: load._id, fleetOwnerId: { $ne: fleetOwner._id } },
+    { $set: { status: "REJECTED" } },
+  );
+
+  return load;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ✅ REQ 14: Manual Bid Allotment - Award Bid Manually (NOT AUTOMATED)
 // ═══════════════════════════════════════════════════════════════════════════════
 const awardBid = async (req, res) => {
@@ -1649,39 +2208,7 @@ const awardBid = async (req, res) => {
     const fleetOwner = await FleetOwner.findById(fleetOwnerId);
     if (!fleetOwner) return res.status(404).json({ message: "Fleet owner not found" });
 
-    // Set winning bid
-    load.winningBid = {
-      fleetOwnerId: fleetOwnerId,
-      fleetOwnerName: fleetOwner.carrierName,
-      amount: bidAmount,
-      submittedAt: new Date(),
-    };
-
-    // Set bidding status to CLOSED (bid window closed after manual award)
-    load.bidStatus = "CLOSED";
-
-    // Auto-assign the fleet owner (REQUIREMENT: Manual award, but can also auto-assign)
-    load.assignedFleetOwner = {
-      fleetOwnerId: fleetOwnerId,
-      fleetOwnerName: fleetOwner.carrierName,
-      assignedAt: new Date(),
-    };
-    load.status = "ASSIGNED";
-    load.transportStatus = "ASSIGNED";
-
-    await load.save();
-
-    // Update Bid collection to mark this bid as WINNING
-    await Bid.updateOne(
-      { loadId: load._id, fleetOwnerId: fleetOwnerId },
-      { $set: { status: "WINNING" } }
-    );
-
-    // Mark other bids as REJECTED
-    await Bid.updateMany(
-      { loadId: load._id, fleetOwnerId: { $ne: fleetOwnerId } },
-      { $set: { status: "REJECTED" } }
-    );
+    await applyBidAward(load, { fleetOwner, amount: bidAmount });
 
     res.status(200).json({
       success: true,
@@ -1919,21 +2446,135 @@ const reviseBid = async (req, res) => {
       });
     }
 
-    // Update the bid amount in the Bid collection
-    bidDoc.amount = newAmount;
-    bidDoc.revisedAt = new Date();
-    await bidDoc.save();
+    // A fleet owner revising their own bid is just a new bid — it takes effect
+    // straight away, and supersedes any offer they had not answered yet.
+    if (req.user.role === "fleetOwner") {
+      bidDoc.amount = newAmount;
+      bidDoc.revisedAt = new Date();
+      bidDoc.negotiation = { status: "NONE" };
+      await bidDoc.save();
 
-    // If this bid is the winning bid, update the winning amount too
-    if (load.winningBid?.fleetOwnerId?.toString() === fleetOwnerIdStr) {
-      load.winningBid.amount = newAmount;
-      await load.save();
+      if (load.winningBid?.fleetOwnerId?.toString() === fleetOwnerIdStr) {
+        load.winningBid.amount = newAmount;
+        load.vendorRate = newAmount;
+        await load.save();
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Bid revised successfully",
+        data: load,
+        bid: bidDoc,
+      });
     }
+
+    // Staff/admin are negotiating, not editing someone else's bid. The offer
+    // waits for the fleet owner; accepting it awards the load automatically.
+    bidDoc.negotiation = {
+      amount: newAmount,
+      status: "PENDING",
+      previousAmount: bidDoc.amount,
+      offeredAt: new Date(),
+      respondedAt: undefined,
+    };
+    await bidDoc.save();
 
     res.status(200).json({
       success: true,
-      message: "Bid revised successfully",
+      message: `Offer of $${newAmount} sent to the carrier for acceptance`,
       data: load,
+      bid: bidDoc,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Fleet owner answers a negotiated amount.
+//
+// Accepting settles the bid at the offered amount and awards the load then and
+// there — no second manual step — so the carrier who agreed to the reduced
+// figure is the one who gets it.
+// ═══════════════════════════════════════════════════════════════════════════════
+const respondToNegotiation = async (req, res) => {
+  try {
+    const { bidId, accept } = req.body;
+
+    if (!bidId || typeof accept !== "boolean") {
+      return res.status(400).json({
+        message: "Bid ID and an accept flag (true/false) are required",
+      });
+    }
+
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const bidDoc = await Bid.findById(bidId);
+    if (!bidDoc || bidDoc.loadId.toString() !== load._id.toString()) {
+      return res.status(404).json({ message: "Bid not found for this load" });
+    }
+
+    // Only the carrier who owns the bid may answer it.
+    const fleetOwner = await FleetOwner.findOne({ userId: req.user._id });
+    if (!fleetOwner || bidDoc.fleetOwnerId.toString() !== fleetOwner._id.toString()) {
+      return res.status(403).json({ message: "Cannot respond to another carrier's bid" });
+    }
+
+    if (bidDoc.negotiation?.status !== "PENDING") {
+      return res.status(400).json({
+        message: "There is no offer awaiting your response on this bid",
+      });
+    }
+
+    // Guard the race where the load was awarded elsewhere while the offer sat
+    // unanswered — accepting must not reassign a load already given away.
+    const alreadyAwardedToSomeoneElse =
+      load.winningBid?.fleetOwnerId &&
+      load.winningBid.fleetOwnerId.toString() !== fleetOwner._id.toString();
+
+    if (accept && alreadyAwardedToSomeoneElse) {
+      return res.status(409).json({
+        message: "This load has already been awarded to another carrier",
+      });
+    }
+
+    const offeredAmount = bidDoc.negotiation.amount;
+
+    if (!accept) {
+      bidDoc.negotiation.status = "DECLINED";
+      bidDoc.negotiation.respondedAt = new Date();
+      await bidDoc.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Offer declined",
+        data: load,
+        bid: bidDoc,
+      });
+    }
+
+    bidDoc.amount = offeredAmount;
+    bidDoc.revisedAt = new Date();
+    bidDoc.negotiation.status = "ACCEPTED";
+    bidDoc.negotiation.respondedAt = new Date();
+    await bidDoc.save();
+
+    // applyBidAward re-stamps bid statuses, so save the acceptance first.
+    await applyBidAward(load, {
+      fleetOwner,
+      amount: offeredAmount,
+      bidId: bidDoc._id,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Offer accepted — load awarded at $${offeredAmount}`,
+      data: load,
+      bid: bidDoc,
     });
   } catch (error) {
     res.status(400).json({
@@ -1981,6 +2622,7 @@ const unassignLoad = async (req, res) => {
 // ========================= EXPORT =========================
 
 module.exports = {
+  setLoadDrivers,
   getLoads,
   getLoadById,
   createLoad,
@@ -2001,5 +2643,7 @@ module.exports = {
   rebidLoad,
   discardBid,
   reviseBid,
+  respondToNegotiation,
   unassignLoad,
+  emailCustomer,
 };

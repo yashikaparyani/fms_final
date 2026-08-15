@@ -65,8 +65,8 @@ const LoadDetailsLeft = ({ load }) => (
     {/* ── Routing ── */}
     <Card>
       <SectionHeader label="Routing" accent="#8b5cf6" />
-      <InfoRow label="Delivery Type" value={load.deliveryType} />
-      <InfoRow label="Single Type" value={load.singleType} />
+      {/* deliveryType is legacy — every load is a single Drop or Pick now. */}
+      <InfoRow label="Type" value={load.singleType} />
       <InfoRow label="Load Type" value={load.truckType} />
       <InfoRow label="Material" value={load.material} />
       <InfoRow

@@ -7,8 +7,7 @@ import ArrowRightAltIcon from "@mui/icons-material/ArrowRightAlt";
 import SectionHeader from "../components/SectionHeader";
 import { RiLoader5Fill } from "react-icons/ri";
 import RefreshIcon from "@mui/icons-material/Refresh";
-
-const POLL_INTERVAL_MS = 15000;
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 // ─── API layer ────────────────────────────────────────────────────────────────
 // All API calls live here. Components just call these functions.
@@ -37,7 +36,6 @@ const LiveBidding = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
-  const [refreshBid, setRefreshBid] = useState(false);
 
   // ─── Fetch everything in one shot on mount ──────────────────────────────
   // load details + bids + myBid all resolve in parallel.
@@ -98,15 +96,10 @@ const LiveBidding = () => {
     fetchAll();
   }, [fetchAll]);
 
-  // Poll bids only (not load details) every 15s
-  useEffect(() => {
-    try {
-      biddingApi.fetchAllBids(id);
-      setBids(allBidsRes.data);
-    } catch (error) {
-      console.log(error);
-    }
-  }, [refreshBid]);
+  // Poll the leaderboard (not the load details, which don't move during a
+  // bidding window). Paused mid-submit so a refresh cannot land between the
+  // POST and the refresh it already does itself.
+  useAutoRefresh(refreshBids, { enabled: !submitting });
 
   // ─── Place / update bid ─────────────────────────────────────────────────
   const handlePlaceBid = useCallback(async () => {
