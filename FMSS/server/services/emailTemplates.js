@@ -23,14 +23,26 @@ const customerCredentials = ({ customer, password, frontendUrl }) => ({
   `,
 });
 
-const fleetOwnerCredentials = ({ carrierName, email, password, frontendUrl, includeBiddingAccess = false }) => ({
+// `email` is where this is sent; `loginEmail` is what to type at the sign-in
+// screen. They are usually the same, but a carrier's paperwork contact is not
+// always the address their account was opened under — and telling somebody to
+// sign in with an address that has no account produces "Invalid credentials"
+// with nothing to go on. Defaults to `email` for callers where they match.
+const fleetOwnerCredentials = ({
+  carrierName,
+  email,
+  loginEmail,
+  password,
+  frontendUrl,
+  includeBiddingAccess = false,
+}) => ({
   subject: "FMS - Your Fleet Owner Credentials",
-  text: `Welcome ${carrierName}. Your FMS login is ${frontendUrl}/vendor-login. Email: ${email}. Password: ${password}. Please login and change your password immediately.`,
+  text: `Welcome ${carrierName}. Your FMS login is ${frontendUrl}/vendor-login. Email: ${loginEmail || email}. Password: ${password}. Please login and change your password immediately.`,
   html: `
     <h3>Welcome ${escapeHtml(carrierName)}!</h3>
     <p>Your fleet owner credentials for the FMS system:</p>
     <p><strong>Login URL:</strong> ${escapeHtml(frontendUrl)}/vendor-login</p>
-    <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+    <p><strong>Sign in with:</strong> ${escapeHtml(loginEmail || email)}</p>
     <p><strong>Password:</strong> ${escapeHtml(password)}</p>
     <br/>
     <p>Please login and change your password immediately.</p>

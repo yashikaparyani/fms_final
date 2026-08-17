@@ -135,6 +135,7 @@ const createFleetOwner = async (req, res) => {
             emailStatus = await sendFleetOwnerCredentials({
               carrierName,
               email,
+              loginEmail: userAccount.email,
               password: generatedPassword,
               includeBiddingAccess: true,
             });
@@ -175,8 +176,18 @@ const createFleetOwner = async (req, res) => {
 // @desc    Update fleet owner
 // @route   PUT /api/fleet-owners/:id
 // @access  Private (Staff/Admin)
+const primaryEmailOf = (fleetOwner) => {
+  const contacts = fleetOwner?.contactPersons || [];
+  const contact = contacts.find((c) => c.isPrimary) || contacts[0];
+  return String(contact?.email || "").trim().toLowerCase();
+};
+
 const updateFleetOwner = async (req, res) => {
   try {
+    // Read the contact address before the edit, so a change to it can be
+    // detected below.
+    const before = await FleetOwner.findById(req.params.id).select("contactPersons userId").lean();
+
     const fleetOwner = await FleetOwner.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -187,7 +198,46 @@ const updateFleetOwner = async (req, res) => {
       return res.status(404).json({ message: "Fleet owner not found" });
     }
 
-    res.json(fleetOwner);
+    // ─── Keep the sign-in address with the contact address ──────────────────
+    // The carrier's login is created from the primary contact's email. Editing
+    // that contact afterwards used to leave the account on the old address, so
+    // credentials were mailed to one address while the account answered to
+    // another — and the carrier was told to sign in with an address that has no
+    // account. Correcting a typo in the contact was enough to cause it.
+    //
+    // Only moved when the two were in step beforehand. A login that was already
+    // deliberately different from the contact is somebody's decision, and is
+    // left alone rather than silently reassigned.
+    const oldEmail = primaryEmailOf(before);
+    const newEmail = primaryEmailOf(fleetOwner);
+
+    let loginNotice = null;
+
+    if (fleetOwner.userId && newEmail && newEmail !== oldEmail) {
+      const account = await User.findById(fleetOwner.userId);
+
+      if (account && String(account.email || "").trim().toLowerCase() === oldEmail) {
+        const clash = await User.findOne({ email: newEmail, _id: { $ne: account._id } });
+
+        if (clash) {
+          // Said out loud rather than skipped quietly. The address now shown on
+          // the carrier belongs to somebody else's account, so the sign-in
+          // address stays where it was — and staff need to know that before they
+          // mail credentials that name the wrong one.
+          loginNotice =
+            `Contact address updated, but the sign-in address is still ${account.email} — ` +
+            `${newEmail} already belongs to a ${clash.role} account.`;
+        } else {
+          account.email = newEmail;
+          await account.save();
+          loginNotice = `Sign-in address moved to ${newEmail}.`;
+        }
+      } else if (account) {
+        loginNotice = `Contact address updated. The sign-in address is unchanged at ${account.email}.`;
+      }
+    }
+
+    res.json(loginNotice ? { ...fleetOwner.toObject(), loginNotice } : fleetOwner);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -298,6 +348,7 @@ const sendCredentialsToFleetOwner = async (req, res) => {
         ? await sendFleetOwnerCredentials({
             carrierName: fleetOwner.carrierName,
             email,
+            loginEmail: user.email,
             password: generatedPassword,
           })
         : skippedManualEmailStatus(channel);
@@ -308,7 +359,12 @@ const sendCredentialsToFleetOwner = async (req, res) => {
         : channel === "email"
           ? `Credentials generated (${emailStatus.message || "email not sent"})`
           : "Credentials generated for manual sharing",
+      // Where it was sent, and what to actually type at the sign-in screen.
+      // These differ whenever the carrier's paperwork contact is not the person
+      // the account was opened under, and staff reading the password out need
+      // to quote the right one.
       email,
+      loginEmail: user.email,
       emailStatus,
       password: generatedPassword // Return password so staff can share via WhatsApp if needed
     });

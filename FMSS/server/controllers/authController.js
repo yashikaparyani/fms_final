@@ -520,7 +520,14 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).select("+password");
+    // Normalised before the lookup. Accounts are created with a lowercased
+    // address, but the sign-in form passed whatever was typed straight through —
+    // so a capitalised address, or one pasted from an email with a trailing
+    // space, found nothing and reported "Invalid credentials" even when the
+    // password was right.
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });

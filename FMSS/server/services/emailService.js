@@ -36,14 +36,17 @@ const sendCustomerCredentials = ({ customer, password }) =>
 const sendFleetOwnerCredentials = ({
   carrierName,
   email,
+  loginEmail,
   password,
   includeBiddingAccess = false,
 }) =>
   sendTemplate({
+    // Sent to the contact address; the body names the account to sign in with.
     to: email,
     template: templates.fleetOwnerCredentials({
       carrierName,
       email,
+      loginEmail,
       password,
       frontendUrl: frontendUrl(),
       includeBiddingAccess,
