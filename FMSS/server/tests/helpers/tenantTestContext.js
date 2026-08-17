@@ -30,9 +30,23 @@ const TEST_LOCATION_ID = "10ca10ca10ca10ca10ca10ca";
  * @param {{defaultRole?: string}} options  Role used when a request sends no
  *        `role` header — suites differ on whether that should be staff or admin.
  */
-const authMock = ({ defaultRole = "staff" } = {}) => ({
+const authMock = ({ defaultRole = "staff", bearerTestUser = false } = {}) => ({
   protect: [
     (req, res, next) => {
+      // Some suites authenticate with `Bearer TestUser <role> <id>` and check
+      // that a request with no header is refused. Those need the header to be
+      // the only way in — a mock that always invents a user turns their
+      // "rejects unauthenticated" case into a pass for the wrong reason.
+      if (bearerTestUser) {
+        const header = req.headers.authorization || "";
+        if (!header.startsWith("Bearer TestUser")) {
+          return res.status(401).json({ message: "Not authorized" });
+        }
+        const [, , role, id] = header.split(" ");
+        req.user = { _id: id, id, role };
+        return next();
+      }
+
       req.user = {
         _id: req.headers.userid
           ? new mongoose.Types.ObjectId(req.headers.userid)

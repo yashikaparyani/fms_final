@@ -435,7 +435,13 @@ const createCustomerByStaff = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error("❌ CREATE CUSTOMER ERROR:", err);
-    return res.status(500).json({ message: err.message });
+    // A duplicate email is something the caller can fix, so it is reported as a
+    // bad request rather than a server fault — a 500 sends staff to the logs
+    // looking for an outage that is not there.
+    const isCallerFixable = /already exists|are required|is required/i.test(
+      err.message || "",
+    );
+    return res.status(isCallerFixable ? 400 : 500).json({ message: err.message });
   }
 };
 

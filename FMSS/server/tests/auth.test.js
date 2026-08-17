@@ -1,6 +1,7 @@
 const request = require("supertest");
 const express = require("express");
-const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { connect, closeDatabase, clearDatabase } = require("./setupReplSet");
+const Branch = require("../models/Branch");
 const authRoutes = require("../routes/authRoutes");
 const User = require("../models/User");
 
@@ -14,13 +15,19 @@ beforeAll(async () => await connect());
 // Clear DB after each test
 afterEach(async () => await clearDatabase());
 
+// A public signup has no tenant context to inherit, so it names a branch — and
+// infers it when only one is active. See resolveSignupBranch.
+beforeEach(async () => {
+  await Branch.create({ name: "Head Office", code: "HO" });
+});
+
 // Close DB after all tests
 afterAll(async () => await closeDatabase());
 
 describe("Auth API", () => {
-  describe("POST /api/auth/register", () => {
+  describe("POST /api/auth/customer/register", () => {
     it("should register a new client user successfully", async () => {
-      const res = await request(app).post("/api/auth/register").send({
+      const res = await request(app).post("/api/auth/customer/register").send({
         firstName: "John",
         lastName: "Doe",
         email: "john@test.com",
@@ -42,7 +49,7 @@ describe("Auth API", () => {
         role: "client"
       });
 
-      const res = await request(app).post("/api/auth/register").send({
+      const res = await request(app).post("/api/auth/customer/register").send({
         firstName: "Jane",
         lastName: "Doe",
         email: "jane@test.com",
@@ -57,7 +64,7 @@ describe("Auth API", () => {
   describe("POST /api/auth/login", () => {
     it("should login successfully with valid credentials", async () => {
       // Create user first
-      await request(app).post("/api/auth/register").send({
+      await request(app).post("/api/auth/customer/register").send({
         firstName: "Mark",
         lastName: "Smith",
         email: "mark@test.com",
@@ -75,7 +82,7 @@ describe("Auth API", () => {
     });
 
     it("should fail login with invalid password", async () => {
-      await request(app).post("/api/auth/register").send({
+      await request(app).post("/api/auth/customer/register").send({
         firstName: "Mark",
         lastName: "Smith",
         email: "mark2@test.com",
@@ -88,14 +95,14 @@ describe("Auth API", () => {
       });
 
       expect(res.statusCode).toEqual(401);
-      expect(res.body.message).toEqual("Invalid email or password");
+      expect(res.body.message).toEqual("Invalid credentials");
     });
   });
 
   describe("GET /api/auth/me", () => {
     it("should get user profile with valid token", async () => {
       // Register and get token
-      const regRes = await request(app).post("/api/auth/register").send({
+      const regRes = await request(app).post("/api/auth/customer/register").send({
         firstName: "Alice",
         lastName: "Wonderland",
         email: "alice@test.com",

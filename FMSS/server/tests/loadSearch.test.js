@@ -2,7 +2,8 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed } = require("./helpers/tenantTestContext");
+const { seed, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
+const { withTenant } = require("../utils/tenantContext");
 const Load = require("../models/Load");
 const Customer = require("../models/Customer");
 
@@ -24,7 +25,10 @@ app.use("/api/loads", (req, res, next) => {
     role: req.headers.role || "staff",
   };
   next();
-}, (req, res) => getLoads(req, res));
+}, (req, res) =>
+  // Called directly rather than through `protect`, so the context the real
+  // resolveLocation would have opened has to be opened here.
+  withTenant({ locationId: TEST_LOCATION_ID }, () => getLoads(req, res)));
 
 const baseLoad = (over = {}) => ({
   createdBy: "staff",

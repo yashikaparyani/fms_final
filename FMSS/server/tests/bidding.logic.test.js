@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Load = require("../models/Load");
 const cronModule = require("../utils/cron");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { seed } = require("./helpers/tenantTestContext");
 
 describe("Auto-Bidding Logic (Unit Test)", () => {
   beforeAll(async () => await connect());
@@ -9,7 +10,7 @@ describe("Auto-Bidding Logic (Unit Test)", () => {
   afterAll(async () => await closeDatabase());
 
   beforeEach(async () => {
-    await Load.deleteMany({});
+    await seed(() => Load.deleteMany({}));
   });
 
   it("should select the lowest bid when bidEndTime expires", async () => {
@@ -17,9 +18,9 @@ describe("Auto-Bidding Logic (Unit Test)", () => {
     const pastDate = new Date();
     pastDate.setMinutes(pastDate.getMinutes() - 5);
 
-    const load = await Load.create({
+    const load = await seed(() => Load.create({
       loadId: "TEST_BID_001",
-      customer: "Test Customer",
+      customer: new mongoose.Types.ObjectId(),
       pickup: { city: "CityA", state: "StateA" },
       drop: { city: "CityB", state: "StateB" },
       truckType: "Flatbed",
@@ -47,14 +48,16 @@ describe("Auto-Bidding Logic (Unit Test)", () => {
           amount: 42000,
         }
       ]
-    });
+    }));
 
     // We can't trivially execute the setInterval in testing without jest fake timers or extracting the inner function.
     // Let's extract the core logic for the sake of the test:
-    const expiredLoads = await Load.find({
+    const expiredLoads = await seed(() =>
+      Load.find({
         bidStatus: "OPEN",
         bidEndTime: { $lte: new Date() },
-    });
+      }),
+    );
 
     expect(expiredLoads.length).toBe(1);
 
@@ -69,11 +72,11 @@ describe("Auto-Bidding Logic (Unit Test)", () => {
         expLoad.winningBid = winningBid;
         }
         expLoad.bidStatus = "CLOSED";
-        await expLoad.save();
+        await seed(() => expLoad.save());
     }
 
     // 3. Verify the load is closed and correct bid is selected
-    const updatedLoad = await Load.findOne({ loadId: "TEST_BID_001" });
+    const updatedLoad = await seed(() => Load.findOne({ loadId: "TEST_BID_001" }));
     expect(updatedLoad.bidStatus).toBe("CLOSED");
     expect(updatedLoad.winningBid.amount).toBe(38000);
     expect(updatedLoad.winningBid.fleetOwnerName).toBe("Cheap Carrier");

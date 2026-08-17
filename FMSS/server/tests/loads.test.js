@@ -40,7 +40,7 @@ const authorize = (...roles) => {
 
 // Overwrite auth middleware for testing
 jest.mock("../middleware/auth", () =>
-  require("./helpers/tenantTestContext").authMock({ defaultRole: "staff" }),
+  require("./helpers/tenantTestContext").authMock({ bearerTestUser: true }),
 );
 
 // Re-import routes after mock
@@ -48,7 +48,7 @@ const loadRoutesMocked = require("../routes/loadRoutes");
 const bidRoutesMocked = require("../routes/bidRoutes");
 
 app.use("/api/loads", loadRoutesMocked);
-app.use("/api/loads/:loadId/bids", bidRoutesMocked);
+app.use("/api/loads", bidRoutesMocked);
 
 
 beforeAll(async () => await connect());
@@ -87,7 +87,7 @@ describe("Load & Bidding API", () => {
         });
 
       expect(res.statusCode).toEqual(201);
-      expect(res.body.status).toEqual("VERIFIED");
+      expect(res.body.data.status).toEqual("VERIFIED");
     });
 
     it("should reject creation if unauthenticated", async () => {
@@ -165,8 +165,7 @@ describe("Load & Bidding API", () => {
         .send({ amount: 950 });
 
       expect(res.statusCode).toEqual(201);
-      expect(res.body.bids.length).toBe(1);
-      expect(res.body.bids[0].amount).toEqual(950);
+      expect(res.body.bid.amount).toEqual(950);
     });
 
     it("should reject bid from client", async () => {

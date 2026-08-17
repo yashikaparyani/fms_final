@@ -1,8 +1,10 @@
 const request = require("supertest");
 const express = require("express");
-const { connect, closeDatabase, clearDatabase } = require("./setup");
+const { connect, closeDatabase, clearDatabase } = require("./setupReplSet");
+const Branch = require("../models/Branch");
 const { seed } = require("./helpers/tenantTestContext");
 const User = require("../models/User");
+const Customer = require("../models/Customer");
 
 // Mock auth middleware before importing routes
 jest.mock("../middleware/auth", () =>
@@ -14,29 +16,35 @@ const customerRoutes = require("../routes/customerRoutes");
 const app = express();
 app.use(express.json());
 app.use("/api/customers", customerRoutes);
+// Customer creation moved to the auth router when it grew a transaction and a
+// location; POST /api/customers is no longer mounted.
+app.use("/api/auth", require("../routes/authRoutes"));
 
 beforeAll(async () => await connect());
 afterEach(async () => await clearDatabase());
+beforeEach(async () => {
+  await Branch.create({ name: "Head Office", code: "HO" });
+});
 afterAll(async () => await closeDatabase());
 
 describe("Customer API", () => {
 
-  describe("POST /api/customers", () => {
+  describe("POST /api/auth/staff/create-customer", () => {
     it("should create a new customer", async () => {
       const res = await request(app)
-        .post("/api/customers")
+        .post("/api/auth/staff/create-customer")
         .set("role", "staff")
         .send({
           firstName: "John",
           lastName: "Customer",
-          email: "john.customer@test.com"
+          email: "john.customer@test.com",
+          phone: "555-0100"
         });
 
       expect(res.statusCode).toEqual(201);
-      expect(res.body.customer).toHaveProperty("firstName", "John");
-      expect(res.body.customer).toHaveProperty("role", "client");
-      expect(res.body).toHaveProperty("password");
-      expect(res.body.credentialsGenerated).toBe(true);
+      expect(res.body.user).toHaveProperty("firstName", "John");
+      expect(res.body.user).toHaveProperty("role", "client");
+      expect(res.body).toHaveProperty("tempPassword");
     });
 
     it("should fail if email already exists", async () => {
@@ -49,12 +57,13 @@ describe("Customer API", () => {
       });
 
       const res = await request(app)
-        .post("/api/customers")
+        .post("/api/auth/staff/create-customer")
         .set("role", "staff")
         .send({
           firstName: "Another",
           lastName: "User",
-          email: "existing@test.com"
+          email: "existing@test.com",
+          phone: "555-0101"
         });
 
       expect(res.statusCode).toEqual(400);
@@ -92,7 +101,14 @@ describe("Customer API", () => {
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.length).toEqual(2);
-      expect(res.body.every(c => c.role === "client")).toBe(true);
+      // The endpoint filters to clients and does not echo `role` back, so the
+      // check is that the staff account is absent rather than that every row
+      // carries a field the response no longer has.
+      const emails = res.body.map((c) => c.email);
+      expect(emails).toEqual(
+        expect.arrayContaining(["client1@test.com", "client2@test.com"]),
+      );
+      expect(emails).not.toContain("staff@test.com");
     });
   });
 
@@ -140,6 +156,9 @@ describe("Customer API", () => {
         password: "password123",
         role: "client"
       });
+      await seed(() =>
+        Customer.create({ user: customer._id, customerName: "Original Name" }),
+      );
 
       const res = await request(app)
         .put(`/api/customers/${customer._id}`)
@@ -150,7 +169,7 @@ describe("Customer API", () => {
         });
 
       expect(res.statusCode).toEqual(200);
-      expect(res.body.firstName).toEqual("Updated");
+      expect(res.body.user.firstName).toEqual("Updated");
     });
   });
 
@@ -163,13 +182,16 @@ describe("Customer API", () => {
         password: "password123",
         role: "client"
       });
+      await seed(() =>
+        Customer.create({ user: customer._id, customerName: "To Delete" }),
+      );
 
       const res = await request(app)
         .delete(`/api/customers/${customer._id}`)
         .set("role", "staff");
 
       expect(res.statusCode).toEqual(200);
-      expect(res.body.message).toEqual("Customer deleted");
+      expect(res.body.message).toEqual("Customer deleted successfully");
 
       // Verify deletion
       const deleted = await User.findById(customer._id);

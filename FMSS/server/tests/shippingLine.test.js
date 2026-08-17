@@ -99,9 +99,14 @@ describe("Shipping Line API", () => {
       }
     });
 
-    it("should forbid a fleet owner from reading the list", async () => {
+    // A carrier reads this list too: the street-turn confirmation box asks them
+    // to name the shipping line the container is going back to. Reading is open
+    // to the office, clients and carriers; managing the master stays admin-only,
+    // which the POST/PUT/DELETE cases above and below cover.
+    it("should let a fleet owner read the list for the street-turn box", async () => {
       const res = await request(app).get("/api/shipping-lines").set("role", "fleetOwner");
-      expect(res.statusCode).toEqual(403);
+      expect(res.statusCode).toEqual(200);
+      expect(res.body).toHaveLength(3);
     });
   });
 

@@ -27,7 +27,7 @@ afterEach(async () => await clearDatabase());
 afterAll(async () => await closeDatabase());
 
 const makeLoad = () =>
-  Load.create({
+  seed(() => Load.create({
     loadId: "LD-NEG-1",
     customer: new mongoose.Types.ObjectId(),
     truckType: "Container",
@@ -39,7 +39,7 @@ const makeLoad = () =>
     bidStatus: "OPEN",
     status: "VERIFIED",
     createdBy: "staff",
-  });
+  }));
 
 const makeCarrier = async (carrierName) => {
   const userId = new mongoose.Types.ObjectId();
