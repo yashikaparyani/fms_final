@@ -1,0 +1,42 @@
+{
+  "_comment": [
+    "Development watcher settings.",
+    "",
+    "Without this, nodemon watches the whole server directory — including",
+    "uploads/, which the application itself writes to at runtime. Signing an",
+    "agreement, generating a POD, or a driver uploading proof all drop a file",
+    "in there, nodemon sees the change and restarts the API underneath the",
+    "request that caused it. The browser gets ECONNRESET on the request in",
+    "flight and ECONNREFUSED on everything until the restart finishes.",
+    "",
+    "tests/ and scripts/ are ignored for the same reason at lower stakes: they",
+    "are not part of the running server, so editing a test should not bounce it."
+  ],
+
+  "watch": [
+    "index.js",
+    "config",
+    "controllers",
+    "middleware",
+    "models",
+    "plugins",
+    "routes",
+    "services",
+    "utils",
+    "validators"
+  ],
+
+  "ext": "js,json",
+
+  "ignore": [
+    "uploads/*",
+    "tests/*",
+    "scripts/*",
+    "assets/*",
+    "node_modules/*",
+    "*.tmp.js",
+    "*.test.js"
+  ],
+
+  "delay": 800
+}
