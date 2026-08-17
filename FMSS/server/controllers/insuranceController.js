@@ -41,7 +41,7 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const frontendUrl = () => process.env.FRONTEND_URL || "http://localhost:5173";
+const { frontendUrl } = require("../utils/frontendUrl");
 
 const insuranceLinkFor = (token) => `${frontendUrl()}/insurance/${token}`;
 

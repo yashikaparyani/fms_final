@@ -65,7 +65,7 @@ const TEMPLATE_META = {
   },
 };
 
-const getFrontendUrl = () => process.env.FRONTEND_URL || "http://localhost:5173";
+const { frontendUrl: getFrontendUrl } = require("../utils/frontendUrl");
 
 // @desc    Get email configuration
 // @route   GET /api/config/email

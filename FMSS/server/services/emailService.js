@@ -1,7 +1,7 @@
 const { sendEmail } = require("../utils/mailer");
 const templates = require("./emailTemplates");
 
-const frontendUrl = () => process.env.FRONTEND_URL || "http://localhost:5173";
+const { frontendUrl } = require("../utils/frontendUrl");
 
 const toEmailStatus = (result) => ({
   requested: !!result?.requested,
