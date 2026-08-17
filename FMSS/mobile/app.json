@@ -1,12 +1,13 @@
 {
   "expo": {
     "name": "FMSS Fleet",
-    "slug": "fmss-fleet-mobile",
+    "slug": "bestloaders-fms",
     "version": "0.1.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fmssfleet",
     "ios": {
+      "bundleIdentifier": "com.bestloaders.fmssfleet",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "FMSS needs your live location while a picked-up load is in transit.",
@@ -16,17 +17,13 @@
         "UIBackgroundModes": [
           "location",
           "location"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.bestloaders.fmssfleet",
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
@@ -37,14 +34,15 @@
     "extra": {
       "apiUrl": "https://bestloaders.com/api",
       "eas": {
-        "projectId": "f61bdd54-9435-4a8f-a592-a2c2799dff39"
+        "projectId": "2455285a-810a-4b11-b626-1b5f190b4eb1"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/f61bdd54-9435-4a8f-a592-a2c2799dff39"
-    }
+      "url": "https://u.expo.dev/2455285a-810a-4b11-b626-1b5f190b4eb1"
+    },
+    "owner": "bestloaders"
   }
 }
