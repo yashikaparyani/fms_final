@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
@@ -70,6 +71,16 @@ const Onboarding = () => {
   const { role } = usePermissions();
   const isOffice = ["staff", "admin"].includes(role);
 
+  // A carrier's own file resolves from their account and needs no id. The
+  // office has no carrier of their own, so every call they make has to name
+  // one — it comes off the URL, which is what the review screen links with.
+  const [searchParams] = useSearchParams();
+  const fleetOwnerId = searchParams.get("fleetOwnerId") || "";
+  // Sent on every request rather than only where it is strictly required: the
+  // server ignores it for a carrier, so one spread keeps the two cases from
+  // needing two versions of each call.
+  const forCarrier = fleetOwnerId ? { fleetOwnerId } : {};
+
   const [catalog, setCatalog] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +112,9 @@ const Onboarding = () => {
     try {
       const [catalogRes, dataRes] = await Promise.all([
         api.get("/onboarding/catalog"),
-        api.get("/onboarding"),
+        api.get("/onboarding", {
+          params: fleetOwnerId ? { fleetOwnerId } : {},
+        }),
       ]);
 
       setCatalog(catalogRes.data);
@@ -124,7 +137,7 @@ const Onboarding = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fleetOwnerId]);
 
   useEffect(() => {
     load();
@@ -144,6 +157,7 @@ const Onboarding = () => {
     try {
       setSaving(true);
       const { data: saved } = await api.put("/onboarding/profile", {
+        ...forCarrier,
         profile,
         equipment: equipment.filter((e) => e.vin || e.make || e.unitNumber),
         currentStep: nextStep || step,
@@ -207,6 +221,7 @@ const Onboarding = () => {
       const { data: saved } = await api.post(
         `/onboarding/agreements/${agreement.key}/sign`,
         {
+          ...forCarrier,
           profile,
           values: signState.values,
           acknowledgements: signState.acknowledgements,
@@ -239,6 +254,7 @@ const Onboarding = () => {
   const downloadAgreement = async (agreement) => {
     try {
       const res = await api.get(`/onboarding/agreements/${agreement.key}/download`, {
+        params: forCarrier,
         responseType: "blob",
       });
 
@@ -266,7 +282,10 @@ const Onboarding = () => {
       setSaving(true);
       setDriverErrors({});
 
-      const { data: result } = await api.post("/drivers/bulk", { drivers: filled });
+      const { data: result } = await api.post("/drivers/bulk", {
+        ...forCarrier,
+        drivers: filled,
+      });
 
       if (result.failedCount) {
         applyDriverFailures(result, filled);
@@ -310,6 +329,7 @@ const Onboarding = () => {
 
     const body = new FormData();
     body.append("license", file);
+    if (fleetOwnerId) body.append("fleetOwnerId", fleetOwnerId);
     // Sent alongside so a carrier who has not typed the licence details yet can
     // do it in one action rather than two.
     if (driver.licenseNumber) body.append("licenseNumber", driver.licenseNumber);
@@ -342,7 +362,10 @@ const Onboarding = () => {
 
     try {
       setSaving(true);
-      const { data: result } = await api.post("/insurance/invite", insuranceForm);
+      const { data: result } = await api.post("/insurance/invite", {
+        ...forCarrier,
+        ...insuranceForm,
+      });
       setData(result.onboarding);
       setInsuranceLink(result.link || "");
       notify.success(result.message);
@@ -356,7 +379,7 @@ const Onboarding = () => {
   const remindAgent = async () => {
     try {
       setSaving(true);
-      const { data: result } = await api.post("/insurance/remind", {});
+      const { data: result } = await api.post("/insurance/remind", { ...forCarrier });
       setData(result.onboarding);
       setInsuranceLink(result.link || "");
       notify.success(result.message);
@@ -465,6 +488,24 @@ const Onboarding = () => {
           {data.carrier.fleetOwnerCode ? ` · ${data.carrier.fleetOwnerCode}` : ""}
         </p>
       </div>
+
+      {/* The office working a carrier's file for them. Said plainly, because
+          every action on this page then lands on somebody else's record. */}
+      {isOffice && fleetOwnerId && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-800">
+          <span>
+            You are completing this file <strong>on behalf of the carrier</strong>.
+            Everything you sign or upload here is recorded against them.
+          </span>
+          <Link
+            to={`../onboarding-review/${fleetOwnerId}`}
+            relative="path"
+            className="btn-secondary whitespace-nowrap"
+          >
+            Back to review
+          </Link>
+        </div>
+      )}
 
       {statusBanner && (
         <div className={`rounded-xl border p-3 text-sm ${statusBanner.tone}`}>

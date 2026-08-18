@@ -73,6 +73,18 @@ export const navItems = [
     permission: "fleetOwners.view",
   },
   {
+    // The office end of carrier onboarding: the queue of files waiting on a
+    // decision, and the screen the documents are actually verified on. Sits
+    // next to Fleet Owners because it is the same directory read a different
+    // way — "who can we dispatch to" rather than "who exists".
+    label: "Onboarding Review",
+    path: "onboarding-review",
+    icon: FactCheckOutlinedIcon,
+    visible: ["staff", "admin"],
+    permission: "fleetOwners.view",
+    description: "Verify carrier agreements, licences and insurance",
+  },
+  {
     label: "New Load",
     path: "create-load",
     icon: AddBoxOutlinedIcon,

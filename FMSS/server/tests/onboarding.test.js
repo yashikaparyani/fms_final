@@ -697,4 +697,38 @@ describe("Office review", () => {
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.body[0].agreementCount).toBe(2);
   });
+
+  it("summarises the roster on each queue row", async () => {
+    // The office triages this list without opening every file, so the counts a
+    // row is filtered and sorted on have to come back with it.
+    await signContractor();
+    await call("post", "/api/drivers/bulk", carrierUser, ny).send({
+      drivers: [{ name: "Ajay Singh" }, { name: "Marcus Webb" }],
+    });
+
+    const res = await call("get", "/api/onboarding/queue", staff, ny);
+    const row = res.body.find((r) => r.carrier?._id === String(carrier._id));
+
+    expect(row.driverCount).toBe(2);
+    // Neither has a licence scan attached yet.
+    expect(row.licencesMissing).toBe(2);
+    expect(row.signedCount).toBe(1);
+    expect(row.outstandingCount).toBeGreaterThan(0);
+  });
+
+  it("names who made the decision", async () => {
+    await call("put", "/api/onboarding/review", staff, ny).send({
+      fleetOwnerId: String(carrier._id),
+      decision: "REJECTED",
+      note: "The cargo certificate names the wrong insured.",
+    });
+
+    const res = await call("get", "/api/onboarding", staff, ny).query({
+      fleetOwnerId: String(carrier._id),
+    });
+
+    expect(res.body.status).toBe("REJECTED");
+    expect(res.body.reviewedByName).toBe("office@fms.com");
+    expect(res.body.reviewNote).toMatch(/wrong insured/);
+  });
 });

@@ -237,6 +237,13 @@ const toPayload = (onboarding, { carrier, drivers }) => ({
     shortfalls: onboarding.insurance?.shortfalls || [],
   },
   reviewedAt: onboarding.reviewedAt,
+  // Only filled when the caller populated it — the write paths deliberately do
+  // not, so a save never drags a User document along with it.
+  reviewedByName: onboarding.reviewedBy?.firstName
+    ? [onboarding.reviewedBy.firstName, onboarding.reviewedBy.lastName]
+        .filter(Boolean)
+        .join(" ")
+    : onboarding.reviewedBy?.email || "",
   reviewNote: onboarding.reviewNote,
   submittedAt: onboarding.submittedAt,
   outstanding: outstandingFor(onboarding, drivers),
@@ -268,6 +275,12 @@ const getOnboarding = async (req, res) => {
     const carrier = await resolveCarrier(req, req.query.fleetOwnerId);
     const onboarding = await loadOrCreate(carrier, req.user);
     const drivers = await driversFor(carrier._id);
+
+    // Who signed the file off, for the office's own review screen. Populated on
+    // the read only — see the note in toPayload.
+    if (onboarding.reviewedBy) {
+      await onboarding.populate("reviewedBy", "firstName lastName email");
+    }
 
     res.json(toPayload(onboarding, { carrier, drivers }));
   } catch (error) {
@@ -645,6 +658,10 @@ const reviewOnboarding = async (req, res) => {
     onboarding.reviewNote = trimmed(req.body.note);
     await onboarding.save();
 
+    // After the save, never before: the response names the reviewer, the stored
+    // document keeps the id.
+    await onboarding.populate("reviewedBy", "firstName lastName email");
+
     res.json({
       message:
         decision === "APPROVED"
@@ -667,22 +684,51 @@ const getOnboardingQueue = async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
+    // The rosters for every file in one query rather than one per row. The
+    // office triages this list by "what is missing", and a driver with no
+    // licence on file is the most common answer — working it out only after
+    // opening each file would make the list useless for exactly that.
+    const drivers = await Driver.find({
+      fleetOwner: { $in: files.map((f) => f.fleetOwner?._id).filter(Boolean) },
+      active: { $ne: false },
+    })
+      .select("fleetOwner name licenseDocument licenseExpiry")
+      .lean();
+
+    const rosterFor = new Map();
+    drivers.forEach((driver) => {
+      const key = String(driver.fleetOwner);
+      if (!rosterFor.has(key)) rosterFor.set(key, []);
+      rosterFor.get(key).push(driver);
+    });
+
     res.json(
-      files.map((file) => ({
-        _id: file._id,
-        status: file.status,
-        carrier: file.fleetOwner,
-        legalName: file.profile?.legalName || "",
-        mcNumber: file.profile?.mcNumber || "",
-        signedCount: (file.agreements || []).filter((a) => a.signedAt).length,
-        agreementCount: AGREEMENT_KEYS.length,
-        insuranceSubmittedAt: file.insurance?.submittedAt || null,
-        insuranceAgent: file.insurance?.agencyName || file.insurance?.agentEmail || "",
-        policyCount: (file.insurance?.policies || []).length,
-        shortfalls: (file.insurance?.shortfalls || []).length,
-        submittedAt: file.submittedAt,
-        updatedAt: file.updatedAt,
-      })),
+      files.map((file) => {
+        const roster = rosterFor.get(String(file.fleetOwner?._id)) || [];
+
+        return {
+          _id: file._id,
+          status: file.status,
+          carrier: file.fleetOwner,
+          legalName: file.profile?.legalName || "",
+          mcNumber: file.profile?.mcNumber || "",
+          signedCount: (file.agreements || []).filter((a) => a.signedAt).length,
+          agreementCount: AGREEMENT_KEYS.length,
+          driverCount: roster.length,
+          licencesMissing: roster.filter((d) => !d.licenseDocument?.filePath).length,
+          insuranceSubmittedAt: file.insurance?.submittedAt || null,
+          insuranceAgent: file.insurance?.agencyName || file.insurance?.agentEmail || "",
+          policyCount: (file.insurance?.policies || []).length,
+          shortfalls: (file.insurance?.shortfalls || []).length,
+          // Same list the carrier is shown on their own Review step, so the
+          // office and the carrier are never looking at different answers to
+          // "what is this file waiting on".
+          outstandingCount: outstandingFor(file, roster).length,
+          submittedAt: file.submittedAt,
+          reviewedAt: file.reviewedAt || null,
+          updatedAt: file.updatedAt,
+        };
+      }),
     );
   } catch (error) {
     res.status(500).json({ message: error.message });

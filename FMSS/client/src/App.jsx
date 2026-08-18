@@ -56,6 +56,8 @@ import WhatsAppSettings from "./pages/admin/WhatsAppSettings";
 import Drivers from "./pages/fleetOwner/Drivers";
 import Onboarding from "./pages/fleetOwner/Onboarding";
 import CarrierOnboardingGate from "./components/onboarding/CarrierOnboardingGate";
+import CarrierOnboardingQueue from "./pages/staff/CarrierOnboardingQueue";
+import CarrierOnboardingReview from "./pages/staff/CarrierOnboardingReview";
 import DriverLocations from "./pages/fleetOwner/DriverLocations";
 import MyLicense from "./pages/driver/MyLicense";
 import AccountingSummary from "./pages/accounting/AccountingSummary";
@@ -167,6 +169,24 @@ function App() {
           {/* The office completes onboarding on a carrier's behalf — a good half
               of these get finished over the phone. `?fleetOwnerId=` picks whose. */}
           <Route path="carrier-onboarding" element={<Onboarding />} />
+          {/* …and reviews the finished article here. This is the screen behind
+              "the office is reviewing your file" on the carrier's side. */}
+          <Route
+            path="onboarding-review"
+            element={
+              <PermissionGate permission="fleetOwners.view">
+                <CarrierOnboardingQueue />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="onboarding-review/:fleetOwnerId"
+            element={
+              <PermissionGate permission="fleetOwners.view">
+                <CarrierOnboardingReview />
+              </PermissionGate>
+            }
+          />
           <Route path="shipping-lines" element={<ShippingLines />} />
           <Route path="delivery-partners" element={<DeliveryPartners />} />
           <Route path="chassis-companies" element={<ChassisCompanies />} />
@@ -232,6 +252,25 @@ function App() {
               location — a carrier phoning in a new driver should not need to log
               in to do it. */}
           <Route path="drivers" element={<Drivers />} />
+          {/* Same pair as the admin area: work a carrier's file with them on the
+              phone, then review the finished one. */}
+          <Route path="carrier-onboarding" element={<Onboarding />} />
+          <Route
+            path="onboarding-review"
+            element={
+              <PermissionGate permission="fleetOwners.view">
+                <CarrierOnboardingQueue />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="onboarding-review/:fleetOwnerId"
+            element={
+              <PermissionGate permission="fleetOwners.view">
+                <CarrierOnboardingReview />
+              </PermissionGate>
+            }
+          />
           <Route path="customers/:id/edit" element={<EditCustomerPage />} />
           <Route
             path="fleet-owners/:id/edit"
