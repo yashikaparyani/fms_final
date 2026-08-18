@@ -12,6 +12,7 @@ import {
   AssignDropdown,
   MobileAssignInline,
 } from "../components/AssignFleetOwnerPickers";
+import AssignCarrierLegsDialog from "../components/AssignCarrierLegsDialog";
 import ScheduleBidding from "../pages/ScheduleBidding";
 import { notify } from "../utils/swal";
 
@@ -25,6 +26,24 @@ export const getAssignedName = (load, fleetOwners) => {
     if (fo) return fo.carrierName;
   }
   return null;
+};
+
+
+/**
+ * Every carrier on a load, in the order they run it.
+ *
+ * A load split between carriers has no single "assigned carrier" — naming only
+ * the first would tell a dispatcher the load is with one carrier when it is
+ * with two.
+ */
+export const getAssignedNames = (load, fleetOwners) => {
+  if (load?.assignments?.length) {
+    return load.assignments.map(
+      (leg) => leg.fleetOwnerName || "Unnamed carrier",
+    );
+  }
+  const single = getAssignedName(load, fleetOwners);
+  return single ? [single] : [];
 };
 
 /**
@@ -62,6 +81,7 @@ export const useDispatchActions = (refresh) => {
   const [saving, setSaving] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedLoad, setSelectedLoad] = useState(null);
+  const [legsLoad, setLegsLoad] = useState(null);
 
   useEffect(() => {
     api
@@ -104,6 +124,33 @@ export const useDispatchActions = (refresh) => {
     }
   };
 
+
+  /**
+   * Save the whole set of carrier legs for a load.
+   *
+   * One call carrying every leg rather than one per leg: the split is a single
+   * decision, and a load must never be visible to the carriers in a
+   * half-assigned state between two requests.
+   */
+  const handleSaveLegs = async (assignments) => {
+    setSaving(true);
+    try {
+      const { data } = await api.put(
+        `/loads/${legsLoad.loadId}/assignments`,
+        { assignments },
+      );
+      setLegsLoad(null);
+      await refresh();
+      notify.success(data.message || "Assignment saved.");
+    } catch (err) {
+      notify.error(
+        err.response?.data?.message || "Could not save that assignment.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openSchedule = (load) => {
     setSelectedLoad(load);
     setScheduleOpen(true);
@@ -139,6 +186,12 @@ export const useDispatchActions = (refresh) => {
         >
           {assignedName ? "Reassign" : "Assign Driver"}
         </button>
+        <button
+          onClick={() => setLegsLoad(load)}
+          className="btn-secondary-small"
+        >
+          {load.assignments?.length > 1 ? "Edit Carriers" : "Split / Carriers"}
+        </button>
       </div>
     );
   };
@@ -160,6 +213,11 @@ export const useDispatchActions = (refresh) => {
         color: "#2563eb",
         onClick: () => setOpenRow(load.loadId),
       },
+      {
+        label: load.assignments?.length > 1 ? "Edit Carriers" : "Split / Carriers",
+        color: "#7c3aed",
+        onClick: () => setLegsLoad(load),
+      },
     ];
   };
 
@@ -175,6 +233,19 @@ export const useDispatchActions = (refresh) => {
     ) : null;
 
   const modal = (
+    <>
+      {/* Keyed by the load so each one opens on its own legs rather than on
+          whatever the previously opened load left behind. */}
+      {legsLoad && (
+        <AssignCarrierLegsDialog
+          key={legsLoad.loadId}
+          load={legsLoad}
+          fleetOwners={fleetOwners}
+          saving={saving}
+          onSave={handleSaveLegs}
+          onClose={() => setLegsLoad(null)}
+        />
+      )}
     <ScheduleBidding
       open={scheduleOpen}
       onClose={() => {
@@ -184,11 +255,12 @@ export const useDispatchActions = (refresh) => {
       load={selectedLoad}
       refreshLoads={refresh}
     />
+    </>
   );
 
   return {
     fleetOwners,
-    busy: Boolean(openRow) || saving || scheduleOpen,
+      busy: Boolean(openRow) || saving || scheduleOpen || Boolean(legsLoad),
     isPickerOpen,
     desktopActions,
     mobileActions,

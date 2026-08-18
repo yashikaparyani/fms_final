@@ -16,7 +16,7 @@ import {
   dropDateOf,
   isLfdAlarming,
   pickupDateOf,
-  sortByUrgency,
+  sortByPickupDate,
 } from "../../utils/loadUrgency";
 
 const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, DateCell, fmtDate } =
@@ -47,7 +47,7 @@ const VerifiedLoadsTable = () => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
+  const sortedRows = useMemo(() => sortByPickupDate(rows), [rows]);
 
   // `silent` leaves the spinner alone so the background refresh is invisible.
   const fetchLoads = async ({ silent = false } = {}) => {
@@ -174,7 +174,7 @@ const VerifiedLoadsTable = () => {
       <div className="mb-4">
         <h2 className="text-lg font-bold text-gray-900">Dispatch Management</h2>
         <p className="text-sm text-gray-500">
-          Loads cleared for bidding, most urgent pickup first
+          Loads cleared for bidding, earliest pickup first
         </p>
         <UrgencyLegend />
       </div>

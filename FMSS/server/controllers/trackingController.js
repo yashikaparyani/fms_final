@@ -1,5 +1,6 @@
 const Load = require("../models/Load");
 const TrackingEvent = require("../models/TrackingEvent");
+const Driver = require("../models/Driver");
 const {
   publishTrackingUpdate,
   subscribeToLoadTracking,
@@ -67,12 +68,37 @@ const getAssignedFleetOwner = async (req, load) => {
 
   if (!fleetOwner) return null;
 
-  const assignedId = load.assignedFleetOwner?.fleetOwnerId;
-  if (!assignedId || assignedId.toString() !== fleetOwner._id.toString()) {
-    return null;
-  }
+  // The carrier running the whole load, or running one leg of it. A load can
+  // be split between carriers, and the carrier on the second leg is driving it
+  // just as much as the first — checking only the primary would leave them
+  // unable to start tracking, or even watch their own truck.
+  const carrierId = fleetOwner._id.toString();
 
-  return fleetOwner;
+  const isPrimary =
+    load.assignedFleetOwner?.fleetOwnerId?.toString() === carrierId;
+
+  const onALeg = (load.assignments || []).some(
+    (leg) => leg.fleetOwnerId?.toString() === carrierId,
+  );
+
+  return isPrimary || onALeg ? fleetOwner : null;
+};
+
+/**
+ * The driver behind this request, if it is a driver making it.
+ *
+ * `requireDriverLicense` has already looked this up on the routes it guards, so
+ * the common path costs nothing; the fallback is for the routes it does not
+ * guard, such as the position pings that follow a started trip.
+ *
+ * A carrier or an office account resolves to nobody, on purpose: they are not
+ * driving, and recording them as the driver would put a company where a person
+ * belongs.
+ */
+const driverForRequest = async (req) => {
+  if (req.user?.role !== "driver") return null;
+  if (req.driver) return req.driver;
+  return Driver.findOne({ userId: req.user._id }).select("_id name").lean();
 };
 
 const canViewTracking = async (req, load) => {
@@ -96,10 +122,14 @@ const canViewTracking = async (req, load) => {
 };
 
 const createTrackingEvent = async ({ load, fleetOwner, req, location }) => {
+  const driver = await driverForRequest(req);
+
   const event = await TrackingEvent.create({
     load: load._id,
     loadId: load.loadId,
     fleetOwner: fleetOwner?._id || load.assignedFleetOwner?.fleetOwnerId,
+    driver: driver?._id,
+    driverName: driver?.name,
     user: req.user._id,
     coordinates: {
       latitude: location.latitude,
@@ -186,6 +216,16 @@ const startTracking = async (req, res) => {
 
     load.liveTracking = load.liveTracking || {};
     load.liveTracking.status = "ACTIVE";
+
+    // The trip belongs to the driver who started it, not to their carrier: a
+    // carrier is a company and a company is not anywhere. Left as it was when
+    // the office starts a trip administratively, so a real driver already on it
+    // is not overwritten by whoever pressed the button.
+    const startingDriver = await driverForRequest(req);
+    if (startingDriver) {
+      load.liveTracking.driver = startingDriver._id;
+      load.liveTracking.driverName = startingDriver.name;
+    }
     load.liveTracking.isRequired = true;
     load.liveTracking.startedAt = load.liveTracking.startedAt || new Date();
     load.liveTracking.startedBy = req.user._id;

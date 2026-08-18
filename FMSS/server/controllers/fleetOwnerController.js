@@ -2,7 +2,11 @@ const FleetOwner = require("../models/FleetOwner");
 const User = require("../models/User");
 const Load = require("../models/Load")
 const { sendFleetOwnerCredentials } = require("../services/emailService");
-const { findCarrierFor } = require("../utils/carrierAccount");
+const {
+  findCarrierFor,
+  carrierLoadFilter,
+  carrierLoadView,
+} = require("../utils/carrierAccount");
 const mongoose = require("mongoose");
 
 // Generate random password
@@ -385,12 +389,28 @@ const getAssignedLoadToConfirm = async (req, res) => {
     }
      const fleetOwnerId = new mongoose.Types.ObjectId(fleetOwner._id);
 
-    // Find assigned loads using fleet owner name
-   const assignedLoads = await Load.find({
-      "assignedFleetOwner.fleetOwnerId": fleetOwnerId
-    }).sort({ createdAt: -1 });
+    // Loads this carrier holds outright, plus loads where they run one leg
+    // of a split — see carrierLoadFilter.
+    const assignedLoads = await Load.find(carrierLoadFilter(fleetOwnerId))
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.status(200).json(assignedLoads);
+    // Their own bids on these loads, in one query rather than one per load. A
+    // load awarded after a negotiation has to show the settled amount, not the
+    // rate it was posted at — see carrierPayoutFor.
+    const Bid = require("../models/bidSchema");
+    const myBids = await Bid.find({
+      fleetOwnerId,
+      loadId: { $in: assignedLoads.map((l) => l._id) },
+    }).lean();
+
+    const bidByLoad = new Map(myBids.map((b) => [String(b.loadId), b]));
+
+    res.status(200).json(
+      assignedLoads.map((load) =>
+        carrierLoadView(load, fleetOwnerId, bidByLoad.get(String(load._id))),
+      ),
+    );
 
   } catch (error) {
     res.status(500).json({ message: error.message });

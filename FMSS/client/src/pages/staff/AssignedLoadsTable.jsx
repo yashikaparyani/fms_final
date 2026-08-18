@@ -14,7 +14,7 @@ import {
   dropDateOf,
   isLfdAlarming,
   pickupDateOf,
-  sortByUrgency,
+  sortByPickupDate,
 } from "../../utils/loadUrgency";
 
 const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, DateCell, fmtDate } = LoadTable;
@@ -77,7 +77,36 @@ const WhatsAppButton = ({ phone }) => {
 };
 
 // ─── Carrier Cell (desktop) ───────────────────────────────────────────────────
+// A load split between carriers is shown as its legs, in running order. Naming
+// only the first would read as "this load is with one carrier" when it is with
+// two, and the leg each one runs is the thing dispatch is actually asked about.
+const CarrierLegs = ({ load }) => (
+  <div className="space-y-1.5">
+    {load.assignments.map((leg, index) => (
+      <div key={leg._id || index} className="leading-tight">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold text-white bg-indigo-600 rounded px-1 py-px flex-shrink-0">
+            {index + 1}
+          </span>
+          <span className="text-xs font-bold text-green-800 truncate">
+            {leg.fleetOwnerName}
+          </span>
+        </div>
+        <p className="text-[10px] text-gray-500 pl-5 truncate">
+          {[leg.origin?.city, leg.destination?.city].filter(Boolean).join(" → ") ||
+            "—"}
+          {leg.transportStatus
+            ? " · " + leg.transportStatus.replace(/_/g, " ").toLowerCase()
+            : ""}
+        </p>
+      </div>
+    ))}
+  </div>
+);
+
 const CarrierCell = ({ load, fleetOwners }) => {
+  if (load.assignments?.length) return <CarrierLegs load={load} />;
+
   const owner = getAssignedOwner(load, fleetOwners);
   if (owner) {
     return (
@@ -272,13 +301,13 @@ const AssignedLoadsTable = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
 
-  const sortedRows = useMemo(() => sortByUrgency(rows), [rows]);
+  const sortedRows = useMemo(() => sortByPickupDate(rows), [rows]);
 
   // `silent` leaves the spinner alone so the background refresh is invisible.
   const fetchLoads = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const res = await api.get("/loads?status=ASSIGNED");
+      const res = await api.get("/loads?status=ASSIGNED&completed=false");
       setRows(res.data);
     } catch (err) {
       console.error("Failed to fetch loads:", err);
@@ -434,7 +463,7 @@ const AssignedLoadsTable = () => {
       <div className="mb-4">
         <h2 className="text-lg font-bold text-gray-900">All Transit</h2>
         <p className="text-sm text-gray-500">
-          Loads assigned to carriers, most urgent pickup first
+          Loads still moving, earliest pickup first — finished ones move to the Over tab
         </p>
         <UrgencyLegend />
       </div>

@@ -60,6 +60,7 @@ import CarrierOnboardingQueue from "./pages/staff/CarrierOnboardingQueue";
 import CarrierOnboardingReview from "./pages/staff/CarrierOnboardingReview";
 import DriverLocations from "./pages/fleetOwner/DriverLocations";
 import MyLicense from "./pages/driver/MyLicense";
+import DriverDashboard from "./pages/driver/DriverDashboard";
 import AccountingSummary from "./pages/accounting/AccountingSummary";
 import LoadAccounting from "./pages/accounting/LoadAccounting";
 import ReportCentre from "./pages/reports/ReportCentre";
@@ -392,7 +393,9 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="dashboard" element={<AssignedLoad />} />
+          {/* Their own runs, not their carrier board — see DriverDashboard. */}
+          <Route path="dashboard" element={<DriverDashboard />} />
+          <Route path="my-loads" element={<DriverDashboard />} />
           <Route path="assigned-loads" element={<AssignedLoad />} />
           {/* The one screen a driver must be able to reach without a licence on
               file — it is where they fix exactly that. */}

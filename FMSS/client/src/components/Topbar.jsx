@@ -41,6 +41,13 @@ const Topbar = () => {
   // desktop rail hides — see navItems.js.
   const filteredNavItems = visibleNavItems(user);
 
+  // Groups start closed on a phone, where screen space is the scarce thing —
+  // except the one holding the current screen, so the drawer always shows where
+  // you are.
+  const [openGroups, setOpenGroups] = useState({});
+  const holdsActive = (item) =>
+    (item.children || []).some((child) => isActive(child.path));
+
   return (
     <>
       <div className="w-full bg-white h-16 shadow flex items-center" style={{ zIndex: 100 }}>
@@ -113,20 +120,71 @@ const Topbar = () => {
       {isMobileMenuOpen && (
         <div className="md:hidden bg-gray-900 w-full shadow-lg" style={{ zIndex: 99 }}>
           {filteredNavItems.map((item) => {
-            const Icon   = item.icon;
-            const active = isActive(item.path);
+            const Icon = item.icon;
+
+            // A plain screen.
+            if (!item.children) {
+              const active = isActive(item.path);
+              return (
+                <div
+                  key={item.path}
+                  onClick={() => handleNavigate(item.path)}
+                  className={`flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-gray-800
+                    ${active
+                      ? "bg-indigo-600 text-white"
+                      : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                    }`}
+                >
+                  <Icon fontSize="small" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+              );
+            }
+
+            // A group: tapping the header opens it in place rather than
+            // navigating, because a group is not a screen.
+            const containsActive = holdsActive(item);
+            const expanded = openGroups[item.label] ?? containsActive;
+
             return (
-              <div
-                key={item.path}
-                onClick={() => handleNavigate(item.path)}
-                className={`flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-gray-800
-                  ${active
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                  }`}
-              >
-                <Icon fontSize="small" />
-                <span className="text-sm font-medium">{item.label}</span>
+              <div key={item.label}>
+                <div
+                  onClick={() =>
+                    setOpenGroups((current) => ({
+                      ...current,
+                      [item.label]: !expanded,
+                    }))
+                  }
+                  className="flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-gray-800 text-gray-300 hover:bg-gray-800 hover:text-white"
+                >
+                  <Icon fontSize="small" />
+                  <span className="text-sm font-medium flex-1">{item.label}</span>
+                  <span className="text-xs text-gray-500">
+                    {expanded ? "▾" : "▸"}
+                  </span>
+                </div>
+
+                {expanded &&
+                  item.children.map((child) => {
+                    const active = isActive(child.path);
+                    const ChildIcon = child.icon;
+                    return (
+                      <div
+                        key={child.path}
+                        onClick={() => handleNavigate(child.path)}
+                        className={`flex items-center gap-3 pl-10 pr-5 py-2.5 cursor-pointer border-b border-gray-800
+                          ${active
+                            ? "bg-indigo-600 text-white"
+                            : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                          }`}
+                      >
+                        <ChildIcon style={{ fontSize: 17 }} />
+                        <span className="text-[13px] font-medium">
+                          {child.label}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             );
           })}

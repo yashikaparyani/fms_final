@@ -25,7 +25,11 @@ const {
 } = require("../services/emailService");
 
 const { sendEmail, EMAIL_STATUS } = require("../utils/mailer");
-const { findCarrierFor, accountPersonFor } = require("../utils/carrierAccount");
+const {
+  findCarrierFor,
+  accountPersonFor,
+  carrierLoadFilter,
+} = require("../utils/carrierAccount");
 const whatsapp = require("../services/whatsappEvents");
 const { isValidCharge, money } = require("../config/chargeTypes");
 const audit = require("../services/auditService");
@@ -526,6 +530,22 @@ const uploadDocument = async (req, res) => {
 // so one query surfaces a match wherever the load currently sits.
 const SEARCHABLE_TAB_STATUSES = ["PENDING_VERIFICATION", "VERIFIED", "ASSIGNED"];
 
+// Transport statuses that mean the load's journey is over. They are not a
+// workflow `status` of their own — a delivered load is still ASSIGNED — so the
+// Over tab is carved out of the same set All Transit reads, by transport status.
+//
+// Defined here rather than in the browser so the two halves of the split cannot
+// drift: All Transit asks for everything but these, the Over tab asks for
+// exactly these, and adding a fifth terminal status moves loads between the two
+// tabs from one edit. The phone app keeps its own copy of this list
+// (mobile/App.js) because it filters a different endpoint client-side.
+const COMPLETED_TRANSPORT_STATUSES = [
+  "DELIVERED",
+  "TERMINATED",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
+];
+
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Every load field a user could plausibly recall and type into the search box.
@@ -597,6 +617,17 @@ const getLoads = async (req, res) => {
 
     if (req.query.bidStatus && req.user.role !== "fleetOwner") {
       query.bidStatus = req.query.bidStatus;
+    }
+
+    // `?completed=true` is the Over tab, `?completed=false` is everything
+    // still running. Skipped when the caller named a transport status
+    // outright — the status dropdown is more specific than the tab split and
+    // must win, or filtering for Delivered would come back empty.
+    if (req.query.completed !== undefined && !req.query.transportStatus) {
+      query.transportStatus =
+        req.query.completed === "true"
+          ? { $in: COMPLETED_TRANSPORT_STATUSES }
+          : { $nin: COMPLETED_TRANSPORT_STATUSES };
     }
 
     if (
@@ -1116,6 +1147,58 @@ const updateTransportStatus = async (req, res) => {
     }
 
     // ─────────────────────────────────────────────
+    // WHICH LEG IS THIS UPDATE ABOUT
+    // ─────────────────────────────────────────────
+    // A load split between carriers has one status per leg, so an update has to
+    // land on a leg rather than on the load. The load-level status is then
+    // re-derived from all of them — see rollupTransportStatus.
+    //
+    // The caller never has to say which leg: a carrier or their driver can only
+    // be on their own, and it is resolved from the account rather than from
+    // anything they send. The office can name one with `legId`, and without it
+    // gets the leg the load is actually waiting on, which is the one somebody
+    // ringing the office is asking about.
+    let activeLeg = null;
+
+    if (load.hasLegs()) {
+      if (["fleetOwner", "driver"].includes(role)) {
+        const carrier = await findCarrierFor(req.user, "_id");
+        activeLeg = carrier ? load.legFor(carrier._id) : null;
+
+        if (!activeLeg) {
+          return res.status(403).json({
+            success: false,
+            message: "You do not have a leg of this load to update.",
+          });
+        }
+      } else if (req.body.legId) {
+        activeLeg = load.assignments.id(req.body.legId);
+        if (!activeLeg) {
+          return res.status(404).json({
+            success: false,
+            message: "That leg is not on this load.",
+          });
+        }
+      } else {
+        const waiting = load.assignments.filter(
+          (leg) => !Load.LEG_FINISHED.includes(leg.transportStatus),
+        );
+        activeLeg = waiting.length
+          ? waiting.reduce((least, leg) =>
+              Load.LEG_ORDER.indexOf(leg.transportStatus) <
+              Load.LEG_ORDER.indexOf(least.transportStatus)
+                ? leg
+                : least,
+            )
+          : load.assignments[load.assignments.length - 1];
+      }
+    }
+
+    // What the one-way progression rules below are measured against: this leg
+    // if the load has legs, the load itself if it does not.
+    const currentStatus = activeLeg ? activeLeg.transportStatus : load.transportStatus;
+
+    // ─────────────────────────────────────────────
     // STATUSES THAT REQUIRE LIVE LOCATION
     // ─────────────────────────────────────────────
     const locationRequiredStatuses = [
@@ -1225,14 +1308,14 @@ const updateTransportStatus = async (req, res) => {
       originCount >= 2 &&
       pickedUpCount < originCount;
 
-    if (load.transportStatus === transportStatus && !isExtraOriginPickup) {
+    if (currentStatus === transportStatus && !isExtraOriginPickup) {
       return res.status(400).json({
         success: false,
         message: "Load is already in this status.",
       });
     }
 
-    const currentIdx = STATUS_ORDER.indexOf(load.transportStatus);
+    const currentIdx = STATUS_ORDER.indexOf(currentStatus);
     const nextIdx = STATUS_ORDER.indexOf(transportStatus);
     if (
       currentIdx !== -1 &&
@@ -1245,7 +1328,7 @@ const updateTransportStatus = async (req, res) => {
         message: `Cannot move status back to "${transportStatus.replace(
           /_/g,
           " ",
-        )}" — the load is already at "${load.transportStatus.replace(
+        )}" — the load is already at "${currentStatus.replace(
           /_/g,
           " ",
         )}".`,
@@ -1328,8 +1411,21 @@ const updateTransportStatus = async (req, res) => {
     // ─────────────────────────────────────────────
     // UPDATE CURRENT STATUS
     // ─────────────────────────────────────────────
-    const previousTransportStatus = load.transportStatus;
-    load.transportStatus = transportStatus;
+    const previousTransportStatus = currentStatus;
+
+    if (activeLeg) {
+      activeLeg.transportStatus = transportStatus;
+      activeLeg.transportStatusHistory.push({
+        status: transportStatus,
+        changedAt: new Date(),
+        changedBy: req.user._id,
+        note: note || "",
+      });
+      // The load is only as far along as its least advanced leg.
+      load.rollupTransportStatus();
+    } else {
+      load.transportStatus = transportStatus;
+    }
 
     if (confirmedStreetTurn) {
       load.streetTurn = confirmedStreetTurn;
@@ -1676,6 +1772,202 @@ const deleteDocument = async (req, res) => {
 
 // ========================= 🔗 Assignment / Business Logic =========================
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Carrier legs — more than one carrier on the same load
+//
+// A load that changes hands part way (port → yard with one carrier, yard →
+// consignee with another) is described by a list of legs rather than by a
+// second fleet-owner field. Each leg names its carrier and its own two ends,
+// and carries its own progress.
+//
+// The whole list is replaced on every call rather than patched leg by leg. A
+// dispatcher works out the split as one decision — "these two carriers, this
+// handover point" — and a set of add/remove/reorder calls would let a load sit
+// in a half-edited state between them, visible to both carriers.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const trimmed = (value) => String(value ?? "").trim();
+
+/** One end of a leg, from either a stop on the load or something typed in. */
+const normalizeLegPoint = (raw, load, kind) => {
+  const point = raw || {};
+
+  // A stop reference is resolved here rather than trusted from the browser:
+  // the client sends which stop was picked, and the address is copied off the
+  // load itself so a leg can never quietly disagree with the stop it names.
+  if (point.source === "STOP") {
+    const stops =
+      kind === "origin"
+        ? load.pickups?.length
+          ? load.pickups
+          : [load.pickup]
+        : load.drops?.length
+          ? load.drops
+          : [load.drop];
+
+    const index = Number(point.stopIndex);
+    const stop = stops?.[index];
+
+    if (stop) {
+      return {
+        source: "STOP",
+        stopIndex: index,
+        company: stop.company || "",
+        address: stop.address || "",
+        city: stop.city || "",
+        state: stop.state || "",
+        zip: stop.zip || "",
+      };
+    }
+    // A stop that no longer exists (the load was edited down) falls through to
+    // being kept as typed, rather than silently emptying the leg.
+  }
+
+  return {
+    source: "CUSTOM",
+    company: trimmed(point.company),
+    address: trimmed(point.address),
+    city: trimmed(point.city),
+    state: trimmed(point.state),
+    zip: trimmed(point.zip),
+  };
+};
+
+const legPointIsEmpty = (point) =>
+  !point.company && !point.address && !point.city && !point.state && !point.zip;
+
+// @desc    Set every carrier leg on a load at once
+// @route   PUT /api/loads/:loadId/assignments
+// @access  Private (staff, admin)
+const setLoadAssignments = async (req, res) => {
+  try {
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const submitted = Array.isArray(req.body.assignments)
+      ? req.body.assignments
+      : [];
+
+    if (!submitted.length) {
+      return res.status(400).json({
+        message: "Name at least one carrier. To clear the load instead, re-bid it.",
+      });
+    }
+
+    // Resolved in one query, and scoped: FleetOwner is tenant-scoped, so a
+    // carrier at another location cannot be assigned by naming their id.
+    const ids = submitted.map((row) => row.fleetOwnerId).filter(Boolean);
+    if (ids.length !== submitted.length) {
+      return res.status(400).json({ message: "Every leg needs a carrier." });
+    }
+
+    const carriers = await FleetOwner.find({ _id: { $in: ids } })
+      .select("_id carrierName fleetOwnerCode")
+      .lean();
+    const carrierById = new Map(carriers.map((c) => [String(c._id), c]));
+
+    const unknown = ids.filter((id) => !carrierById.has(String(id)));
+    if (unknown.length) {
+      return res.status(404).json({
+        message: "One of those carriers was not found at this location.",
+      });
+    }
+
+    // Progress already made is kept when a leg survives the edit. Adding a
+    // third carrier must not send the first one's in-transit leg back to
+    // ASSIGNED — the truck is where it is regardless of the paperwork.
+    const existingById = new Map(
+      (load.assignments || []).map((leg) => [String(leg._id), leg]),
+    );
+
+    const legs = submitted.map((row) => {
+      const carrier = carrierById.get(String(row.fleetOwnerId));
+      const previous = row._id ? existingById.get(String(row._id)) : null;
+
+      const origin = normalizeLegPoint(row.origin, load, "origin");
+      const destination = normalizeLegPoint(row.destination, load, "destination");
+
+      return {
+        ...(previous ? { _id: previous._id } : {}),
+        fleetOwnerId: carrier._id,
+        fleetOwnerName: carrier.carrierName,
+        fleetOwnerCode: carrier.fleetOwnerCode,
+        origin,
+        destination,
+        transportStatus: previous?.transportStatus || "ASSIGNED",
+        transportStatusHistory: previous?.transportStatusHistory || [],
+        carrierRate:
+          row.carrierRate === "" || row.carrierRate === undefined
+            ? previous?.carrierRate
+            : Number(row.carrierRate),
+        note: trimmed(row.note),
+        assignedAt: previous?.assignedAt || new Date(),
+        assignedBy: previous?.assignedBy || req.user._id,
+      };
+    });
+
+    const missingEnds = legs
+      .map((leg, i) =>
+        legPointIsEmpty(leg.origin) || legPointIsEmpty(leg.destination) ? i + 1 : null,
+      )
+      .filter(Boolean);
+
+    if (missingEnds.length) {
+      return res.status(400).json({
+        message: `Leg ${missingEnds.join(", ")} needs both an origin and a destination.`,
+      });
+    }
+
+    const previousNames = (load.assignments || [])
+      .map((leg) => leg.fleetOwnerName)
+      .join(", ");
+
+    load.assignments = legs;
+
+    // The first leg is the primary carrier. Everything written before legs
+    // existed — reports, stats, ratings, the carrier's own load list — reads
+    // this field, and on a single-carrier load it means exactly what it always
+    // did.
+    load.assignedFleetOwner = {
+      fleetOwnerId: legs[0].fleetOwnerId,
+      fleetOwnerName: legs[0].fleetOwnerName,
+      assignedAt: legs[0].assignedAt,
+    };
+
+    load.status = "ASSIGNED";
+    load.rollupTransportStatus();
+
+    // Direct assignment bypasses bidding, exactly as the single-carrier assign
+    // does — otherwise the cron would re-open a bid window on a load that is
+    // already out with two carriers.
+    load.bidStatus = "CLOSED";
+    load.bidStartTime = undefined;
+    load.bidEndTime = undefined;
+    load.winningBid = undefined;
+
+    await load.save();
+
+    await audit.recordAssignment({
+      load,
+      carrierName: legs.map((leg) => leg.fleetOwnerName).join(" → "),
+      previousName: previousNames || undefined,
+      user: req.user,
+      req,
+    });
+
+    res.json({
+      message:
+        legs.length === 1
+          ? `Load ${load.loadId} assigned to ${legs[0].fleetOwnerName}.`
+          : `Load ${load.loadId} split across ${legs.length} carriers.`,
+      load,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 // Assign Fleet Owner
 const assignFleetOwner = async (req, res) => {
   try {
@@ -1793,7 +2085,8 @@ const setLoadDrivers = async (req, res) => {
     }
 
     const query = { loadId: req.params.loadId };
-    if (carrier) query["assignedFleetOwner.fleetOwnerId"] = carrier._id;
+    // Their own load, or their own leg of one split between carriers.
+    if (carrier) Object.assign(query, carrierLoadFilter(carrier._id));
 
     const load = await Load.findOne(query);
     if (!load) {
@@ -1856,13 +2149,14 @@ const setLoadDrivers = async (req, res) => {
       (load.driverAssignments || []).map((a) => [String(a.driver), a]),
     );
 
-    load.driverAssignments = rows.map((row) => {
+    const mine = rows.map((row) => {
       const id = String(row.driver || row.driverId);
       const driver = byId.get(id);
       const before = previous.get(id);
 
       return {
         driver: driver._id,
+        fleetOwnerId: carrierId,
         driverName: driver.name,
         driverCode: driver.driverCode || "",
         pickup: stop(row.pickup),
@@ -1875,16 +2169,31 @@ const setLoadDrivers = async (req, res) => {
       };
     });
 
+    // Only this carrier's own rows are replaced. On a load split between
+    // carriers each one names their own drivers, and a straight overwrite would
+    // mean the second carrier to save wiped the first carrier's drivers off the
+    // load — the office would see a load with half its drivers missing and no
+    // trace of what removed them.
+    //
+    // The office, working on the whole load rather than as a carrier, is scoped
+    // to the carrier they are acting for, which is the primary one unless the
+    // request names another.
+    const others = (load.driverAssignments || []).filter(
+      (a) => String(a.fleetOwnerId || "") !== String(carrierId),
+    );
+
+    load.driverAssignments = [...others, ...mine];
+
     await load.save();
 
     // Tells each driver about their own leg. Fire-and-forget.
-    if (load.driverAssignments.length) {
-      whatsapp.onDriversAssigned(load, load.driverAssignments, req.user);
+    if (mine.length) {
+      whatsapp.onDriversAssigned(load, mine, req.user);
     }
 
     res.json({
-      message: load.driverAssignments.length
-        ? `${load.driverAssignments.length} driver(s) on load ${load.loadId}.`
+      message: mine.length
+        ? `${mine.length} driver(s) on load ${load.loadId}.`
         : `Drivers cleared from load ${load.loadId}.`,
       driverAssignments: load.driverAssignments,
     });
@@ -1906,7 +2215,7 @@ const confirmAssignedLoadByFleetOwner = async (req, res) => {
     // Find load
     const load = await Load.findOne({
       loadId: req.params.loadId,
-      "assignedFleetOwner.fleetOwnerId": fleetOwner._id,
+      ...carrierLoadFilter(fleetOwner._id),
     });
 
     if (!load) {
@@ -2635,6 +2944,7 @@ module.exports = {
   uploadDocument,
   deleteDocument,
   assignFleetOwner,
+  setLoadAssignments,
   confirmAssignedLoadByFleetOwner,
   rateCompletedLoad,
   awardBid,

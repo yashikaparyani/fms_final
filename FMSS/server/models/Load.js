@@ -30,6 +30,12 @@ const ledgerLineSchema = new mongoose.Schema(
 
     note: { type: String, trim: true },
 
+    // Which carrier this line is owed to. Payables only, and only on a load
+    // split between carriers — two carriers on one load are owed two different
+    // amounts, and a single payable total cannot say who gets what. Left unset
+    // on a normal load, where the one carrier owns the whole ledger.
+    fleetOwnerId: { type: mongoose.Schema.Types.ObjectId, ref: "FleetOwner" },
+
     addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     addedAt: { type: Date, default: Date.now },
   },
@@ -95,6 +101,75 @@ const dropStopSchema = new mongoose.Schema(
   { _id: false }
 );
 
+
+// ─── Carrier legs ─────────────────────────────────────────────────────────────
+// A load can be run by more than one carrier: one takes it from the port to a
+// yard, another takes it from the yard to the consignee. Each leg is its own
+// piece of work with its own carrier, its own two ends and its own progress,
+// which is why this is a list rather than a second fleet-owner field.
+//
+// `assignedFleetOwner` above stays the primary carrier — the first leg. Every
+// screen that predates this (reports, stats, ratings, the bid flow) still reads
+// it and still gets a sensible answer on a single-carrier load, which is what
+// keeps this change from having to rewrite all of them at once.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One end of a leg. Either a stop already on the load — in which case it was
+// picked rather than typed, and `stopIndex` records which — or somewhere that
+// exists only for the handover, like a yard the box is dropped at between two
+// carriers. Both are stored flat so a leg reads the same either way.
+const legPointSchema = new mongoose.Schema(
+  {
+    source: { type: String, enum: ["STOP", "CUSTOM"], default: "CUSTOM" },
+    stopIndex: { type: Number },
+    company: { type: String, trim: true },
+    address: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    zip: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
+const assignmentSchema = new mongoose.Schema(
+  {
+    fleetOwnerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FleetOwner",
+      required: true,
+    },
+    fleetOwnerName: { type: String },
+    fleetOwnerCode: { type: String },
+
+    origin: legPointSchema,
+    destination: legPointSchema,
+
+    // This leg's own progress. The load-level transportStatus is rolled up from
+    // these — see rollupTransportStatus — so a load is only delivered once the
+    // last carrier has delivered, not when the first one drops at the yard.
+    transportStatus: { type: String, default: "ASSIGNED" },
+    transportStatusHistory: [
+      {
+        status: String,
+        changedAt: { type: Date, default: Date.now },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        note: String,
+        _id: false,
+      },
+    ],
+
+    // What this carrier is paid for their leg. Held per leg because two
+    // carriers on one load are owed two different amounts, and the load-level
+    // vendorRate cannot hold both.
+    carrierRate: { type: Number },
+
+    note: { type: String, trim: true },
+
+    assignedAt: { type: Date, default: Date.now },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { _id: true },
+);
 const loadSchema = new mongoose.Schema(
   {
     // ═══════════════════════════════════════════════════════════
@@ -180,6 +255,13 @@ const loadSchema = new mongoose.Schema(
       new mongoose.Schema(
         {
           driver: { type: mongoose.Schema.Types.ObjectId, ref: "Driver", required: true },
+
+          // Which carrier put this driver on the load. A load can be split
+          // between carriers, and each of them names their own drivers — without
+          // this there is no way to tell one carrier's drivers from another's,
+          // and no way for one carrier to edit their own without touching the
+          // other's.
+          fleetOwnerId: { type: mongoose.Schema.Types.ObjectId, ref: "FleetOwner" },
           // Denormalised so a historical assignment still reads correctly after
           // a driver is renamed or taken off the roster.
           driverName: { type: String, trim: true },
@@ -427,6 +509,11 @@ const loadSchema = new mongoose.Schema(
       assignedAt: { type: Date },
     },
 
+    // Every carrier on this load, in the order they run it. Empty or absent on
+    // a single-carrier load — assignedFleetOwner alone still describes those,
+    // so nothing that predates legs has to learn about them.
+    assignments: { type: [assignmentSchema], default: undefined },
+
     // ═══════════════════════════════════════════════════════════
     // SECTION 8 — TRANSPORT STATUS (updated after fleet owner confirms)
     // ═══════════════════════════════════════════════════════════
@@ -542,6 +629,12 @@ const loadSchema = new mongoose.Schema(
         default: "NOT_STARTED",
       },
       isRequired: { type: Boolean, default: false },
+
+      // Whose trip this is. Live tracking follows a driver, never a carrier —
+      // the carrier is a company and companies do not have a position. Set when
+      // a driver account starts the trip.
+      driver: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
+      driverName: { type: String, trim: true },
       startedAt: Date,
       startedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       stoppedAt: Date,
@@ -685,6 +778,84 @@ loadSchema.pre("save", function syncAmountWithReceivables() {
   this.amount = totalsFor(lines).total;
 });
 
+
+// ─── Carrier legs ─────────────────────────────────────────────────────────────
+
+/** True once this load is being run by named carrier legs rather than one carrier. */
+loadSchema.methods.hasLegs = function () {
+  return Array.isArray(this.assignments) && this.assignments.length > 0;
+};
+
+/**
+ * The leg belonging to a carrier, or null.
+ *
+ * A carrier can hold more than one leg of the same load (out and back), in
+ * which case the earliest unfinished one is theirs to work on — that is the leg
+ * their driver is being asked about.
+ */
+loadSchema.methods.legFor = function (fleetOwnerId) {
+  if (!fleetOwnerId || !this.hasLegs()) return null;
+  const wanted = String(fleetOwnerId);
+
+  const theirs = this.assignments.filter(
+    (leg) => String(leg.fleetOwnerId) === wanted,
+  );
+  if (!theirs.length) return null;
+
+  return theirs.find((leg) => !LEG_FINISHED.includes(leg.transportStatus)) || theirs[0];
+};
+
+// How far along a leg is. Only the moving statuses are ranked — anything else
+// (street turn, terminated, yard states) is off the main line and is treated as
+// finished rather than as a position on it.
+const LEG_ORDER = [
+  "ASSIGNED",
+  "READY_TO_PICKUP",
+  "PICKED_UP",
+  "IN_TRANSIT",
+  "REACHED_DESTINATION",
+  "DELIVERED",
+];
+
+const LEG_FINISHED = ["DELIVERED", "TERMINATED", "STREET_TURN", "EMPTY_IN_YARD"];
+
+/**
+ * Re-derive the load-level transportStatus from its legs.
+ *
+ * The load is only as far along as its *least* advanced leg: a box the first
+ * carrier has dropped at the yard is not delivered, and showing it as delivered
+ * because one leg finished would close it out while it is still sitting there.
+ *
+ * Legs off the main line are skipped when something is still running, so one
+ * terminated leg does not hold the whole load at TERMINATED — but a load whose
+ * legs have all finished takes the last one's outcome, which is what puts a
+ * fully delivered load in the Over tab.
+ */
+loadSchema.methods.rollupTransportStatus = function () {
+  if (!this.hasLegs()) return this.transportStatus;
+
+  const running = this.assignments.filter(
+    (leg) => !LEG_FINISHED.includes(leg.transportStatus),
+  );
+
+  if (running.length) {
+    this.transportStatus = running.reduce((least, leg) => {
+      const a = LEG_ORDER.indexOf(least.transportStatus);
+      const b = LEG_ORDER.indexOf(leg.transportStatus);
+      if (a === -1) return leg;
+      if (b === -1) return least;
+      return b < a ? leg : least;
+    }).transportStatus;
+  } else {
+    this.transportStatus =
+      this.assignments[this.assignments.length - 1].transportStatus;
+  }
+
+  return this.transportStatus;
+};
+
+loadSchema.statics.LEG_ORDER = LEG_ORDER;
+loadSchema.statics.LEG_FINISHED = LEG_FINISHED;
 // Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
 // Must be applied BEFORE mongoose.model(): compiling the schema freezes its
 // hooks and paths, and a plugin added afterwards is silently ignored.

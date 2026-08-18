@@ -219,92 +219,130 @@ export const navItems = [
   //   icon: BadgeOutlinedIcon,
   //   visible: ["fleetOwner"],
   // },
-    {
-    label: "Reports",
-    path: "reports",
-    icon: AssessmentOutlinedIcon,
-    visible: ["staff", "admin"],
-    permission: "reports.view",
+  {
+    label: "Administration",
+    icon: AdminPanelSettingsOutlinedIcon,
+    description: "Who works here and what they may reach",
+    children: [
+      {
+        label: "Staff",
+        path: "staff",
+        icon: GroupsOutlinedIcon,
+        visible: ["admin"],
+        permission: "staff.view",
+        description: "Add staff — one at a time or a whole team",
+      },
+      {
+        label: "Permissions",
+        path: "permissions",
+        icon: AdminPanelSettingsOutlinedIcon,
+        visible: ["admin"],
+        permission: "permissions.view",
+        description: "Who may reach which module, and which locations",
+      },
+    ],
   },
+  // ── Grouped entries ────────────────────────────────────────────────────────
+  // Three clusters that used to be nine separate rows. They are all low-traffic
+  // screens — a master list is edited when a new shipping line appears, not
+  // daily — and spreading them down the rail pushed the work people actually do
+  // below the fold.
+  //
+  // A group is not a screen and has no `path` of its own: it opens to show its
+  // children. Role and permission are still decided per child, so a staff member
+  // granted one of them sees a group holding exactly that one, and somebody
+  // granted none never sees the group at all.
   {
     label: "Accounting",
-    path: "accounting",
     icon: AccountBalanceWalletOutlinedIcon,
-    visible: ["staff", "admin"],
-    permission: "reports.view",
-    description: "Receivables, payables, margin and driver payroll",
-  },
-  {
-    label: "Report Centre",
-    path: "report-centre",
-    icon: SummarizeOutlinedIcon,
-    visible: ["staff", "admin"],
-    permission: "reports.view",
-    description: "Financial, yard and exception reports with CSV export",
-  },
-  {
-    label: "Staff",
-    path: "staff",
-    icon: GroupsOutlinedIcon,
-    visible: ["admin"],
-    permission: "staff.view",
-    description: "Add staff — one at a time or a whole team",
-  },
-  {
-    label: "Permissions",
-    path: "permissions",
-    icon: AdminPanelSettingsOutlinedIcon,
-    visible: ["admin"],
-    permission: "permissions.view",
-    description: "Who may reach which module, and which locations",
+    description: "Receivables, payables, margin and the report centre",
+    children: [
+      {
+        label: "Accounting",
+        path: "accounting",
+        icon: AccountBalanceWalletOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+        description: "Receivables, payables, margin and driver payroll",
+      },
+      {
+        label: "Report Centre",
+        path: "report-centre",
+        icon: SummarizeOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+        description: "Financial, yard and exception reports with CSV export",
+      },
+      {
+        label: "Reports",
+        path: "reports",
+        icon: AssessmentOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+      },
+    ],
   },
   {
     label: "WhatsApp",
-    path: "whatsapp",
     icon: WhatsAppIcon,
-    visible: ["admin", "staff"],
-    permission: "settings.view",
-    description: "Send announcements and load updates over WhatsApp",
+    description: "Announcements, load updates and the Cloud API setup",
+    children: [
+      {
+        label: "Send & History",
+        path: "whatsapp",
+        icon: WhatsAppIcon,
+        visible: ["admin", "staff"],
+        permission: "settings.view",
+        description: "Send announcements and load updates over WhatsApp",
+      },
+      {
+        label: "WhatsApp Setup",
+        path: "whatsapp-settings",
+        icon: SettingsOutlinedIcon,
+        visible: ["admin"],
+        permission: "settings.manage",
+        description: "Meta Cloud API credentials and sending switches",
+      },
+    ],
   },
   {
-    label: "WhatsApp Setup",
-    path: "whatsapp-settings",
-    icon: WhatsAppIcon,
-    visible: ["admin"],
-    permission: "settings.manage",
-    description: "Meta Cloud API credentials and sending switches",
-  },
-  {
-    label: "Locations",
-    path: "locations",
-    icon: PlaceOutlinedIcon,
-    visible: ["admin"],
-    permission: "locations.view",
-    description: "Add and manage operating locations",
-  },
-  {
-    label: "Shipping Lines",
-    path: "shipping-lines",
-    icon: DirectionsBoatOutlinedIcon,
-    visible: ["admin"],
-    permission: "masters.view",
-    description: "Manage the shipping line master",
-  },
-  {
-    label: "Delivery Partners",
-    path: "delivery-partners",
-    icon: HandshakeOutlinedIcon,
-    visible: ["admin"],
-    permission: "masters.view",
-    description: "Manage the delivery partner master",
-  },
-  {
-    label: "Chassis Companies",
-    path: "chassis-companies",
-    icon: RvHookupOutlinedIcon,
-    visible: ["admin"],
-    permission: "masters.view",
-    description: "Manage the chassis company master",
+    label: "Masters",
+    icon: SettingsOutlinedIcon,
+    description: "Shipping lines, partners, chassis companies and locations",
+    children: [
+      {
+        label: "Shipping Lines",
+        path: "shipping-lines",
+        icon: DirectionsBoatOutlinedIcon,
+        visible: ["admin"],
+        permission: "masters.view",
+        description: "Manage the shipping line master",
+      },
+      {
+        label: "Delivery Partners",
+        path: "delivery-partners",
+        icon: HandshakeOutlinedIcon,
+        visible: ["admin"],
+        permission: "masters.view",
+        description: "Manage the delivery partner master",
+      },
+      {
+        label: "Chassis Companies",
+        path: "chassis-companies",
+        icon: RvHookupOutlinedIcon,
+        visible: ["admin"],
+        permission: "masters.view",
+        description: "Manage the chassis company master",
+      },
+      {
+        label: "Locations",
+        path: "locations",
+        icon: PlaceOutlinedIcon,
+        visible: ["admin"],
+        permission: "locations.view",
+        description: "Add and manage operating locations",
+      },
+    ],
   },
 ];
 
@@ -317,7 +355,7 @@ export const navItems = [
 export const visibleNavItems = (user) => {
   if (!user?.role) return [];
 
-  return navItems.filter((item) => {
+  const allowed = (item) => {
     if (!item.visible.includes(user.role)) return false;
     if (!item.permission) return true;
     if (user.role === "admin") return true;
@@ -325,5 +363,22 @@ export const visibleNavItems = (user) => {
     // permission list — see utils/permissions.js.
     if (["client", "fleetOwner", "driver"].includes(user.role)) return true;
     return (user.permissions || []).includes(item.permission);
-  });
+  };
+
+  return navItems
+    .map((item) => {
+      if (!item.children) return allowed(item) ? item : null;
+
+      // A group is only as visible as its contents. It carries no permission of
+      // its own, so it survives exactly when something inside it does —
+      // otherwise a staff member with no master data would get a Masters entry
+      // that opens onto nothing.
+      const children = item.children.filter(allowed);
+      return children.length ? { ...item, children } : null;
+    })
+    .filter(Boolean);
 };
+
+/** Every reachable screen, groups flattened — for callers that want paths. */
+export const flatNavItems = (user) =>
+  visibleNavItems(user).flatMap((item) => item.children || [item]);

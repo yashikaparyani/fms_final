@@ -1,6 +1,7 @@
 // ─── Load urgency model ──────────────────────────────────────────────────────
-// Loads are ranked by how soon they pick up. The buckets drive the row tint,
-// the priority badge and the sort order, so the most urgent work sits on top.
+// Loads are ranked by how soon they pick up. The buckets drive the row tint and
+// the priority badge; the order itself is the pickup date, earliest first, so
+// the table reads as a calendar of what is happening when.
 // Shared by the Pending, Dispatch Management and All Transit tables.
 
 export const URGENCY = {
@@ -11,8 +12,8 @@ export const URGENCY = {
   NO_DATE: "NO_DATE",  // no pickup date recorded
 };
 
-// Expired and undated loads are deliberately muted — they sink to the bottom
-// and must not compete for attention with live, upcoming work.
+// Expired and undated loads are deliberately muted: they keep their place on
+// the date line but must not compete for attention with live, upcoming work.
 export const URGENCY_COLORS = {
   [URGENCY.URGENT]:  { bg: "#fff0f0", border: "#ef4444" },
   [URGENCY.SOON]:    { bg: "#fffbeb", border: "#f59e0b" },
@@ -27,15 +28,6 @@ export const URGENCY_LABEL = {
   [URGENCY.LATER]:   { text: "Scheduled", className: "bg-green-100 text-green-800" },
   [URGENCY.EXPIRED]: { text: "Expired",   className: "bg-gray-200 text-gray-700" },
   [URGENCY.NO_DATE]: { text: "No date",   className: "bg-gray-100 text-gray-500" },
-};
-
-// Sort groups: live loads first (soonest pickup wins), then expired, then undated.
-const URGENCY_RANK = {
-  [URGENCY.URGENT]: 0,
-  [URGENCY.SOON]: 0,
-  [URGENCY.LATER]: 0,
-  [URGENCY.EXPIRED]: 1,
-  [URGENCY.NO_DATE]: 2,
 };
 
 const startOfToday = () => {
@@ -80,22 +72,28 @@ export const isLfdAlarming = (row) => {
   return days !== null && days >= 0 && days <= 2;
 };
 
-/** Decorate each row with its `urgency`, then order by group and pickup date. */
-export const sortByUrgency = (rows) =>
+/**
+ * Decorate each row with its `urgency`, then order strictly by pickup date,
+ * earliest first — July, then August, then September.
+ *
+ * The date line is the whole order: an expired July load sits above a live
+ * August one rather than being pushed to the bottom, because the table is read
+ * as a calendar of what is happening when. `urgency` still rides along for the
+ * row tint and the priority badge, so an overdue load is still obvious where it
+ * sits.
+ *
+ * Loads with no pickup date cannot be placed on that line at all, so they
+ * collect at the end rather than at the top, where a missing date would
+ * otherwise sort as the earliest of all.
+ */
+export const sortByPickupDate = (rows) =>
   rows
     .map((row) => ({ ...row, urgency: urgencyOf(row) }))
     .sort((a, b) => {
-      const rankDiff = URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency];
-      if (rankDiff !== 0) return rankDiff;
-
       const aDate = pickupDateOf(a);
       const bDate = pickupDateOf(b);
       if (!aDate && !bDate) return 0;
       if (!aDate) return 1;
       if (!bDate) return -1;
-
-      // Within the live group the soonest pickup leads; within the expired
-      // group the most recently lapsed leads, since it is the most actionable.
-      const asc = new Date(aDate) - new Date(bDate);
-      return a.urgency === URGENCY.EXPIRED ? -asc : asc;
+      return new Date(aDate) - new Date(bDate);
     });

@@ -275,6 +275,63 @@ const LoadAccounting = () => {
           the margin above.
         </p>
 
+        {/* Split loads settle carrier by carrier: two carriers on one load are
+            owed two different amounts, and one payable total cannot say who
+            gets what. `agreed` is what the leg was assigned at, `booked` is
+            what has actually been put on the ledger against that carrier. */}
+        {data.payables.carrierPayables?.length > 0 && (
+          <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gray-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              Owed per carrier
+            </div>
+            <div className="divide-y divide-gray-100">
+              {data.payables.carrierPayables.map((row) => {
+                const short =
+                  row.agreed != null && row.booked !== row.agreed;
+
+                return (
+                  <div
+                    key={row.legId}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {row.fleetOwnerName}
+                        {row.fleetOwnerCode && (
+                          <span className="ml-2 text-[11px] font-mono text-gray-400">
+                            {row.fleetOwnerCode}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {row.lineCount
+                          ? row.lineCount + " line" + (row.lineCount === 1 ? "" : "s") + " booked"
+                          : "Nothing booked yet"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {money(row.booked)}
+                      </p>
+                      {row.agreed != null && (
+                        <p
+                          className={
+                            short
+                              ? "text-[11px] font-medium text-amber-700"
+                              : "text-[11px] text-gray-500"
+                          }
+                        >
+                          agreed {money(row.agreed)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <ChargeEditor
           side="payable"
           charges={catalog.payable}

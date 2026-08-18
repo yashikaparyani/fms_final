@@ -51,6 +51,10 @@ const normalizeLine = (raw, side, userId) => {
     quantity: toNumberOrNull(raw.quantity) ?? undefined,
     rate: toNumberOrNull(raw.rate) ?? undefined,
     note: trimmed(raw.note),
+    // Payables only: a receivable is owed by the customer, so naming a carrier
+    // on one would be meaningless.
+    fleetOwnerId:
+      side === "payable" && raw.fleetOwnerId ? raw.fleetOwnerId : undefined,
     addedBy: userId,
     addedAt: raw.addedAt ? new Date(raw.addedAt) : new Date(),
   };
@@ -114,8 +118,40 @@ const presentLines = (lines = [], side) =>
     quantity: line.quantity ?? null,
     rate: line.rate ?? null,
     note: line.note || "",
+    fleetOwnerId: line.fleetOwnerId ? String(line.fleetOwnerId) : null,
     addedAt: line.addedAt,
   }));
+
+/**
+ * What each carrier on a split load is owed.
+ *
+ * Built from the legs rather than from the ledger, so a carrier who has been
+ * assigned but not yet costed shows as $0 owed instead of being missing — the
+ * gap is the thing the office needs to see. `carrierRate` on the leg is the
+ * agreed figure; the ledger lines are what has actually been booked against it.
+ */
+const carrierPayables = (load) => {
+  const legs = load.assignments || [];
+  if (!legs.length) return [];
+
+  const lines = load.accounting?.payables?.lines || [];
+
+  return legs.map((leg) => {
+    const own = lines.filter(
+      (line) => String(line.fleetOwnerId || "") === String(leg.fleetOwnerId),
+    );
+
+    return {
+      legId: String(leg._id),
+      fleetOwnerId: String(leg.fleetOwnerId),
+      fleetOwnerName: leg.fleetOwnerName || "",
+      fleetOwnerCode: leg.fleetOwnerCode || "",
+      agreed: leg.carrierRate ?? null,
+      booked: totalsFor(own).total,
+      lineCount: own.length,
+    };
+  });
+};
 
 /** One load's books, in the shape every accounting screen reads. */
 const presentAccounting = (load) => {
@@ -149,6 +185,10 @@ const presentAccounting = (load) => {
       paidAt: load.accounting?.payables?.paidAt || null,
       notes: load.accounting?.payables?.notes || "",
     },
+
+    // One row per carrier leg, so a split load can be settled carrier by
+    // carrier rather than as a single lump.
+    carrierPayables: carrierPayables(load),
 
     payroll: load.accounting?.payroll || null,
 

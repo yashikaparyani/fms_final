@@ -62,7 +62,97 @@ const accountPersonFor = (carrier) => {
   };
 };
 
+/**
+ * The filter that says "this load is this carrier's work".
+ *
+ * A load reaches a carrier two ways now: as the whole load (assignedFleetOwner,
+ * how it has always been) or as one leg of a load split between carriers
+ * (assignments). Both have to match, or a carrier handed the second leg would
+ * not be able to see the load they are meant to run.
+ *
+ * Kept here rather than written out at each call site because it is the rule
+ * that decides what a carrier can see, and four hand-written copies of it are
+ * four chances for one to be missed when a fifth route appears.
+ */
+const carrierLoadFilter = (fleetOwnerId) => ({
+  $or: [
+    { "assignedFleetOwner.fleetOwnerId": fleetOwnerId },
+    { "assignments.fleetOwnerId": fleetOwnerId },
+  ],
+});
+
+
+/**
+ * The figure a carrier should be shown for a load, and where it came from.
+ *
+ * A load carries several rates and they are not interchangeable. `vendorRate`
+ * is what the load was *offered* at, which is the right number right up until
+ * somebody bids — and the wrong one from that moment on. Once a bid is in, the
+ * carrier is looking at their own bid; once it is negotiated and awarded, at the
+ * settled amount. Reading them in the wrong order leaves a carrier who won a
+ * load at 1,150 still looking at the 900 it was posted at.
+ *
+ * Returned with its source so the app can label it, rather than showing a bare
+ * number whose meaning changed underneath it.
+ *
+ * @param {object} load
+ * @param {string} fleetOwnerId
+ * @param {object} [bid]  This carrier's bid on this load, when one is known.
+ */
+const carrierPayoutFor = (load, fleetOwnerId, bid) => {
+  const mine = (id) => String(id || "") === String(fleetOwnerId);
+
+  // 1. Awarded to them — the settled amount, whatever it was negotiated to.
+  if (mine(load?.winningBid?.fleetOwnerId) && load.winningBid.amount != null) {
+    return { amount: load.winningBid.amount, source: "AWARDED" };
+  }
+
+  // 2. An offer on the table they have not answered yet. Shown ahead of their
+  //    own bid because it is the number being asked about.
+  if (bid?.negotiation?.status === "PENDING" && bid.negotiation.amount != null) {
+    return { amount: bid.negotiation.amount, source: "NEGOTIATING" };
+  }
+
+  // 3. Their own bid, standing.
+  if (bid?.amount != null) {
+    return { amount: bid.amount, source: "BID" };
+  }
+
+  // 4. Their leg's agreed rate on a load split between carriers — the load-level
+  //    vendor rate cannot describe two carriers at once.
+  const leg = (load?.assignments || []).find((l) => mine(l.fleetOwnerId));
+  if (leg?.carrierRate != null) {
+    return { amount: leg.carrierRate, source: "LEG_RATE" };
+  }
+
+  // 5. What it was posted at.
+  if (load?.vendorRate != null) {
+    return { amount: load.vendorRate, source: "OFFERED" };
+  }
+
+  return { amount: null, source: "NOT_SET" };
+};
+
+/** A load with that figure attached, for the carrier-facing endpoints. */
+const carrierLoadView = (load, fleetOwnerId, bid) => {
+  const plain = load?.toObject ? load.toObject() : { ...load };
+  const payout = carrierPayoutFor(plain, fleetOwnerId, bid);
+
+  return {
+    ...plain,
+    carrierPayout: payout.amount,
+    carrierPayoutSource: payout.source,
+    myLeg: (plain.assignments || []).find(
+      (l) => String(l.fleetOwnerId) === String(fleetOwnerId),
+    ) || null,
+  };
+};
+
+
 module.exports = {
+  carrierPayoutFor,
+  carrierLoadView,
+  carrierLoadFilter,
   carrierUserIdFor,
   findCarrierFor,
   isCarrierSide,

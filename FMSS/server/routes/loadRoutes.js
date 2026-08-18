@@ -12,6 +12,7 @@ const {
   uploadDocument,
   deleteDocument,
   assignFleetOwner,
+  setLoadAssignments,
   setLoadDrivers,
   confirmAssignedLoadByFleetOwner,
   getOpenForBid,
@@ -173,6 +174,15 @@ router.put(
   protect,
   authorizeRoles("staff", "admin"),
   assignFleetOwner,
+);
+
+// Two or more carriers on one load, each with their own origin and destination.
+// Replaces the whole set in one call — see setLoadAssignments.
+router.put(
+  "/:loadId/assignments",
+  protect,
+  authorizeRoles("staff", "admin"),
+  setLoadAssignments,
 );
 
 router.put(

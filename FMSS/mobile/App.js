@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -55,6 +55,17 @@ const statusOptions = [
 
 // Terminal statuses that mean the load is "over" — it moves out of the
 // Assigned tab and into the Over tab.
+// What the figure on a card means right now. Without this a carrier cannot
+// tell a rate the load was posted at from the amount they actually won it for
+// — the same slot on the card holds both at different points.
+const PAYOUT_LABEL = {
+  AWARDED: "awarded",
+  NEGOTIATING: "offered",
+  BID: "your bid",
+  LEG_RATE: "your leg",
+  OFFERED: "posted",
+};
+
 const completedStatuses = [
   "DELIVERED",
   "TERMINATED",
@@ -463,10 +474,17 @@ function LoadCard({ load, children, onPress }) {
       </View>
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>{load.truckType || "Load -"}</Text>
-        {/* The settled bid wins over the pre-bid vendor rate, so an awarded
-            load shows the amount that was actually agreed. */}
+        {/* Whatever is in force right now: the settled amount once awarded,
+            the offer while it is being negotiated, this carrier's own bid while
+            it stands, and only then the rate the load was posted at. Worked out
+            server-side so every screen agrees — see carrierPayoutFor. */}
         <Text style={styles.metaText}>
-          {money(load.winningBid?.amount ?? load.vendorRate ?? load.amount)}
+          {load.carrierPayout != null
+            ? money(load.carrierPayout)
+            : money(load.winningBid?.amount ?? load.vendorRate)}
+          {PAYOUT_LABEL[load.carrierPayoutSource]
+            ? ` (${PAYOUT_LABEL[load.carrierPayoutSource]})`
+            : ""}
         </Text>
       </View>
     </>
@@ -1190,7 +1208,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.screenContent}>
+      <ScrollView contentContainerStyle={styles.safeContent}>
         <View style={styles.topBar}>
           <SecondaryButton title="Back" onPress={onBack} />
           {loading ? <ActivityIndicator color={colors.primary} /> : <View />}
@@ -1299,7 +1317,18 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
         </DetailSection>
 
         <DetailSection title="Financials">
-          <DetailRow label="Fleet Owner Payout" value={money(load.vendorRate)} />
+          <DetailRow
+            label="Your Payout"
+            value={
+              load.carrierPayout != null
+                ? `${money(load.carrierPayout)}${
+                    PAYOUT_LABEL[load.carrierPayoutSource]
+                      ? ` (${PAYOUT_LABEL[load.carrierPayoutSource]})`
+                      : ""
+                  }`
+                : money(load.vendorRate)
+            }
+          />
           <DetailRow
             label="Winning Bid"
             value={load.winningBid?.amount != null ? money(load.winningBid.amount) : "-"}
@@ -1696,7 +1725,7 @@ function TrackingScreen({ load: initialLoad, onBack }) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.screenContent}>
+      <ScrollView contentContainerStyle={styles.safeContent}>
         <View style={styles.topBar}>
           <SecondaryButton title="Back" onPress={onBack} />
           <Pill tone={isTrackingActive ? "success" : "warning"}>
@@ -2019,6 +2048,377 @@ function LicenseScreen({ onBack, onUpdated }) {
   );
 }
 
+
+// ─── Carrier documentation gate ───────────────────────────────────────────────
+// A carrier account is opened by the office and the credentials are mailed out,
+// so the first thing a carrier ever does is sign in — on the web or, just as
+// often, here. The web portal has always held the door shut until both
+// agreements are signed; the phone app did not, which meant a carrier who
+// happened to sign in on their phone first got straight to the load board with
+// no contract on file, and the paperwork was never chased again.
+//
+// Same rule as the web gate (components/onboarding/CarrierOnboardingGate.jsx):
+// the two agreements are the contract any load would be dispatched under, so
+// nothing else opens until they are signed. Licences and insurance are chased
+// afterwards rather than blocking, because insurance waits on a third party.
+//
+// Drivers are never gated here — they are sub-accounts, they sign nothing, and
+// their own licence gate is separate.
+function CarrierDocumentationGate({ session, onLogout, children }) {
+  const [state, setState] = useState({ loading: true, complete: true });
+  const [signing, setSigning] = useState(null);
+
+  const isCarrier = session.user?.role === "fleetOwner";
+
+  const check = useCallback(async () => {
+    if (!isCarrier) {
+      setState({ loading: false, complete: true });
+      return;
+    }
+
+    try {
+      const res = await api.get("/onboarding");
+      setState({
+        loading: false,
+        complete: Boolean(res.data.agreementsComplete),
+        data: res.data,
+      });
+    } catch {
+      // The gate is a convenience, not the security boundary — every carrier
+      // API re-checks server-side. A failed GET must not lock a carrier out of
+      // the app on a bad connection.
+      setState({ loading: false, complete: true });
+    }
+  }, [isCarrier]);
+
+  useEffect(() => {
+    check();
+  }, [check]);
+
+  if (state.loading) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <ActivityIndicator color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (state.complete) return children;
+
+  if (signing) {
+    return (
+      <AgreementSignScreen
+        agreement={signing}
+        onBack={() => setSigning(null)}
+        onSigned={async () => {
+          setSigning(null);
+          await check();
+        }}
+      />
+    );
+  }
+
+  return (
+    <CarrierDocumentationScreen
+      data={state.data}
+      onSign={setSigning}
+      onRefresh={check}
+      onLogout={onLogout}
+    />
+  );
+}
+
+function CarrierDocumentationScreen({ data, onSign, onRefresh, onLogout }) {
+  const [catalog, setCatalog] = useState(null);
+
+  useEffect(() => {
+    api
+      .get("/onboarding/catalog")
+      .then((res) => setCatalog(res.data))
+      .catch(() => null);
+  }, []);
+
+  const signedKeys = (data?.agreements || [])
+    .filter((a) => a.signedAt)
+    .map((a) => a.key);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.listContent}>
+        <Text style={styles.title}>Before you can haul</Text>
+        <Text style={styles.subtitle}>
+          {data?.carrier?.carrierName || "Your carrier"} — both agreements have
+          to be signed before loads can be dispatched to you. This is the
+          contract they are dispatched under, so it comes first.
+        </Text>
+
+        {(catalog?.agreements || []).map((agreement) => {
+          const done = signedKeys.includes(agreement.key);
+
+          return (
+            <View key={agreement.key} style={styles.card}>
+              <Text style={styles.cardTitle}>{agreement.title}</Text>
+              <Text style={styles.cardMeta}>
+                With {agreement.counterparty} · {agreement.pages} pages
+              </Text>
+              <Text style={styles.cardBody}>{agreement.summary}</Text>
+
+              {done ? (
+                <Text style={styles.signedNote}>✓ Signed</Text>
+              ) : (
+                <PrimaryButton title="Read & sign" onPress={() => onSign(agreement)} />
+              )}
+            </View>
+          );
+        })}
+
+        <Text style={styles.gateFooter}>
+          Driver licences and insurance are asked for after this — they will not
+          hold you up here.
+        </Text>
+
+        <SecondaryButton title="Refresh" onPress={onRefresh} />
+        <SecondaryButton title="Sign out" onPress={onLogout} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// One agreement, signed on the phone: the document-specific blanks, every
+// acknowledgement ticked, and a drawn signature — the same three things the web
+// form collects, because the server accepts a signature from either and produces
+// the same filled PDF from it.
+function AgreementSignScreen({ agreement, onBack, onSigned }) {
+  const [values, setValues] = useState({});
+  const [accepted, setAccepted] = useState([]);
+  const [signedName, setSignedName] = useState("");
+  const [signedTitle, setSignedTitle] = useState("");
+  const [signature, setSignature] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showPad, setShowPad] = useState(false);
+
+  const allAcknowledged =
+    accepted.length === (agreement.acknowledgements || []).length;
+
+  const submit = async () => {
+    const missing = (agreement.fields || [])
+      .filter((f) => f.required && !String(values[f.key] || "").trim())
+      .map((f) => f.label);
+
+    if (missing.length) {
+      Alert.alert("Still needed", missing.join(", "));
+      return;
+    }
+    if (!allAcknowledged) {
+      Alert.alert("Confirm each point", "Every acknowledgement has to be ticked.");
+      return;
+    }
+    if (!signedName.trim() || !signedTitle.trim()) {
+      Alert.alert("Signer", "Your full name and title are both required.");
+      return;
+    }
+    if (!signature) {
+      Alert.alert("Signature", "Draw your signature before submitting.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.post(`/onboarding/agreements/${agreement.key}/sign`, {
+        values,
+        acknowledgements: agreement.acknowledgements,
+        signedName,
+        signedTitle,
+        signatureData: signature,
+      });
+      onSigned();
+    } catch (error) {
+      Alert.alert(
+        "Could not sign",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (showPad) {
+    return (
+      <SignatureModal
+        visible
+        onClose={() => setShowPad(false)}
+        onSigned={(data) => {
+          setSignature(data);
+          setShowPad(false);
+        }}
+      />
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.listContent}>
+        <Text style={styles.title}>{agreement.title}</Text>
+        <Text style={styles.subtitle}>With {agreement.counterparty}</Text>
+
+        {(agreement.fields || []).map((field) => (
+          <View key={field.key} style={styles.card}>
+            <Text style={styles.label}>
+              {field.label}
+              {field.required ? " *" : ""}
+            </Text>
+            {field.help ? <Text style={styles.cardMeta}>{field.help}</Text> : null}
+            <TextInput
+              style={styles.input}
+              value={values[field.key] || ""}
+              placeholder={field.placeholder || ""}
+              onChangeText={(text) =>
+                setValues((current) => ({ ...current, [field.key]: text }))
+              }
+            />
+          </View>
+        ))}
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Confirm each of these</Text>
+          {(agreement.acknowledgements || []).map((ack) => {
+            const on = accepted.includes(ack);
+            return (
+              <Pressable
+                key={ack}
+                style={styles.ackRow}
+                onPress={() =>
+                  setAccepted((current) =>
+                    on ? current.filter((a) => a !== ack) : [...current, ack],
+                  )
+                }
+              >
+                <Text style={styles.ackBox}>{on ? "☑" : "☐"}</Text>
+                <Text style={styles.ackText}>{ack}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Signer full name *</Text>
+          <TextInput
+            style={styles.input}
+            value={signedName}
+            onChangeText={setSignedName}
+          />
+          <Text style={styles.label}>Title *</Text>
+          <TextInput
+            style={styles.input}
+            value={signedTitle}
+            onChangeText={setSignedTitle}
+          />
+          <Text style={styles.signedNote}>
+            {signature ? "✓ Signature captured" : "No signature yet"}
+          </Text>
+          <SecondaryButton
+            title={signature ? "Redraw signature" : "Draw signature"}
+            onPress={() => setShowPad(true)}
+          />
+        </View>
+
+        <PrimaryButton
+          title={saving ? "Signing…" : "Sign agreement"}
+          onPress={submit}
+          disabled={saving}
+        />
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+// The server has raised these all along — a load posted for bidding, a bid
+// window closing, a status change — and the web has shown them in the bell for
+// just as long. The phone app never asked for them, so a carrier working from
+// their phone found out about a load by opening the app and looking.
+//
+// Polled rather than pushed. Push would need a notification service and a token
+// per device; this needs nothing, and a driver who has the app open is the case
+// that matters. The unread count refreshes on the same tick as the badge.
+function NotificationsScreen({ onBack, onOpenLoad }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/notifications", { params: { limit: 50 } });
+      setItems(res.data?.notifications || []);
+    } catch (error) {
+      Alert.alert(
+        "Could not load notifications",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const markAllRead = async () => {
+    try {
+      await api.put("/notifications/read-all");
+      fetchAll();
+    } catch {
+      /* the next refresh will show the true state */
+    }
+  };
+
+  const open = async (item) => {
+    if (!item.isRead) {
+      api.put(`/notifications/${item._id}/read`).catch(() => null);
+    }
+    if (item.load?.loadId && onOpenLoad) onOpenLoad(item.load.loadId);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.notifHeader}>
+        <SecondaryButton title="Back" onPress={onBack} />
+        <SecondaryButton title="Mark all read" onPress={markAllRead} />
+      </View>
+
+      <FlatList
+        data={items}
+        keyExtractor={(item) => String(item._id)}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={fetchAll} />
+        }
+        ListEmptyComponent={
+          <Text style={styles.empty}>
+            {loading ? "Loading..." : "Nothing yet."}
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() => open(item)}
+            style={[styles.notifRow, !item.isRead && styles.notifUnread]}
+          >
+            <Text style={styles.notifTitle}>{item.title}</Text>
+            <Text style={styles.notifBody}>{item.message}</Text>
+            <Text style={styles.notifMeta}>
+              {item.load?.loadId ? item.load.loadId + " · " : ""}
+              {new Date(item.createdAt).toLocaleString()}
+            </Text>
+          </Pressable>
+        )}
+        contentContainerStyle={styles.listContent}
+      />
+    </SafeAreaView>
+  );
+}
+
 function FleetHomeScreen({ session, onLogout }) {
   const [tab, setTab] = useState("assigned");
   const [selectedLoad, setSelectedLoad] = useState(null);
@@ -2027,6 +2427,30 @@ function FleetHomeScreen({ session, onLogout }) {
   const [compliance, setCompliance] = useState(null);
 
   const isDriver = session.user?.role === "driver";
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Polled on the same cadence the rest of the app refreshes at. Cheap: the
+  // endpoint counts rather than lists.
+  useEffect(() => {
+    let cancelled = false;
+
+    const tick = () =>
+      api
+        .get("/notifications/unread-count")
+        .then((res) => {
+          if (!cancelled) setUnreadCount(res.data?.unreadCount ?? 0);
+        })
+        .catch(() => null);
+
+    tick();
+    const id = setInterval(tick, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [showNotifications]);
 
   // Checked on open rather than discovered on the first failed status update: a
   // driver finding out at the dock that they cannot report a pickup is the exact
@@ -2049,15 +2473,28 @@ function FleetHomeScreen({ session, onLogout }) {
     };
   }, [isDriver]);
 
+  // Bidding belongs to the carrier, not to the person driving. Both bid
+  // endpoints are fleetOwner-only server-side, so a driver tapping these tabs
+  // was getting an empty list and a 403 rather than anything they could act on.
   const tabs = useMemo(
-    () => [
-      { key: "assigned", label: "Assigned" },
-      { key: "available", label: "Available" },
-      { key: "myBids", label: "My Bids" },
-      { key: "over", label: "Over" },
-    ],
-    [],
+    () =>
+      [
+        { key: "assigned", label: "Assigned" },
+        !isDriver && { key: "available", label: "Available" },
+        !isDriver && { key: "myBids", label: "My Bids" },
+        { key: "over", label: "Over" },
+      ].filter(Boolean),
+    [isDriver],
   );
+
+  if (showNotifications) {
+    return (
+      <NotificationsScreen
+        onBack={() => setShowNotifications(false)}
+        onOpenLoad={() => setShowNotifications(false)}
+      />
+    );
+  }
 
   if (showLicense) {
     return (
@@ -2085,6 +2522,12 @@ function FleetHomeScreen({ session, onLogout }) {
           <Text style={styles.subtitle}>{session.user?.email}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
+          {/* Count in the label rather than a floating dot: it is the only
+              header slot available and an unread number is the whole message. */}
+          <SecondaryButton
+            title={unreadCount > 0 ? `Alerts (${unreadCount})` : "Alerts"}
+            onPress={() => setShowNotifications(true)}
+          />
           {isDriver && (
             <SecondaryButton title="Licence" onPress={() => setShowLicense(true)} />
           )}
@@ -2178,7 +2621,13 @@ export default function App() {
     return <LoginScreen onLogin={setSession} />;
   }
 
-  return <FleetHomeScreen session={session} onLogout={logout} />;
+  // Carriers do not reach the load board until their agreements are signed.
+  // Drivers pass straight through — they sign nothing.
+  return (
+    <CarrierDocumentationGate session={session} onLogout={logout}>
+      <FleetHomeScreen session={session} onLogout={logout} />
+    </CarrierDocumentationGate>
+  );
 }
 
 const ANDROID_TOP_INSET =
@@ -2326,6 +2775,34 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 12,
   },
+  cardTitle: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  cardMeta: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+  cardBody: { fontSize: 13, color: "#374151", marginTop: 6, marginBottom: 10 },
+  signedNote: { fontSize: 13, fontWeight: "600", color: "#16a34a", marginVertical: 8 },
+  gateFooter: { fontSize: 12, color: "#6b7280", marginVertical: 12, textAlign: "center" },
+  label: { fontSize: 12, fontWeight: "700", color: "#374151", marginTop: 8, marginBottom: 4 },
+  ackRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 8 },
+  ackBox: { fontSize: 16, marginRight: 8, color: "#4f46e5" },
+  ackText: { flex: 1, fontSize: 13, color: "#374151" },
+  notifHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 8,
+  },
+  notifRow: {
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  notifUnread: { borderLeftWidth: 4, borderLeftColor: "#4f46e5", backgroundColor: "#eef2ff" },
+  notifTitle: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  notifBody: { fontSize: 13, color: "#374151", marginTop: 2 },
+  notifMeta: { fontSize: 11, color: "#6b7280", marginTop: 6 },
   empty: {
     color: colors.muted,
     fontWeight: "700",

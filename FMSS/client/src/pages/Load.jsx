@@ -3,8 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import PendingLoadsTable from "./staff/PendingLoadsTable";
 import VerifiedLoadsTable from "./staff/VerifiedLoadsTable";
 import AssignedLoadsTable from "./staff/AssignedLoadsTable";
+import OverLoadsTable from "./staff/OverLoadsTable";
 import LoadSearchResults from "./staff/LoadSearchResults";
-import { PendingActions, CheckCircle, LocationOn, Search, Close } from "@mui/icons-material";
+import { PendingActions, CheckCircle, LocationOn, DoneAll, Search, Close } from "@mui/icons-material";
 import api from "../api";
 import { notify } from "../utils/swal";
 
@@ -12,7 +13,12 @@ const TABS = [
 
   { key: "pending", label: "Pending", icon: <PendingActions fontSize="small" /> },
   { key: "verified", label: "Dispatch Management", icon: <CheckCircle fontSize="small" /> },
- { key: "assigned", label: "All Transit", icon: <LocationOn fontSize="small" /> },];
+ { key: "assigned", label: "All Transit", icon: <LocationOn fontSize="small" /> },
+  // Where a load goes once it stops moving — delivered, terminated, street
+  // turned or empty in yard. It leaves All Transit at that point rather than
+  // sitting in both.
+  { key: "over", label: "Over", icon: <DoneAll fontSize="small" /> },
+];
 
 // Transport-status values a staff user can filter the load list by. Mirrors the
 // transportStatus enum on the Load model.
@@ -133,6 +139,8 @@ const Load = () => {
         return <VerifiedLoadsTable />;
       case "assigned":
         return <AssignedLoadsTable />;
+      case "over":
+        return <OverLoadsTable />;
       default:
         return <PendingLoadsTable />;
     }
@@ -161,6 +169,8 @@ const Load = () => {
                     "Loads cleared for bidding — schedule or monitor here."}
                   {activeTabMeta?.key === "assigned" &&
                     "Loads assigned to carriers — manage or reassign here."}
+                  {activeTabMeta?.key === "over" &&
+                    "Finished loads — delivered, terminated, street turned or empty in yard."}
                 </>
               )}
           </p>

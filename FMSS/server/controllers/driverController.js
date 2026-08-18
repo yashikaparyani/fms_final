@@ -330,6 +330,99 @@ const getMyDriverRecord = async (req, res) => {
   }
 };
 
+
+// @desc    The loads this driver has been given, with their own leg on each
+// @route   GET /api/drivers/me/loads
+// @access  Private (driver)
+//
+// A driver is a sub-account of a carrier, and until now the driver app showed
+// them their carrier's whole board: every load the company was running, whether
+// or not this driver was on it. That is the carrier's view, not the driver's —
+// the person in the cab needs the runs they were named on and nothing else.
+//
+// Matched on the driver assignment rather than on the carrier, so a load with
+// four drivers shows each of them only their own leg, and a load their carrier
+// holds but they were not put on does not appear at all.
+const getMyLoads = async (req, res) => {
+  try {
+    const driver = await Driver.findOne({ userId: req.user._id })
+      .select("_id name fleetOwner")
+      .lean();
+
+    if (!driver) {
+      return res.status(404).json({
+        message:
+          "Your driver record could not be found. Ask your carrier to check your account.",
+        code: "NO_DRIVER_RECORD",
+      });
+    }
+
+    const loads = await Load.find({ "driverAssignments.driver": driver._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json(
+      loads.map((load) => {
+        // Their own row on the load: where they pick up, where they drop, and
+        // whatever the dispatcher told them.
+        const mine = (load.driverAssignments || []).find(
+          (a) => String(a.driver) === String(driver._id),
+        );
+
+        // The carrier leg their assignment sits under, when the load is split
+        // between carriers. It carries the status this driver is moving.
+        const leg = (load.assignments || []).find(
+          (l) => String(l.fleetOwnerId) === String(mine?.fleetOwnerId || ""),
+        );
+
+        return {
+          _id: load._id,
+          loadId: load.loadId,
+          customerName: load.customerName,
+          containerNo: load.containerNo,
+          truckType: load.truckType,
+          material: load.material,
+          weight: load.weight,
+          lastFreeDate: load.lastFreeDate,
+
+          // The load's own two ends, for context.
+          pickup: load.pickup,
+          drop: load.drop,
+          pickups: load.pickups,
+          drops: load.drops,
+
+          // What this driver is being asked to do.
+          myAssignment: mine
+            ? {
+                pickup: mine.pickup,
+                drop: mine.drop,
+                note: mine.note,
+                assignedAt: mine.assignedAt,
+              }
+            : null,
+
+          // The status this driver moves. On a split load that is their
+          // carrier's leg; on an ordinary load it is the load itself.
+          transportStatus: leg?.transportStatus || load.transportStatus,
+          legId: leg?._id || null,
+          isSplitLoad: (load.assignments || []).length > 1,
+
+          liveTracking: {
+            status: load.liveTracking?.status || "NOT_STARTED",
+            driverName: load.liveTracking?.driverName || "",
+          },
+
+          documents: (load.documents || []).length,
+          pickupProof: (load.pickupProof?.images || []).length,
+          deliveryProof: (load.deliveryProof?.images || []).length,
+        };
+      }),
+    );
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 // @desc    A driver uploads their own licence
 // @route   POST /api/drivers/me/license
 // @access  Private (driver)
@@ -922,6 +1015,7 @@ module.exports = {
   getDrivers,
   getDriverLocations,
   getMyDriverRecord,
+  getMyLoads,
   uploadMyLicense,
   createDriver,
   createDriversBulk,

@@ -24,6 +24,18 @@ const trackingEventSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+
+    // The person in the cab. A carrier does not drive — their drivers do — so a
+    // position on a map belongs to a driver, and the carrier is only who that
+    // driver works for. Left unset when the office or a carrier account records
+    // a position administratively, which is exactly the case worth being able
+    // to tell apart afterwards.
+    driver: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Driver",
+      index: true,
+    },
+    driverName: { type: String, trim: true },
     coordinates: {
       latitude: { type: Number, required: true, min: -90, max: 90 },
       longitude: { type: Number, required: true, min: -180, max: 180 },

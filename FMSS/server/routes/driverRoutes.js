@@ -4,6 +4,7 @@ const {
   getDrivers,
   getDriverLocations,
   getMyDriverRecord,
+  getMyLoads,
   uploadMyLicense,
   createDriver,
   createDriversBulk,
@@ -32,6 +33,8 @@ const carrierOrOffice = authorizeRoles("fleetOwner", "staff", "admin");
 // requireDriverLicense — this is the route a driver without a licence has to be
 // able to reach in order to stop being a driver without a licence.
 router.get("/me", protect, authorizeRoles("driver"), getMyDriverRecord);
+// The runs this driver was named on — their own board, not their carrier's.
+router.get("/me/loads", protect, authorizeRoles("driver"), getMyLoads);
 router.post(
   "/me/license",
   protect,
