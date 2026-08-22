@@ -11,6 +11,7 @@ import api from "../../api";
 import { notify } from "../../utils/swal";
 import { uiStyles } from "../../style/uiStyles";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import DashboardHeader from "../../components/DashboardHeader";
 
 // ─── The driver's own board ───────────────────────────────────────────────────
 // A driver is a sub-account of a carrier, and the carrier's screens show the
@@ -107,17 +108,14 @@ const DriverDashboard = () => {
 
   return (
     <div className={uiStyles.page}>
-      <div>
-        <h1 className="page-title">
-          {driver?.name ? `Hello, ${driver.name.split(" ")[0]}` : "Your runs"}
-        </h1>
-        <p className="page-subtitle">
-          {driver?.driverCode ? `${driver.driverCode} · ` : ""}
-          {running.length
+      <DashboardHeader
+        title={driver?.name ? `Hello, ${driver.name.split(" ")[0]}` : "Your runs"}
+        subtitle={`${driver?.driverCode ? `${driver.driverCode} · ` : ""}${
+          running.length
             ? `${running.length} run${running.length === 1 ? "" : "s"} on you right now`
-            : "Nothing on you right now"}
-        </p>
-      </div>
+            : "Nothing on you right now"
+        }`}
+      />
 
       {/* The one thing that stops a driver working, so it sits above the work. */}
       {!licenceOk && (

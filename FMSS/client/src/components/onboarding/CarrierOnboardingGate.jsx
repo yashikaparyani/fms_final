@@ -3,11 +3,13 @@ import { Navigate, useLocation } from "react-router-dom";
 import api from "../../api";
 
 // ─── Carrier onboarding gate ─────────────────────────────────────────────────
-// A carrier account is opened by the office and the credentials are mailed out,
-// so the first thing a carrier ever does here is sign in — not fill in a signup
-// form. Their paperwork therefore has to be collected on the way in, and the two
-// agreements are the part that cannot wait: they are the contract under which
-// any load could be dispatched at all.
+// A carrier reaches this portal one of two ways: the office opens the account
+// directly, or they apply at /register and the office approves it. Either way
+// the credentials are mailed out and the first thing they do here is sign in —
+// the public form collects who they are, never their paperwork. So the
+// paperwork is collected on the way in, and the two agreements are the part
+// that cannot wait: they are the contract under which any load could be
+// dispatched at all.
 //
 // So the portal is closed until both are signed. Everything after that — driver
 // licences, insurance — is chased from the dashboard rather than blocking it,

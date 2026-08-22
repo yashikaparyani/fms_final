@@ -28,6 +28,8 @@ import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
+import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import SummarizeOutlinedIcon from "@mui/icons-material/SummarizeOutlined";
 
@@ -64,6 +66,26 @@ export const navItems = [
     icon: PeopleOutlineOutlinedIcon,
     visible: ["staff", "admin"],
     permission: "customers.view",
+  },
+  {
+    // Where the office writes to everybody — the marquee across every portal
+    // and the one-off push into the notification bell.
+    label: "Announcements",
+    path: "announcements",
+    icon: CampaignOutlinedIcon,
+    visible: ["staff", "admin"],
+    description: "Post a marquee or send a notification",
+  },
+  {
+    // Public sign-ups waiting on a decision. Sits above the directories it
+    // feeds: nothing reaches Customer or Fleet Owners without passing here
+    // first, because approving is what creates the account.
+    label: "Registrations",
+    path: "signup-approvals",
+    icon: HowToRegOutlinedIcon,
+    visible: ["staff", "admin"],
+    permission: "customers.view",
+    description: "Approve customer and carrier sign-ups",
   },
   {
     label: "Fleet Owners",
@@ -319,8 +341,8 @@ export const navItems = [
         description: "Manage the shipping line master",
       },
       {
-        label: "Delivery Partners",
-        path: "delivery-partners",
+        label: "Street Turn Partners",
+        path: "street-turn-partners",
         icon: HandshakeOutlinedIcon,
         visible: ["admin"],
         permission: "masters.view",

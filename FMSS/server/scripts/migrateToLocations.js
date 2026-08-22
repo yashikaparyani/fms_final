@@ -42,7 +42,7 @@ const MODEL_PATHS = {
   Company: "../models/Company",
   ShippingLine: "../models/ShippingLine",
   ChassisCompany: "../models/ChassisCompany",
-  DeliveryPartner: "../models/DeliveryPartner",
+  DeliveryPartner: "../models/StreetTurnPartner",
   TrackingEvent: "../models/TrackingEvent",
   Notification: "../models/Notification",
   Bid: "../models/bidSchema",

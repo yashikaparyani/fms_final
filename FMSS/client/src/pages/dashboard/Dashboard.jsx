@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
+import MarqueeBanner from "../../components/MarqueeBanner";
 import { useState } from "react";
 
 function Dashboard() {
@@ -25,6 +26,10 @@ function Dashboard() {
       <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
 
         <Topbar isMenuOpen={isMenuOpen} />
+
+        {/* Office announcements, under the topbar so every portal and every
+            screen shows them. Renders nothing when there are none. */}
+        <MarqueeBanner />
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-4 lg:px-2 lg:py-6">
           <Outlet />

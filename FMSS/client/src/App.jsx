@@ -3,11 +3,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/dashboard/Dashboard";
-import AdminLogin from "./pages/login/AdminLogin";
-import CustomerLogin from "./pages/login/CustomerLogin";
-import VendorLogin from "./pages/login/VendorLogin";
-import StaffLogin from "./pages/login/StaffLogin";
-import CustomerRegister from "./pages/CustomerRegister";
 import StaffCreateCustomer from "./pages/staff/StaffCreateCustomer";
 import StaffCustomers from "./pages/staff/StaffCustomers";
 import LoadCreationForm from "./pages/LoadCreationForm";
@@ -47,7 +42,7 @@ import ReportsPage from "./pages/staff/ReportsPage";
 import Bids from "./pages/Bids";
 import ShippingLines from "./pages/admin/ShippingLines";
 import Locations from "./pages/admin/Locations";
-import DeliveryPartners from "./pages/admin/DeliveryPartners";
+import StreetTurnPartners from "./pages/admin/StreetTurnPartners";
 import ChassisCompanies from "./pages/admin/ChassisCompanies";
 import StaffManagement from "./pages/admin/StaffManagement";
 import Permissions from "./pages/admin/Permissions";
@@ -67,6 +62,12 @@ import ReportCentre from "./pages/reports/ReportCentre";
 import InsuranceSubmission from "./pages/insurance/InsuranceSubmission";
 import PermissionGate from "./components/PermissionGate";
 import Seo from "./components/Seo";
+import Login from "./pages/login/Login";
+import Register from "./pages/Register";
+import StreetTurnSign from "./pages/StreetTurnSign";
+import SignupApprovals from "./pages/admin/SignupApprovals";
+import Announcements from "./pages/admin/Announcements";
+import RoleTheme from "./components/RoleTheme";
 
 function App() {
   const dispatch = useDispatch();
@@ -93,6 +94,7 @@ function App() {
   return (
     <>
       <Seo />
+      <RoleTheme />
       <Routes>
         {/* Default Route */}
         <Route
@@ -100,17 +102,33 @@ function App() {
           element={<LandingPage />}
         />
 
-        {/* LOGIN ROUTES */}
-        <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/client-login" element={<CustomerLogin />} />
-        <Route path="/vendor-login" element={<VendorLogin />} />
-        <Route path="/staff-login" element={<StaffLogin />} />
-        <Route path="/client/register" element={<CustomerRegister />} />
+        {/* ONE SIGN-IN DOOR.
+            There were four, one per role, and anyone who picked the wrong one
+            was told their correct credentials were invalid. The account carries
+            its own role, so /login accepts everybody and routes on the response.
+            The old addresses are kept as redirects — they are in bookmarks, old
+            emails and the mobile app's links. */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/admin-login" element={<Navigate to="/login" replace />} />
+        <Route path="/client-login" element={<Navigate to="/login" replace />} />
+        <Route path="/vendor-login" element={<Navigate to="/login" replace />} />
+        <Route path="/staff-login" element={<Navigate to="/login" replace />} />
+        <Route path="/driver-login" element={<Navigate to="/login" replace />} />
+        <Route path="/fleetOwner-login" element={<Navigate to="/login" replace />} />
+
+        {/* PUBLIC REGISTRATION — customer or carrier, both awaiting approval. */}
+        <Route path="/register" element={<Register />} />
+        <Route path="/client/register" element={<Navigate to="/register" replace />} />
 
         {/* PUBLIC — the carrier's insurance agency files certificates from a
             one-off emailed link. They have no account here; the token in the URL
             is the authorisation and the server checks it. */}
         <Route path="/insurance/:token" element={<InsuranceSubmission />} />
+
+        {/* PUBLIC — the street turn partner signs the handover from a one-off
+            emailed link. Like the insurance route above, the token in the URL is
+            the authorisation and the server checks it; there is no account. */}
+        <Route path="/street-turn/:token" element={<StreetTurnSign />} />
 
         {/* ================= ADMIN ================= */}
         <Route
@@ -122,6 +140,15 @@ function App() {
           }
         >
           <Route path="dashboard" element={<StaffDashboard />} />
+          <Route
+            path="signup-approvals"
+            element={
+              <PermissionGate permission="customers.view">
+                <SignupApprovals />
+              </PermissionGate>
+            }
+          />
+          <Route path="announcements" element={<Announcements />} />
           <Route path="analytics" element={<h1>Analytics Page</h1>} />
           {/* Staff & permission administration. Gated per screen because
               ProtectedRoute above guards the whole /admin area at once — see
@@ -189,7 +216,9 @@ function App() {
             }
           />
           <Route path="shipping-lines" element={<ShippingLines />} />
-          <Route path="delivery-partners" element={<DeliveryPartners />} />
+          <Route path="street-turn-partners" element={<StreetTurnPartners />} />
+          {/* Renamed from Delivery Partners; the old path is in bookmarks. */}
+          <Route path="delivery-partners" element={<StreetTurnPartners />} />
           <Route path="chassis-companies" element={<ChassisCompanies />} />
           <Route path="customers/:id/edit" element={<EditCustomerPage />} />
           <Route
@@ -248,6 +277,15 @@ function App() {
           }
         >
           <Route path="dashboard" element={<StaffDashboard />} />
+          <Route
+            path="signup-approvals"
+            element={
+              <PermissionGate permission="customers.view">
+                <SignupApprovals />
+              </PermissionGate>
+            }
+          />
+          <Route path="announcements" element={<Announcements />} />
           <Route path="analytics" element={<h1>Analytics Page</h1>} />
           {/* The back office can see and manage any carrier's roster at their
               location — a carrier phoning in a new driver should not need to log

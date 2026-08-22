@@ -342,16 +342,21 @@ const bidWon = ({ load, fleetOwner, winningBid }) => ({
  * `recipientLabel` names the party being written to (e.g. "Delivery Partner"),
  * so the same body can be addressed to each of them.
  */
-const streetTurnConfirmed = ({ load, streetTurn, recipientLabel }) => {
+const streetTurnConfirmed = ({ load, streetTurn, recipientLabel, signLink }) => {
   const rows = [
     ["Load", load.loadId],
     ["Route", routeText(load)],
     ["Container #", load.containerNo],
     ["Chassis #", load.chassisNo],
-    ["Delivery Partner", streetTurn.deliveryPartner],
+    ["Street Turn Partner", streetTurn.deliveryPartner],
     ["Shipping Line", streetTurn.shippingLine],
     ["Chassis Company", streetTurn.chassisCompany],
   ].filter(([, value]) => value);
+
+  // Only the street turn partner is asked to sign; everyone else is being told.
+  const ask = signLink
+    ? "Please confirm you are accepting this container by signing below."
+    : "";
 
   return {
     subject: `FMS - Street Turn Confirmed: Load ${load.loadId}`,
@@ -359,10 +364,14 @@ const streetTurnConfirmed = ({ load, streetTurn, recipientLabel }) => {
       [
         `A street turn has been confirmed for load ${load.loadId}.`,
         `You are receiving this as the ${recipientLabel}.`,
-      ].join("\n") +
+        ask,
+      ]
+        .filter(Boolean)
+        .join("\n") +
       "\n\n" +
       rows.map(([label, value]) => `${label}: ${value}`).join("\n") +
-      (streetTurn.note ? `\n\nNote: ${streetTurn.note}` : ""),
+      (streetTurn.note ? `\n\nNote: ${streetTurn.note}` : "") +
+      (signLink ? `\n\nSign here: ${signLink}` : ""),
     html: `
     <h3>Street Turn Confirmed</h3>
     <p>A street turn has been confirmed for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
@@ -376,6 +385,258 @@ const streetTurnConfirmed = ({ load, streetTurn, recipientLabel }) => {
         .join("")}
     </table>
     ${streetTurn.note ? `<p><strong>Note:</strong> ${escapeHtml(streetTurn.note)}</p>` : ""}
+    ${
+      signLink
+        ? `<p>${escapeHtml(ask)}</p>
+    <p>
+      <a href="${escapeHtml(signLink)}"
+         style="display:inline-block;padding:12px 22px;border-radius:8px;background:#1D6FE0;color:#ffffff;font-weight:700;text-decoration:none">
+        Sign street turn acknowledgement
+      </a>
+    </p>
+    <p style="font-size:12px;color:#64748B">
+      If the button does not work, paste this into your browser:<br />${escapeHtml(signLink)}
+    </p>`
+        : ""
+    }
+  `,
+  };
+};
+
+/**
+ * The Street Turn Container and Chassis Transfer Agreement, as an email.
+ *
+ * A street turn moves a container and chassis out of our driver's custody into
+ * another carrier's, so what goes out is the contract itself rather than a
+ * notice that one exists — the transferee should be able to read the whole
+ * thing in the message and sign it without opening an attachment.
+ *
+ * `signLink` is present only for the transferee. Everyone else on the
+ * distribution receives the identical agreement as their record of it, with the
+ * signature block shown unsigned.
+ *
+ * The clauses come from config/streetTurnAgreement.js. This function lays them
+ * out; it does not know what any of them mean.
+ */
+const streetTurnAgreement = ({
+  load,
+  streetTurn,
+  agreement,
+  recipientLabel,
+  signLink,
+  signature,
+}) => {
+  const { title, transferor, transferee, equipment, clauses, dateText } = agreement;
+
+  const partyRows = (party) =>
+    [
+      ["Company", party.name],
+      ["SCAC", party.scac],
+      ["Email", party.email],
+    ].filter(([, value]) => value);
+
+  const equipmentRows = [
+    ["Load", load.loadId],
+    ["Container number", equipment.containerNo],
+    ["Container type", equipment.containerType],
+    ["Chassis number", equipment.chassisNo],
+    ["Pickup / transfer location", equipment.transferLocation],
+    ["Delivery / return location", equipment.returnLocation],
+    ["Exceptions noted", equipment.condition],
+  ].filter(([, value]) => value);
+
+  const textBlock = (rows) =>
+    rows.map(([label, value]) => `  ${label}: ${value}`).join("\n");
+
+  const htmlRows = (rows) =>
+    rows
+      .map(
+        ([label, value]) =>
+          `<tr><td style="padding:4px 12px 4px 0;color:#64748B;white-space:nowrap">${escapeHtml(
+            label,
+          )}</td><td style="padding:4px 0;font-weight:600;color:#0F172A">${escapeHtml(
+            value,
+          )}</td></tr>`,
+      )
+      .join("");
+
+  // The transferee's block is filled in once they have signed; until then it is
+  // shown as blank lines, the way the paper form is.
+  const signedLines = signature?.signedAt
+    ? [
+        ["Signer name", signature.signedName],
+        ["Title", signature.signedTitle],
+        ["Signed", new Date(signature.signedAt).toUTCString()],
+        ["IP address", signature.signedIp],
+      ].filter(([, value]) => value)
+    : null;
+
+  return {
+    subject: `${title} — Load ${load.loadId} (${transferor.scac} → ${transferee.scac || transferee.name})`,
+    text: [
+      `Please find below the ${title} for the street turn transfer between ` +
+        `${transferor.name} and ${transferee.name}.`,
+      "",
+      `Transferor: ${transferor.name}`,
+      textBlock(partyRows(transferor)),
+      "",
+      `Transferee: ${transferee.name}`,
+      textBlock(partyRows(transferee)),
+      "",
+      "Equipment:",
+      textBlock(equipmentRows),
+      "",
+      `This Agreement is entered into as of ${dateText}.`,
+      "",
+      ...clauses.map((clause, i) => `${i + 1}. ${clause.heading}\n   ${clause.body}`),
+      "",
+      streetTurn.note ? `Note from dispatch: ${streetTurn.note}` : "",
+      "",
+      signLink
+        ? `Sign the agreement here: ${signLink}`
+        : signedLines
+          ? `Signed by ${signature.signedName} on ${new Date(signature.signedAt).toUTCString()}.`
+          : `You are receiving this as the ${recipientLabel}.`,
+    ]
+      .filter((line) => line !== "")
+      .join("\n"),
+    html: `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#0F172A;max-width:640px">
+      <h2 style="margin:0 0 4px;font-size:18px">${escapeHtml(title)}</h2>
+      <p style="margin:0 0 18px;font-size:13px;color:#64748B">
+        Load ${escapeHtml(load.loadId)} · entered into as of ${escapeHtml(dateText)}
+      </p>
+
+      <p style="font-size:14px;line-height:1.6">
+        Please find below the ${escapeHtml(title)} for the street turn transfer between
+        <strong>${escapeHtml(transferor.name)}</strong> and
+        <strong>${escapeHtml(transferee.name)}</strong>.
+      </p>
+
+      <table cellpadding="0" cellspacing="0" style="width:100%;margin:18px 0">
+        <tr>
+          <td style="vertical-align:top;width:50%;padding-right:12px">
+            <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.06em;color:#64748B">TRANSFEROR</p>
+            <table cellpadding="0" cellspacing="0" style="font-size:13px">${htmlRows(partyRows(transferor))}</table>
+          </td>
+          <td style="vertical-align:top;width:50%">
+            <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.06em;color:#64748B">TRANSFEREE</p>
+            <table cellpadding="0" cellspacing="0" style="font-size:13px">${htmlRows(partyRows(transferee))}</table>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.06em;color:#64748B">EQUIPMENT</p>
+      <table cellpadding="0" cellspacing="0" style="font-size:13px;margin-bottom:18px">${htmlRows(equipmentRows)}</table>
+
+      ${
+        streetTurn.note
+          ? `<p style="font-size:13px;background:#F1F5F9;padding:10px 12px;border-radius:8px">
+               <strong>Note from dispatch:</strong> ${escapeHtml(streetTurn.note)}</p>`
+          : ""
+      }
+
+      <hr style="border:none;border-top:1px solid #E2E8F0;margin:18px 0" />
+
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.06em;color:#64748B">AGREEMENT TERMS</p>
+      <ol style="font-size:13px;line-height:1.65;padding-left:18px;margin:0">
+        ${clauses
+          .map(
+            (clause) =>
+              `<li style="margin-bottom:10px"><strong>${escapeHtml(clause.heading)}</strong><br />${escapeHtml(clause.body)}</li>`,
+          )
+          .join("")}
+      </ol>
+
+      <hr style="border:none;border-top:1px solid #E2E8F0;margin:18px 0" />
+
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.06em;color:#64748B">E-SIGNATURES</p>
+      <table cellpadding="0" cellspacing="0" style="width:100%;font-size:13px">
+        <tr>
+          <td style="vertical-align:top;width:50%;padding-right:12px">
+            <p style="margin:0 0 4px"><strong>TRANSFEROR</strong><br />${escapeHtml(transferor.name)}</p>
+            <p style="margin:0;color:#64748B;line-height:2">
+              Signer name: ${escapeHtml(transferor.signerName || "____________________")}<br />
+              Title: ${escapeHtml(transferor.signerTitle || "____________________")}<br />
+              Date: ${escapeHtml(dateText)}
+            </p>
+          </td>
+          <td style="vertical-align:top;width:50%">
+            <p style="margin:0 0 4px"><strong>TRANSFEREE</strong><br />${escapeHtml(transferee.name)}</p>
+            ${
+              signedLines
+                ? `<table cellpadding="0" cellspacing="0" style="font-size:13px">${htmlRows(signedLines)}</table>`
+                : `<p style="margin:0;color:#64748B;line-height:2">
+                     Signer name: ____________________<br />
+                     Title: ____________________<br />
+                     Signature: ____________________<br />
+                     Date: ____________________
+                   </p>`
+            }
+          </td>
+        </tr>
+      </table>
+
+      ${
+        signLink
+          ? `<p style="margin:22px 0 8px">
+               <a href="${escapeHtml(signLink)}"
+                  style="display:inline-block;padding:13px 24px;border-radius:8px;background:#1D6FE0;color:#ffffff;font-weight:700;text-decoration:none">
+                 Review and sign the agreement
+               </a>
+             </p>
+             <p style="font-size:12px;color:#64748B">
+               If the button does not work, paste this into your browser:<br />${escapeHtml(signLink)}
+             </p>`
+          : `<p style="font-size:12px;color:#64748B;margin-top:18px">
+               You are receiving this as the ${escapeHtml(recipientLabel)}. No action is needed from you.
+             </p>`
+      }
+    </div>
+  `,
+  };
+};
+
+/**
+ * Sent back to the office once the street turn partner has signed. The proof is
+ * the point, so the signer, the time and the IP are all stated.
+ */
+const streetTurnSigned = ({ load, streetTurn, signature }) => {
+  const rows = [
+    ["Load", load.loadId],
+    ["Route", routeText(load)],
+    ["Container #", load.containerNo],
+    ["Street Turn Partner", streetTurn.deliveryPartner],
+    ["Signed by", signature.signedName],
+    ["Title", signature.signedTitle],
+    ["Company", signature.company],
+    ["Signed at", signature.signedAt ? new Date(signature.signedAt).toUTCString() : ""],
+    ["IP address", signature.signedIp],
+  ].filter(([, value]) => value);
+
+  return {
+    subject: `FMS - Street Turn Signed: Load ${load.loadId}`,
+    text:
+      `${signature.signedName} has signed the street turn acknowledgement for load ${load.loadId}.` +
+      "\n\n" +
+      rows.map(([label, value]) => `${label}: ${value}`).join("\n") +
+      (signature.note ? `\n\nPartner note: ${signature.note}` : ""),
+    html: `
+    <h3>Street Turn Signed</h3>
+    <p><strong>${escapeHtml(signature.signedName)}</strong> has signed the street turn
+       acknowledgement for load <strong>${escapeHtml(load.loadId)}</strong>.</p>
+    <table cellpadding="6" cellspacing="0" border="0">
+      ${rows
+        .map(
+          ([label, value]) =>
+            `<tr><td><strong>${escapeHtml(label)}</strong></td><td>${escapeHtml(value)}</td></tr>`,
+        )
+        .join("")}
+    </table>
+    ${signature.note ? `<p><strong>Partner note:</strong> ${escapeHtml(signature.note)}</p>` : ""}
+    <p style="font-size:12px;color:#64748B">
+      Executed electronically. Recorded from IP ${escapeHtml(signature.signedIp || "unknown")}.
+    </p>
   `,
   };
 };
@@ -392,5 +653,7 @@ module.exports = {
   insuranceRequest,
   loadRequiresChanges,
   staffCredentials,
+  streetTurnAgreement,
   streetTurnConfirmed,
+  streetTurnSigned,
 };

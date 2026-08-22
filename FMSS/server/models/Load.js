@@ -1,4 +1,5 @@
 const tenantScope = require("../plugins/tenantScope");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { nextSequence } = require("../utils/sequence");
 const { CHARGE_TYPES, totalsFor } = require("../config/chargeTypes");
@@ -567,17 +568,54 @@ const loadSchema = new mongoose.Schema(
       note: String,
       confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       confirmedAt: Date,
+
+      // ── Transfer agreement particulars ─────────────────────────────────
+      // The blanks on the Street Turn Container and Chassis Transfer Agreement
+      // (config/streetTurnAgreement.js). Stored on the load rather than derived
+      // at send time so the emailed copy and the signed copy always state the
+      // same thing, even after the load itself moves on.
+      transfereeScac: String,
+      transferLocation: String, // where the box is handed over
+      returnLocation: String, // where the transferee returns it
+      // "None" unless the driver notes damage. The agreement is explicit that
+      // the equipment is accepted as-is except for what is written here, so an
+      // empty value and "None" must not be confused — default it at capture.
+      equipmentCondition: String,
+      governingLawState: String,
       // One entry per recipient the confirmation email was attempted for, so
       // a failed send is visible rather than silently lost.
       notifications: [
         {
-          party: String, // "Delivery Partner" | "Shipping Line" | ...
+          party: String, // "Street Turn Partner" | "Shipping Line" | "Driver" | ...
           email: String,
           sent: Boolean,
           reason: String,
           attemptedAt: { type: Date, default: Date.now },
         },
       ],
+
+      // ── The partner's signature back ───────────────────────────────────
+      // Confirming a street turn tells the partner it is happening; it does not
+      // prove they accepted the container. They sign from a one-off emailed
+      // link, so they have no account here and the token is the authorisation.
+      // Only the hash is stored, exactly as the insurance agent's link is
+      // handled — see CarrierOnboarding.issueInsuranceToken.
+      confirmationTokenHash: { type: String, select: false },
+      confirmationTokenExpiresAt: Date,
+
+      partnerSignature: {
+        signedName: String,
+        signedTitle: String,
+        company: String,
+        // Data-URL of the drawn signature, as the POD and agreement flows do.
+        signatureData: String,
+        signedAt: Date,
+        note: String,
+        // What makes this an execution record rather than a form: a dispute is
+        // answered with where and when the signature came from.
+        signedIp: String,
+        signedUserAgent: String,
+      },
     },
 
     pickedUpAt: Date,
@@ -853,6 +891,32 @@ loadSchema.methods.rollupTransportStatus = function () {
 
   return this.transportStatus;
 };
+
+/**
+ * Mints the link the street turn partner signs from.
+ *
+ * Returns the plaintext token exactly once — it is emailed and never stored, so
+ * a leaked database cannot be used to sign on a partner's behalf. Re-issuing
+ * invalidates the previous link.
+ */
+loadSchema.methods.issueStreetTurnToken = function issueStreetTurnToken({ days = 14 } = {}) {
+  const token = crypto.randomBytes(32).toString("hex");
+
+  this.streetTurn = this.streetTurn || {};
+  this.streetTurn.confirmationTokenHash = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+  this.streetTurn.confirmationTokenExpiresAt = new Date(
+    Date.now() + days * 24 * 60 * 60 * 1000,
+  );
+
+  return token;
+};
+
+/** The stored form of a token presented by a partner, for lookup. */
+loadSchema.statics.hashStreetTurnToken = (token) =>
+  crypto.createHash("sha256").update(String(token)).digest("hex");
 
 loadSchema.statics.LEG_ORDER = LEG_ORDER;
 loadSchema.statics.LEG_FINISHED = LEG_FINISHED;

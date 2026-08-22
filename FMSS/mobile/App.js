@@ -33,7 +33,31 @@ import api, {
   getStoredSession,
   saveSession,
 } from "./src/api";
-import { colors, shadow } from "./src/theme";
+import {
+  brand,
+  colors,
+  elevation,
+  glow,
+  radius,
+  shadow,
+  spacing,
+  themeForRole,
+  type as typeScale,
+} from "./src/theme";
+import {
+  TOP_INSET as UI_TOP_INSET,
+  AppHeader,
+  BottomTabs,
+  GradientHeader,
+  Icon,
+  Loader,
+} from "./src/ui";
+import { homeForRole } from "./src/dashboards";
+
+// The four portals the app ships. Everything else — the service-marketplace
+// roles in the product design — has no backend yet and is deliberately not
+// offered a sign-in it could not fulfil.
+const MOBILE_ROLES = ["driver", "fleetOwner", "client", "staff", "admin"];
 
 const LOCATION_TASK = "fmss-live-location";
 const ACTIVE_TRACKING_LOAD_KEY = "fmss_active_tracking_load";
@@ -388,10 +412,10 @@ function LoginScreen({ onLogin }) {
       // uploads pickup proof. Everything they see is resolved from their own
       // account to their carrier server-side, so a driver session reaches
       // exactly what their carrier was assigned.
-      if (!["fleetOwner", "driver"].includes(res.data.user?.role)) {
+      if (!MOBILE_ROLES.includes(res.data.user?.role)) {
         Alert.alert(
-          "Carriers and drivers only",
-          "This app is for fleet-owner and driver accounts.",
+          "Account not supported here",
+          "Sign in with a driver, carrier, shipper or broker account.",
         );
         return;
       }
@@ -405,28 +429,57 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
+    <View style={styles.loginScreen}>
+      <StatusBar style="light" />
+      {/* Brand block on the deep navy, sign-in on white beneath it — the
+          split the marketing screens use, so the app opens on-brand. */}
+      <GradientHeader from="#07152E" to="#16386F" style={styles.loginHero}>
+        <View style={styles.loginBrandRow}>
+          <View style={styles.loginMark}>
+            <Icon name="truck" size={26} color={colors.onBrand} />
+          </View>
+          <Text style={styles.brand}>
+            {brand.name}
+            <Text style={{ color: "#5EA8FF" }}>{brand.nameAccent}</Text>
+          </Text>
+        </View>
+        <Text style={styles.loginTagline}>{brand.tagline}</Text>
+
+        <View style={styles.loginRoles}>
+          {["Drivers", "Carriers", "Shippers", "Brokers"].map((label) => (
+            <View key={label} style={styles.loginRoleChip}>
+              <Text style={styles.loginRoleChipText}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      </GradientHeader>
+
       <KeyboardAvoidingView
-        style={styles.centered}
+        style={styles.loginBody}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.loginCard}>
-          <Text style={styles.brand}>FMSS Fleet</Text>
-          <Text style={styles.subtitle}>For carriers and their drivers</Text>
-          <Field label="Email" value={email} onChangeText={setEmail} placeholder="fleet@example.com" />
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Password"
-          />
-          <PrimaryButton title={loading ? "Signing in..." : "Sign In"} onPress={submit} disabled={loading} />
-          <Text style={styles.apiHint}>API: {API_BASE_URL}</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.loginScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.loginCard}>
+            <Text style={styles.title}>Sign in</Text>
+            <Text style={styles.subtitle}>One app for every trucking need.</Text>
+            <Field label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" />
+            <Field
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="Password"
+            />
+            <PrimaryButton title={loading ? "Signing in..." : "Sign In"} onPress={submit} disabled={loading} />
+            <Text style={styles.apiHint}>API: {API_BASE_URL}</Text>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -449,6 +502,14 @@ function LoadCard({ load, children, onPress }) {
   // Address collection, while the pickups/drops arrays come back raw.
   const origin = load.pickup || load.pickups?.[0];
   const destination = load.drop || load.drops?.[0];
+
+  // A colour-coded edge carrying the same status colour as the chip. In a long
+  // list this is what lets a carrier find the one load that has moved without
+  // reading every card.
+  const statusTone =
+    (load.transportStatus
+      ? TRANSPORT_STATUS_COLOR[load.transportStatus]
+      : BID_STATUS_COLOR[load.bidStatus]) || STATUS_FALLBACK;
 
   const header = (
     <>
@@ -491,7 +552,7 @@ function LoadCard({ load, children, onPress }) {
   );
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: statusTone.color }]}>
       {onPress ? (
         <Pressable
           onPress={onPress}
@@ -996,7 +1057,7 @@ function InlinePicker({ label, required, options, value, onChange, emptyText }) 
 }
 
 // ─── Street turn confirmation ───────────────────────────────────────────────
-// Handing the container to a delivery partner emails every party involved, so
+// Handing the container to a street turn partner emails every party involved, so
 // the server refuses a STREET_TURN status change unless these details come
 // with it. This sheet collects them.
 function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
@@ -1005,7 +1066,7 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
   const [chassisCompanies, setChassisCompanies] = useState([]);
   const [loadingMasters, setLoadingMasters] = useState(true);
 
-  const [deliveryPartner, setDeliveryPartner] = useState("");
+  const [streetTurnPartner, setStreetTurnPartner] = useState("");
   const [shippingLine, setShippingLine] = useState("");
   const [chassisCompany, setChassisCompany] = useState("");
   const [note, setNote] = useState("");
@@ -1013,7 +1074,7 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
   useEffect(() => {
     if (!visible) return;
 
-    setDeliveryPartner("");
+    setStreetTurnPartner("");
     setNote("");
     // Pre-fill from the load so the common case is one tap.
     setShippingLine(load?.shippingLine || "");
@@ -1021,7 +1082,7 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
 
     setLoadingMasters(true);
     Promise.all([
-      api.get("/delivery-partners", { params: { active: true } }).catch(() => ({ data: [] })),
+      api.get("/street-turn-partners", { params: { active: true } }).catch(() => ({ data: [] })),
       api.get("/shipping-lines", { params: { active: true } }).catch(() => ({ data: [] })),
       api.get("/chassis-companies", { params: { active: true } }).catch(() => ({ data: [] })),
     ])
@@ -1034,14 +1095,14 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
   }, [visible, load]);
 
   const submit = () => {
-    if (!deliveryPartner) {
+    if (!streetTurnPartner) {
       Alert.alert(
-        "Delivery partner required",
-        "Select the delivery partner this load is being handed to.",
+        "Street turn partner required",
+        "Select the street turn partner this load is being handed to.",
       );
       return;
     }
-    onConfirm({ deliveryPartner, shippingLine, chassisCompany, note });
+    onConfirm({ streetTurnPartner, shippingLine, chassisCompany, note });
   };
 
   return (
@@ -1050,8 +1111,9 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
         <Pressable style={styles.pickerSheet} onPress={() => {}}>
           <Text style={styles.sectionTitle}>Confirm Street Turn</Text>
           <Text style={styles.muted}>
-            {load?.loadId} — the delivery partner, shipping line, chassis company, your
-            carrier contact and the admins are all emailed once you confirm.
+            {load?.loadId} — the street turn partner, shipping line, chassis company, the
+            assigned drivers, your carrier contact and the admins are all emailed once
+            you confirm. The partner is asked to sign it back.
           </Text>
 
           {loadingMasters ? (
@@ -1059,12 +1121,12 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
           ) : (
             <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
               <InlinePicker
-                label="Delivery Partner"
+                label="Street Turn Partner"
                 required
                 options={partners}
-                value={deliveryPartner}
-                onChange={setDeliveryPartner}
-                emptyText="No delivery partners set up yet."
+                value={streetTurnPartner}
+                onChange={setStreetTurnPartner}
+                emptyText="No street turn partners set up yet."
               />
               <InlinePicker
                 label="Shipping Line"
@@ -2419,16 +2481,128 @@ function NotificationsScreen({ onBack, onOpenLoad }) {
   );
 }
 
+/**
+ * Read-only load list for the shipper and broker portals.
+ *
+ * Carriers and drivers have `/fleet-owners/assignedLoad`, which is scoped to
+ * the loads they were given. Shippers and brokers do not — `GET /loads` is
+ * already narrowed to what their role may see, so it is the right source here.
+ */
+function LoadListTab({ params, emptyText, onOpenDetail }) {
+  const [loads, setLoads] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchLoads = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/loads", { params });
+      setLoads(res.data?.loads || res.data || []);
+    } catch (error) {
+      Alert.alert("Unable to fetch loads", error.response?.data?.message || error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [JSON.stringify(params)]);
+
+  useEffect(() => {
+    fetchLoads();
+  }, [fetchLoads]);
+
+  return (
+    <FlatList
+      data={(Array.isArray(loads) ? loads : []).filter((item) => item && item.loadId)}
+      keyExtractor={(item, index) => String(item._id || item.loadId || index)}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
+      ListEmptyComponent={
+        <Text style={styles.empty}>{loading ? "Loading loads..." : emptyText}</Text>
+      }
+      renderItem={({ item }) => <LoadCard load={item} onPress={() => onOpenDetail(item)} />}
+      contentContainerStyle={styles.listContent}
+    />
+  );
+}
+
+/** Account screen behind the More tab. */
+function MoreScreen({ session, theme, onLogout, onOpen, isDriver }) {
+  const user = session?.user || {};
+  return (
+    <>
+      <AppHeader theme={theme} eyebrow="Account" title="More" subtitle={user.email} />
+      <ScrollView contentContainerStyle={styles.moreBody} showsVerticalScrollIndicator={false}>
+        <View style={styles.moreProfile}>
+          <View style={[styles.moreAvatar, { backgroundColor: theme.accent }]}>
+            <Text style={styles.moreAvatarText}>
+              {String(user.name || user.email || "?").charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.moreName}>{user.name || user.email}</Text>
+            <Text style={styles.moreRole}>{theme.label}</Text>
+          </View>
+        </View>
+
+        <View style={styles.moreCard}>
+          {isDriver ? (
+            <Pressable style={styles.moreRow} onPress={() => onOpen("licence")}>
+              <Icon name="licence" size={18} color={colors.parking} />
+              <Text style={styles.moreRowText}>My licence</Text>
+              <Icon name="chevron" size={16} color={colors.faint} />
+            </Pressable>
+          ) : null}
+          <Pressable style={styles.moreRow} onPress={() => onOpen("alerts")}>
+            <Icon name="bell" size={18} color={colors.roadside} />
+            <Text style={styles.moreRowText}>Notifications</Text>
+            <Icon name="chevron" size={16} color={colors.faint} />
+          </Pressable>
+          <Pressable style={[styles.moreRow, styles.moreRowLast]} onPress={onLogout}>
+            <Icon name="logout" size={18} color={colors.danger} />
+            <Text style={[styles.moreRowText, { color: colors.danger }]}>Sign out</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.apiHint}>
+          {brand.name}
+          {brand.nameAccent} · API {API_BASE_URL}
+        </Text>
+      </ScrollView>
+    </>
+  );
+}
+
+/**
+ * The signed-in shell.
+ *
+ * Owns the bottom tab bar, the role's dashboard, and the full-screen routes
+ * that tabs and dashboard tiles push to. Every screen that existed before is
+ * still reachable — the shell only changes how you get to them.
+ */
 function FleetHomeScreen({ session, onLogout }) {
-  const [tab, setTab] = useState("assigned");
+  const role = session.user?.role;
+  const theme = themeForRole(role);
+  const Home = homeForRole(role);
+
+  const isDriver = role === "driver";
+  const isCarrier = role === "fleetOwner";
+  const isShipper = role === "client";
+  // Only these two hold carrier-scoped loads, so only these two may call the
+  // carrier endpoints — the rest would take a 403 for their trouble.
+  const carrierSide = isDriver || isCarrier;
+
+  const [tab, setTab] = useState("home");
+  const [loadTab, setLoadTab] = useState(carrierSide ? "assigned" : "all");
   const [selectedLoad, setSelectedLoad] = useState(null);
   const [detailLoad, setDetailLoad] = useState(null);
   const [showLicense, setShowLicense] = useState(false);
-  const [compliance, setCompliance] = useState(null);
-
-  const isDriver = session.user?.role === "driver";
   const [showNotifications, setShowNotifications] = useState(false);
+  const [compliance, setCompliance] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Dashboard data
+  const [stats, setStats] = useState(null);
+  const [assigned, setAssigned] = useState([]);
+  const [available, setAvailable] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [booted, setBooted] = useState(false);
 
   // Polled on the same cadence the rest of the app refreshes at. Cheap: the
   // endpoint counts rather than lists.
@@ -2473,19 +2647,139 @@ function FleetHomeScreen({ session, onLogout }) {
     };
   }, [isDriver]);
 
-  // Bidding belongs to the carrier, not to the person driving. Both bid
-  // endpoints are fleetOwner-only server-side, so a driver tapping these tabs
-  // was getting an empty list and a 403 rather than anything they could act on.
-  const tabs = useMemo(
-    () =>
-      [
-        { key: "assigned", label: "Assigned" },
-        !isDriver && { key: "available", label: "Available" },
-        !isDriver && { key: "myBids", label: "My Bids" },
-        { key: "over", label: "Over" },
-      ].filter(Boolean),
-    [isDriver],
+  /**
+   * One pass for everything the dashboard shows. Failures are swallowed per
+   * request rather than per batch: a carrier whose bid board is empty should
+   * still see their trips.
+   */
+  const loadDashboard = useCallback(async () => {
+    setRefreshing(true);
+
+    const statsReq = api
+      .get("/stats")
+      .then((res) => setStats(res.data))
+      .catch(() => null);
+
+    const carrierReqs = carrierSide
+      ? [
+          api
+            .get("/fleet-owners/assignedLoad")
+            .then((res) =>
+              setAssigned(
+                (res.data || []).filter(
+                  (load) =>
+                    load &&
+                    load.loadId &&
+                    !completedStatuses.includes(load.transportStatus),
+                ),
+              ),
+            )
+            .catch(() => null),
+          isCarrier
+            ? api
+                .get("/loads", { params: { bidStatus: "OPEN" } })
+                .then((res) => setAvailable(res.data || []))
+                .catch(() => null)
+            : null,
+        ].filter(Boolean)
+      : [];
+
+    await Promise.all([statsReq, ...carrierReqs]);
+    setRefreshing(false);
+    setBooted(true);
+  }, [carrierSide, isCarrier]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  /** Where a dashboard tile or a More row sends you. */
+  const open = useCallback(
+    (key) => {
+      switch (key) {
+        case "licence":
+          setShowLicense(true);
+          break;
+        case "alerts":
+          setShowNotifications(true);
+          break;
+        case "assigned":
+        case "over":
+        case "available":
+        case "myBids":
+          setLoadTab(key);
+          setTab("loads");
+          break;
+        case "track":
+          // Tracking is per-load; send them to the list to pick one.
+          setLoadTab(carrierSide ? "assigned" : "all");
+          setTab("loads");
+          break;
+        case "more":
+          setTab("more");
+          break;
+        case "postLoad":
+        case "quotes":
+        case "documents":
+        case "payments":
+        case "history":
+        case "pending":
+        case "bidding":
+        case "loads":
+        case "carriers":
+        case "drivers":
+          setTab("loads");
+          break;
+        default:
+          setTab("home");
+      }
+    },
+    [carrierSide],
   );
+
+  // Tab sets differ by portal because the work differs. Drivers never bid, so
+  // they are not given a Bids tab that would 403.
+  const tabs = useMemo(() => {
+    const alerts = { key: "alerts", label: "Alerts", icon: "bell", badge: unreadCount };
+    const more = { key: "more", label: "More", icon: "more" };
+
+    if (isShipper) {
+      return [
+        { key: "home", label: "Home", icon: "home" },
+        { key: "loads", label: "Shipments", icon: "shipments" },
+        alerts,
+        more,
+      ];
+    }
+    if (isCarrier) {
+      return [
+        { key: "home", label: "Home", icon: "home" },
+        { key: "loads", label: "Loads", icon: "loads" },
+        { key: "bids", label: "Bids", icon: "bid" },
+        alerts,
+        more,
+      ];
+    }
+    return [
+      { key: "home", label: "Home", icon: "home" },
+      { key: "loads", label: "Loads", icon: "loads" },
+      alerts,
+      more,
+    ];
+  }, [isShipper, isCarrier, unreadCount]);
+
+  // Segmented control inside the Loads tab.
+  const loadSegments = useMemo(() => {
+    if (!carrierSide) return [{ key: "all", label: "All" }];
+    return [
+      { key: "assigned", label: "Assigned" },
+      !isDriver && { key: "available", label: "Available" },
+      !isDriver && { key: "myBids", label: "My Bids" },
+      { key: "over", label: "Over" },
+    ].filter(Boolean);
+  }, [carrierSide, isDriver]);
+
+  /* ---- Full-screen routes. These sit above the tab bar. ---- */
 
   if (showNotifications) {
     return (
@@ -2513,75 +2807,128 @@ function FleetHomeScreen({ session, onLogout }) {
     return <LoadDetailScreen load={detailLoad} onBack={() => setDetailLoad(null)} />;
   }
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>FMSS Fleet</Text>
-          <Text style={styles.subtitle}>{session.user?.email}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {/* Count in the label rather than a floating dot: it is the only
-              header slot available and an unread number is the whole message. */}
-          <SecondaryButton
-            title={unreadCount > 0 ? `Alerts (${unreadCount})` : "Alerts"}
-            onPress={() => setShowNotifications(true)}
-          />
-          {isDriver && (
-            <SecondaryButton title="Licence" onPress={() => setShowLicense(true)} />
-          )}
-          <SecondaryButton title="Logout" onPress={onLogout} />
-        </View>
-      </View>
+  /* ---- Tabbed body ---- */
 
-      {/* The blocker, stated where they land rather than at the dock. */}
-      {isDriver && compliance && !compliance.canUpdateLoads && (
-        <Pressable
-          onPress={() => setShowLicense(true)}
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 8,
-            backgroundColor: "#fef3c7",
-            borderRadius: 12,
-            padding: 12,
-          }}
+  const bell = () => setShowNotifications(true);
+
+  let body;
+  if (tab === "home") {
+    body = booted ? (
+      <Home
+        session={session}
+        theme={theme}
+        stats={stats}
+        loads={assigned}
+        available={available}
+        unread={unreadCount}
+        refreshing={refreshing}
+        onRefresh={loadDashboard}
+        onBell={bell}
+        onOpen={open}
+        compliance={compliance}
+      />
+    ) : (
+      <>
+        <AppHeader theme={theme} title={theme.label} onBell={bell} unread={unreadCount} />
+        <Loader label="Loading your dashboard…" />
+      </>
+    );
+  } else if (tab === "alerts") {
+    body = (
+      <NotificationsScreen onBack={() => setTab("home")} onOpenLoad={() => setTab("loads")} />
+    );
+  } else if (tab === "more") {
+    body = (
+      <MoreScreen
+        session={session}
+        theme={theme}
+        isDriver={isDriver}
+        onLogout={onLogout}
+        onOpen={open}
+      />
+    );
+  } else if (tab === "bids") {
+    body = (
+      <>
+        <AppHeader theme={theme} eyebrow="Bidding" title="My Bids" onBell={bell} unread={unreadCount} />
+        <MyBidsTab onOpenDetail={setDetailLoad} />
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <AppHeader
+          theme={theme}
+          eyebrow={isShipper ? "Your freight" : "Load board"}
+          title={isShipper ? "Shipments" : "Loads"}
+          onBell={bell}
+          unread={unreadCount}
         >
-          <Text style={{ fontWeight: "700", color: colors.warning }}>
-            Action needed before you can update loads
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 3, fontSize: 13 }}>
-            {compliance.message} Tap here to do it now.
-          </Text>
-        </Pressable>
-      )}
+          {loadSegments.length > 1 ? (
+            <View style={styles.segments}>
+              {loadSegments.map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setLoadTab(item.key)}
+                  style={[styles.segment, loadTab === item.key && styles.segmentActive]}
+                >
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      loadTab === item.key && { color: theme.accentDark },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </AppHeader>
 
-      <View style={styles.tabs}>
-        {tabs.map((item) => (
-          <Pressable
-            key={item.key}
-            onPress={() => setTab(item.key)}
-            style={[styles.tab, tab === item.key && styles.tabActive]}
-          >
-            <Text style={[styles.tabText, tab === item.key && styles.tabTextActive]}>
-              {item.label}
-            </Text>
+        {/* Driver blocker, stated where they land rather than at the dock. */}
+        {isDriver && compliance && !compliance.canUpdateLoads ? (
+          <Pressable onPress={() => setShowLicense(true)} style={styles.complianceBanner}>
+            <Icon name="warning" size={18} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.complianceTitle}>
+                Action needed before you can update loads
+              </Text>
+              <Text style={styles.complianceBody}>{compliance.message} Tap here to do it now.</Text>
+            </View>
           </Pressable>
-        ))}
-      </View>
+        ) : null}
 
-      {tab === "assigned" && (
-        <AssignedLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />
-      )}
-      {tab === "available" && (
-        <AvailableBidsTab
-          onOpenAssigned={() => setTab("assigned")}
-          onOpenDetail={setDetailLoad}
-        />
-      )}
-      {tab === "myBids" && <MyBidsTab onOpenDetail={setDetailLoad} />}
-      {tab === "over" && <OverLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />}
-    </SafeAreaView>
+        {loadTab === "assigned" && (
+          <AssignedLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />
+        )}
+        {loadTab === "available" && (
+          <AvailableBidsTab
+            onOpenAssigned={() => setLoadTab("assigned")}
+            onOpenDetail={setDetailLoad}
+          />
+        )}
+        {loadTab === "myBids" && <MyBidsTab onOpenDetail={setDetailLoad} />}
+        {loadTab === "over" && (
+          <OverLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />
+        )}
+        {loadTab === "all" && (
+          <LoadListTab
+            params={undefined}
+            emptyText={isShipper ? "No shipments yet." : "No loads to show."}
+            onOpenDetail={setDetailLoad}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <View style={styles.shell}>
+      <StatusBar style="light" />
+      {body}
+      <BottomTabs tabs={tabs} active={tab} onChange={setTab} accent={theme.accent} />
+    </View>
   );
 }
 
@@ -2639,6 +2986,123 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingTop: ANDROID_TOP_INSET,
   },
+
+  /* ── Shell ──────────────────────────────────────────────────────────── */
+  shell: { flex: 1, backgroundColor: colors.background },
+
+  /* ── Sign in ────────────────────────────────────────────────────────── */
+  loginScreen: { flex: 1, backgroundColor: colors.background },
+  loginHero: { paddingBottom: spacing.xxl, paddingTop: UI_TOP_INSET + spacing.xxl },
+  loginBrandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  loginMark: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  loginTagline: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12.5,
+    fontWeight: "600",
+    marginTop: spacing.sm,
+    letterSpacing: 0.4,
+  },
+  loginRoles: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  loginRoleChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  loginRoleChipText: { color: "#CFE2FF", fontSize: 11, fontWeight: "700" },
+  loginBody: { flex: 1, marginTop: -spacing.xl },
+  loginScroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
+
+  /* ── Segmented control in the Loads tab ─────────────────────────────── */
+  segments: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: radius.sm,
+    padding: 3,
+    marginTop: spacing.md,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: radius.xs,
+    alignItems: "center",
+  },
+  segmentActive: { backgroundColor: colors.surface },
+  segmentText: { fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.9)" },
+
+  /* ── Driver compliance banner ───────────────────────────────────────── */
+  complianceBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    margin: spacing.lg,
+    marginBottom: 0,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.warningFaint,
+    borderWidth: 1,
+    borderColor: colors.warningLight,
+  },
+  complianceTitle: { fontSize: 13, fontWeight: "800", color: colors.warning },
+  complianceBody: { fontSize: 12, color: colors.muted, marginTop: 2 },
+
+  /* ── More tab ───────────────────────────────────────────────────────── */
+  moreBody: { padding: spacing.lg, gap: spacing.lg },
+  moreProfile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    ...elevation.sm,
+  },
+  moreAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moreAvatarText: { color: colors.onBrand, fontSize: 19, fontWeight: "800" },
+  moreName: { ...typeScale.h3, color: colors.text },
+  moreRole: { ...typeScale.caption, color: colors.muted, marginTop: 2 },
+  moreCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    ...elevation.sm,
+  },
+  moreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  moreRowLast: { borderBottomWidth: 0 },
+  moreRowText: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.text },
+
   centered: {
     flex: 1,
     alignItems: "center",
@@ -2656,10 +3120,12 @@ const styles = StyleSheet.create({
     padding: 24,
     ...shadow,
   },
+  // Sits on the navy hero, so it is painted for a dark ground.
   brand: {
-    color: colors.text,
-    fontSize: 28,
+    color: colors.onBrand,
+    fontSize: 26,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
   title: {
     color: colors.text,
@@ -2700,26 +3166,28 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   button: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    minHeight: 50,
+    borderRadius: radius.md,
+    paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
+    ...glow(colors.primary),
   },
   buttonText: {
     color: "#fff",
     fontWeight: "800",
     fontSize: 14,
+    letterSpacing: 0.3,
   },
   secondaryButton: {
     minHeight: 46,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "#fff",
+    borderColor: colors.primaryLight,
+    backgroundColor: colors.primaryFaint,
   },
   secondaryButtonText: {
     color: colors.primary,
@@ -2754,9 +3222,9 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingVertical: 11,
-    backgroundColor: "#eef2f9",
+    backgroundColor: colors.surfaceSunken,
   },
   tabActive: {
     backgroundColor: colors.primary,
@@ -2811,13 +3279,14 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 16,
     marginBottom: 12,
     gap: 12,
-    ...shadow,
+    overflow: "hidden",
+    ...elevation.md,
   },
   cardHeader: {
     flexDirection: "row",
@@ -2826,8 +3295,9 @@ const styles = StyleSheet.create({
   },
   loadId: {
     color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
   muted: {
     color: colors.muted,

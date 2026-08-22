@@ -1,10 +1,15 @@
+/* The marketing page runs on its own variables rather than Tailwind utilities.
+   They are pointed at the shared tokens here so the public site and the signed-in
+   app are one palette — and `--accent`, which was the same near-black navy as the
+   body text, is now the brand blue that carries through both apps. */
 .landing-page {
-  --ink: #081426;
-  --muted: #536072;
-  --line: #dfe5ec;
-  --paper: #ffffff;
-  --soft: #f6f8fb;
-  --accent: #071832;
+  --ink: var(--color-brand-900, #07152e);
+  --muted: var(--color-ink-500, #64748b);
+  --line: var(--color-hairline, #e3e9f4);
+  --paper: var(--color-surface, #ffffff);
+  --soft: var(--color-canvas, #f4f7fc);
+  --accent: var(--color-accent-600, #1d6fe0);
+  --accent-deep: var(--color-brand-800, #0b1e3d);
   --page-x: clamp(60px, 4.7vw, 72px);
   min-height: 100vh;
   color: var(--ink);
@@ -732,5 +737,111 @@
 
   .landing-partner-card {
     min-height: 112px;
+  }
+}
+
+/* ==========================================================================
+   Colour pass
+   --------------------------------------------------------------------------
+   The page was navy-on-white throughout, which read as austere rather than as
+   the same product as the app. These rules add the accent colours without
+   touching the layout above: a gradient on the primary CTA, tinted icon chips
+   that cycle through the palette, and colour on the stats and card hovers.
+   ========================================================================== */
+
+.landing-btn--dark {
+  border-color: transparent;
+  background-image: linear-gradient(
+    135deg,
+    var(--accent-deep) 0%,
+    var(--accent) 100%
+  );
+  box-shadow: 0 8px 20px rgba(29, 111, 224, 0.28);
+}
+
+.landing-btn--dark:hover {
+  box-shadow: 0 12px 28px rgba(29, 111, 224, 0.38);
+}
+
+.landing-btn--outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Icon chips cycle through the palette rather than all sharing one colour, the
+   same way the dashboard tiles do. */
+.landing-card__icon {
+  background: var(--color-accent-100, #ddebfd);
+  color: var(--color-accent-700, #1544a3);
+  border-radius: 14px;
+}
+
+.landing-action-grid .landing-card:nth-child(4n + 2) .landing-card__icon,
+.landing-reason-grid .landing-card:nth-child(4n + 2) .landing-card__icon {
+  background: var(--color-good-100, #d6f5e0);
+  color: var(--color-good-700, #12803c);
+}
+
+.landing-action-grid .landing-card:nth-child(4n + 3) .landing-card__icon,
+.landing-reason-grid .landing-card:nth-child(4n + 3) .landing-card__icon {
+  background: var(--color-fuel-100, #ffead5);
+  color: var(--color-fuel-600, #ea580c);
+}
+
+.landing-action-grid .landing-card:nth-child(4n + 4) .landing-card__icon,
+.landing-reason-grid .landing-card:nth-child(4n + 4) .landing-card__icon {
+  background: var(--color-grape-100, #ede4fe);
+  color: var(--color-grape-600, #7c3aed);
+}
+
+/* Cards lift toward the accent on hover instead of staying inert. */
+.landing-card {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.landing-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--color-accent-100, #ddebfd);
+  box-shadow: 0 18px 36px rgba(11, 30, 61, 0.12);
+}
+
+/* The headline numbers are the one place on the page that should shout. */
+.landing-stat strong,
+.landing-stat b {
+  background-image: linear-gradient(135deg, var(--accent-deep), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.landing-feature svg {
+  color: var(--accent);
+}
+
+.landing-partner-strip {
+  background-image: linear-gradient(
+    135deg,
+    var(--accent-deep) 0%,
+    var(--accent) 100%
+  );
+  background-color: var(--accent-deep);
+}
+
+/* The mark is a glyph with two speed-lines drawn as pseudo-elements, not a
+   filled tile — so the accent goes on the lines, not behind the glyph. */
+.landing-logo__mark::before,
+.landing-logo__mark::after {
+  background: var(--accent);
+}
+
+.landing-arrow-link {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-card:hover,
+  .landing-btn:hover {
+    transform: none;
   }
 }

@@ -181,7 +181,18 @@ const sendBidWon = ({ load, fleetOwner, winningBid, email }) =>
  *
  * @returns {Promise<Array<{party, email, sent, reason}>>}
  */
-const sendStreetTurnNotifications = async ({ load, streetTurn, recipients }) => {
+/**
+ * `signLink` is passed only for the street turn partner. Everyone else on the
+ * distribution is being informed; the partner is the one being asked to
+ * acknowledge, and their link is single-use — see Load.issueStreetTurnToken.
+ */
+const sendStreetTurnNotifications = async ({
+  load,
+  streetTurn,
+  recipients,
+  signLink,
+  agreement,
+}) => {
   const targets = recipients
     .filter((r) => r.email)
     .map((r) => ({ ...r, email: String(r.email).trim() }))
@@ -201,10 +212,17 @@ const sendStreetTurnNotifications = async ({ load, streetTurn, recipients }) => 
     unique.map((recipient) =>
       sendTemplate({
         to: recipient.email,
-        template: templates.streetTurnConfirmed({
+        // Everyone gets the agreement itself — it is the record of the transfer,
+        // and the shipping line and chassis company are entitled to the same
+        // document as the two parties to it. Only the transferee is asked to
+        // sign: copying the link to the rest of the distribution would let
+        // anyone on it sign on the partner's behalf.
+        template: templates.streetTurnAgreement({
           load,
           streetTurn,
+          agreement,
           recipientLabel: recipient.party,
+          signLink: recipient.party === "Street Turn Partner" ? signLink : undefined,
         }),
       }),
     ),
@@ -221,7 +239,26 @@ const sendStreetTurnNotifications = async ({ load, streetTurn, recipients }) => 
   }));
 };
 
+/** Tells the office the partner has signed. Best-effort; failures are ignored. */
+const sendStreetTurnSigned = async ({ load, streetTurn, signature, recipients = [] }) => {
+  const unique = [...new Set(recipients.filter(Boolean).map((e) => String(e).trim()))];
+
+  return Promise.allSettled(
+    unique.map((to) =>
+      sendTemplate({
+        to,
+        template: templates.streetTurnSigned({ load, streetTurn, signature }),
+      }),
+    ),
+  );
+};
+
+/** The page a street turn partner signs their acknowledgement on. */
+const streetTurnSignLink = (token) => `${frontendUrl()}/street-turn/${token}`;
+
 module.exports = {
+  sendStreetTurnSigned,
+  streetTurnSignLink,
   sendBidWon,
   sendBiddingNowOpen,
   sendBiddingScheduled,

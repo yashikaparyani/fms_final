@@ -3,14 +3,6 @@ import { useSelector } from "react-redux";
 import BlockIcon from "@mui/icons-material/Block";
 import { canAny } from "../utils/permissions";
 
-const roleLoginMap = {
-  admin: "/admin-login",
-  staff: "/staff-login",
-  client: "/client-login",
-  fleetOwner: "/vendor-login",
-  driver: "/vendor-login",
-};
-
 /**
  * Shown instead of a redirect when the user is signed in and in the right
  * portal but lacks the module permission.
@@ -50,9 +42,11 @@ const ProtectedRoute = ({ children, allowedRole, permission }) => {
   const localUser = JSON.parse(localStorage.getItem("user"));
   const currentUser = user || localUser;
 
-  // Not logged in
+  // Not logged in. One door serves every role, so there is nothing to look up
+  // — and the old per-role map sent people to a page that would have rejected
+  // them anyway if they picked the wrong portal.
   if (!token || !currentUser) {
-    return <Navigate to={roleLoginMap[allowedRole]} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // Role match — admin is a superset of staff, so an admin is allowed into
@@ -61,8 +55,10 @@ const ProtectedRoute = ({ children, allowedRole, permission }) => {
     currentUser.role === allowedRole ||
     (currentUser.role === "admin" && allowedRole === "staff");
 
+  // Signed in, but this is not their portal — send them to their own rather
+  // than back out to sign-in, which would look like being logged out.
   if (!roleMatches) {
-    return <Navigate to={roleLoginMap[currentUser.role] || "/"} replace />;
+    return <Navigate to={`/${currentUser.role}/dashboard`} replace />;
   }
 
   if (permission) {

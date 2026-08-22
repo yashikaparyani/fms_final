@@ -22,6 +22,7 @@ import {
 } from "../../components/cards/StatCard";
 import QuickActionCard from "../../components/cards/QuickActionCard";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import DashboardHeader from "../../components/DashboardHeader";
 
 const StaffDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -273,14 +274,16 @@ useAutoRefresh(() => fetchStats({ silent: true }));
   
   <div className={uiStyles.page}>
     {/* Header */}
-    <div className={uiStyles.flexBetween}>
-      <div>
-        <h1 className="page-title">Staff Dashboard</h1>
-        <p className="page-subtitle">
-          Manage customers, fleet owners, and transport orders.
-        </p>
-      </div>
-    </div>
+    <DashboardHeader
+      title="Staff Dashboard"
+      subtitle="Manage customers, fleet owners, and transport orders."
+      stats={[
+        { label: "Customers", value: stats?.totalCustomers },
+        { label: "Fleet owners", value: stats?.totalFleetOwners },
+        { label: "Total loads", value: stats?.totalLoads },
+        { label: "In bidding", value: stats?.activeBidding },
+      ]}
+    />
 
     {/* Main Stat Cards */}
     <div className={uiStyles.grid4}>

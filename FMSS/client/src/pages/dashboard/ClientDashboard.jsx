@@ -13,6 +13,7 @@ import { uiStyles } from "../../style/uiStyles";
 import { StatCard, SummaryCard } from "../../components/cards/StatCard";
 import QuickActionCard from "../../components/cards/QuickActionCard";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import DashboardHeader from "../../components/DashboardHeader";
 
 const ClientDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -100,14 +101,16 @@ const ClientDashboard = () => {
   return (
     <div className={uiStyles.page}>
       {/* Header */}
-      <div className={uiStyles.flexBetween}>
-        <div>
-          <h1 className="page-title">Client Dashboard</h1>
-          <p className="page-subtitle">
-            Welcome back! Here's your transport overview.
-          </p>
-        </div>
-      </div>
+      <DashboardHeader
+        title="Ship with S Line Transport"
+        subtitle="Post freight, collect quotes and follow every shipment."
+        stats={[
+          { label: "Total loads", value: stats?.totalLoads },
+          { label: "Pending", value: stats?.pendingLoads },
+          { label: "Verified", value: stats?.verifiedLoads },
+          { label: "In bidding", value: stats?.activeBidding },
+        ]}
+      />
 
       {/* Main Stat Cards */}
       <div className={uiStyles.grid4}>

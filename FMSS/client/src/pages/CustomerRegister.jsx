@@ -20,7 +20,7 @@ const CustomerRegister = () => {
       });
 
       setTimeout(() => {
-        navigate("/client-login");
+        navigate("/login");
       }, 2000);
 
     } catch (error) {

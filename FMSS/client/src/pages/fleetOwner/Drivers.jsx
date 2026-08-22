@@ -446,7 +446,7 @@ const Drivers = () => {
       {issued.length > 0 && (
         <CredentialsPanel
           entries={issued}
-          loginUrl={`${window.location.origin}/vendor-login`}
+          loginUrl={`${window.location.origin}/login`}
           title={`${issued.length} driver login${issued.length > 1 ? "s" : ""} issued`}
           onDismiss={() => setIssued([])}
         />

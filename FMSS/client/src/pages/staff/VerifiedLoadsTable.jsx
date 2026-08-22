@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
-import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import { LfdCell, UrgencyBadge } from "../../components/UrgencyCells";
+import LoadColorModeToggle from "../../components/LoadColorModeToggle";
+import {
+  STATUS_ROW_COLORS,
+  rowColorFor,
+  useLoadColorMode,
+  STATUS_LABEL,
+} from "../../utils/loadColorMode";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import {
   useDispatchActions,
@@ -44,6 +51,9 @@ const CarrierCell = ({ load, fleetOwners }) => {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 const VerifiedLoadsTable = () => {
+  // Priority or status tint — a per-person choice, remembered.
+  const [colorMode, setColorMode, isStatusMode] = useLoadColorMode();
+
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -176,7 +186,11 @@ const VerifiedLoadsTable = () => {
         <p className="text-sm text-gray-500">
           Loads cleared for bidding, earliest pickup first
         </p>
-        <UrgencyLegend />
+        <LoadColorModeToggle
+          mode={colorMode}
+          setMode={setColorMode}
+          rows={sortedRows}
+        />
       </div>
 
       {/* 📱 Mobile */}
@@ -190,12 +204,16 @@ const VerifiedLoadsTable = () => {
               <MobileCard
                 key={row.loadId}
                 colorStyle={{
-                  ...URGENCY_COLORS[row.urgency],
+                  ...rowColorFor(row, colorMode, URGENCY_COLORS),
                   badge: { bg: "#e0e7ff", text: "#3730a3" },
                 }}
                 title={row.loadId}
                 subtitle={row.customerName || "—"}
-                badge={{ label: URGENCY_LABEL[row.urgency].text }}
+                badge={{
+                  label: isStatusMode
+                    ? STATUS_LABEL(row.transportStatus)
+                    : URGENCY_LABEL[row.urgency].text,
+                }}
                 locations={[
                   { label: "Origin", data: row.pickup },
                   { label: "Destination", data: row.drop },
@@ -232,8 +250,8 @@ const VerifiedLoadsTable = () => {
         <LoadTable
           loads={sortedRows}
           columns={columns}
-          colorBy="urgency"
-          colorMap={URGENCY_COLORS}
+          colorBy={isStatusMode ? "transportStatus" : "urgency"}
+          colorMap={isStatusMode ? STATUS_ROW_COLORS : URGENCY_COLORS}
           loading={loading}
           emptyMessage="No loads ready for dispatch."
         />

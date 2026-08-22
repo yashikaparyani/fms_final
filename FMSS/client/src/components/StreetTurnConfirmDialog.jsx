@@ -4,7 +4,7 @@ import AppSelect from "./AppSelect";
 import { uiStyles } from "../style/uiStyles";
 
 // ─── Street Turn confirmation ────────────────────────────────────────────────
-// Setting a load to STREET_TURN hands the container to a delivery partner, so
+// Setting a load to STREET_TURN hands the container to a street turn partner, so
 // the server refuses the status change unless these details come with it and
 // emails every party once it is saved. This dialog collects them.
 //
@@ -24,7 +24,7 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
   const [chassisCompanies, setChassisCompanies] = useState([]);
   const [loadingMasters, setLoadingMasters] = useState(true);
 
-  const [deliveryPartner, setDeliveryPartner] = useState("");
+  const [streetTurnPartner, setStreetTurnPartner] = useState("");
   const [shippingLine, setShippingLine] = useState("");
   const [chassisCompany, setChassisCompany] = useState("");
   const [note, setNote] = useState("");
@@ -38,11 +38,11 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
     // Pre-fill from the load so the common case is one click.
     setShippingLine(load?.shippingLine || "");
     setChassisCompany(load?.chassisCompany || "");
-    setDeliveryPartner("");
+    setStreetTurnPartner("");
 
     setLoadingMasters(true);
     Promise.all([
-      api.get("/delivery-partners", { params: { active: true } }).catch(() => ({ data: [] })),
+      api.get("/street-turn-partners", { params: { active: true } }).catch(() => ({ data: [] })),
       api.get("/shipping-lines", { params: { active: true } }).catch(() => ({ data: [] })),
       api.get("/chassis-companies", { params: { active: true } }).catch(() => ({ data: [] })),
     ])
@@ -56,7 +56,7 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
 
   if (!isShow) return null;
 
-  const partnerRow = partners.find((p) => p.name === deliveryPartner);
+  const partnerRow = partners.find((p) => p.name === streetTurnPartner);
   const lineRow = lines.find((l) => l.name === shippingLine);
   const chassisRow = chassisCompanies.find((c) => c.name === chassisCompany);
 
@@ -66,16 +66,16 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
   const staleChassisCompany = chassisCompany && !chassisRow && !loadingMasters;
 
   const handleConfirm = () => {
-    if (!deliveryPartner) {
-      setError("Select the delivery partner this load is being handed to.");
+    if (!streetTurnPartner) {
+      setError("Select the street turn partner this load is being handed to.");
       return;
     }
     setError("");
-    onConfirm({ deliveryPartner, shippingLine, chassisCompany, note });
+    onConfirm({ streetTurnPartner, shippingLine, chassisCompany, note });
   };
 
   const recipients = [
-    partnerRow && { label: "Delivery Partner", email: partnerRow.email },
+    partnerRow && { label: "Street Turn Partner", email: partnerRow.email },
     lineRow?.email && { label: "Shipping Line", email: lineRow.email },
     chassisRow?.email && { label: "Chassis Company", email: chassisRow.email },
   ].filter(Boolean);
@@ -95,22 +95,22 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
           <div className="relative">
             <AppSelect
               options={toOptions(partners)}
-              value={deliveryPartner}
-              onChange={setDeliveryPartner}
+              value={streetTurnPartner}
+              onChange={setStreetTurnPartner}
               placeholder={
                 loadingMasters
                   ? "Loading…"
                   : partners.length
                     ? "Select…"
-                    : "No delivery partners yet"
+                    : "No street turn partners yet"
               }
               noOptionsMessage={() =>
-                "No delivery partners. Add them under Admin → Delivery Partners."
+                "No street turn partners. Add them under Admin → Street Turn Partners."
               }
               isDisabled={saving || loadingMasters}
             />
             <label className="input-label">
-              Delivery Partner <span className="text-red-400">*</span>
+              Street Turn Partner <span className="text-red-400">*</span>
             </label>
           </div>
 
@@ -166,8 +166,8 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
 
           <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
             <p className="font-semibold text-gray-600 mb-1">Will be emailed:</p>
-            {recipients.length === 0 && !deliveryPartner ? (
-              <p>Select a delivery partner to see the recipients.</p>
+            {recipients.length === 0 && !streetTurnPartner ? (
+              <p>Select a street turn partner to see the recipients.</p>
             ) : (
               <ul className="space-y-0.5">
                 {recipients.map((r) => (

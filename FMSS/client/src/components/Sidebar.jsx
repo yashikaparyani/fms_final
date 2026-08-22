@@ -39,32 +39,45 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     setOpenGroups((current) => ({ ...current, [label]: !current[label] }));
   };
 
+  // The active row is painted in the signed-in portal's own accent
+  // (--role-accent), so the rail says which product you are in before you have
+  // read a word of it.
   const rowClasses = (active) =>
-    `flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors ${
+    `group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
       active
-        ? "bg-indigo-600 text-white"
-        : "text-gray-300 hover:bg-gray-800 hover:text-white"
+        ? "text-white shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+        : "text-brand-100/70 hover:bg-white/10 hover:text-white"
     }`;
 
+  const rowStyle = (active) =>
+    active ? { background: "var(--role-accent)" } : undefined;
+
   return (
-    <div className="hidden md:flex flex-col w-full bg-gray-900 shadow h-screen transition-all duration-300">
+    <div className="hidden md:flex flex-col w-full brand-gradient shadow-rail h-screen transition-all duration-300">
       {/* Header */}
-      <div className="mb-4 flex h-16 shadow border-b border-gray-800">
+      <div className="mb-2 flex h-16 border-b border-white/10">
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className={`w-full flex items-center  ${
+          className={`w-full flex items-center transition-colors hover:bg-white/5 ${
             isMenuOpen ? "justify-between px-4" : "justify-center"
           }`}
         >
           {isMenuOpen ? (
             <>
-              <span className="text-2xl font-bold tracking-wide text-white">
-                Freight
+              <span className="flex items-center gap-2 text-xl font-extrabold tracking-wide text-white">
+                <span
+                  className="grid h-8 w-8 place-items-center rounded-lg text-[13px]"
+                  style={{ background: "var(--role-accent)" }}
+                >
+                  SL
+                </span>
+                S&nbsp;LINE
+                <span className="text-accent-500">TRANSPORT</span>
               </span>
-              <ChevronLeftIcon className="text-gray-300" />
+              <ChevronLeftIcon className="text-brand-100/70" />
             </>
           ) : (
-            <MenuIcon className="text-gray-300" />
+            <MenuIcon className="text-brand-100/70" />
           )}
         </button>
       </div>
@@ -83,6 +96,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 onClick={() => handleNavigate(item.path)}
                 title={!isMenuOpen ? item.label : undefined}
                 className={rowClasses(active)}
+                style={rowStyle(active)}
               >
                 <Icon className={active ? "text-white" : ""} fontSize="small" />
                 {isMenuOpen && (
@@ -104,8 +118,10 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 className={rowClasses(false)}
               >
                 <Icon
-                  className={containsActive ? "text-indigo-400" : ""}
                   fontSize="small"
+                  style={
+                    containsActive ? { color: "var(--role-accent)" } : undefined
+                  }
                 />
                 {isMenuOpen && (
                   <>
@@ -126,7 +142,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               </div>
 
               {isMenuOpen && expanded && (
-                <div className="mt-1 ml-4 space-y-1 border-l border-gray-800 pl-2">
+                <div className="mt-1 ml-4 space-y-1 border-l border-white/12 pl-2">
                   {item.children.map((child) => {
                     const active = isActive(child.path);
                     const ChildIcon = child.icon;
@@ -135,10 +151,11 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                       <div
                         key={child.path}
                         onClick={() => handleNavigate(child.path)}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                        style={rowStyle(active)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
                           active
-                            ? "bg-indigo-600 text-white"
-                            : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                            ? "text-white"
+                            : "text-brand-100/60 hover:bg-white/10 hover:text-white"
                         }`}
                       >
                         <ChildIcon fontSize="small" style={{ fontSize: 17 }} />
@@ -157,7 +174,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {/* A staff account with nothing granted would otherwise render a blank
             rail with no hint that anything is wrong. */}
         {items.length <= 1 && role === "staff" && isMenuOpen && (
-          <p className="px-4 py-3 text-xs text-gray-500 leading-relaxed">
+          <p className="px-4 py-3 text-xs text-brand-100/50 leading-relaxed">
             No modules have been assigned to you yet. Ask an administrator to
             grant access.
           </p>

@@ -128,7 +128,7 @@ const CustomerForm = ({
 
   const handleCancel = () => {
     if (isSelfRegister) {
-      navigate("/client-login");
+      navigate("/login");
     } else {
       navigate("/staff/customers");
     }
@@ -448,7 +448,7 @@ const CustomerForm = ({
             {showLoginLink && (
               <div className="flex justify-end border-t border-gray-100 pt-4 mt-2">
                 <Link
-                  to="/client-login"
+                  to="/login"
                   className="text-sm text-indigo-600 hover:underline"
                 >
                   Already have an account? Login here

@@ -4,7 +4,14 @@ import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import Swal from "sweetalert2";
 import { notify } from "../../utils/swal";
-import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import { LfdCell, UrgencyBadge } from "../../components/UrgencyCells";
+import LoadColorModeToggle from "../../components/LoadColorModeToggle";
+import {
+  STATUS_ROW_COLORS,
+  rowColorFor,
+  useLoadColorMode,
+  STATUS_LABEL,
+} from "../../utils/loadColorMode";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import {
   URGENCY_COLORS,
@@ -22,6 +29,9 @@ const fmtDate = (v) =>
 
 // ── Page ──────────────────────────────────────────────────────
 const PendingLoadsTable = () => {
+  // Priority or status tint — a per-person choice, remembered.
+  const [colorMode, setColorMode, isStatusMode] = useLoadColorMode();
+
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -167,7 +177,11 @@ const columns = [
           Loads awaiting verification, earliest pickup first
         </p>
 
-        <UrgencyLegend />
+        <LoadColorModeToggle
+          mode={colorMode}
+          setMode={setColorMode}
+          rows={sortedRows}
+        />
       </div>
 
       {/* 📱 Mobile */}
@@ -179,12 +193,16 @@ const columns = [
             <MobileCard
               key={row.loadId}
               colorStyle={{
-                ...URGENCY_COLORS[row.urgency],
+                ...rowColorFor(row, colorMode, URGENCY_COLORS),
                 badge: { bg: "#fef3c7", text: "#92400e" },
               }}
               title={row.loadId}
               subtitle={row.customerName || "—"}
-              badge={{ label: URGENCY_LABEL[row.urgency].text }}
+              badge={{
+                  label: isStatusMode
+                    ? STATUS_LABEL(row.transportStatus)
+                    : URGENCY_LABEL[row.urgency].text,
+                }}
               locations={[
                 { label: "Origin",      data: row.pickup },
                 { label: "Destination", data: row.drop },
@@ -220,8 +238,8 @@ const columns = [
           loads={sortedRows}
           columns={columns}
           //actions={actions}
-          colorBy="urgency"
-          colorMap={URGENCY_COLORS}
+          colorBy={isStatusMode ? "transportStatus" : "urgency"}
+          colorMap={isStatusMode ? STATUS_ROW_COLORS : URGENCY_COLORS}
           loading={loading}
           emptyMessage="No pending loads found."
         />

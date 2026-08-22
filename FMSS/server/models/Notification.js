@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema(
     // Role-based targeting (optional, for bulk sends)
     recipientRole: {
       type: String,
-      enum: ["admin", "staff", "client", "fleetOwner"],
+      enum: ["admin", "staff", "client", "fleetOwner", "driver"],
     },
 
     type: {
@@ -28,7 +28,10 @@ const notificationSchema = new mongoose.Schema(
         "BID_NOT_PLACED",         
         "LOAD_STATUS_CHANGED",    
         "LOAD_REQUIRES_CHANGES",  
-        "LOAD_VERIFIED",          
+        "LOAD_VERIFIED",
+        // Sent by the office from the announcements screen rather than raised
+        // by something happening to a load, so it carries no load reference.
+        "ANNOUNCEMENT",
       ],
       required: true,
     },

@@ -6,7 +6,14 @@ import Swal from "sweetalert2";
 import AppSelect from "../../components/AppSelect";
 import StreetTurnConfirmDialog from "../../components/StreetTurnConfirmDialog";
 import { notify } from "../../utils/swal";
-import { LfdCell, UrgencyBadge, UrgencyLegend } from "../../components/UrgencyCells";
+import { LfdCell, UrgencyBadge } from "../../components/UrgencyCells";
+import LoadColorModeToggle from "../../components/LoadColorModeToggle";
+import {
+  STATUS_ROW_COLORS,
+  rowColorFor,
+  useLoadColorMode,
+  STATUS_LABEL,
+} from "../../utils/loadColorMode";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import {
   URGENCY_COLORS,
@@ -291,6 +298,9 @@ const MobileAssignInline = ({ loadId, fleetOwners, onConfirm, onCancel, saving }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 const AssignedLoadsTable = () => {
+  // Priority or status tint — a per-person choice, remembered.
+  const [colorMode, setColorMode, isStatusMode] = useLoadColorMode();
+
   const [rows, setRows]                   = useState([]);
   const [loading, setLoading]             = useState(true);
   const [fleetOwners, setFleetOwners]     = useState([]);
@@ -465,7 +475,11 @@ const AssignedLoadsTable = () => {
         <p className="text-sm text-gray-500">
           Loads still moving, earliest pickup first — finished ones move to the Over tab
         </p>
-        <UrgencyLegend />
+        <LoadColorModeToggle
+          mode={colorMode}
+          setMode={setColorMode}
+          rows={sortedRows}
+        />
       </div>
 
       {/* 📱 Mobile */}
@@ -481,12 +495,16 @@ const AssignedLoadsTable = () => {
               <MobileCard
                 key={row.loadId}
                 colorStyle={{
-                  ...URGENCY_COLORS[row.urgency],
+                  ...rowColorFor(row, colorMode, URGENCY_COLORS),
                   badge: { bg: "#e0e7ff", text: "#3730a3" },
                 }}
                 title={row.loadId}
                 subtitle={row.customerName || "—"}
-                badge={{ label: URGENCY_LABEL[row.urgency].text }}
+                badge={{
+                  label: isStatusMode
+                    ? STATUS_LABEL(row.transportStatus)
+                    : URGENCY_LABEL[row.urgency].text,
+                }}
                 locations={[
                   { label: "Origin",      data: row.pickup },
                   { label: "Destination", data: row.drop },
@@ -539,8 +557,8 @@ const AssignedLoadsTable = () => {
         <LoadTable
           loads={sortedRows}
           columns={columns}
-          colorBy="urgency"
-          colorMap={URGENCY_COLORS}
+          colorBy={isStatusMode ? "transportStatus" : "urgency"}
+          colorMap={isStatusMode ? STATUS_ROW_COLORS : URGENCY_COLORS}
           loading={loading}
           emptyMessage="No loads in transit."
         />

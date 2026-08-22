@@ -47,7 +47,7 @@ const actionCards = [
     title: "Existing User",
     text: "Login to your account to manage shipments, track deliveries, view invoices and more.",
     link: "Login Now",
-    to: "/client-login",
+    to: "/login",
   },
   {
     icon: FaUserPlus,
@@ -139,7 +139,7 @@ function ArrowLink({ children, to = "#" }) {
 }
 
 function getFooterLink(item) {
-  if (item === "Fleet Login") return "/vendor-login";
+  if (item === "Fleet Login") return "/login";
   return "#home";
 }
 
@@ -157,8 +157,8 @@ function LandingPage() {
           <a href="#contact">Contact</a>
         </nav>
         <div className="landing-auth">
-          <Link className="landing-btn landing-btn--outline" to="/client-login">Login</Link>
-          <Link className="landing-btn landing-btn--dark" to="/vendor-login">Fleet Login</Link>
+          <Link className="landing-btn landing-btn--outline" to="/login">Login</Link>
+          <Link className="landing-btn landing-btn--dark" to="/login">Fleet Login</Link>
         </div>
       </header>
 
@@ -183,7 +183,7 @@ function LandingPage() {
               Request a Free Quote
               <FaArrowRight aria-hidden="true" />
             </Link>
-            <Link className="landing-btn landing-btn--outline landing-btn--large" to="/client-login">
+            <Link className="landing-btn landing-btn--outline landing-btn--large" to="/login">
               Track Shipment
               <FaArrowRight aria-hidden="true" />
             </Link>

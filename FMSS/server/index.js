@@ -15,6 +15,7 @@ connectDB();
 
 // Routes & Middleware
 const authRoutes = require("./routes/authRoutes");
+const signupRoutes = require("./routes/signupRoutes");
 const loadRoutes = require("./routes/loadRoutes");
 const bidRoutes = require("./routes/bidRoutes");
 const configRoutes = require("./routes/configRoutes");
@@ -39,18 +40,29 @@ const companyRoutes = require("./routes/companyRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const notificationRoutes = require("./routes/notificationRoute");
+const announcementRoutes = require("./routes/announcementRoutes");
 const locationRoutes = require("./routes/locationRoutes");
 // Operating locations (branches) — the tenant. Mounted at /api/branches because
 // /api/locations is already the state/city geography lookup.
 const branchRoutes = require("./routes/branchRoutes");
 const trackingRoutes = require("./routes/trackingRoutes");
 const shippingLineRoutes = require("./routes/shippingLineRoutes");
-const deliveryPartnerRoutes = require("./routes/deliveryPartnerRoutes");
+const streetTurnPartnerRoutes = require("./routes/streetTurnPartnerRoutes");
+const streetTurnRoutes = require("./routes/streetTurnRoutes");
 const chassisCompanyRoutes = require("./routes/chassisCompanyRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const startCronJobs = require("./utils/cron");
 
 const app = express();
+
+// Deployed behind nginx, so every request arrives from the proxy. Without this
+// `req.ip` is the proxy's address, which matters because that address is written
+// onto signed documents as evidence — the two carrier agreements and the street
+// turn acknowledgement all record the signer's IP. `1` because there is exactly
+// one proxy in front of this; a larger number would trust hops that do not
+// exist and let a client forge the address by sending its own
+// X-Forwarded-For. It also lets express-rate-limit key on the real client.
+app.set("trust proxy", 1);
 
 // Middleware
 app.use(cors());
@@ -101,6 +113,7 @@ if (!fs.existsSync("uploads")) fs.mkdirSync("uploads");
 
 // Mount Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/signups", signupRoutes);
 app.use("/api/loads", loadRoutes);
 app.use("/api/bidRoutes", bidRoutes);
 app.use("/api/config", configRoutes);
@@ -118,11 +131,16 @@ app.use("/api/companies", companyRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/announcements", announcementRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/shipping-lines", shippingLineRoutes);
-app.use("/api/delivery-partners", deliveryPartnerRoutes);
+app.use("/api/street-turn", streetTurnRoutes);
+app.use("/api/street-turn-partners", streetTurnPartnerRoutes);
+// Kept so a client that has not been redeployed alongside the server keeps
+// working. Same router, old address.
+app.use("/api/delivery-partners", streetTurnPartnerRoutes);
 app.use("/api/chassis-companies", chassisCompanyRoutes);
 
 

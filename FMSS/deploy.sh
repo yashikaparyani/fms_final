@@ -26,7 +26,13 @@ set -euo pipefail   # stop immediately if any step fails
 APP_DIR="$HOME/fms_final/FMSS"   # the FMSS folder inside your repo
 WEB_ROOT="/var/www/fmss"         # where Nginx serves the built website
 PM2_NAME="fmss-server"           # PM2 name of your backend
-BRANCH="master"                  # GitHub branch to pull from
+# GitHub branch to pull from.
+#
+# Not `master`: master is behind this branch, and pulling it would deploy older
+# code than the team is working from. Master is deliberately left where it is so
+# there is a known-good commit to fall back to — to roll back, set this to
+# master and re-run.
+BRANCH="feature/dispatch-whatsapp-and-agreements"
 # -----------------------------------------------------------------------
 
 # Make node / npm / pm2 available even when run as a plain script

@@ -3,6 +3,7 @@ const Customer = require("../models/Customer");
 const Address = require("../models/common/Address");
 const FleetOwner = require("../models/FleetOwner");
 const Branch = require("../models/Branch");
+const SignupRequest = require("../models/SignupRequest");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
@@ -530,6 +531,24 @@ const loginUser = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
     if (!user) {
+      // Someone who registered and is waiting on the office would otherwise be
+      // told their credentials are wrong, and would keep trying. They submitted
+      // this address themselves, so naming its state tells them nothing they
+      // did not already know.
+      const pending = await SignupRequest.findOne({
+        email: normalizedEmail,
+        status: "PENDING",
+      }).lean();
+
+      if (pending) {
+        return res.status(403).json({
+          message:
+            "Your registration is still waiting on approval. We will email your " +
+            "sign-in details once it is approved.",
+          code: "REGISTRATION_PENDING",
+        });
+      }
+
       return res.status(401).json({ message: "Invalid credentials" });
     }
 

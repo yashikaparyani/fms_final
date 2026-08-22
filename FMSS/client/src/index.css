@@ -1,10 +1,113 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap");
 
 @import "tailwindcss";
+@import "./style/tokens.css";
 
-/* Apply Poppins globally */
+/* ==========================================================================
+   S Line Transport — global stylesheet
+   --------------------------------------------------------------------------
+   The palette lives in style/tokens.css, which this imports. What follows is
+   base element styling plus the few surface treatments that are easier to
+   express as real CSS than as utility strings.
+   ========================================================================== */
+
 body {
-  font-family: "Poppins", sans-serif;
-  font-size: 18px;
+  font-family: var(--font-sans);
+  font-size: 14px;
   font-weight: 500;
+  background: var(--color-canvas);
+  color: var(--color-ink-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.01em;
+}
+
+/* A thin, unobtrusive scrollbar — the dense tables in this app show a lot of
+   them, and the platform default dominates the page. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-300);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-400);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Focus ring in the brand accent rather than the browser default. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--role-accent);
+  outline-offset: 2px;
+}
+
+/* ── Reusable surface treatments ─────────────────────────────────────────── */
+
+/* Coloured page header used by the dashboards. */
+.role-gradient {
+  background-image: linear-gradient(135deg, var(--role-from) 0%, var(--role-to) 100%);
+}
+
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-600) 100%);
+}
+
+/* Card with a coloured top edge — the accent that carries through the app. */
+.card-accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent, var(--role-accent));
+}
+
+/* ── Announcement marquee ────────────────────────────────────────────────── */
+/* Only applied when the text genuinely overflows its bar (MarqueeBanner
+   measures it). A short notice that slides past for no reason is harder to
+   read, not more noticeable. */
+@keyframes marquee-scroll {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  90%,
+  100% {
+    transform: translateX(var(--marquee-shift, -50%));
+  }
+}
+
+.marquee-scrolling {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee-scroll var(--marquee-duration, 18s) linear infinite alternate;
+}
+
+/* Someone who asks for less motion gets the text held still and clipped
+   rather than moving — the content is still reachable by scrolling the bar. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-scrolling {
+    animation: none;
+  }
 }

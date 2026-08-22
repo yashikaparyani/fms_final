@@ -471,7 +471,7 @@ const StaffManagement = () => {
       {issued.length > 0 && (
         <CredentialsPanel
           entries={issued}
-          loginUrl={`${window.location.origin}/staff-login`}
+          loginUrl={`${window.location.origin}/login`}
           onDismiss={() => setIssued([])}
         />
       )}

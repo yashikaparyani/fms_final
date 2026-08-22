@@ -1,11 +1,12 @@
 import MasterCrudPage from "../../components/admin/MasterCrudPage";
 
 // Email is required: this is the address notified when a street turn is
-// confirmed, so a partner without one could never be told about the handover.
+// confirmed, and the address the acknowledgement link is sent to — a partner
+// without one could neither be told about the handover nor sign for it.
 const config = {
-  singular: "Delivery Partner",
-  plural: "Delivery Partners",
-  endpoint: "/delivery-partners",
+  singular: "Street Turn Partner",
+  plural: "Street Turn Partners",
+  endpoint: "/street-turn-partners",
   namePlaceholder: "e.g. Acme Logistics",
   fields: [
     { name: "code", label: "Code", placeholder: "e.g. ACME" },
@@ -15,12 +16,12 @@ const config = {
       type: "email",
       placeholder: "dispatch@acme.com",
       required: true,
-      hint: "Notified automatically when a street turn is confirmed.",
+      hint: "Notified when a street turn is confirmed, and sent the link to sign it.",
     },
     { name: "phone", label: "Phone", placeholder: "Optional" },
   ],
 };
 
-const DeliveryPartners = () => <MasterCrudPage config={config} />;
+const StreetTurnPartners = () => <MasterCrudPage config={config} />;
 
-export default DeliveryPartners;
+export default StreetTurnPartners;

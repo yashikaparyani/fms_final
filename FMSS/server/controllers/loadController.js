@@ -6,7 +6,10 @@ const Address = require("../models/common/Address");
 const Bid = require("../models/bidSchema");
 const TrackingEvent = require("../models/TrackingEvent");
 const fs = require("fs");
-const DeliveryPartner = require("../models/DeliveryPartner");
+const StreetTurnPartner = require("../models/StreetTurnPartner");
+const {
+  buildStreetTurnAgreement,
+} = require("../services/streetTurnAgreementService");
 const ChassisCompany = require("../models/ChassisCompany");
 const ShippingLine = require("../models/ShippingLine");
 const Driver = require("../models/Driver");
@@ -22,6 +25,7 @@ const {
   sendBidWon,
   sendBiddingScheduled,
   sendStreetTurnNotifications,
+  streetTurnSignLink,
 } = require("../services/emailService");
 
 const { sendEmail, EMAIL_STATUS } = require("../utils/mailer");
@@ -102,14 +106,19 @@ const resolveStreetTurn = async (rawPayload) => {
     return { error: "Street turn confirmation details are required." };
   }
 
-  const partnerName = String(payload.deliveryPartner || "").trim();
+  // `streetTurnPartner` is the current name; `deliveryPartner` is still accepted
+  // because the mobile app and any browser tab open across the deploy will keep
+  // sending it for a while.
+  const partnerName = String(
+    payload.streetTurnPartner || payload.deliveryPartner || "",
+  ).trim();
   if (!partnerName) {
-    return { error: "A delivery partner must be selected to confirm a street turn." };
+    return { error: "A street turn partner must be selected to confirm a street turn." };
   }
 
-  const partner = await DeliveryPartner.findOne({ name: partnerName });
+  const partner = await StreetTurnPartner.findOne({ name: partnerName });
   if (!partner) {
-    return { error: `Delivery partner "${partnerName}" is not in the master list.` };
+    return { error: `Street turn partner "${partnerName}" is not in the master list.` };
   }
 
   // Shipping line and chassis company are optional on the load, so they are
@@ -137,28 +146,69 @@ const resolveStreetTurn = async (rawPayload) => {
       chassisCompany: chassis?.name || "",
       chassisCompanyEmail: chassis?.email || "",
       note: String(payload.note || "").trim(),
+
+      // Particulars for the transfer agreement. The SCAC comes from the master
+      // rather than the request for the same reason the email does: it
+      // identifies the transferee on a contract, and a caller must not be able
+      // to put another carrier's code on it.
+      transfereeScac: partner.scac || "",
+      transferLocation: String(payload.transferLocation || "").trim(),
+      returnLocation: String(payload.returnLocation || "").trim(),
+      // Blank means "nothing noted", which the agreement states as "None" —
+      // resolved here so the stored record and the document agree.
+      equipmentCondition: String(payload.equipmentCondition || "").trim() || "None",
+      governingLawState: String(payload.governingLawState || "").trim(),
     },
   };
 };
 
 /**
  * Builds the recipient list for a confirmed street turn and sends to each.
- * The carrier's primary contact stands in for the assigned driver: the system
- * has no driver records, so the carrier forwards it on.
+ *
+ * Four parties have to hear about a street turn the moment it is confirmed: the
+ * driver making the handover, the street turn partner receiving the container,
+ * and the shipping line and chassis company whose equipment is changing hands.
+ * The carrier and the office are copied because they answer for it.
+ *
+ * The driver used to be reached only through the carrier's account address —
+ * the system had no driver records when this was written. It does now, so the
+ * drivers actually assigned to the load are written to directly, and the
+ * carrier contact is copied rather than standing in for them.
  */
-const notifyStreetTurn = async (load, streetTurn) => {
+const notifyStreetTurn = async (load, streetTurn, actor) => {
   const recipients = [
-    { party: "Delivery Partner", email: streetTurn.deliveryPartnerEmail },
+    { party: "Street Turn Partner", email: streetTurn.deliveryPartnerEmail },
     { party: "Shipping Line", email: streetTurn.shippingLineEmail },
     { party: "Chassis Company", email: streetTurn.chassisCompanyEmail },
   ];
+
+  // The drivers on this load, by name where we have one — a driver reading
+  // "you are receiving this as the Driver" should see their own handover.
+  const driverIds = (load.driverAssignments || [])
+    .map((assignment) => assignment.driver)
+    .filter(Boolean);
+
+  if (driverIds.length) {
+    const drivers = await Driver.find({ _id: { $in: driverIds } })
+      .select("name email")
+      .lean();
+
+    for (const driver of drivers) {
+      if (driver.email) {
+        recipients.push({
+          party: driver.name ? `Driver (${driver.name})` : "Driver",
+          email: driver.email,
+        });
+      }
+    }
+  }
 
   const fleetOwnerId = load.assignedFleetOwner?.fleetOwnerId;
   if (fleetOwnerId) {
     const fleetOwner = await FleetOwner.findById(fleetOwnerId).lean();
     const carrierEmail = getFleetOwnerEmail(fleetOwner);
     if (carrierEmail) {
-      recipients.push({ party: "Assigned Carrier / Driver", email: carrierEmail });
+      recipients.push({ party: "Assigned Carrier", email: carrierEmail });
     }
   }
 
@@ -169,7 +219,29 @@ const notifyStreetTurn = async (load, streetTurn) => {
     recipients.push({ party: "Admin", email: admin.email });
   }
 
-  return sendStreetTurnNotifications({ load, streetTurn, recipients });
+  // The partner is asked to sign the handover back, so their copy carries a
+  // single-use link. Minted here rather than at confirmation time so that
+  // re-sending a confirmation always issues a fresh, unexpired link.
+  const signLink = streetTurn.deliveryPartnerEmail
+    ? streetTurnSignLink(load.issueStreetTurnToken({ days: 14 }))
+    : null;
+
+  // Built once and passed to every recipient, so the copy the transferee signs
+  // is word for word the copy the shipping line was sent.
+  const agreement = buildStreetTurnAgreement({
+    load,
+    streetTurn,
+    signerName: [actor?.firstName, actor?.lastName].filter(Boolean).join(" "),
+    signerTitle: actor?.role === "driver" ? "Driver" : "Authorised Representative",
+  });
+
+  return sendStreetTurnNotifications({
+    load,
+    streetTurn,
+    recipients,
+    signLink,
+    agreement,
+  });
 };
 const { buildPodDocument } = require("../services/podDocumentService");
 const { publishTrackingUpdate } = require("../services/trackingBroadcaster");
@@ -1591,7 +1663,11 @@ const updateTransportStatus = async (req, res) => {
     let streetTurnNotifications = null;
     if (confirmedStreetTurn) {
       try {
-        streetTurnNotifications = await notifyStreetTurn(load, confirmedStreetTurn);
+        streetTurnNotifications = await notifyStreetTurn(
+          load,
+          confirmedStreetTurn,
+          req.user,
+        );
       } catch (err) {
         console.error("Street turn notifications failed:", err);
         streetTurnNotifications = [];
@@ -1599,6 +1675,45 @@ const updateTransportStatus = async (req, res) => {
 
       load.streetTurn.notifications = streetTurnNotifications;
       await load.save();
+
+      // Written into the load's own history, not just onto the streetTurn
+      // subdocument. "Who was told, at what address, and did it actually go?"
+      // is the question asked weeks later when a container is disputed, and the
+      // audit trail is where anyone thinks to look for it. Failures are named
+      // rather than omitted — a silent gap reads as "nobody was told".
+      try {
+        const sent = (streetTurnNotifications || []).filter((n) => n.sent);
+        const failed = (streetTurnNotifications || []).filter((n) => !n.sent);
+
+        const describe = (list) =>
+          list.map((n) => `${n.party} <${n.email}>`).join(", ") || "none";
+
+        await audit.recordCommunication({
+          load,
+          summary:
+            `Street turn confirmed with ${confirmedStreetTurn.deliveryPartner}` +
+            ` — notified ${sent.length} of ${(streetTurnNotifications || []).length} parties`,
+          body:
+            `Sent to: ${describe(sent)}` +
+            (failed.length
+              ? `\nNot sent: ${failed
+                  .map((n) => `${n.party} <${n.email}> (${n.reason || "unknown error"})`)
+                  .join(", ")}`
+              : "") +
+            (confirmedStreetTurn.shippingLine
+              ? `\nShipping line: ${confirmedStreetTurn.shippingLine}`
+              : "") +
+            (confirmedStreetTurn.chassisCompany
+              ? `\nChassis company: ${confirmedStreetTurn.chassisCompany}`
+              : "") +
+            `\nThe street turn partner was sent a link to sign their acknowledgement.`,
+          user: req.user,
+          req,
+        });
+      } catch (err) {
+        // The note is a record of the send, not part of it.
+        console.error("Street turn audit note failed:", err);
+      }
     }
 
     return res.json({

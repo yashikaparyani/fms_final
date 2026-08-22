@@ -1,0 +1,140 @@
+/**
+ * Design tokens, shared by every Tailwind entry point.
+ *
+ * index.css and style/global.css are each compiled as their own Tailwind root,
+ * so a @theme declared in one is invisible to the other. Both import this file,
+ * which is what keeps `bg-accent-600` meaning the same thing in both.
+ *
+ * These values are mirrored in style/muiTheme.js (MUI needs real hex at theme
+ * build time) and in mobile/src/theme.js. Change a colour in all three.
+ */
+
+@theme {
+  /* Brand navy — sidebars, headers, the wordmark */
+  --color-brand-50: #eef3fb;
+  --color-brand-100: #d7e3f6;
+  --color-brand-400: #2a4d86;
+  --color-brand-600: #16386f;
+  --color-brand-700: #102b57;
+  --color-brand-800: #0b1e3d;
+  --color-brand-900: #07152e;
+
+  /* Accent blue — primary actions and links */
+  --color-accent-50: #eff6ff;
+  --color-accent-100: #ddebfd;
+  --color-accent-500: #2e86f0;
+  --color-accent-600: #1d6fe0;
+  --color-accent-700: #1544a3;
+
+  /* Status */
+  --color-good-50: #ecfdf3;
+  --color-good-100: #d6f5e0;
+  --color-good-500: #22c55e;
+  --color-good-600: #16a34a;
+  --color-good-700: #12803c;
+
+  --color-warn-50: #fffbeb;
+  --color-warn-100: #fef0c7;
+  --color-warn-500: #f59e0b;
+  --color-warn-600: #d97706;
+  --color-warn-700: #b45309;
+
+  --color-bad-50: #fef2f2;
+  --color-bad-100: #fee2e2;
+  --color-bad-500: #ef4444;
+  --color-bad-600: #dc2626;
+  --color-bad-700: #b91c1c;
+
+  /* Category accents, matched to the mobile tiles */
+  --color-fuel-100: #ffead5;
+  --color-fuel-500: #f97316;
+  --color-fuel-600: #ea580c;
+
+  --color-grape-100: #ede4fe;
+  --color-grape-500: #8b5cf6;
+  --color-grape-600: #7c3aed;
+
+  --color-aqua-100: #ccfbf1;
+  --color-aqua-500: #14b8a6;
+  --color-aqua-600: #0d9488;
+
+  --color-rose-100: #fce7f3;
+  --color-rose-500: #ec4899;
+  --color-rose-600: #db2777;
+
+  /* Neutrals — "ink" so it never collides with Tailwind's own grays */
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+
+  /* Page chrome */
+  --color-canvas: #f4f7fc;
+  --color-surface: #ffffff;
+  --color-hairline: #e3e9f4;
+
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.875rem;
+
+  --shadow-card: 0 1px 2px rgba(11, 30, 61, 0.04), 0 4px 12px rgba(11, 30, 61, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(11, 30, 61, 0.06), 0 12px 28px rgba(11, 30, 61, 0.1);
+  --shadow-rail: 4px 0 24px rgba(7, 21, 46, 0.18);
+}
+
+/* Per-role accent. The shell sets `data-role` on <body>, and any surface that
+   wants to pick up the signed-in portal's colour reads `--role-accent` — one
+   variable instead of a conditional in every component. */
+:root {
+  --role-accent: var(--color-accent-600);
+  --role-accent-dark: var(--color-accent-700);
+  --role-accent-soft: var(--color-accent-100);
+  --role-from: var(--color-brand-800);
+  --role-to: var(--color-accent-600);
+}
+
+body[data-role="driver"] {
+  --role-accent: var(--color-good-600);
+  --role-accent-dark: var(--color-good-700);
+  --role-accent-soft: var(--color-good-100);
+  --role-from: var(--color-good-700);
+  --role-to: var(--color-good-500);
+}
+
+body[data-role="fleetOwner"] {
+  --role-accent: var(--color-accent-600);
+  --role-accent-dark: var(--color-accent-700);
+  --role-accent-soft: var(--color-accent-100);
+  --role-from: var(--color-brand-800);
+  --role-to: var(--color-accent-600);
+}
+
+body[data-role="client"] {
+  --role-accent: var(--color-aqua-600);
+  --role-accent-dark: #0f766e;
+  --role-accent-soft: var(--color-aqua-100);
+  --role-from: #0f766e;
+  --role-to: var(--color-aqua-500);
+}
+
+body[data-role="staff"] {
+  --role-accent: var(--color-bad-600);
+  --role-accent-dark: var(--color-bad-700);
+  --role-accent-soft: var(--color-bad-100);
+  --role-from: var(--color-bad-700);
+  --role-to: var(--color-fuel-500);
+}
+
+body[data-role="admin"] {
+  --role-accent: var(--color-brand-800);
+  --role-accent-dark: var(--color-brand-900);
+  --role-accent-soft: var(--color-accent-100);
+  --role-from: var(--color-brand-900);
+  --role-to: var(--color-brand-600);
+}

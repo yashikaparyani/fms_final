@@ -26,7 +26,7 @@ const Topbar = () => {
     // machine starts pointed at a location that may not be theirs.
     clearActiveLocation();
     dispatch(logout());
-    navigate(`/${role}-login`);
+    navigate("/login");
   };
 
   const handleNavigate = (path) => {
@@ -50,10 +50,18 @@ const Topbar = () => {
 
   return (
     <>
-      <div className="w-full bg-white h-16 shadow flex items-center" style={{ zIndex: 100 }}>
+      <div className="w-full bg-surface h-16 border-b border-hairline shadow-card flex items-center" style={{ zIndex: 100 }}>
         {/* Left: Logo (mobile) */}
         <div className="flex items-center px-4 md:hidden">
-          <span className="text-xl font-bold text-gray-900">Freight</span>
+          <span className="flex items-center gap-1.5 text-lg font-extrabold text-brand-800">
+            <span
+              className="grid h-7 w-7 place-items-center rounded-md text-[11px] text-white"
+              style={{ background: "var(--role-accent)" }}
+            >
+              SL
+            </span>
+            S&nbsp;LINE&nbsp;<span className="text-accent-600">TRANSPORT</span>
+          </span>
         </div>
 
         {/* Right section */}
@@ -79,23 +87,26 @@ const Topbar = () => {
             }}
             className="relative flex cursor-pointer items-center gap-3"
           >
-            <div className="w-10 h-10 rounded-full flex justify-center items-center bg-blue-600 text-white font-bold">
+            <div
+              className="w-10 h-10 rounded-full flex justify-center items-center text-white font-bold shadow-card"
+              style={{ background: "var(--role-accent)" }}
+            >
               {user?.firstName?.[0]}{user?.lastName?.[0]}
             </div>
             <div className="hidden md:flex flex-col">
               <h4 className="text-sm font-bold">{user?.firstName}</h4>
-              <h4 className="text-xs text-gray-500">{user?.role?.toUpperCase()}</h4>
+              <h4 className="text-[11px] font-semibold tracking-wide text-ink-500">{user?.role?.toUpperCase()}</h4>
             </div>
             {isProfileOpen && (
-              <div className="absolute z-40 w-40 shadow border-gray-200 border-r-2 cursor-pointer rounded-md border bg-white top-[120%] right-0 flex flex-col">
+              <div className="absolute z-40 w-44 overflow-hidden cursor-pointer rounded-xl border border-hairline bg-surface shadow-card-hover top-[120%] right-0 flex flex-col">
                 <Link to="/profile">
-                  <div className="flex hover:bg-gray-100 p-2 text-sm font-semibold text-gray-900 items-center gap-2">
+                  <div className="flex hover:bg-accent-50 hover:text-accent-700 px-3 py-2.5 text-sm font-semibold text-ink-800 items-center gap-2 transition-colors">
                     <AccountCircleIcon fontSize="small" />
                     Profile
                   </div>
                 </Link>
                 <button onClick={handleLogout} className="w-full text-left">
-                  <div className="flex hover:bg-gray-100 p-2 text-sm font-semibold text-gray-900 items-center gap-2">
+                  <div className="flex hover:bg-bad-50 hover:text-bad-700 px-3 py-2.5 text-sm font-semibold text-ink-800 items-center gap-2 transition-colors border-t border-hairline">
                     <LogoutIcon fontSize="small" />
                     Logout
                   </div>
@@ -110,15 +121,15 @@ const Topbar = () => {
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             {isMobileMenuOpen
-              ? <CloseIcon className="text-gray-700" />
-              : <MenuIcon className="text-gray-700" />}
+              ? <CloseIcon className="text-ink-700" />
+              : <MenuIcon className="text-ink-700" />}
           </button>
         </div>
       </div>
 
       {/* Mobile Dropdown Nav */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-gray-900 w-full shadow-lg" style={{ zIndex: 99 }}>
+        <div className="md:hidden brand-gradient w-full shadow-rail" style={{ zIndex: 99 }}>
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
 
@@ -129,10 +140,11 @@ const Topbar = () => {
                 <div
                   key={item.path}
                   onClick={() => handleNavigate(item.path)}
-                  className={`flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-gray-800
+                  style={active ? { background: "var(--role-accent)" } : undefined}
+                  className={`flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-white/10
                     ${active
-                      ? "bg-indigo-600 text-white"
-                      : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                      ? "text-white"
+                      : "text-brand-100/70 hover:bg-white/10 hover:text-white"
                     }`}
                 >
                   <Icon fontSize="small" />
@@ -155,11 +167,11 @@ const Topbar = () => {
                       [item.label]: !expanded,
                     }))
                   }
-                  className="flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-gray-800 text-gray-300 hover:bg-gray-800 hover:text-white"
+                  className="flex items-center gap-3 px-5 py-3 cursor-pointer border-b border-white/10 text-brand-100/70 hover:bg-white/10 hover:text-white"
                 >
                   <Icon fontSize="small" />
                   <span className="text-sm font-medium flex-1">{item.label}</span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-brand-100/50">
                     {expanded ? "▾" : "▸"}
                   </span>
                 </div>
@@ -172,10 +184,11 @@ const Topbar = () => {
                       <div
                         key={child.path}
                         onClick={() => handleNavigate(child.path)}
-                        className={`flex items-center gap-3 pl-10 pr-5 py-2.5 cursor-pointer border-b border-gray-800
+                        style={active ? { background: "var(--role-accent)" } : undefined}
+                        className={`flex items-center gap-3 pl-10 pr-5 py-2.5 cursor-pointer border-b border-white/10
                           ${active
-                            ? "bg-indigo-600 text-white"
-                            : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                            ? "text-white"
+                            : "text-brand-100/60 hover:bg-white/10 hover:text-white"
                           }`}
                       >
                         <ChildIcon style={{ fontSize: 17 }} />

@@ -35,7 +35,7 @@ api.interceptors.response.use(
       if (error.response.status === 401) {
         // Dispatch logout to clear state and local storage
         store.dispatch({ type: "auth/logout" });
-        window.location.href = "/client-login";
+        window.location.href = "/login";
       } else if (error.response.status === 403) {
         const code = error.response.data?.code;
 
