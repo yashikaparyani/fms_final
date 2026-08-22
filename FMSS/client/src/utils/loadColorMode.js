@@ -79,23 +79,32 @@ export const useLoadColorMode = () => {
 // DESTINATION and DELIVERED, which is fine on a badge you read the text of and
 // useless as a row tint — three different situations that look identical.
 //
-// The hues follow the journey rather than being picked at random: violet while
-// it is being planned, blue once it is real work, teal through pickup and
-// transit, green as it lands, grey once it is parked, red when it stops.
+// The hues track the journey rather than being picked at random: grey while
+// nothing has happened yet, blue once it is committed, cyan and yellow through
+// pickup and transit, green as it lands, purple once it is parked, red when it
+// stops. Read down a column and the colour tells you how far along the load is.
+//
 // Tints are deliberately pale — a full-strength row colour behind small text is
 // unreadable, and forty of them on screen at once is worse.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Pre-dispatch. Nothing has physically happened to these yet, so they are
+// deliberately muted: a load sitting in the planner must not compete for
+// attention with one that is actually in transit. Loads default to NEW_LOAD on
+// creation, so without this the whole Pending table paints itself one loud
+// colour and the journey — the thing worth seeing — is drowned out.
+export const PRE_DISPATCH = new Set(["LOAD_PLANNER", "NEW_LOAD"]);
+
 export const STATUS_ROW_COLORS = {
-  // Planning
-  LOAD_PLANNER: { bg: "#f5f3ff", border: "#8b5cf6" },
-  NEW_LOAD: { bg: "#eef2ff", border: "#6366f1" },
+  // Pre-dispatch — muted on purpose, see above.
+  LOAD_PLANNER: { bg: "#f8fafc", border: "#cbd5e1" },
+  NEW_LOAD: { bg: "#f8fafc", border: "#94a3b8" },
 
   // Committed
   ASSIGNED: { bg: "#eff6ff", border: "#2563eb" },
   READY_TO_PICKUP: { bg: "#e0f2fe", border: "#0284c7" },
 
-  // Moving
+  // Moving — the journey, and the loudest part of the scale
   PICKED_UP: { bg: "#ecfeff", border: "#06b6d4" },
   IN_TRANSIT: { bg: "#fefce8", border: "#eab308" },
   DRIVER_ON_WAITING: { bg: "#fff7ed", border: "#f97316" },
@@ -106,7 +115,7 @@ export const STATUS_ROW_COLORS = {
 
   // Parked / interim
   DROP_IN_WAREHOUSE: { bg: "#faf5ff", border: "#a855f7" },
-  EMPTY_IN_YARD: { bg: "#f8fafc", border: "#94a3b8" },
+  EMPTY_IN_YARD: { bg: "#f5f3ff", border: "#8b5cf6" },
   LOADED_IN_YARD: { bg: "#fdf4ff", border: "#d946ef" },
   STREET_TURN: { bg: "#f7fee7", border: "#84cc16" },
 
@@ -118,13 +127,14 @@ export const STATUS_ROW_COLORS = {
   TERMINATED: { bg: "#fef2f2", border: "#ef4444" },
 };
 
-/** Approval status, for the tables that colour by that instead. */
+/** Approval status, used for loads that have not been dispatched yet. */
 export const LOAD_STATUS_ROW_COLORS = {
   DRAFT: { bg: "#f8fafc", border: "#94a3b8" },
   PENDING_VERIFICATION: { bg: "#fffbeb", border: "#f59e0b" },
   VERIFIED: { bg: "#f0fdf4", border: "#22c55e" },
   REQUIRES_CHANGES: { bg: "#fff7ed", border: "#f97316" },
   REJECTED: { bg: "#fef2f2", border: "#ef4444" },
+  ASSIGNED: { bg: "#eff6ff", border: "#2563eb" },
 };
 
 /** Shown in the legend and on the mobile cards. */
@@ -133,33 +143,66 @@ export const STATUS_LABEL = (value) =>
 
 const FALLBACK = { bg: "#f9fafb", border: "#d1d5db" };
 
+/**
+ * Which status actually describes this row, and what colour it gets.
+ *
+ * A load that has not been dispatched has a transportStatus, but it is a
+ * placeholder — every load in the Pending table reads NEW_LOAD or LOAD_PLANNER.
+ * Colouring by it there produces one flat block and tells you nothing, so those
+ * rows fall back to their approval status, which is the axis that varies before
+ * dispatch. Once a load is moving, the journey takes over.
+ *
+ * Both the row tint and the legend go through here, so the key always matches
+ * what is on screen.
+ */
+export const resolveStatus = (row = {}) => {
+  const transport = row.transportStatus;
+
+  if (transport && !PRE_DISPATCH.has(transport) && STATUS_ROW_COLORS[transport]) {
+    return { key: transport, label: STATUS_LABEL(transport), ...STATUS_ROW_COLORS[transport] };
+  }
+
+  const approval = row.status;
+  if (approval && LOAD_STATUS_ROW_COLORS[approval]) {
+    return { key: approval, label: STATUS_LABEL(approval), ...LOAD_STATUS_ROW_COLORS[approval] };
+  }
+
+  if (transport && STATUS_ROW_COLORS[transport]) {
+    return { key: transport, label: STATUS_LABEL(transport), ...STATUS_ROW_COLORS[transport] };
+  }
+
+  return { key: "UNKNOWN", label: "—", ...FALLBACK };
+};
+
 /** The tint for one row under the active mode. */
 export const rowColorFor = (row, mode, urgencyColors) => {
   if (mode === COLOR_MODE.STATUS) {
-    return (
-      STATUS_ROW_COLORS[row.transportStatus] ||
-      LOAD_STATUS_ROW_COLORS[row.status] ||
-      FALLBACK
-    );
+    const { bg, border } = resolveStatus(row);
+    return { bg, border };
   }
   return urgencyColors?.[row.urgency] || FALLBACK;
 };
 
 /**
- * Which statuses are actually present in the rows on screen, in journey order.
- * The legend lists these rather than all sixteen — a legend explaining twelve
- * colours that are not on the page is noise.
+ * The statuses actually on screen, in journey order.
+ *
+ * Resolved the same way the rows are, so a Pending table shows its approval
+ * statuses and a transit table shows pickup / in transit / delivered — rather
+ * than a key full of colours that are not in the table.
  */
 export const legendFor = (rows = []) => {
-  const order = Object.keys(STATUS_ROW_COLORS);
-  const present = new Set(
-    rows.map((row) => row.transportStatus).filter((s) => s && STATUS_ROW_COLORS[s]),
+  const order = [
+    ...Object.keys(STATUS_ROW_COLORS),
+    ...Object.keys(LOAD_STATUS_ROW_COLORS),
+  ];
+
+  const seen = new Map();
+  for (const row of rows) {
+    const entry = resolveStatus(row);
+    if (entry.key !== "UNKNOWN" && !seen.has(entry.key)) seen.set(entry.key, entry);
+  }
+
+  return [...seen.values()].sort(
+    (a, b) => order.indexOf(a.key) - order.indexOf(b.key),
   );
-  return order
-    .filter((status) => present.has(status))
-    .map((status) => ({
-      status,
-      label: STATUS_LABEL(status),
-      ...STATUS_ROW_COLORS[status],
-    }));
 };
