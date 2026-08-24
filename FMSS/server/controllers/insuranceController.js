@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 const CarrierOnboarding = require("../models/CarrierOnboarding");
 const FleetOwner = require("../models/FleetOwner");
 const { runUnscoped } = require("../utils/tenantContext");
@@ -42,6 +43,11 @@ const toNumberOrNull = (value) => {
 };
 
 const { frontendUrl } = require("../utils/frontendUrl");
+const {
+  resolveCertificate,
+  certificateMeta,
+} = require("../utils/insuranceCertificate");
+const { serveFile } = require("../utils/serveFile");
 
 const insuranceLinkFor = (token) => `${frontendUrl()}/insurance/${token}`;
 
@@ -268,6 +274,9 @@ const getPublicInsuranceForm = async (req, res) => {
       // Present so a returning agency edits what they filed rather than
       // duplicating it.
       policies: onboarding.insurance?.policies || [],
+      // So a returning agency replaces the certificate they attached rather
+      // than wondering whether the first upload landed.
+      certificate: certificateMeta(onboarding.insurance),
       submittedAt: onboarding.insurance?.submittedAt || null,
       expiresAt: onboarding.insurance?.tokenExpiresAt || null,
     });
@@ -369,9 +378,18 @@ const submitPublicInsurance = async (req, res) => {
   }
 };
 
-// @desc    Attach a certificate (ACORD) to a filed policy
+// @desc    Attach the certificate of insurance
 // @route   POST /api/insurance/public/:token/certificate
 // @access  Public (token)
+//
+// One certificate for the whole filing. An agency issues a single ACORD 25
+// listing every coverage, so the old shape — one upload per policy — meant
+// attaching the same PDF four times and gave the office four copies of one
+// document to reconcile.
+//
+// Deliberately not gated on the policy details being filed first: the agency
+// has the certificate in hand before they have keyed anything, and refusing the
+// upload until the form is complete only invites them to leave and come back.
 const uploadPublicCertificate = async (req, res) => {
   try {
     const found = await onboardingForToken(req.params.token);
@@ -386,26 +404,15 @@ const uploadPublicCertificate = async (req, res) => {
     }
 
     const { onboarding } = found;
-    const coverage = trimmed(req.body.coverage);
 
     if (!req.file) {
       return res.status(400).json({ message: "Attach the certificate file." });
     }
 
-    const policy = (onboarding.insurance?.policies || []).find(
-      (p) => p.coverage === coverage,
-    );
+    onboarding.insurance = onboarding.insurance || {};
+    const previous = onboarding.insurance.certificate?.filePath;
 
-    if (!policy) {
-      fs.promises.unlink(req.file.path).catch(() => {});
-      return res.status(404).json({
-        message: "File the policy details for that coverage before attaching a certificate.",
-      });
-    }
-
-    const previous = policy.certificate?.filePath;
-
-    policy.certificate = {
+    onboarding.insurance.certificate = {
       fileName: req.file.filename,
       originalName: req.file.originalname,
       filePath: req.file.path,
@@ -414,15 +421,17 @@ const uploadPublicCertificate = async (req, res) => {
       uploadedAt: new Date(),
     };
 
-    onboarding.markModified("insurance.policies");
     await runUnscoped(() => onboarding.save());
 
-    if (previous && previous !== policy.certificate.filePath) {
+    // Re-filing replaces the certificate rather than accumulating copies, so
+    // the superseded file goes with it.
+    if (previous && previous !== onboarding.insurance.certificate.filePath) {
       fs.promises.unlink(previous).catch(() => {});
     }
 
     res.json({
-      message: `Certificate attached for ${COVERAGE_BY_KEY.get(coverage)?.label || coverage}.`,
+      message: "Certificate attached.",
+      certificate: certificateMeta(onboarding.insurance),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -431,33 +440,33 @@ const uploadPublicCertificate = async (req, res) => {
 
 // ══ Reading it back ═══════════════════════════════════════════════════════════
 
-// @desc    Download a filed certificate
-// @route   GET /api/insurance/certificate/:coverage
+// @desc    The certificate of insurance, for preview or download
+// @route   GET /api/insurance/certificate
 // @access  Private (own carrier, staff, admin)
+//
+// Served inline by default so both the office and the carrier can read the
+// certificate on the page rather than downloading a file to find out whether
+// the holder is named correctly. `?download=1` forces the save dialog.
+//
+// The carrier sees their own; the office sees whichever carrier they name.
+// resolveCarrier enforces that distinction — a fleetOwner cannot pass another
+// carrier's id and read their certificate.
 const downloadCertificate = async (req, res) => {
   try {
     const carrier = await resolveCarrier(req, req.query.fleetOwnerId);
     const onboarding = await CarrierOnboarding.findOne({ fleetOwner: carrier._id });
 
-    const policy = (onboarding?.insurance?.policies || []).find(
-      (p) => p.coverage === req.params.coverage,
-    );
+    const certificate = resolveCertificate(onboarding?.insurance);
 
-    if (!policy?.certificate?.filePath) {
-      return res
-        .status(404)
-        .json({ message: "No certificate has been filed for that coverage." });
-    }
+    const extension =
+      path.extname(certificate?.originalName || certificate?.fileName || "") || ".pdf";
 
-    if (!fs.existsSync(policy.certificate.filePath)) {
-      return res.status(410).json({ message: "That file is no longer on the server." });
-    }
-
-    const label = COVERAGE_BY_KEY.get(policy.coverage)?.label || policy.coverage;
-    res.download(
-      policy.certificate.filePath,
-      `${carrier.fleetOwnerCode || "carrier"} - ${label} certificate.pdf`,
-    );
+    return serveFile(req, res, {
+      filePath: certificate?.filePath,
+      filename: `${carrier.fleetOwnerCode || "carrier"} - certificate of insurance${extension}`,
+      mimeType: certificate?.mimeType,
+      missingMessage: "No certificate of insurance has been filed yet.",
+    });
   } catch (error) {
     res.status(error.status || 500).json({ message: error.message });
   }

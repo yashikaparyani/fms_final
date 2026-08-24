@@ -54,6 +54,9 @@ router.get(
   getExpiringInsurance,
 );
 
-router.get("/certificate/:coverage", protect, carrierOrOffice, downloadCertificate);
+// One certificate for the whole filing, so no coverage in the path. Served
+// inline for the preview both the office and the carrier read it in; add
+// ?download=1 for the save dialog.
+router.get("/certificate", protect, carrierOrOffice, downloadCertificate);
 
 module.exports = router;

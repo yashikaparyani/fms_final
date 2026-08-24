@@ -4,6 +4,7 @@ import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
 import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
@@ -56,8 +57,13 @@ const InsuranceSubmission = () => {
   const [submitter, setSubmitter] = useState({ name: "", email: "", agencyName: "" });
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
+  // The one certificate for this filing, as the server has it. An ACORD 25
+  // lists every coverage on a single page, so it is attached once here rather
+  // than once per policy row.
+  const [certificate, setCertificate] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
-  const certInput = useRef({});
+  const certInput = useRef(null);
 
   useEffect(() => {
     api
@@ -65,6 +71,9 @@ const InsuranceSubmission = () => {
       .then(({ data }) => {
         setState({ loading: false, error: null, data });
         setSubmitter((s) => ({ ...s, agencyName: data.agencyName || "" }));
+        // So a returning agent sees the certificate they already attached
+        // rather than wondering whether the first upload landed.
+        setCertificate(data.certificate || null);
 
         // Pre-open every required coverage, plus anything already filed. An
         // agency should not have to hunt for the rows they are obliged to fill.
@@ -168,22 +177,25 @@ const InsuranceSubmission = () => {
     }
   };
 
-  const uploadCertificate = async (coverage, file) => {
+  const uploadCertificate = async (file) => {
     if (!file) return;
 
     const body = new FormData();
     body.append("certificate", file);
-    body.append("coverage", coverage);
 
     try {
+      setUploading(true);
       const { data } = await api.post(
         `/insurance/public/${token}/certificate`,
         body,
         { headers: { "Content-Type": "multipart/form-data" } },
       );
+      setCertificate(data.certificate || null);
       notify.success(data.message);
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not attach the certificate");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -479,43 +491,77 @@ const InsuranceSubmission = () => {
                     </p>
                   )}
 
-                  <div className="flex items-center gap-2 mt-3">
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      className="hidden"
-                      ref={(el) => {
-                        certInput.current[coverage.key] = el;
-                      }}
-                      onChange={(e) => {
-                        uploadCertificate(coverage.key, e.target.files?.[0]);
-                        e.target.value = "";
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => certInput.current[coverage.key]?.click()}
-                      disabled={!result}
-                      title={
-                        result
-                          ? "Attach the ACORD certificate"
-                          : "File the policy details first, then attach the certificate"
-                      }
-                      className="btn-secondary disabled:opacity-40"
-                    >
-                      <UploadFileIcon fontSize="small" /> Attach certificate
-                    </button>
-                    {!result && (
-                      <span className="text-[11px] text-gray-400">
-                        Available once the policy details are filed
-                      </span>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
           );
         })}
+
+        {/* ── The certificate ──────────────────────────────────────────────
+            One document for the whole filing. An ACORD 25 already lists every
+            coverage, so this replaces the old attach-per-policy control that
+            had agencies uploading the same page four times. Not gated on the
+            policy details being filed first — the certificate is the thing the
+            agency has in hand. */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">
+            Certificate of insurance
+          </h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Attach one certificate covering everything you have filed above —
+            the ACORD 25 as issued. The carrier and the broker both read it from
+            here, so make sure the holder reads {broker.name}.
+          </p>
+
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className="hidden"
+            ref={certInput}
+            onChange={(e) => {
+              uploadCertificate(e.target.files?.[0]);
+              e.target.value = ""; // let the same file be picked again
+            }}
+          />
+
+          {certificate ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-green-200 bg-green-50/50 rounded-lg px-3 py-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <DescriptionOutlinedIcon fontSize="small" className="text-green-700" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {certificate.originalName}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    Attached{" "}
+                    {certificate.uploadedAt
+                      ? new Date(certificate.uploadedAt).toLocaleString("en-US")
+                      : "just now"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => certInput.current?.click()}
+                disabled={uploading}
+                className="btn-secondary whitespace-nowrap disabled:opacity-40"
+              >
+                <UploadFileIcon fontSize="small" />
+                {uploading ? "Uploading…" : "Replace"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => certInput.current?.click()}
+              disabled={uploading}
+              className="btn-secondary disabled:opacity-40"
+            >
+              <UploadFileIcon fontSize="small" />
+              {uploading ? "Uploading…" : "Attach certificate"}
+            </button>
+          )}
+        </div>
 
         {/* Submit */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">

@@ -110,6 +110,11 @@ const policySchema = new mongoose.Schema(
 
     noticeOfCancellationDays: { type: Number, default: 30 },
 
+    // Deprecated — a certificate is now filed once for the whole submission,
+    // at `insurance.certificate`. An agency issues a single ACORD 25 listing
+    // every coverage, so asking for one per policy meant uploading the same PDF
+    // four times. Kept declared, and still read as a fallback, so filings made
+    // under the old shape do not disappear from the carrier's file.
     certificate: fileSchema,
     notes: String,
   },
@@ -180,6 +185,12 @@ const carrierOnboardingSchema = new mongoose.Schema(
       submittedByEmail: String,
 
       policies: [policySchema],
+
+      // The certificate of insurance — one document for the whole filing.
+      // An ACORD 25 lists every coverage on a single page, which is what an
+      // agency actually issues, so this is one file rather than one per policy.
+      // Both the office and the carrier read it back from here.
+      certificate: fileSchema,
 
       // Shortfalls found against config/insuranceCoverages.js at submission
       // time. Stored rather than recomputed so the office sees what was flagged
