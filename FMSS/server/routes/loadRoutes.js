@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getLoads,
   getLoadById,
+  getStreetTurnAgreement,
   createLoad,
   updateLoad,
   updateLoadStatus,
@@ -71,6 +72,16 @@ router
   .route("/:loadId")
   .get(protect, getLoadById)
   .put(protect, authorizeRoles("client", "staff", "admin"), updateLoad);
+
+// The executed transfer agreement for a street turned load. Office only: it
+// names both carriers and their SCACs and carries the transferee's signature,
+// which is nothing a client or a competing carrier has any business reading.
+router.get(
+  "/:loadId/street-turn-agreement",
+  protect,
+  authorizeRoles("staff", "admin"),
+  getStreetTurnAgreement,
+);
 
 router.put(
   "/:loadId/status",

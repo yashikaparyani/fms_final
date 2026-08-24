@@ -26,6 +26,7 @@ import TransportStatusDialog from "../components/track-load/TransportStatusDialo
 import RatingSection from "../components/track-load/RatingSection";
 import DriverPictures from "../components/track-load/DriverPictures";
 import DetailedLoadInfo from "../components/track-load/DetailedLoadInfo";
+import StreetTurnAgreementCard from "../components/track-load/StreetTurnAgreementCard";
 import LoadAuditTrail from "../components/audit/LoadAuditTrail";
 import ScheduleBidding from "./ScheduleBidding";
 import Swal from "sweetalert2";
@@ -313,6 +314,11 @@ const DetailsTab = ({ load, userRole, isStaff, ratingScore, setRatingScore, rati
   <div className="space-y-8 pb-10">
     {/* Staff/admin toggle the operational flags in place; clients read them. */}
     <DetailedLoadInfo load={load} canEditFlags={isStaff} onSaveFlags={onSaveFlags} />
+
+    {/* The executed transfer agreement, on street turned loads only. Office
+        only — it names both carriers and carries the transferee's signature.
+        The card renders nothing when the load was never street turned. */}
+    {isStaff && <StreetTurnAgreementCard key={load.loadId} load={load} />}
 
     {/* Rating (staff/admin + DELIVERED only) */}
     {isStaff && load.transportStatus === "DELIVERED" && (

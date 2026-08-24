@@ -4,6 +4,9 @@ import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SignaturePad from "../components/onboarding/SignaturePad";
+import StreetTurnAgreementDocument, {
+  Section,
+} from "../components/street-turn/StreetTurnAgreementDocument";
 import api from "../api";
 
 /**
@@ -141,56 +144,15 @@ const StreetTurnSign = () => {
     );
   }
 
-  const agreement = detail?.agreement || {};
-  const { transferor = {}, transferee = {}, equipment = {}, clauses = [] } = agreement;
-
   return (
     <Shell>
-      <h2 className="text-xl font-extrabold text-ink-900 text-center">
-        {agreement.title || "Street Turn Transfer Agreement"}
-      </h2>
-      <p className="text-sm text-ink-500 text-center mt-1 mb-6">
-        Load {detail?.loadId}
-        {agreement.dateText ? ` · entered into as of ${agreement.dateText}` : ""}
-      </p>
-
-      {/* The two parties, side by side as they appear on the paper form. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Party title="Transferor" party={transferor} />
-        <Party title="Transferee" party={transferee} />
-      </div>
-
-      <Section title="Equipment">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <Detail label="Container number" value={equipment.containerNo} />
-          <Detail label="Container type" value={equipment.containerType} />
-          <Detail label="Chassis number" value={equipment.chassisNo} />
-          <Detail label="Shipping line" value={agreement.shippingLine} />
-          <Detail label="Pickup / transfer location" value={equipment.transferLocation} />
-          <Detail label="Delivery / return location" value={equipment.returnLocation} />
-          <Detail label="Chassis company" value={agreement.chassisCompany} />
-          <Detail label="Exceptions noted" value={equipment.condition} />
-        </dl>
-      </Section>
-
-      {detail?.note ? (
-        <p className="mt-4 rounded-lg bg-ink-50 border border-hairline p-3 text-sm text-ink-600">
-          <span className="font-bold text-ink-800">Note from dispatch:</span> {detail.note}
-        </p>
-      ) : null}
-
-      {/* The terms in full. Asking someone to execute a document they were
-          never shown is not a signature anybody would want to rely on. */}
-      <Section title="Agreement terms">
-        <ol className="list-decimal pl-5 space-y-3 text-sm text-ink-600 leading-relaxed">
-          {clauses.map((clause) => (
-            <li key={clause.heading}>
-              <span className="font-bold text-ink-800">{clause.heading}. </span>
-              {clause.body}
-            </li>
-          ))}
-        </ol>
-      </Section>
+      {/* Shared with the office's copy of this load, so the transferee and the
+          admin reading it back are looking at the same document. */}
+      <StreetTurnAgreementDocument
+        agreement={detail?.agreement || {}}
+        loadId={detail?.loadId}
+        note={detail?.note}
+      />
 
       <Section title="E-signature — Transferee">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -291,41 +253,5 @@ const Shell = ({ children }) => (
     </div>
   </div>
 );
-
-/** A titled block, the way each part of the paper agreement is separated. */
-const Section = ({ title, children }) => (
-  <section className="mt-6">
-    <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-400 mb-3 pb-2 border-b border-hairline">
-      {title}
-    </h3>
-    {children}
-  </section>
-);
-
-/** One party's identity block — company, SCAC and notice address. */
-const Party = ({ title, party }) => (
-  <div className="rounded-xl border border-hairline bg-ink-50 p-4">
-    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">
-      {title}
-    </p>
-    <p className="text-sm font-extrabold text-ink-900 mt-1">{party?.name || "—"}</p>
-    {party?.scac ? (
-      <p className="text-xs text-ink-500 mt-0.5">SCAC: {party.scac}</p>
-    ) : null}
-    {party?.email ? (
-      <p className="text-xs text-ink-500 break-all">{party.email}</p>
-    ) : null}
-  </div>
-);
-
-const Detail = ({ label, value, className = "" }) =>
-  value ? (
-    <div className={className}>
-      <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
-        {label}
-      </dt>
-      <dd className="text-sm font-semibold text-ink-800 break-words">{value}</dd>
-    </div>
-  ) : null;
 
 export default StreetTurnSign;
