@@ -13,14 +13,11 @@ const { runUnscoped } = require("../utils/tenantContext");
  * and Expo routes it to APNs or FCM. So the server half works as soon as tokens
  * start arriving.
  *
- * ── What is still needed on the phone ─────────────────────────────────────────
- * The mobile app does not yet register for push. It needs `expo-notifications`
- * added, permission requested at login, and the resulting token POSTed to
- * /api/users/push-token. Until that lands, `sendPush` finds no tokens, reports
- * `sent: false, reason: "no device registered"` for every recipient, and the
- * other two channels carry the message. Nothing here fails or blocks because of
- * it — the seam is deliberate, so the app change is additive.
- * ─────────────────────────────────────────────────────────────────────────────
+ * Devices arrive from the phone app at POST /api/notifications/push-token after
+ * sign-in, and are removed again on sign-out. A user with no registered device
+ * simply reports `sent: false, reason: "no device registered"` and the in-app
+ * notification and the email carry the message — nothing here fails or blocks
+ * because somebody has not installed the app.
  */
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -171,4 +168,19 @@ const registerPushToken = async (userId, token, platform = "") => {
   );
 };
 
-module.exports = { sendPush, registerPushToken, isExpoToken };
+/**
+ * Stop pushing to one device.
+ *
+ * Called when the app signs out. Scoped to the user doing the signing out
+ * rather than pulled globally, so one account cannot unregister another's
+ * handset by guessing a token.
+ */
+const forgetPushToken = async (userId, token) => {
+  if (!token) return;
+
+  await runUnscoped(() =>
+    User.updateOne({ _id: userId }, { $pull: { pushTokens: { token } } }),
+  );
+};
+
+module.exports = { sendPush, registerPushToken, forgetPushToken, isExpoToken };

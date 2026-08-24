@@ -53,6 +53,11 @@ import {
   Loader,
 } from "./src/ui";
 import { homeForRole } from "./src/dashboards";
+import {
+  listenForNotificationTaps,
+  registerForPush,
+  unregisterFromPush,
+} from "./src/push";
 
 // The four portals the app ships. Everything else — the service-marketplace
 // roles in the product design — has no backend yet and is deliberately not
@@ -2944,7 +2949,35 @@ export default function App() {
       .finally(() => setBooting(false));
   }, []);
 
+  // Registered once there is a session, not at launch: a permission prompt in
+  // front of somebody who has not said who they are yet is one they decline,
+  // and iOS only ever asks once. Re-run on every sign-in because the token has
+  // to be attached to whoever is actually signed in on this handset.
+  useEffect(() => {
+    if (!session) return undefined;
+
+    registerForPush();
+
+    // Tapping an instant-dispatch offer should open the app on the load it is
+    // about. There is no router here, so the payload is surfaced as an alert
+    // that points at the right screen rather than silently doing nothing.
+    return listenForNotificationTaps((data) => {
+      if (data?.type === "INSTANT_DISPATCH_OFFERED" && data?.loadId) {
+        Alert.alert(
+          "Load offered to you",
+          `${data.loadId} is available near one of your drivers. Open Loads to accept it before the offer closes.`,
+        );
+      }
+    });
+  }, [session]);
+
   const logout = async () => {
+    // Before the session is cleared, while the request can still authenticate.
+    // A token identifies a handset, not a person, and two drivers share a phone
+    // often enough that leaving it registered would send one of them the
+    // other's offers.
+    await unregisterFromPush();
+
     const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(
       () => false,
     );

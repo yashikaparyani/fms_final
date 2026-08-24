@@ -1,4 +1,8 @@
 const Notification = require("../models/Notification");
+const {
+  registerPushToken,
+  forgetPushToken,
+} = require("../services/pushService");
 
 // @route   GET /api/notifications
 // @desc    Get user's notifications with pagination
@@ -134,6 +138,39 @@ const clearReadNotifications = async (req, res) => {
   }
 };
 
+// ─── Push devices ─────────────────────────────────────────────────────────────
+// The phone app registers the device it is signed in on, so instant-dispatch
+// offers reach a dispatcher who is not sitting at a laptop. Everything about
+// how a push is actually delivered lives in services/pushService.js.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// @desc    Register this device for push notifications
+// @route   POST /api/notifications/push-token
+// @access  Private
+const registerDevice = async (req, res) => {
+  try {
+    await registerPushToken(req.user._id, req.body.token, req.body.platform);
+    res.json({ message: "Device registered for notifications." });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+// @desc    Stop pushing to this device
+// @route   DELETE /api/notifications/push-token
+// @access  Private
+//
+// Called on sign-out. A token identifies a device, not a person, and the next
+// person to sign in on it must not inherit the last one's load offers.
+const forgetDevice = async (req, res) => {
+  try {
+    await forgetPushToken(req.user._id, req.body.token);
+    res.json({ message: "Device removed." });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getMyNotifications,
   getUnreadCount,
@@ -141,4 +178,6 @@ module.exports = {
   markAllAsRead,
   deleteNotification,
   clearReadNotifications,
+  registerDevice,
+  forgetDevice,
 };
