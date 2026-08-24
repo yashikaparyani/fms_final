@@ -84,30 +84,49 @@ h4 {
 }
 
 /* ── Announcement marquee ────────────────────────────────────────────────── */
-/* Only applied when the text genuinely overflows its bar (MarqueeBanner
-   measures it). A short notice that slides past for no reason is harder to
-   read, not more noticeable. */
+/* A real marquee: the text runs right to left continuously, however short it
+   is. The trick is that the bar holds two identical copies of the notice side
+   by side and slides the pair exactly one copy's width — at which point copy
+   two is sitting precisely where copy one started, so the loop restarts with
+   nothing visibly jumping. */
 @keyframes marquee-scroll {
-  0%,
-  10% {
+  from {
     transform: translateX(0);
   }
-  90%,
-  100% {
-    transform: translateX(var(--marquee-shift, -50%));
+  to {
+    transform: translateX(-50%);
   }
 }
 
-.marquee-scrolling {
-  display: inline-block;
-  white-space: nowrap;
-  animation: marquee-scroll var(--marquee-duration, 18s) linear infinite alternate;
+.marquee-track {
+  display: flex;
+  /* Sized by its content rather than by the bar, or the two copies would be
+     squeezed to fit and -50% would stop landing on the seam. */
+  width: max-content;
+  animation: marquee-scroll var(--marquee-duration, 20s) linear infinite;
 }
 
-/* Someone who asks for less motion gets the text held still and clipped
-   rather than moving — the content is still reachable by scrolling the bar. */
+/* The gap that stops the end of one copy butting against the start of the
+   next. It sits on both copies so the spacing is even all the way round. */
+.marquee-track > * {
+  padding-right: 4rem;
+}
+
+/* Held still while somebody is reading it. A notice that will not stop moving
+   long enough to be read twice is a notice people give up on. */
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Someone who asks for less motion gets the text held still rather than
+   moving, and the duplicate copy hidden so it does not read as a stutter. */
 @media (prefers-reduced-motion: reduce) {
-  .marquee-scrolling {
+  .marquee-track {
     animation: none;
+    width: 100%;
+  }
+
+  .marquee-track > [aria-hidden="true"] {
+    display: none;
   }
 }

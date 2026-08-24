@@ -104,12 +104,6 @@ const ClientDashboard = () => {
       <DashboardHeader
         title="Ship with S Line Transport"
         subtitle="Post freight, collect quotes and follow every shipment."
-        stats={[
-          { label: "Total loads", value: stats?.totalLoads },
-          { label: "Pending", value: stats?.pendingLoads },
-          { label: "Verified", value: stats?.verifiedLoads },
-          { label: "In bidding", value: stats?.activeBidding },
-        ]}
       />
 
       {/* Main Stat Cards */}

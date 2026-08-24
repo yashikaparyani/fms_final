@@ -277,12 +277,6 @@ useAutoRefresh(() => fetchStats({ silent: true }));
     <DashboardHeader
       title="Staff Dashboard"
       subtitle="Manage customers, fleet owners, and transport orders."
-      stats={[
-        { label: "Customers", value: stats?.totalCustomers },
-        { label: "Fleet owners", value: stats?.totalFleetOwners },
-        { label: "Total loads", value: stats?.totalLoads },
-        { label: "In bidding", value: stats?.activeBidding },
-      ]}
     />
 
     {/* Main Stat Cards */}

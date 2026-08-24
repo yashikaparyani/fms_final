@@ -53,6 +53,8 @@ import Onboarding from "./pages/fleetOwner/Onboarding";
 import CarrierOnboardingGate from "./components/onboarding/CarrierOnboardingGate";
 import CarrierOnboardingQueue from "./pages/staff/CarrierOnboardingQueue";
 import CarrierOnboardingReview from "./pages/staff/CarrierOnboardingReview";
+import DispatchSettings from "./pages/admin/DispatchSettings";
+import InstantOffers from "./pages/fleetOwner/InstantOffers";
 import DriverLocations from "./pages/fleetOwner/DriverLocations";
 import MyLicense from "./pages/driver/MyLicense";
 import DriverDashboard from "./pages/driver/DriverDashboard";
@@ -216,6 +218,9 @@ function App() {
             }
           />
           <Route path="shipping-lines" element={<ShippingLines />} />
+          {/* The commission rate and the instant-dispatch dials. Admin only —
+              this is what the business earns per load. */}
+          <Route path="dispatch-settings" element={<DispatchSettings />} />
           <Route path="street-turn-partners" element={<StreetTurnPartners />} />
           {/* Renamed from Delivery Partners; the old path is in bookmarks. */}
           <Route path="delivery-partners" element={<StreetTurnPartners />} />
@@ -413,6 +418,8 @@ function App() {
           <Route path="assigned-loads" element={<AssignedLoad />} />
           <Route path="onboarding" element={<Onboarding />} />
           <Route path="driver-locations" element={<DriverLocations />} />
+          {/* Loads offered because one of their drivers is near the pickup. */}
+          <Route path="instant-offers" element={<InstantOffers />} />
 
           <Route path="load/:loadId" element={<UpdateLoadStatusPage />} />
         </Route>

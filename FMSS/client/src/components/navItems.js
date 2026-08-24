@@ -24,6 +24,7 @@ import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import DirectionsBoatOutlinedIcon from "@mui/icons-material/DirectionsBoatOutlined";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
+import BoltOutlinedIcon from "@mui/icons-material/BoltOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
@@ -203,6 +204,13 @@ export const navItems = [
     description: "Add your drivers and give them app logins",
   },
   {
+    label: "Loads Near You",
+    path: "instant-offers",
+    icon: BoltOutlinedIcon,
+    visible: ["fleetOwner"],
+    description: "Loads offered because a driver of yours is close by",
+  },
+  {
     label: "Driver Locations",
     path: "driver-locations",
     icon: PlaceOutlinedIcon,
@@ -339,6 +347,14 @@ export const navItems = [
         visible: ["admin"],
         permission: "masters.view",
         description: "Manage the shipping line master",
+      },
+      {
+        label: "Instant Dispatch",
+        path: "dispatch-settings",
+        icon: BoltOutlinedIcon,
+        visible: ["admin"],
+        permission: "masters.view",
+        description: "Commission rate and nearest-driver settings",
       },
       {
         label: "Street Turn Partners",

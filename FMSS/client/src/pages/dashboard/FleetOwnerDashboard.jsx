@@ -158,12 +158,6 @@ const FleetOwnerDashboard = () => {
       <DashboardHeader
         title="Fleet Owner Dashboard"
         subtitle="Find loads, place bids, and manage your fleet."
-        stats={[
-          { label: "Available loads", value: stats?.availableLoads },
-          { label: "Open bids", value: stats?.pendingBids },
-          { label: "Won", value: stats?.wonBids },
-          { label: "Active trips", value: stats?.activeTrips },
-        ]}
       />
 
       {/* Main Stat Cards */}

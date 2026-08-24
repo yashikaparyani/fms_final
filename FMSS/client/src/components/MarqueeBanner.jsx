@@ -41,20 +41,21 @@ const MarqueeBanner = () => {
   const [dismissed, setDismissed] = useState(readDismissed);
   const timer = useRef(null);
 
-  // The bar and the text inside it. Compared on mount and on resize so the
-  // animation is only switched on for text that genuinely does not fit.
-  const trackRef = useRef(null);
-  const [overflow, setOverflow] = useState(0);
+  // One copy of the notice, measured so the scroll runs at a constant speed
+  // rather than a fixed duration — otherwise a short notice crawls and a long
+  // one races past. Re-measured on resize because the bar's width changes with
+  // the sidebar and the viewport.
+  const copyRef = useRef(null);
+  const [copyWidth, setCopyWidth] = useState(0);
 
   const measure = useCallback((node) => {
     if (!node) return;
-    trackRef.current = node;
-    const extra = node.scrollWidth - node.clientWidth;
-    setOverflow(extra > 8 ? extra : 0);
+    copyRef.current = node;
+    setCopyWidth(node.offsetWidth);
   }, []);
 
   useEffect(() => {
-    const onResize = () => measure(trackRef.current);
+    const onResize = () => measure(copyRef.current);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [measure]);
@@ -114,40 +115,44 @@ const MarqueeBanner = () => {
       <div className="flex items-center gap-3 px-4 py-2">
         <CampaignOutlinedIcon fontSize="small" className="shrink-0" />
 
-        {/* The text scrolls only when it is too long to sit still. A short
-            notice that slides past for no reason is harder to read, not more
-            noticeable. */}
-        <div ref={measure} className="flex-1 min-w-0 overflow-hidden">
-          <p
-            className={`text-sm font-semibold whitespace-nowrap ${
-              overflow ? "marquee-scrolling" : "truncate"
-            }`}
-            style={
-              overflow
-                ? {
-                    // Shift by exactly the hidden distance, at a readable pace
-                    // rather than a fixed duration that races long text.
-                    "--marquee-shift": `-${overflow}px`,
-                    "--marquee-duration": `${Math.max(8, Math.round(overflow / 40))}s`,
-                  }
-                : undefined
-            }
+        {/* Two identical copies on one sliding track. The track moves exactly
+            one copy's width, at which point the second copy is sitting where
+            the first started — so it loops with no visible jump. The second is
+            hidden from assistive tech, which would otherwise read the notice
+            twice. */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div
+            className="marquee-track"
+            style={{
+              // ~60px a second: quick enough to read as movement, slow enough
+              // to actually read.
+              "--marquee-duration": `${Math.max(10, Math.round((copyWidth * 2) / 60))}s`,
+            }}
           >
-            {current.title ? (
-              <span className="font-extrabold">{current.title} — </span>
-            ) : null}
-            {current.message}
-            {current.link ? (
-              <a
-                href={current.link}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-2 underline underline-offset-2 font-bold"
+            {[0, 1].map((copy) => (
+              <p
+                key={copy}
+                ref={copy === 0 ? measure : undefined}
+                aria-hidden={copy === 1 ? "true" : undefined}
+                className="text-sm font-semibold whitespace-nowrap"
               >
-                {current.linkLabel || "Open"}
-              </a>
-            ) : null}
-          </p>
+                {current.title ? (
+                  <span className="font-extrabold">{current.title} — </span>
+                ) : null}
+                {current.message}
+                {current.link ? (
+                  <a
+                    href={current.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-2 underline underline-offset-2 font-bold"
+                  >
+                    {current.linkLabel || "Open"}
+                  </a>
+                ) : null}
+              </p>
+            ))}
+          </div>
         </div>
 
         {visible.length > 1 ? (
