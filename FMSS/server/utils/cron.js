@@ -5,6 +5,7 @@ const { notifyBiddingClosed, notifyBiddingScheduled } = require("../services/Not
 const FleetOwner = require("../models/FleetOwner");
 const { runUnscoped } = require("./tenantContext");
 const { drainQueue } = require("../services/whatsappService");
+const { expireStaleOffers } = require("../services/instantDispatchService");
 
 const startCronJobs = () => {
   // Run every minute.
@@ -92,6 +93,29 @@ const startCronJobs = () => {
       console.error("Error running cron jobs", error);
     }
   }));
+  // ── Instant dispatch offers ───────────────────────────────────────────────
+  // An offer nobody took has to actually stop being an offer. Left alone, the
+  // load would sit forever in a state where no carrier can accept it and the
+  // office is not looking at it either — the customer waiting on a truck that
+  // was never coming. This releases it back to bidding.
+  //
+  // Its own schedule for the same reason as the outbox: a slow email must not
+  // hold up bid closing. expireStaleOffers opens its own unscoped context.
+  cron.schedule("* * * * *", async () => {
+    try {
+      const results = await expireStaleOffers();
+      if (results.length) {
+        const failed = results.filter((r) => !r.ok);
+        console.log(
+          `Instant dispatch: ${results.length - failed.length} offer(s) expired to bidding` +
+            (failed.length ? `, ${failed.length} failed` : ""),
+        );
+      }
+    } catch (error) {
+      console.error("Instant dispatch expiry failed:", error.message);
+    }
+  });
+
   // ── WhatsApp outbox ───────────────────────────────────────────────────────
   // Its own schedule rather than folded into the sweep above: a slow Meta call
   // must not hold up bid closing, and the queue drains at its own rate limit.
@@ -110,7 +134,7 @@ const startCronJobs = () => {
   });
 
   console.log(
-    "Cron jobs initialized (auto-open bids, auto-close & select winner, WhatsApp queue).",
+    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue).",
   );
 };
 

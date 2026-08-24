@@ -641,6 +641,51 @@ const streetTurnSigned = ({ load, streetTurn, signature }) => {
   };
 };
 
+/**
+ * A load offered to a carrier because one of their drivers is near the pickup.
+ *
+ * States the payout, not the customer's price — that split is settled before
+ * anybody is told anything, and what the customer pays is not the carrier's
+ * business. States the deadline plainly too: an offer somebody reads after the
+ * window closed is worse than one they never got.
+ */
+const instantDispatchOffer = ({
+  load,
+  carrierName,
+  driverName,
+  distanceMiles,
+  payout,
+  expiresAt,
+}) => {
+  const lane = [load.pickup?.city, load.drop?.city].filter(Boolean).join(" → ") || "See details";
+  const money = `$${Number(payout).toLocaleString("en-US")}`;
+  const deadline = new Date(expiresAt).toLocaleString("en-US");
+  const truck = driverName ? `${driverName} is` : "Your nearest truck is";
+
+  return {
+    subject: `Load ${load.loadId} available near you — ${money}`,
+    text:
+      `${carrierName || "Hello"}, load ${load.loadId} (${lane}) is available. ` +
+      `${truck} ${distanceMiles} miles from the pickup. You would be paid ${money}. ` +
+      `First carrier to accept has it — this offer closes ${deadline}. ` +
+      `Accept it from your Available Loads screen.`,
+    html: `
+      <p>Load <strong>${escapeHtml(load.loadId)}</strong> is available and one of your
+        trucks is close to it.</p>
+      <table cellpadding="6" style="border-collapse:collapse">
+        <tr><td><strong>Lane</strong></td><td>${escapeHtml(lane)}</td></tr>
+        <tr><td><strong>Nearest driver</strong></td><td>${escapeHtml(driverName || "—")} · ${escapeHtml(String(distanceMiles))} mi from pickup</td></tr>
+        <tr><td><strong>You are paid</strong></td><td><strong>${escapeHtml(money)}</strong></td></tr>
+        <tr><td><strong>Offer closes</strong></td><td>${escapeHtml(deadline)}</td></tr>
+      </table>
+      <p>The first carrier to accept has the load, so it may go before the deadline.
+        Accept it from your <strong>Available Loads</strong> screen.</p>
+      <p style="color:#666;font-size:12px">You are getting this because a driver on your
+        roster reported a position near this pickup.</p>
+    `,
+  };
+};
+
 module.exports = {
   biddingNowOpen,
   biddingScheduled,
@@ -650,6 +695,7 @@ module.exports = {
   driverPaymentStatement,
   fleetOwnerCredentials,
   insuranceFiled,
+  instantDispatchOffer,
   insuranceRequest,
   loadRequiresChanges,
   staffCredentials,

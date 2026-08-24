@@ -463,6 +463,139 @@ const loadSchema = new mongoose.Schema(
     ],
 
     // ═══════════════════════════════════════════════════════════
+    // SECTION 4b — HOW THIS LOAD FINDS A CARRIER
+    //
+    // Two routes, chosen by whoever posts the load:
+    //
+    //   BID     — the original flow. The office verifies it, schedules a bid
+    //             window, carriers bid, a winner is awarded.
+    //   INSTANT — the load is offered straight to the carriers whose drivers
+    //             are already near the pickup. The first to accept has it, and
+    //             from that point it runs exactly like any other assigned load.
+    //
+    // Defaulted to BID so every load that predates this section, and every load
+    // posted by anything that has not learned about the choice, behaves as it
+    // always did.
+    // ═══════════════════════════════════════════════════════════
+    dispatchMode: {
+      type: String,
+      enum: ["BID", "INSTANT"],
+      default: "BID",
+      index: true,
+    },
+
+    instantDispatch: {
+      requestedAt: Date,
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+      // The settings this request actually ran under, copied rather than read
+      // back live. Somebody widening the house radius next month must not
+      // change the answer to "who was asked about this load".
+      radiusMiles: Number,
+      positionMaxAgeHours: Number,
+
+      // Where we searched from — the pickup's pinned coordinates.
+      origin: {
+        latitude: Number,
+        longitude: Number,
+      },
+
+      // After this, no carrier can accept and the load falls back to bidding.
+      expiresAt: Date,
+
+      // Deliberately no default. A default here would be applied to every load
+      // Mongoose ever creates, so a plain bid load would read as having a
+      // pending offer out — untrue, and exactly the kind of thing a later query
+      // that forgets to also filter on dispatchMode would act on. The status is
+      // written when a request is actually made.
+      status: {
+        type: String,
+        enum: ["PENDING", "ACCEPTED", "EXPIRED", "CANCELLED"],
+        index: true,
+      },
+
+      // Every carrier the load was offered to, whether or not they answered.
+      // Kept so "nobody was near" and "six carriers ignored it" are different
+      // answers — they call for different things being done about it.
+      offers: [
+        new mongoose.Schema(
+          {
+            fleetOwnerId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "FleetOwner",
+              required: true,
+            },
+            fleetOwnerName: String,
+            // The nearest driver this carrier had to the pickup, which is the
+            // truck they would most likely send. Not a commitment — the carrier
+            // assigns whoever they want once they accept.
+            driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
+            driverName: String,
+            distanceMiles: Number,
+            // How stale that position was when we used it.
+            positionRecordedAt: Date,
+
+            notifiedAt: { type: Date, default: Date.now },
+            // One row per channel attempted, so a bounced email is visible
+            // rather than silently lost — the same shape street turn
+            // notifications use.
+            channels: [
+              {
+                channel: String, // "in-app" | "email" | "push"
+                sent: Boolean,
+                reason: String,
+                _id: false,
+              },
+            ],
+
+            response: {
+              type: String,
+              enum: ["PENDING", "ACCEPTED", "DECLINED"],
+              default: "PENDING",
+            },
+            respondedAt: Date,
+            declineReason: String,
+          },
+          { _id: false },
+        ),
+      ],
+
+      // Who took it. Written by the accept endpoint under a conditional update
+      // so two carriers accepting at the same moment cannot both win — see
+      // controllers/instantDispatchController.js.
+      acceptedBy: {
+        fleetOwnerId: { type: mongoose.Schema.Types.ObjectId, ref: "FleetOwner" },
+        fleetOwnerName: String,
+        acceptedAt: Date,
+        acceptedByUser: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+
+      // Stamped when the window closed with nobody having taken it and the load
+      // was handed to the ordinary bid flow.
+      fellBackAt: Date,
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 4c — WHAT THE BROKER KEEPS
+    //
+    // On an instant-dispatch load the customer names the price and the broker
+    // takes a percentage. The carrier is offered, accepts and is paid the
+    // remainder, and never sees the customer's figure.
+    //
+    // The rate is stamped here when the request goes out and read from here
+    // forever after. A load agreed at 20% stays a load agreed at 20% after
+    // somebody changes the house rate — a rate change is not a licence to
+    // rewrite what a carrier already accepted.
+    // ═══════════════════════════════════════════════════════════
+    commission: {
+      customerAmount: Number,
+      commissionPercent: Number,
+      commissionAmount: Number,
+      carrierAmount: Number,
+      stampedAt: Date,
+    },
+
+    // ═══════════════════════════════════════════════════════════
     // SECTION 5 — BID SCHEDULE (set by staff/admin after VERIFIED)
     // ═══════════════════════════════════════════════════════════
     bidStatus: {

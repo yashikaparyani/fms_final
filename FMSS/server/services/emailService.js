@@ -253,6 +253,34 @@ const sendStreetTurnSigned = async ({ load, streetTurn, signature, recipients = 
   );
 };
 
+/**
+ * Offer a load to one carrier on instant dispatch.
+ *
+ * Returns the send status rather than throwing: the caller records per-channel
+ * outcomes on the offer, and a carrier who cannot be emailed still has the
+ * in-app notification and the push.
+ */
+const sendInstantDispatchOffer = ({
+  to,
+  load,
+  carrierName,
+  driverName,
+  distanceMiles,
+  payout,
+  expiresAt,
+}) =>
+  sendTemplate({
+    to,
+    template: templates.instantDispatchOffer({
+      load,
+      carrierName,
+      driverName,
+      distanceMiles,
+      payout,
+      expiresAt,
+    }),
+  });
+
 /** The page a street turn partner signs their acknowledgement on. */
 const streetTurnSignLink = (token) => `${frontendUrl()}/street-turn/${token}`;
 
@@ -268,6 +296,7 @@ module.exports = {
   sendFleetOwnerCredentials,
   sendInsuranceFiled,
   sendInsuranceRequest,
+  sendInstantDispatchOffer,
   sendLoadRequiresChanges,
   sendStaffCredentials,
   sendStreetTurnNotifications,

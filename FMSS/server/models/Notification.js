@@ -32,6 +32,12 @@ const notificationSchema = new mongoose.Schema(
         // Sent by the office from the announcements screen rather than raised
         // by something happening to a load, so it carries no load reference.
         "ANNOUNCEMENT",
+        // Instant dispatch: a load offered to the carriers near its pickup, and
+        // the answer once one of them takes it.
+        "INSTANT_DISPATCH_OFFERED",
+        "INSTANT_DISPATCH_TAKEN",
+        "INSTANT_DISPATCH_ACCEPTED",
+        "INSTANT_DISPATCH_EXPIRED",
       ],
       required: true,
     },

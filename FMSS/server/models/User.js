@@ -37,6 +37,21 @@ const userSchema = new mongoose.Schema(
 
     lastLogin: Date,
 
+    // Devices this account is signed in on, for push notifications. A user has
+    // more than one — a dispatcher with a phone and a tablet expects the offer
+    // on both — so this is a list rather than a single field.
+    //
+    // Populated by POST /api/users/push-token once the phone app registers; see
+    // services/pushService.js for what the app still has to do.
+    pushTokens: [
+      {
+        token: { type: String, required: true },
+        platform: String, // "ios" | "android"
+        registeredAt: { type: Date, default: Date.now },
+        _id: false,
+      },
+    ],
+
     timezone: {
       type: String,
       default: "Asia/Kolkata",

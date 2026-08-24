@@ -48,6 +48,7 @@ const branchRoutes = require("./routes/branchRoutes");
 const trackingRoutes = require("./routes/trackingRoutes");
 const shippingLineRoutes = require("./routes/shippingLineRoutes");
 const streetTurnPartnerRoutes = require("./routes/streetTurnPartnerRoutes");
+const instantDispatchRoutes = require("./routes/instantDispatchRoutes");
 const streetTurnRoutes = require("./routes/streetTurnRoutes");
 const chassisCompanyRoutes = require("./routes/chassisCompanyRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
@@ -136,6 +137,7 @@ app.use("/api/locations", locationRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/shipping-lines", shippingLineRoutes);
+app.use("/api/instant-dispatch", instantDispatchRoutes);
 app.use("/api/street-turn", streetTurnRoutes);
 app.use("/api/street-turn-partners", streetTurnPartnerRoutes);
 // Kept so a client that has not been redeployed alongside the server keeps
