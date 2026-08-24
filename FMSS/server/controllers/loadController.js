@@ -51,6 +51,12 @@ const audit = require("../services/auditService");
  * charge on the invoice that no report can account for.
  */
 const receivableLinesFrom = (body, user) => {
+  // Office work. What the customer is billed is built from the charge master by
+  // staff, not stated by the party being billed — and the charge master is not
+  // readable by a customer in the first place, so a breakdown arriving from one
+  // did not come from the form.
+  if (!["staff", "admin"].includes(user?.role)) return null;
+
   const submitted = body?.accounting?.receivables?.lines;
   if (!Array.isArray(submitted) || !submitted.length) return null;
 
@@ -251,6 +257,13 @@ const {
   notifyLoadStatusChanged,
 } = require("../services/NotificationService");
 const mongoose = require("mongoose");
+const {
+  requestInstantDispatch,
+} = require("../services/instantDispatchService");
+const {
+  maskLoadForViewer,
+  maskLoadsForViewer,
+} = require("../utils/loadVisibility");
 
 const POD_DOCUMENT_TYPE = "Proof of Delivery";
 const LEGACY_DOCUMENT_TYPE_ALIASES = {
@@ -361,25 +374,9 @@ const createLoad = async (req, res) => {
       drop,
     } = req.body;
 
-    // A Drop moves two containers, so both container and both chassis numbers
-    // have to be on the load. A Pick only ever carries the first pair.
-    if (singleType === "Drop") {
-      const missing = [
-        ["containerNo", "Container #", containerNo],
-        ["containerNo2", "Container #2", containerNo2],
-        ["chassisNo", "Chassis #", chassisNo],
-        ["chassisNo2", "Chassis #2", chassisNo2],
-      ].filter(([, , value]) => !String(value || "").trim());
-
-      if (missing.length) {
-        return res.status(400).json({
-          success: false,
-          message: `A Drop needs two containers: ${missing
-            .map(([, label]) => label)
-            .join(", ")} ${missing.length === 1 ? "is" : "are"} required.`,
-        });
-      }
-    }
+    // A Drop moves two containers, so it carries a second container/chassis
+    // pair. All four numbers are optional — they are frequently unknown at
+    // booking time and get filled in later. A Pick only carries the first pair.
 
     let customerName = "";
     if (customer) {
@@ -417,6 +414,15 @@ const createLoad = async (req, res) => {
     const newLoad = {
       customer,
       customerName,
+      // Which route the customer chose. Recorded here even when the offer
+      // cannot go out yet — the load form creates the load before its pickup
+      // address exists, and instant dispatch needs the pickup's map pin to know
+      // which drivers are near it. Persisting the choice is what lets the offer
+      // be raised once the address lands.
+      dispatchMode:
+        String(req.body.dispatchMode || "").toUpperCase() === "INSTANT"
+          ? "INSTANT"
+          : "BID",
       refNo,
       deliveryType,
       singleType,
@@ -480,6 +486,33 @@ const createLoad = async (req, res) => {
     // reloads the load should not see an empty history.
     await audit.recordCreated(load, req.user, req);
 
+    // ─────────────────────────────────────────────
+    // INSTANT DISPATCH
+    // The customer asked for the fast route: offer it straight to the carriers
+    // whose drivers are near the pickup instead of putting it in the office's
+    // verification queue.
+    //
+    // A refusal here is not an error. No map pin on the pickup, nobody in
+    // range, the branch has it switched off — all of them mean the same thing
+    // in practice: this load goes the ordinary way. It is created either way,
+    // and the response says which route it took so the customer is not left
+    // thinking a truck is on the way when one is not.
+    // ─────────────────────────────────────────────
+    // Attempted here only when the pickup came in with the load — an API caller
+    // posting a complete load, rather than the wizard, which saves the pickup on
+    // a later step and raises the offer itself once it has.
+    let instantResult = null;
+    if (load.dispatchMode === "INSTANT" && load.pickup?.addressId) {
+      try {
+        instantResult = await requestInstantDispatch(load, {
+          requestedBy: req.user._id,
+          branchId: load.locationId,
+        });
+      } catch (dispatchError) {
+        instantResult = { ok: false, reason: dispatchError.message };
+      }
+    }
+
     // Notify staff and admin about the new load
     if (load.status === "PENDING_VERIFICATION") {
       try {
@@ -502,8 +535,13 @@ const createLoad = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Load created successfully",
+      message: instantResult?.ok
+        ? `Load created and offered to ${instantResult.offered} carrier${instantResult.offered === 1 ? "" : "s"} near the pickup.`
+        : "Load created successfully",
       data: load,
+      // Present only when instant dispatch was asked for, so the client can say
+      // what happened — offered to N carriers, or why it fell back to bidding.
+      ...(instantResult ? { instantDispatch: instantResult } : {}),
     });
   } catch (error) {
     res.status(400).json({ message: error.message, success: false });
@@ -809,7 +847,102 @@ const getLoads = async (req, res) => {
       }),
     );
 
-    res.json(enriched);
+    // A carrier is shown their payout, not what the customer pays — see
+    // utils/loadVisibility.js. A no-op for the office and for every load that
+    // did not come through instant dispatch.
+    res.json(maskLoadsForViewer(enriched, req.user.role));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * The street turn transfer agreement, as the office sees it.
+ *
+ * The partner reads the agreement on their signing page and every party was
+ * emailed a copy, but until now nobody inside the system could open the
+ * document that was actually sent — the office had to go and find the email.
+ * This serves the same document from the same builder, so what an admin reads
+ * here is word for word what the transferee signed.
+ *
+ * Rendered from what was frozen onto the load at confirmation time, never from
+ * today's masters, so a partner renamed or an email changed since does not
+ * quietly rewrite an executed agreement.
+ *
+ * @desc    The transfer agreement for a confirmed street turn
+ * @route   GET /api/loads/:loadId/street-turn-agreement
+ * @access  Private (staff, admin)
+ */
+const getStreetTurnAgreement = async (req, res) => {
+  try {
+    const load = await Load.findOne({ loadId: req.params.loadId })
+      .populate("streetTurn.confirmedBy", "firstName lastName role")
+      .lean();
+
+    if (!load) {
+      return res.status(404).json({ message: "Load not found" });
+    }
+
+    const streetTurn = load.streetTurn || {};
+
+    // No agreement exists until the street turn was confirmed. A 200 saying so
+    // rather than a 404: the load is real, it simply has not been street
+    // turned, and the caller renders that differently from a broken request.
+    if (!streetTurn.confirmedAt) {
+      return res.json({ confirmed: false, loadId: load.loadId });
+    }
+
+    // Who signed on our side. The emailed copy named whoever confirmed it, so
+    // the re-rendered copy has to name the same person rather than leaving the
+    // transferor block blank.
+    const confirmer = streetTurn.confirmedBy;
+    const signerName = confirmer
+      ? [confirmer.firstName, confirmer.lastName].filter(Boolean).join(" ")
+      : "";
+
+    const signature = streetTurn.partnerSignature || {};
+
+    res.json({
+      confirmed: true,
+      loadId: load.loadId,
+      agreement: buildStreetTurnAgreement({
+        load,
+        streetTurn,
+        signerName,
+        signerTitle:
+          confirmer?.role === "driver" ? "Driver" : "Authorised Representative",
+      }),
+      note: streetTurn.note || "",
+      confirmedAt: streetTurn.confirmedAt,
+      confirmedByName: signerName,
+      // Whether the transferee has actually accepted the container, which is
+      // the question the office opens this to answer.
+      signature: signature.signedAt
+        ? {
+            signedName: signature.signedName || "",
+            signedTitle: signature.signedTitle || "",
+            company: signature.company || "",
+            signatureData: signature.signatureData || "",
+            signedAt: signature.signedAt,
+            note: signature.note || "",
+            signedIp: signature.signedIp || "",
+            signedUserAgent: signature.signedUserAgent || "",
+          }
+        : null,
+      // Still outstanding, and until when the emailed link works — the office
+      // needs to know whether to chase the partner or re-send.
+      signatureLinkExpiresAt: signature.signedAt
+        ? null
+        : streetTurn.confirmationTokenExpiresAt || null,
+      // A send that failed is only useful if someone can see it failed.
+      notifications: (streetTurn.notifications || []).map((entry) => ({
+        party: entry.party || "",
+        email: entry.email || "",
+        sent: !!entry.sent,
+        reason: entry.reason || "",
+        attemptedAt: entry.attemptedAt || null,
+      })),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -903,7 +1036,9 @@ const getLoadById = async (req, res) => {
       delete responsePayload.driverAssignments;
     }
 
-    res.json(responsePayload);
+    // Same rule as the list: a carrier is shown their payout, never what the
+    // customer pays — see utils/loadVisibility.js.
+    res.json(maskLoadForViewer(responsePayload, req.user.role));
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -3049,6 +3184,7 @@ module.exports = {
   setLoadDrivers,
   getLoads,
   getLoadById,
+  getStreetTurnAgreement,
   createLoad,
   updateLoad,
   updateLoadStatus,

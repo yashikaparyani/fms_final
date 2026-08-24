@@ -154,22 +154,9 @@ const AddAddressModal = ({ company, onClose, onSaved }) => {
 };
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
-// A Drop moves two containers — one dropped, one taken away — so it needs both
-// container and both chassis numbers. A Pick only ever uses the first pair.
-const requireTwoContainersOnDrop = (data, ctx) => {
-  if (data.singleType !== "Drop") return;
-
-  [
-    ["containerNo", "Container # is required for a Drop"],
-    ["containerNo2", "Container #2 is required for a Drop"],
-    ["chassisNo", "Chassis # is required for a Drop"],
-    ["chassisNo2", "Chassis #2 is required for a Drop"],
-  ].forEach(([path, message]) => {
-    if (!String(data[path] || "").trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-    }
-  });
-};
+// A Drop moves two containers — one dropped, one taken away — so it exposes a
+// second container/chassis pair. All four numbers are optional: they are often
+// unknown at booking time and get filled in later.
 
 // Loads created before the move types were reduced to Drop / Pick carry the
 // old values. A rounded trip is the same two-container move as a Drop, and a
@@ -217,7 +204,7 @@ const loadSchema = z.object({
   description:     z.string().optional(),
   remarks:         z.string().optional(),
   driverRequirement: z.enum(["Solo Driver", "Team Driver"]),
-}).superRefine(requireTwoContainersOnDrop);
+});
 
 // ─── Stop Form (Pickup / Drop) ────────────────────────────────────────────────
 const emptyStop = {
@@ -782,7 +769,7 @@ const EditLoad = () => {
                 {isDrop && (
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 md:ml-auto w-full md:w-auto">
                     <span className="text-xs font-medium text-indigo-700">
-                      A Drop moves 2 containers — both container and chassis numbers are required below.
+                      A Drop moves 2 containers — a second container and chassis number can be entered below.
                     </span>
                   </div>
                 )}
@@ -932,12 +919,12 @@ const EditLoad = () => {
                 </div>
 
                 {/* Container / chassis numbers. The second pair only exists on
-                    a Drop, where all four are required. */}
+                    a Drop. All four numbers are optional. */}
                 {[
-                  { name: "containerNo",  label: "Container #",  required: isDrop },
-                  { name: "chassisNo",    label: "Chassis #",    required: isDrop },
-                  { name: "containerNo2", label: "Container #2", required: true, dropOnly: true },
-                  { name: "chassisNo2",   label: "Chassis #2",   required: true, dropOnly: true },
+                  { name: "containerNo",  label: "Container #"   },
+                  { name: "chassisNo",    label: "Chassis #"     },
+                  { name: "containerNo2", label: "Container #2", dropOnly: true },
+                  { name: "chassisNo2",   label: "Chassis #2",   dropOnly: true },
                 ]
                   .filter(({ dropOnly }) => !dropOnly || isDrop)
                   .map(({ name, label, required }) => (

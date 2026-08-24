@@ -13,27 +13,17 @@ import MapPicker from "../MapPicker";
 import BaseAmountDialog from "../accounting/BaseAmountDialog";
 
 
-// A Drop moves two containers — one dropped, one taken away — so it needs both
-// container and both chassis numbers. A Pick only ever uses the first pair.
-const requireTwoContainersOnDrop = (data, ctx) => {
-  if (data.singleType !== "Drop") return;
-
-  [
-    ["containerNo", "Container # is required for a Drop"],
-    ["containerNo2", "Container #2 is required for a Drop"],
-    ["chassisNo", "Chassis # is required for a Drop"],
-    ["chassisNo2", "Chassis #2 is required for a Drop"],
-  ].forEach(([path, message]) => {
-    if (!String(data[path] || "").trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-    }
-  });
-};
+// A Drop moves two containers — one dropped, one taken away — so it exposes a
+// second container/chassis pair. All four numbers are optional: they are often
+// unknown at booking time and get filled in later.
 
 const loadSchema = z.object({
   customer: z.string().min(1, "Please select a customer"),
   refNo: z.string().optional(),
   singleType: z.enum(["Drop", "Pick"]),
+  // How this load finds a carrier: the ordinary bid flow, or straight out to
+  // the carriers whose drivers are already near the pickup.
+  dispatchMode: z.enum(["BID", "INSTANT"]),
   truckType: z.string().min(1, "Load type is required"),
   material: z.string().min(1, "Material is required"),
   amount: z
@@ -68,7 +58,7 @@ const loadSchema = z.object({
   description: z.string().optional(),
   remarks: z.string().optional(),
   driverRequirement: z.enum(["Solo Driver", "Team Driver"]),
-}).superRefine(requireTwoContainersOnDrop);
+});
 
 const StepIndicator = ({ step, savedLoadId }) => {
   const steps = [
@@ -653,6 +643,13 @@ const LoadForm = () => {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [receivableLines, setReceivableLines] = useState([]);
 
+  // The receivables breakdown is office work: it is what the customer is
+  // billed, built from the charge master, and the charge list endpoint is not
+  // open to a customer anyway — which is why opening it as one produced
+  // "Could not load the charge list" over an empty dialog. A customer names a
+  // figure; the office decides what it is made of.
+  const mayBreakDownAmount = role === "admin" || role === "staff";
+
   const {
     register, handleSubmit, watch, setValue, control,
     formState: { errors },
@@ -663,6 +660,7 @@ const LoadForm = () => {
       refNo: "", singleType: "Pick",
       truckType: "", material: "", amount: "",
       lastFreeDate: "", orderBillDate: "",
+      dispatchMode: "BID",
       containerType: "", commodity: "",
       bookingNo: "", shippingLine: "", containerNo: "", chassisNo: "",
       containerNo2: "", chassisNo2: "", chassisCompany: "", pickupNo: "", sealNo: "",
@@ -676,6 +674,10 @@ const LoadForm = () => {
   // A Drop carries a second container/chassis pair; a Pick does not.
   const singleType = watch("singleType");
   const isDrop = singleType === "Drop";
+
+  // Which route this load takes to find a carrier — see the two cards below.
+  const dispatchMode = watch("dispatchMode");
+  const isInstant = dispatchMode === "INSTANT";
 
   const truckTypeOptions     = ["Container", "Flatbed", "Reefer", "Van", "Dry Van", "Open Truck", "Refrigerated", "Other"];
   const containerTypeOptions = ["40 Std", "40 HC", "45", "20"];
@@ -804,7 +806,27 @@ const LoadForm = () => {
           apptNumber:   drop.apptNumber || "",
         },
       });
-      toast.success("Load fully created!");
+      // Only now can instant dispatch run: finding the drivers near a pickup
+      // needs the pickup, and it does not exist until step 2 saved it.
+      if (dispatchMode === "INSTANT") {
+        try {
+          const { data } = await api.post(
+            `/instant-dispatch/${savedLoadId}/request`,
+          );
+          toast.success(data.message);
+        } catch (dispatchErr) {
+          // Not a failure of the load — it is created either way. It simply
+          // takes the ordinary route, and the customer is told why rather than
+          // left believing a truck is on its way.
+          toast.warning(
+            dispatchErr?.response?.data?.message ||
+              "Load created, but no nearby carrier could be found. It will go out for bidding.",
+          );
+        }
+      } else {
+        toast.success("Load fully created!");
+      }
+
       navigate(`/${role}/dashboard`);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Error saving drop address");
@@ -817,8 +839,11 @@ const LoadForm = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-0 md:px-4">
+      {/* Gated here as well as on the trigger, so the dialog cannot be reached
+          by any route a customer has — it mounts and fetches the charge master
+          the moment `open` is true. */}
       <BaseAmountDialog
-        open={showBreakdown}
+        open={mayBreakDownAmount && showBreakdown}
         onClose={() => setShowBreakdown(false)}
         initialLines={receivableLines}
         onApply={({ lines, total }) => {
@@ -882,6 +907,76 @@ const LoadForm = () => {
               </div>
 
               <h3 className="form-subtitle">Delivery Modality</h3>
+              {/* ── How this load finds a carrier ────────────────────────────
+                  The choice is put up front and as two plain cards rather than
+                  a dropdown, because it is the one decision on this form that
+                  changes what happens to the load rather than describing it. */}
+              <div className="mb-6">
+                <p className="text-sm font-semibold text-gray-800 mb-1">
+                  How would you like to find a carrier?
+                </p>
+                <p className="text-xs text-gray-500 mb-3">
+                  You can change this later if nothing comes back.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    {
+                      value: "BID",
+                      title: "Post for bidding",
+                      blurb:
+                        "Our team reviews the load and opens it to carriers, who bid for it. Best price, takes longer.",
+                    },
+                    {
+                      value: "INSTANT",
+                      title: "Find the nearest driver",
+                      blurb:
+                        "We message every carrier with a truck near your pickup right now. First to accept takes it — usually within the hour.",
+                    },
+                  ].map((option) => {
+                    const selected = dispatchMode === option.value;
+
+                    return (
+                      <label
+                        key={option.value}
+                        className={`relative flex gap-3 cursor-pointer rounded-xl border p-3.5 transition-colors ${
+                          selected
+                            ? "border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-200"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          value={option.value}
+                          className="mt-0.5 h-4 w-4 accent-indigo-600"
+                          {...register("dispatchMode")}
+                          disabled={loading}
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-900">
+                            {option.title}
+                          </span>
+                          <span className="block text-xs text-gray-500 mt-0.5 leading-snug">
+                            {option.blurb}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Said before they fill the form, not after they submit it:
+                    instant dispatch needs the pickup pinned on a map, and
+                    finding that out at the last step is a wasted form. */}
+                {isInstant && (
+                  <p className="mt-2.5 text-xs text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 leading-relaxed">
+                    The pickup address has to be pinned on the map for this — that is
+                    how we work out which drivers are nearby. If none are in range,
+                    the load goes out for bidding instead and we will tell you.
+                  </p>
+                )}
+              </div>
+
               <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-8">
                 <div className="flex items-center gap-6">
                   {["Drop", "Pick"].map((value) => (
@@ -893,7 +988,7 @@ const LoadForm = () => {
                 {isDrop && (
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 md:ml-auto w-full md:w-auto">
                     <span className="text-xs font-medium text-indigo-700">
-                      A Drop moves 2 containers — both container and chassis numbers are required below.
+                      A Drop moves 2 containers — a second container and chassis number can be entered below.
                     </span>
                   </div>
                 )}
@@ -941,17 +1036,20 @@ const LoadForm = () => {
                   <label className="input-label">Base Amount <span className="text-red-400">*</span></label>
                   {/* The breakdown is what the base amount is *made of*, so it
                       hangs off this field rather than living on its own screen.
-                      Typing a figure straight in still works for a quick quote. */}
-                  <button
-                    type="button"
-                    onClick={() => setShowBreakdown(true)}
-                    disabled={loading}
-                    className="absolute right-2 top-2 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-1"
-                  >
-                    {receivableLines.length ? `${receivableLines.length} charges` : "Break down"}
-                  </button>
+                      Typing a figure straight in still works for a quick quote.
+                      Office only — see mayBreakDownAmount. */}
+                  {mayBreakDownAmount && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBreakdown(true)}
+                      disabled={loading}
+                      className="absolute right-2 top-2 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-1"
+                    >
+                      {receivableLines.length ? `${receivableLines.length} charges` : "Break down"}
+                    </button>
+                  )}
                   {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount.message}</p>}
-                  {receivableLines.length > 0 && (
+                  {mayBreakDownAmount && receivableLines.length > 0 && (
                     <p className="text-[11px] text-gray-500 mt-1">
                       Built from {receivableLines.length} charge
                       {receivableLines.length === 1 ? "" : "s"} — the receivables
@@ -1049,13 +1147,13 @@ const LoadForm = () => {
                   <label className="input-label">Chassis Company</label>
                 </div>
 
-                {/* The second pair only exists on a Drop, where both are
-                    required — see requireTwoContainersOnDrop. */}
+                {/* The second pair only exists on a Drop. All four numbers are
+                    optional. */}
                 {[
-                  { name: "containerNo",  label: "Container #",  required: isDrop },
-                  { name: "chassisNo",    label: "Chassis #",    required: isDrop },
-                  { name: "containerNo2", label: "Container #2", required: true, dropOnly: true },
-                  { name: "chassisNo2",   label: "Chassis #2",   required: true, dropOnly: true },
+                  { name: "containerNo",  label: "Container #"   },
+                  { name: "chassisNo",    label: "Chassis #"     },
+                  { name: "containerNo2", label: "Container #2", dropOnly: true },
+                  { name: "chassisNo2",   label: "Chassis #2",   dropOnly: true },
                   { name: "pickupNo",     label: "Pickup #"      },
                   { name: "sealNo",       label: "Seal #"        },
                 ]
