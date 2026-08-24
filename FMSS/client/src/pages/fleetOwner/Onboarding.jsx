@@ -11,6 +11,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CertificatePreview from "../../components/insurance/CertificatePreview";
 import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
@@ -995,6 +996,30 @@ const Onboarding = () => {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* ── The certificate ──────────────────────────────────────────
+              The carrier had no way to see what their agency filed on their
+              behalf — they were told it landed and had to take our word for it.
+              It is their policy and their file, so they read the same document
+              the office reviews. */}
+          <div className={uiStyles.card}>
+            <h2 className="text-base font-semibold text-gray-900 mb-1">
+              Your certificate of insurance
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              One certificate covering everything your agency filed. Check the
+              holder reads S LINE BROKERAGE, INC. — if it does not, ask your
+              agency to re-issue it from the same link.
+            </p>
+            <CertificatePreview
+              certificate={data.insurance.certificate}
+              emptyMessage={
+                data.insurance.invitedAt
+                  ? "Your agency has not attached a certificate yet."
+                  : "Send your agency the request above and their certificate appears here."
+              }
+            />
           </div>
 
           {/* What is required */}

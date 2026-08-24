@@ -19,6 +19,8 @@ const {
 // The carrier gets the counterparty's own fifteen-page document with its
 // blanks filled, not a summary of it — see services/agreementOverlayService.
 const { buildFilledAgreement } = require("../services/agreementOverlayService");
+const { certificateMeta } = require("../utils/insuranceCertificate");
+const { serveFile } = require("../utils/serveFile");
 
 // ─── Carrier onboarding ───────────────────────────────────────────────────────
 // The paperwork a carrier completes after the short signup form: the two
@@ -222,7 +224,23 @@ const toPayload = (onboarding, { carrier, drivers }) => ({
     hasDocument: !!a.document?.filePath,
     documentName: a.document?.fileName || null,
   })),
-  drivers,
+  // Licence metadata only. `driversFor` selects the whole licenceDocument
+  // subdocument, which carries the server-side path — that has no business
+  // reaching a browser, and the download route is the only way to the file.
+  drivers: (drivers || []).map((driver) => ({
+    ...driver,
+    licenseDocument: driver.licenseDocument?.fileName
+      ? {
+          fileName: driver.licenseDocument.fileName,
+          originalName: driver.licenseDocument.originalName || "",
+          // Needed to decide whether the office can preview it in the page or
+          // has to download it.
+          mimeType: driver.licenseDocument.mimeType || "",
+          size: driver.licenseDocument.size || 0,
+          uploadedAt: driver.licenseDocument.uploadedAt || null,
+        }
+      : null,
+  })),
   insurance: {
     agencyName: onboarding.insurance?.agencyName || "",
     agentName: onboarding.insurance?.agentName || "",
@@ -235,6 +253,10 @@ const toPayload = (onboarding, { carrier, drivers }) => ({
     submittedByName: onboarding.insurance?.submittedByName || "",
     policies: onboarding.insurance?.policies || [],
     shortfalls: onboarding.insurance?.shortfalls || [],
+    // The certificate of insurance — one document for the filing. Metadata
+    // only; the path is never exposed, and /api/insurance/certificate is the
+    // only way to the file. Null until the agency attaches one.
+    certificate: certificateMeta(onboarding.insurance),
   },
   reviewedAt: onboarding.reviewedAt,
   // Only filled when the caller populated it — the write paths deliberately do
@@ -488,23 +510,16 @@ const downloadAgreement = async (req, res) => {
 
     const signed = (onboarding?.agreements || []).find((a) => a.key === req.params.key);
 
-    if (!signed?.document?.filePath) {
-      return res
-        .status(404)
-        .json({ message: "That agreement has not been signed yet." });
-    }
-
-    if (!fs.existsSync(signed.document.filePath)) {
-      return res.status(410).json({
-        message:
-          "The signed copy is no longer on file. Sign the agreement again to produce a fresh one.",
-      });
-    }
-
     const agreement = AGREEMENT_BY_KEY.get(req.params.key);
-    const downloadName = `${carrier.fleetOwnerCode || "carrier"} - ${agreement.title}.pdf`;
 
-    res.download(signed.document.filePath, downloadName);
+    // Inline by default so the office reads the signed copy on the review page
+    // — checking the signature and the initials means looking at it.
+    return serveFile(req, res, {
+      filePath: signed?.document?.filePath,
+      filename: `${carrier.fleetOwnerCode || "carrier"} - ${agreement.title}.pdf`,
+      mimeType: signed?.document?.mimeType || "application/pdf",
+      missingMessage: "That agreement has not been signed yet.",
+    });
   } catch (error) {
     res.status(error.status || 500).json({ message: error.message });
   }
@@ -599,16 +614,14 @@ const downloadDriverLicense = async (req, res) => {
       fleetOwner: carrier._id,
     }).lean();
 
-    if (!driver?.licenseDocument?.filePath) {
-      return res.status(404).json({ message: "No licence is on file for that driver." });
-    }
+    const ext = path.extname(driver?.licenseDocument?.originalName || "") || ".pdf";
 
-    if (!fs.existsSync(driver.licenseDocument.filePath)) {
-      return res.status(410).json({ message: "That file is no longer on the server." });
-    }
-
-    const ext = path.extname(driver.licenseDocument.originalName || "") || ".pdf";
-    res.download(driver.licenseDocument.filePath, `${driver.name} - licence${ext}`);
+    return serveFile(req, res, {
+      filePath: driver?.licenseDocument?.filePath,
+      filename: `${driver?.name || "driver"} - licence${ext}`,
+      mimeType: driver?.licenseDocument?.mimeType,
+      missingMessage: "No licence is on file for that driver.",
+    });
   } catch (error) {
     res.status(error.status || 500).json({ message: error.message });
   }

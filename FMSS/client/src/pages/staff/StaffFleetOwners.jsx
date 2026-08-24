@@ -4,6 +4,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EmailIcon from "@mui/icons-material/Email";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import { notify } from "../../utils/swal";
 import Swal from "sweetalert2";
 import api from "../../api";
@@ -12,6 +13,7 @@ import MobileCard from "../../components/MobileCard";
 import { uiStyles } from "../../style/uiStyles";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { fleetOwnerCode } from "../../utils/fleetOwner";
+import { usePermissions } from "../../hooks/usePermissions";
 
 const StaffFleetOwners = () => {
   const [fleetOwners, setFleetOwners] = useState([]);
@@ -19,6 +21,13 @@ const StaffFleetOwners = () => {
   const [loading, setLoading] = useState(true);
   const [sendingCredentials, setSendingCredentials] = useState(null);
   const navigate = useNavigate();
+  // The carrier's file is mounted under both /admin and /staff, so the link has
+  // to follow whoever is looking rather than assume one of them.
+  const { role } = usePermissions();
+  const base = role === "admin" ? "/admin" : "/staff";
+
+  /** Everything on file for one carrier — documents, drivers, positions. */
+  const openFile = (id) => navigate(`${base}/onboarding-review/${id}`);
 
   useEffect(() => {
     fetchFleetOwners();
@@ -144,6 +153,7 @@ const StaffFleetOwners = () => {
 
   const desktopActions = (row) => (
     <div className="flex gap-2">
+      <button onClick={() => openFile(row._id)} title="Open the carrier's file" className="btn-secondary p-1 text-white bg-indigo-600 border-indigo-600"><FolderOpenIcon fontSize="small" /></button>
       <button onClick={() => handleSendCredentials(row._id)} className="btn-secondary p-1 text-white bg-blue-600 border-blue-600"><EmailIcon fontSize="small" /></button>
       <button onClick={() => handleShareWhatsApp(row._id)} className="btn-secondary p-1 text-white bg-green-600 border-green-600"><WhatsAppIcon fontSize="small" /></button>
       <button onClick={() => navigate(`/staff/fleet-owners/${row._id}/edit`)} className="btn-secondary p-1 text-white bg-cyan-600 border-cyan-600"><EditIcon fontSize="small" /></button>
@@ -191,6 +201,7 @@ const StaffFleetOwners = () => {
                   { label: "Email", value: f.email, fullWidth: true },
                 ]}
                 actions={[
+                  { icon: <FolderOpenIcon style={{ fontSize: 18 }} />, color: "#4f46e5", onClick: () => openFile(f._id) },
                   { icon: <EmailIcon style={{ fontSize: 18 }} />,    color: "#2563eb", onClick: () => handleSendCredentials(f._id), disabled: sendingCredentials === f._id },
                   { icon: <WhatsAppIcon style={{ fontSize: 18 }} />, color: "#16a34a", onClick: () => handleShareWhatsApp(f._id),  disabled: sendingCredentials === f._id },
                   { icon: <EditIcon style={{ fontSize: 18 }} />,     color: "#0891b2", onClick: () => navigate(`/staff/fleet-owners/${f._id}/edit`) },

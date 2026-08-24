@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import DownloadIcon from "@mui/icons-material/Download";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -9,6 +8,10 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
+import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
+import CertificatePreview from "../../components/insurance/CertificatePreview";
+import DocumentPreview from "../../components/common/DocumentPreview";
+import CarrierDriverLocations from "../../components/carrier/CarrierDriverLocations";
 import api from "../../api";
 import Swal, { notify } from "../../utils/swal";
 import OnboardingStatusBadge from "../../components/onboarding/OnboardingStatusBadge";
@@ -97,6 +100,12 @@ const CarrierOnboardingReview = () => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [deciding, setDeciding] = useState(false);
+  // Which document is open, as one value rather than a set: these are full
+  // PDFs and scans, and rendering every agreement and every licence at once
+  // would fetch the lot on page load for no benefit.
+  const [openDoc, setOpenDoc] = useState(null);
+
+  const toggleDoc = (key) => setOpenDoc((current) => (current === key ? null : key));
 
   const load = useCallback(async () => {
     try {
@@ -116,34 +125,6 @@ const CarrierOnboardingReview = () => {
   useEffect(() => {
     load();
   }, [load]);
-
-  /** Stream a document down through the API — never off /uploads directly. */
-  const download = async (url, filename) => {
-    try {
-      const res = await api.get(url, {
-        params: { fleetOwnerId },
-        responseType: "blob",
-      });
-
-      const href = URL.createObjectURL(res.data);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(href);
-    } catch (err) {
-      // The body of a failed blob response is itself a blob, so the server's
-      // message has to be read back out of it rather than off err.response.data.
-      let message = "Could not open that document";
-      try {
-        const text = await err.response?.data?.text?.();
-        if (text) message = JSON.parse(text).message || message;
-      } catch {
-        /* not JSON — keep the generic message */
-      }
-      notify.error(message);
-    }
-  };
 
   // ── The decision ───────────────────────────────────────────────────────────
   const decide = async ({ decision, note, overrideOutstanding = false }) => {
@@ -380,13 +361,16 @@ const CarrierOnboardingReview = () => {
               (a) => a.key === agreement.key && a.signedAt,
             );
 
+            const open = openDoc === `agreement:${agreement.key}`;
+
             return (
               <div
                 key={agreement.key}
-                className={`flex flex-wrap items-center justify-between gap-3 border rounded-lg px-3 py-2.5 ${
+                className={`border rounded-lg px-3 py-2.5 ${
                   signed ? "border-gray-200" : "border-amber-200 bg-amber-50/40"
                 }`}
               >
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex-1 min-w-[15rem]">
                   <p className="text-sm font-medium text-gray-900">
                     {agreement.title}
@@ -423,17 +407,31 @@ const CarrierOnboardingReview = () => {
 
                 {signed?.hasDocument && (
                   <button
-                    onClick={() =>
-                      download(
-                        `/onboarding/agreements/${agreement.key}/download`,
-                        `${file.carrier.fleetOwnerCode || "carrier"} - ${agreement.title}.pdf`,
-                      )
-                    }
+                    onClick={() => toggleDoc(`agreement:${agreement.key}`)}
                     className="btn-secondary whitespace-nowrap"
                   >
-                    <DownloadIcon fontSize="small" /> Open
+                    <DescriptionOutlinedIcon fontSize="small" />
+                    {open ? "Hide" : "Read"}
                   </button>
                 )}
+              </div>
+
+              {/* Read on the page — checking a signature and the initials on
+                  the arbitration clauses means looking at the document. One at
+                  a time: these are full PDFs and rendering four at once buys
+                  nobody anything. */}
+              {open && signed?.hasDocument && (
+                <div className="mt-3">
+                  <DocumentPreview
+                    url={`/onboarding/agreements/${agreement.key}/download`}
+                    params={{ fleetOwnerId }}
+                    name={agreement.title}
+                    mimeType="application/pdf"
+                    downloadName={`${file.carrier.fleetOwnerCode || "carrier"} - ${agreement.title}.pdf`}
+                    height="34rem"
+                  />
+                </div>
+              )}
               </div>
             );
           })}
@@ -499,15 +497,18 @@ const CarrierOnboardingReview = () => {
               const expired = isPast(driver.licenseExpiry);
               const medicalExpired = isPast(driver.medicalCardExpiry);
 
+              const open = openDoc === `licence:${driver._id}`;
+
               return (
                 <div
                   key={driver._id}
-                  className={`flex flex-wrap items-center gap-3 border rounded-lg px-3 py-2.5 ${
+                  className={`border rounded-lg px-3 py-2.5 ${
                     onFile && !expired
                       ? "border-gray-200"
                       : "border-amber-200 bg-amber-50/40"
                   }`}
                 >
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="flex-1 min-w-[14rem]">
                     <p className="text-sm font-medium text-gray-900">
                       {driver.name}
@@ -550,15 +551,11 @@ const CarrierOnboardingReview = () => {
 
                   {onFile ? (
                     <button
-                      onClick={() =>
-                        download(
-                          `/onboarding/drivers/${driver._id}/license`,
-                          `${driver.name} - licence`,
-                        )
-                      }
+                      onClick={() => toggleDoc(`licence:${driver._id}`)}
                       className="btn-secondary whitespace-nowrap"
                     >
-                      <DownloadIcon fontSize="small" /> Open licence
+                      <BadgeOutlinedIcon fontSize="small" />
+                      {open ? "Hide licence" : "View licence"}
                     </button>
                   ) : (
                     <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
@@ -566,10 +563,39 @@ const CarrierOnboardingReview = () => {
                     </span>
                   )}
                 </div>
+
+                {/* The scan itself. Checking a licence against the details
+                    typed beside it is the whole point of this row, and
+                    downloading it just leaves copies of somebody's licence on
+                    an office laptop. */}
+                {open && onFile && (
+                  <div className="mt-3">
+                    <DocumentPreview
+                      url={`/onboarding/drivers/${driver._id}/license`}
+                      params={{ fleetOwnerId }}
+                      name={driver.licenseDocument.originalName || `${driver.name} - licence`}
+                      mimeType={driver.licenseDocument.mimeType}
+                      size={driver.licenseDocument.size}
+                      uploadedAt={driver.licenseDocument.uploadedAt}
+                      downloadName={`${driver.name} - licence`}
+                      height="30rem"
+                    />
+                  </div>
+                )}
+                </div>
               );
             })}
           </div>
         )}
+      </Section>
+
+      {/* ── Where their drivers are ──────────────────────────────────────── */}
+      <Section
+        icon={PlaceOutlinedIcon}
+        title="Driver locations"
+        subtitle="The last position each of this carrier's drivers reported, from the phone app. The same view the carrier has of their own fleet."
+      >
+        <CarrierDriverLocations fleetOwnerId={fleetOwnerId} />
       </Section>
 
       {/* ── Insurance ────────────────────────────────────────────────────── */}
@@ -615,6 +641,20 @@ const CarrierOnboardingReview = () => {
             </ul>
           </div>
         )}
+
+        {/* The certificate itself, read on the page. One document for the whole
+            filing — checking the holder and the limits means looking at it, so
+            it sits above the keyed-in rows it is being checked against. */}
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
+            Certificate of insurance
+          </p>
+          <CertificatePreview
+            certificate={file.insurance.certificate}
+            fleetOwnerId={fleetOwnerId}
+            emptyMessage="The agency has not attached a certificate yet."
+          />
+        </div>
 
         <div className="space-y-2">
           {(catalog.insurance.coverages || []).map((coverage) => {
@@ -700,19 +740,6 @@ const CarrierOnboardingReview = () => {
                         {fmtDate(policy.effectiveDate)} → {fmtDate(policy.expiryDate)}
                         {expired ? " (expired)" : ""}
                       </p>
-                    )}
-                    {policy?.certificate?.fileName && (
-                      <button
-                        onClick={() =>
-                          download(
-                            `/insurance/certificate/${coverage.key}`,
-                            `${file.carrier.fleetOwnerCode || "carrier"} - ${coverage.label} certificate.pdf`,
-                          )
-                        }
-                        className="btn-secondary whitespace-nowrap mt-2"
-                      >
-                        <DownloadIcon fontSize="small" /> Certificate
-                      </button>
                     )}
                   </div>
                 </div>
