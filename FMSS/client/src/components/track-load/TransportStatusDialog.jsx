@@ -3,6 +3,10 @@ import { toast } from "react-toastify";
 import api from "../../api";
 import StreetTurnConfirmDialog from "../StreetTurnConfirmDialog";
 import {
+  SELECTABLE_TRANSPORT_STATUSES,
+  transportStatusLabel,
+} from "../../utils/transportStatus";
+import {
   Button,
   Dialog,
   DialogTitle,
@@ -15,23 +19,11 @@ import {
   OutlinedInput,
 } from "@mui/material";
 
-export const TRANSPORT_STATUSES = [
-  "LOAD_PLANNER",
-  "NEW_LOAD",
-  "ASSIGNED",
-  "PICKED_UP",
-  "IN_TRANSIT",
-  "REACHED_DESTINATION",
-  "DELIVERED",
-  "TERMINATED",
-  "PAPERWORK_PENDING",
-  "INVOICED",
-  "STREET_TURN",
-  "EMPTY_IN_YARD",
-  "LOADED_IN_YARD",
-  "DRIVER_ON_WAITING",
-  "DROP_IN_WAREHOUSE",
-];
+// The list lives in utils/transportStatus.js, which leaves out Load Planner and
+// New Load: those are written by the system before a load is dispatched, never
+// chosen by anyone.
+const TRANSPORT_STATUSES = SELECTABLE_TRANSPORT_STATUSES;
+
 
 // Forward-only progression. A status already reached can't be re-selected,
 // except PICKED_UP on a multi-origin load (one pickup per origin).
@@ -135,14 +127,14 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
             style={{ borderRadius: 8 }}
             displayEmpty
             renderValue={(v) =>
-              v ? v.replace(/_/g, " ") : (
+              v ? transportStatusLabel(v) : (
                 <span style={{ color: "#9ca3af" }}>Select next status…</span>
               )
             }
           >
             {TRANSPORT_STATUSES.map((s) => (
               <MenuItem key={s} value={s} disabled={isDisabledOption(s)}>
-                {s.replace(/_/g, " ")}
+                {transportStatusLabel(s)}
                 {isDisabledOption(s) && MAIN_ORDER.indexOf(s) <= currentIdx
                   ? "  ✓"
                   : ""}

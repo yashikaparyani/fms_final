@@ -1,5 +1,5 @@
-// Carrier onboarding: the two signed agreements, driver licences, and the
-// insurance an outside agency files through a one-off link.
+// Carrier onboarding: the signed agreements, driver licences, and the insurance
+// an outside agency files through a one-off link.
 //
 // The insurance half gets the most attention here because it is the only
 // unauthenticated write surface in the system — a token in a URL is the entire
@@ -158,6 +158,7 @@ describe("Catalog", () => {
     expect(res.body.agreements.map((a) => a.key).sort()).toEqual([
       "broker",
       "contractor",
+      "einVerification",
     ]);
     expect(res.body.insurance.coverages.length).toBeGreaterThan(0);
     expect(res.body.insurance.requiredKeys).toContain("cargo");
@@ -600,6 +601,167 @@ describe("Insurance — the agency's link", () => {
   });
 });
 
+describe("Appendix A VINs", () => {
+  const saveEquipment = (vin) =>
+    call("put", "/api/onboarding/profile", carrierUser, ny).send({
+      profile: FULL_PROFILE,
+      equipment: [{ ...EQUIPMENT[0], vin }],
+    });
+
+  it("refuses a VIN that is not seventeen characters, and says how many it is", async () => {
+    const res = await saveEquipment("1FUJGLDR9CLBP88"); // fifteen
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/15 characters, not 17/);
+    expect(res.body.equipmentErrors[0].index).toBe(0);
+  });
+
+  it("refuses a seventeen-character VIN using I, O or Q", async () => {
+    // Those three were excluded from the standard precisely because they are
+    // misread as 1 and 0, so a VIN containing one is a transcription error.
+    const res = await saveEquipment("1FUJGLDR9CLBP88O4");
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/I, O or Q/);
+  });
+
+  it("accepts a well-formed VIN", async () => {
+    const res = await saveEquipment("1FUJGLDR9CLBP8834");
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("saves a row whose VIN has not been typed yet", async () => {
+    // The profile form is filled over more than one sitting, so a row the
+    // carrier has not finished is unfinished, not wrong — refusing it would
+    // lose everything else they had typed.
+    const res = await call("put", "/api/onboarding/profile", carrierUser, ny).send({
+      profile: FULL_PROFILE,
+      equipment: [{ ...EQUIPMENT[0], vin: "" }],
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("will not sign Appendix A with a VIN still missing", async () => {
+    // Signing executes the schedule, so at that point a blank is a blank in a
+    // contract.
+    await call("put", "/api/onboarding/profile", carrierUser, ny).send({
+      profile: FULL_PROFILE,
+      equipment: [{ ...EQUIPMENT[0], vin: "" }],
+    });
+
+    const res = await call(
+      "post",
+      "/api/onboarding/agreements/contractor/sign",
+      carrierUser,
+      ny,
+    ).send({
+      values: { arbitrationInitials: "RK", operatingLocation: "Long Beach, CA" },
+      acknowledgements: [1, 2, 3, 4, 5],
+      signedName: "Ravi Kumar",
+      signedTitle: "Owner",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/a VIN is required/i);
+  });
+});
+
+describe("EIN verification", () => {
+  const signEin = (values, profile = FULL_PROFILE) =>
+    call("put", "/api/onboarding/profile", carrierUser, ny)
+      .send({ profile })
+      .then(() =>
+        call(
+          "post",
+          "/api/onboarding/agreements/einVerification/sign",
+          carrierUser,
+          ny,
+        ).send({
+          values,
+          acknowledgements: [1, 2, 3, 4],
+          signedName: "Ravi Kumar",
+          signedTitle: "Owner",
+        }),
+      );
+
+  const goodValues = {
+    einNumber: "12-3456789",
+    einLegalName: "SWIFT HAULAGE LLC",
+    einCertificationInitials: "RK",
+  };
+
+  /** The stored path, which the payload deliberately never exposes. */
+  const executedCopyPath = async () => {
+    const file = await withTenant({ locationId: String(ny._id) }, () =>
+      CarrierOnboarding.findOne({ fleetOwner: carrier._id }),
+    );
+    return file.agreements.find((a) => a.key === "einVerification")?.document
+      ?.filePath;
+  };
+
+  it("signs, and keeps the executed copy", async () => {
+    const res = await signEin(goodValues);
+
+    expect(res.statusCode).toBe(201);
+
+    const signed = res.body.onboarding.agreements.find(
+      (a) => a.key === "einVerification",
+    );
+    expect(signed.signedAt).toBeTruthy();
+    // The path never leaves the server — the download route is the only way to
+    // the file — so the payload carries the name and a flag, and nothing else.
+    expect(signed.hasDocument).toBe(true);
+    expect(signed.documentName).toMatch(/einVerification/);
+
+    const filePath = await executedCopyPath();
+    expect(fs.existsSync(filePath)).toBe(true);
+    fs.unlinkSync(filePath);
+  });
+
+  it("refuses an EIN that is not nine digits", async () => {
+    const res = await signEin({ ...goodValues, einNumber: "12-34567" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/nine digits/);
+  });
+
+  it("refuses an EIN that disagrees with the one on the profile", async () => {
+    // The whole point of the document: it catches a tax ID typed wrong once,
+    // before it reaches a 1099.
+    const res = await signEin({ ...goodValues, einNumber: "98-7654321" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/does not match/i);
+  });
+
+  it("ignores the hyphen when comparing", async () => {
+    const res = await signEin({ ...goodValues, einNumber: "123456789" });
+
+    expect(res.statusCode).toBe(201);
+
+    fs.unlinkSync(await executedCopyPath());
+  });
+
+  it("will not certify an EIN for a carrier filing under an SSN", async () => {
+    const res = await signEin(goodValues, { ...FULL_PROFILE, taxIdType: "SSN" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/not set to EIN/i);
+  });
+
+  it("counts as outstanding until it is signed", async () => {
+    const res = await call("get", "/api/onboarding", carrierUser, ny);
+
+    expect(res.body.outstanding.map((o) => o.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/EIN Verification and Taxpayer Certification/),
+      ]),
+    );
+  });
+});
+
 describe("Requirement checks", () => {
   it("flags every way a policy can fall short at once", () => {
     const problems = shortfallsFor({
@@ -628,7 +790,22 @@ describe("Requirement checks", () => {
 
   it("names the required cover that has not been filed at all", () => {
     expect(missingRequired([{ coverage: "cargo" }])).toEqual(
-      expect.arrayContaining(["Auto / Trucking Liability", "Workers' Compensation"]),
+      expect.arrayContaining([
+        "Auto / Trucking Liability",
+        "Trailer Interchange / Chassis",
+      ]),
+    );
+  });
+
+  it("does not hold onboarding up for the optional covers", () => {
+    // Workers' Compensation and Commercial General Liability are collected but
+    // no longer required — a carrier with neither on file must not be reported
+    // as having something missing.
+    expect(missingRequired([{ coverage: "cargo" }])).not.toEqual(
+      expect.arrayContaining([
+        "Workers' Compensation",
+        "Commercial General Liability",
+      ]),
     );
   });
 });
@@ -695,7 +872,8 @@ describe("Office review", () => {
     const res = await call("get", "/api/onboarding/queue", staff, ny);
     expect(res.statusCode).toBe(200);
     expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body[0].agreementCount).toBe(2);
+    // Every document the carrier has to sign, from config/carrierAgreements.js.
+    expect(res.body[0].agreementCount).toBe(3);
   });
 
   it("summarises the roster on each queue row", async () => {

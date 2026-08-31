@@ -588,6 +588,75 @@ const loginUser = async (req, res) => {
 // @desc    Get user profile
 // @route   GET /api/auth/me
 // @access  Private
+
+// The shortest password the system accepts, matching validators/userValidator.js.
+// Kept in step with it deliberately: a change-password screen that demands more
+// than signup did would reject a password the account was created with.
+const MIN_PASSWORD_LENGTH = 6;
+
+// @desc    Change your own password
+// @route   PUT /api/auth/change-password
+// @access  Private (every role)
+//
+// Every account in the system is created with a password somebody else chose —
+// staff issue credentials to customers and carriers, admins issue them to staff,
+// and the seed issues them to admins. Until this existed there was no way for
+// any of those people to stop the person who issued it from still knowing it,
+// which is the whole reason a password is worth having.
+//
+// The current password is required even though the caller is already
+// authenticated. A token in a borrowed browser is exactly the case this is
+// defending against, and asking for the old password is what stops a session
+// left open from becoming a permanent account takeover.
+const changePassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || "");
+    const newPassword = String(req.body.newPassword || "");
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Your current password and a new password are both required.",
+      });
+    }
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        message: `Your new password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      });
+    }
+
+    if (newPassword === currentPassword) {
+      return res.status(400).json({
+        message: "Your new password must be different from your current one.",
+      });
+    }
+
+    // `password` is select:false on the schema, so it has to be asked for.
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const matches = await user.matchPassword(currentPassword);
+    if (!matches) {
+      // Deliberately not "that password is wrong" versus anything else — the
+      // only thing worth telling the caller is that it did not work.
+      return res.status(401).json({
+        message: "That is not your current password.",
+      });
+    }
+
+    // Assigned in the clear; the pre-save hook on the model hashes it, and
+    // hashing here as well would double-hash and lock the account out.
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: "Your password has been changed." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
@@ -621,6 +690,7 @@ const getMe = async (req, res) => {
 };
 
 module.exports = {
+  changePassword,
   createStaff,
   registerCustomer,
   createCustomerByStaff,

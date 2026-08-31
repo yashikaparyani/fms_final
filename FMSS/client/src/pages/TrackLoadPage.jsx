@@ -22,6 +22,7 @@ import LoadHeader from "../components/track-load/LoadHeader";
 import LoadDetailsLeft from "../components/track-load/LoadDetailsLeft";
 import LoadDetailsRight from "../components/track-load/LoadDetailsRight";
 import StatusTimeline from "../components/track-load/StatusTimeline";
+import TransitProgress from "../components/track-load/TransitProgress";
 import TransportStatusDialog from "../components/track-load/TransportStatusDialog";
 import RatingSection from "../components/track-load/RatingSection";
 import DriverPictures from "../components/track-load/DriverPictures";
@@ -246,7 +247,7 @@ const LiveTrackingCard = ({ tracking }) => {
   );
 };
 
-const TrackingTab = ({ load, tracking }) => {
+const TrackingTab = ({ load, tracking, userRole, onLoadChanged }) => {
   const historyPoints = (load.transportStatusHistory || [])
     .filter(
       (entry) =>
@@ -294,11 +295,24 @@ const TrackingTab = ({ load, tracking }) => {
 
   return (
     <div className="space-y-6">
+      {/* Origin → destination, how far along, and how long is left. First,
+          because it is the question the page is opened to answer. */}
+      <Card>
+        <SectionHeader label="Transit Progress" accent="#0ea5e9" />
+        <TransitProgress load={load} />
+      </Card>
+
       <LiveTrackingCard tracking={tracking || load.liveTracking} />
 
       <Card>
         <SectionHeader label="Status Timeline" accent="#8b5cf6" />
-        <StatusTimeline history={load.transportStatusHistory || []} />
+        {/* Corrections are admin-only, and the server enforces that too. */}
+        <StatusTimeline
+          history={load.transportStatusHistory || []}
+          loadId={load.loadId}
+          canEdit={userRole === "admin"}
+          onChanged={onLoadChanged}
+        />
       </Card>
 
       <Card>
@@ -537,6 +551,37 @@ const TrackLoadPage = () => {
 
   const handleSearch = () => fetchLoad(searchId.trim());
 
+  // Admin only, and narrow by design — the server refuses a load that has a
+  // carrier or accounting lines on it. A typed confirmation rather than a plain
+  // yes/no: this is the one action on the page that destroys a record.
+  const handleDeleteLoad = async (target) => {
+    const { isConfirmed, value } = await Swal.fire({
+      title: "Delete this load?",
+      html:
+        `Load <strong>${target.loadId}</strong> will be permanently removed. ` +
+        "This cannot be undone.<br/><br/>Type the load number to confirm.",
+      icon: "warning",
+      input: "text",
+      inputPlaceholder: target.loadId,
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Delete load",
+      inputValidator: (typed) =>
+        typed?.trim() === target.loadId ? undefined : "That is not this load's number.",
+    });
+
+    if (!isConfirmed || value?.trim() !== target.loadId) return;
+
+    try {
+      await api.delete(`/loads/${target.loadId}`);
+      toast.success(`Load ${target.loadId} deleted`);
+      navigate(`/${userRole}/read-load`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Could not delete this load");
+    }
+  };
+
   const handleRebid = async () => {
     const result = await Swal.fire({
       title: "Re-bid this load?",
@@ -609,7 +654,14 @@ const TrackLoadPage = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case "tracking":
-        return <TrackingTab load={load} tracking={liveTracking} />;
+        return (
+          <TrackingTab
+            load={load}
+            tracking={liveTracking}
+            userRole={userRole}
+            onLoadChanged={() => fetchLoad(load?.loadId)}
+          />
+        );
       case "details":
         return (
           <DetailsTab
@@ -630,7 +682,14 @@ const TrackLoadPage = () => {
       case "audit":
         return <LoadAuditTrail loadId={load.loadId} />;
       default:
-        return <TrackingTab load={load} tracking={liveTracking} />;
+        return (
+          <TrackingTab
+            load={load}
+            tracking={liveTracking}
+            userRole={userRole}
+            onLoadChanged={() => fetchLoad(load?.loadId)}
+          />
+        );
     }
   };
 
@@ -687,6 +746,7 @@ const TrackLoadPage = () => {
             load={load}
             onUpdateStatus={() => setTransportOpen(true)}
             onEditLoad={() => navigate(`/${userRole}/edit-load/${load.loadId}`)}
+            onDeleteLoad={handleDeleteLoad}
             onRebid={handleRebid}
             userRole={userRole}
           />

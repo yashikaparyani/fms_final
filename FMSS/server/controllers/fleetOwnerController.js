@@ -33,7 +33,14 @@ const skippedManualEmailStatus = (channel) => ({
 // @access  Private (Staff/Admin)
 const getFleetOwners = async (req, res) => {
   try {
-    const fleetOwners = await FleetOwner.find().sort({ createdAt: -1 });
+    // Inactive carriers are hidden by default: this list is what every
+    // assignment picker is built from, and a carrier who has been stood down
+    // must not be offered a load. `?includeInactive=true` is how the directory
+    // screen — the one place they still have to be visible — asks for them.
+    const filter =
+      req.query.includeInactive === "true" ? {} : { active: { $ne: false } };
+
+    const fleetOwners = await FleetOwner.find(filter).sort({ createdAt: -1 });
     res.json(fleetOwners);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -250,15 +257,36 @@ const updateFleetOwner = async (req, res) => {
 // @desc    Delete fleet owner
 // @route   DELETE /api/fleet-owners/:id
 // @access  Private (Staff/Admin)
-const deleteFleetOwner = async (req, res) => {
+// A carrier is never deleted, only stood down.
+//
+// Their name is stamped on every load they ever ran — `assignedFleetOwner`,
+// every leg, every won bid, every settlement — as a denormalised string plus an
+// id that those records still point at. Deleting the row left all of that
+// pointing at nothing, so a historical load lost its carrier and a report on
+// last quarter quietly changed. Deactivating keeps the history intact and takes
+// them out of the pickers, which is what "remove this carrier" actually means
+// in a dispatch office.
+const setFleetOwnerStatus = async (req, res) => {
   try {
-    const fleetOwner = await FleetOwner.findByIdAndDelete(req.params.id);
+    const active = req.body.active !== false;
 
+    const fleetOwner = await FleetOwner.findById(req.params.id);
     if (!fleetOwner) {
       return res.status(404).json({ message: "Fleet owner not found" });
     }
 
-    res.json({ message: "Fleet owner deleted" });
+    // `status` and `active` predate each other and both are read in places, so
+    // they are written together rather than left to disagree.
+    fleetOwner.active = active;
+    fleetOwner.status = active ? "ACTIVE" : "INACTIVE";
+    await fleetOwner.save();
+
+    res.json({
+      message: active
+        ? `${fleetOwner.carrierName || "Carrier"} is active again.`
+        : `${fleetOwner.carrierName || "Carrier"} is now inactive and will not be offered loads.`,
+      fleetOwner,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -422,6 +450,6 @@ module.exports = {
   getFleetOwnerById,
   createFleetOwner,
   updateFleetOwner,
-  deleteFleetOwner,
+  setFleetOwnerStatus,
   sendCredentialsToFleetOwner,getAssignedLoadToConfirm
 };

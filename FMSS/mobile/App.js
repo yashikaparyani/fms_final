@@ -95,11 +95,16 @@ const PAYOUT_LABEL = {
   OFFERED: "posted",
 };
 
+// Kept in step with COMPLETED_TRANSPORT_STATUSES in
+// server/controllers/loadController.js — the web Over tab and this one have to
+// agree about which loads a carrier has finished with.
 const completedStatuses = [
   "DELIVERED",
   "TERMINATED",
   "STREET_TURN",
   "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "DROP_IN_WAREHOUSE",
 ];
 
 // Forward-only progression order. A stage already reached can't be redone,
@@ -578,12 +583,21 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
   const [loads, setLoads] = useState([]);
   const [amountByLoad, setAmountByLoad] = useState({});
   const [loading, setLoading] = useState(false);
+  const [savingId, setSavingId] = useState(null);
+  // Why the list is empty. A carrier with every truck committed is served an
+  // empty board by design; without this it reads as "no loads today", which is
+  // a different thing and leaves them waiting for work that will not appear.
+  const [capacity, setCapacity] = useState(null);
 
   const fetchLoads = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/loads", { params: { bidStatus: "OPEN" } });
-      setLoads(res.data || []);
+      const [loadsRes, capacityRes] = await Promise.all([
+        api.get("/loads", { params: { bidStatus: "OPEN" } }),
+        api.get("/loads/my-capacity").catch(() => null),
+      ]);
+      setLoads(loadsRes.data || []);
+      setCapacity(capacityRes?.data || null);
     } catch (error) {
       Alert.alert("Unable to fetch bids", error.response?.data?.message || error.message);
     } finally {
@@ -611,32 +625,119 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
     }
   };
 
+  // A counter-offer the office has put to this carrier. It arrives on the same
+  // board as the open loads, so it is answered here rather than sending them off
+  // to My Bids to find it.
+  const respondToOffer = async (item, accept) => {
+    const send = async () => {
+      try {
+        setSavingId(item.loadId);
+        const res = await api.post(`/loads/${item.loadId}/negotiation/respond`, {
+          bidId: item.negotiation.bidId,
+          accept,
+        });
+        Alert.alert(
+          accept ? "Offer accepted" : "Offer declined",
+          res.data?.message ||
+            (accept ? "The load has been awarded to you." : "The offer was declined."),
+        );
+        fetchLoads();
+      } catch (error) {
+        Alert.alert(
+          "Could not send response",
+          error.response?.data?.message || error.message,
+        );
+      } finally {
+        setSavingId(null);
+      }
+    };
+
+    if (!accept) return send();
+
+    Alert.alert(
+      "Accept this amount?",
+      `Accepting ${money(item.negotiation.amount)} awards load ${item.loadId} to you.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Accept", onPress: send },
+      ],
+    );
+  };
+
   return (
     <FlatList
       data={loads.filter((item) => item && item.loadId)}
       keyExtractor={(item, index) => String(item._id || item.loadId || index)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
-      ListEmptyComponent={
-        <Text style={styles.empty}>{loading ? "Loading open bids..." : "No open bids right now."}</Text>
-      }
-      renderItem={({ item }) => (
-        <LoadCard load={item} onPress={() => onOpenDetail(item)}>
-          <View style={styles.bidRow}>
-            <TextInput
-              value={amountByLoad[item.loadId] || ""}
-              onChangeText={(text) =>
-                setAmountByLoad((prev) => ({ ...prev, [item.loadId]: text }))
-              }
-              keyboardType="numeric"
-              placeholder="Your bid"
-              style={[styles.input, styles.bidInput]}
-              placeholderTextColor="#98a2b3"
-            />
-            <PrimaryButton title="Bid" onPress={() => placeBid(item.loadId)} />
+      ListHeaderComponent={
+        capacity?.atCapacity ? (
+          <View style={styles.capacityNotice}>
+            <Text style={styles.capacityTitle}>
+              Bidding paused — {capacity.trucks === 1 ? "your truck is" : "your trucks are"} committed
+            </Text>
+            <Text style={styles.capacityBody}>{capacity.message}</Text>
           </View>
-          <SecondaryButton title="View assigned loads" onPress={onOpenAssigned} />
-        </LoadCard>
-      )}
+        ) : null
+      }
+      ListEmptyComponent={
+        <Text style={styles.empty}>
+          {loading
+            ? "Loading open bids..."
+            : capacity?.atCapacity
+              ? "Nothing to bid on until your current load is delivered."
+              : "No open bids right now."}
+        </Text>
+      }
+      renderItem={({ item }) => {
+        const offer = item.negotiation;
+        const isSaving = savingId === item.loadId;
+
+        return (
+          <LoadCard load={item} onPress={() => onOpenDetail(item)}>
+            {offer ? (
+              // An offer is a specific number waiting on a yes or no — not
+              // another load to bid on — so it replaces the bid box entirely.
+              <View style={styles.offerBox}>
+                <Text style={styles.offerTitle}>Negotiated amount</Text>
+                <Text style={styles.offerAmount}>{money(offer.amount)}</Text>
+                <Text style={styles.muted}>
+                  {offer.previousAmount
+                    ? `Against your bid of ${money(offer.previousAmount)}. `
+                    : ""}
+                  Accepting awards this load to you at {money(offer.amount)}.
+                </Text>
+                <View style={styles.bidRow}>
+                  <SecondaryButton
+                    title="Decline"
+                    onPress={() => respondToOffer(item, false)}
+                    disabled={isSaving}
+                  />
+                  <PrimaryButton
+                    title={isSaving ? "Sending..." : "Accept"}
+                    onPress={() => respondToOffer(item, true)}
+                    disabled={isSaving}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.bidRow}>
+                <TextInput
+                  value={amountByLoad[item.loadId] || ""}
+                  onChangeText={(text) =>
+                    setAmountByLoad((prev) => ({ ...prev, [item.loadId]: text }))
+                  }
+                  keyboardType="numeric"
+                  placeholder="Your bid"
+                  style={[styles.input, styles.bidInput]}
+                  placeholderTextColor="#98a2b3"
+                />
+                <PrimaryButton title="Bid" onPress={() => placeBid(item.loadId)} />
+              </View>
+            )}
+            <SecondaryButton title="View assigned loads" onPress={onOpenAssigned} />
+          </LoadCard>
+        );
+      }}
       contentContainerStyle={styles.listContent}
     />
   );
@@ -910,10 +1011,33 @@ function OverLoadsTab({ onTrack, onOpenDetail }) {
   );
 }
 
-function SignatureModal({ visible, onClose, onSigned }) {
+// `askReceiver` is off for the agreement-signing flow, which is the carrier
+// signing for themselves — there is nobody else to name.
+function SignatureModal({ visible, onClose, onSigned, askReceiver = false }) {
   const signatureRef = useRef(null);
+  // Who took the delivery. The signature proves somebody signed; it does not
+  // say who, and "who signed for it" is the first question asked when a
+  // delivery is disputed weeks later. Printed on the POD beside the mark.
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverTitle, setReceiverTitle] = useState("");
+
+  // Cleared between deliveries — the last consignee's name must not be sitting
+  // in the box at the next drop, where it would be signed for without being read.
+  useEffect(() => {
+    if (visible) {
+      setReceiverName("");
+      setReceiverTitle("");
+    }
+  }, [visible]);
 
   const handleSave = () => {
+    if (askReceiver && !receiverName.trim()) {
+      Alert.alert(
+        "Who took the delivery?",
+        "Enter the name of the person receiving this load before saving.",
+      );
+      return;
+    }
     signatureRef.current?.readSignature?.();
   };
 
@@ -928,11 +1052,35 @@ function SignatureModal({ visible, onClose, onSigned }) {
           <Text style={styles.title}>Delivery Signature</Text>
           <SecondaryButton title="Close" onPress={onClose} />
         </View>
+        {askReceiver && (
+          <View style={styles.signatureReceiver}>
+            <Text style={styles.inputLabel}>Received by *</Text>
+            <TextInput
+              value={receiverName}
+              onChangeText={setReceiverName}
+              placeholder="Name of the person taking delivery"
+              placeholderTextColor="#98a2b3"
+              style={styles.input}
+              autoCapitalize="words"
+            />
+            <TextInput
+              value={receiverTitle}
+              onChangeText={setReceiverTitle}
+              placeholder="Their role (optional)"
+              placeholderTextColor="#98a2b3"
+              style={[styles.input, { marginTop: 8 }]}
+              autoCapitalize="words"
+            />
+          </View>
+        )}
         <View style={styles.signaturePadWrap}>
           <Signature
             ref={signatureRef}
             onOK={(signature) => {
-              onSigned(signature);
+              onSigned(signature, {
+                name: receiverName.trim(),
+                title: receiverTitle.trim(),
+              });
               onClose();
             }}
             onEmpty={() => Alert.alert("Signature required", "Please sign before saving.")}
@@ -1634,6 +1782,8 @@ function TrackingScreen({ load: initialLoad, onBack }) {
     status,
     signatureOverride = signatureData,
     streetTurnOverride = null,
+    // Captured on the signature sheet at the door — see SignatureModal.
+    receiverOverride = null,
   ) => {
     try {
       // Forward-only: block moving back to an already-passed stage.
@@ -1709,6 +1859,10 @@ function TrackingScreen({ load: initialLoad, onBack }) {
       formData.append("longitude", String(locationPayload.longitude));
       formData.append("accuracy", String(locationPayload.accuracy || ""));
       if (signatureOverride) formData.append("signatureData", signatureOverride);
+      if (receiverOverride?.name) {
+        formData.append("receivedByName", receiverOverride.name);
+        formData.append("receivedByTitle", receiverOverride.title || "");
+      }
       // Multipart flattens nested objects, so the server parses this back.
       if (streetTurnOverride) {
         formData.append("streetTurn", JSON.stringify(streetTurnOverride));
@@ -1899,17 +2053,18 @@ function TrackingScreen({ load: initialLoad, onBack }) {
 
       <SignatureModal
         visible={signatureOpen}
+        askReceiver
         onClose={() => {
           pendingDeliveryStatusRef.current = null;
           setSignatureOpen(false);
         }}
-        onSigned={(signature) => {
+        onSigned={(signature, receiver) => {
           setSignatureData(signature);
           const pendingStatus = pendingDeliveryStatusRef.current;
           pendingDeliveryStatusRef.current = null;
           setSignatureOpen(false);
           if (pendingStatus) {
-            updateStatus(pendingStatus, signature).catch((error) => {
+            updateStatus(pendingStatus, signature, null, receiver).catch((error) => {
               Alert.alert("Delivery sync failed", error.response?.data?.message || error.message);
             });
           }
@@ -2133,7 +2288,14 @@ function LicenseScreen({ onBack, onUpdated }) {
 // their own licence gate is separate.
 function CarrierDocumentationGate({ session, onLogout, children }) {
   const [state, setState] = useState({ loading: true, complete: true });
-  const [signing, setSigning] = useState(null);
+  // The field schema — shared profile, per-document blanks, Appendix A — comes
+  // from the server so the phone and the web ask for exactly the same blanks.
+  // `undefined` while it is still in flight, `null` if the fetch failed: the
+  // screen has to tell those apart, because "no required fields missing" and
+  // "we do not know what the required fields are" look identical otherwise.
+  const [catalog, setCatalog] = useState(undefined);
+  // { kind: "profile" } | { kind: "equipment" } | { kind: "sign", agreement }
+  const [screen, setScreen] = useState(null);
 
   const isCarrier = session.user?.role === "fleetOwner";
 
@@ -2162,6 +2324,31 @@ function CarrierDocumentationGate({ session, onLogout, children }) {
     check();
   }, [check]);
 
+  const loadCatalog = useCallback(async () => {
+    if (!isCarrier) return;
+    setCatalog(undefined);
+    try {
+      const res = await api.get("/onboarding/catalog");
+      setCatalog(res.data);
+    } catch {
+      setCatalog(null);
+    }
+  }, [isCarrier]);
+
+  useEffect(() => {
+    loadCatalog();
+  }, [loadCatalog]);
+
+  // Both save routes hand back the whole onboarding document, so the screens
+  // that write take their answer from the response rather than re-fetching.
+  const applySaved = (onboarding) => {
+    setState({
+      loading: false,
+      complete: Boolean(onboarding.agreementsComplete),
+      data: onboarding,
+    });
+  };
+
   if (state.loading) {
     return (
       <SafeAreaView style={styles.centered}>
@@ -2172,13 +2359,44 @@ function CarrierDocumentationGate({ session, onLogout, children }) {
 
   if (state.complete) return children;
 
-  if (signing) {
+  const contractorAgreement = (catalog?.agreements || []).find((a) => a.appendixA);
+
+  if (screen?.kind === "profile") {
+    return (
+      <CarrierProfileScreen
+        sections={catalog?.sharedProfile || []}
+        profile={state.data?.profile || {}}
+        onSaved={(onboarding) => {
+          applySaved(onboarding);
+          setScreen(null);
+        }}
+        onBack={() => setScreen(null)}
+      />
+    );
+  }
+
+  if (screen?.kind === "equipment") {
+    return (
+      <CarrierEquipmentScreen
+        appendix={contractorAgreement?.appendixA}
+        equipment={state.data?.equipment || []}
+        onSaved={(onboarding) => {
+          applySaved(onboarding);
+          setScreen(null);
+        }}
+        onBack={() => setScreen(null)}
+      />
+    );
+  }
+
+  if (screen?.kind === "sign") {
     return (
       <AgreementSignScreen
-        agreement={signing}
-        onBack={() => setSigning(null)}
+        agreement={screen.agreement}
+        profile={state.data?.profile || {}}
+        onBack={() => setScreen(null)}
         onSigned={async () => {
-          setSigning(null);
+          setScreen(null);
           await check();
         }}
       />
@@ -2188,26 +2406,308 @@ function CarrierDocumentationGate({ session, onLogout, children }) {
   return (
     <CarrierDocumentationScreen
       data={state.data}
-      onSign={setSigning}
-      onRefresh={check}
+      catalog={catalog}
+      onSign={(agreement) => setScreen({ kind: "sign", agreement })}
+      onEditProfile={() => setScreen({ kind: "profile" })}
+      onEditEquipment={() => setScreen({ kind: "equipment" })}
+      onRefresh={() => {
+        check();
+        loadCatalog();
+      }}
       onLogout={onLogout}
     />
   );
 }
 
-function CarrierDocumentationScreen({ data, onSign, onRefresh, onLogout }) {
-  const [catalog, setCatalog] = useState(null);
+/**
+ * The required shared-profile blanks that are still empty, as the labels the
+ * carrier sees.
+ *
+ * The same rule the server applies in config/carrierAgreements.js
+ * (`profileGaps`), repeated here so the phone can say what is missing before a
+ * signature is drawn rather than rejecting it afterwards. The server stays the
+ * authority — this only decides what the screen offers.
+ */
+const profileGapsFor = (sections, profile) =>
+  (sections || [])
+    .flatMap((section) => section.fields || [])
+    .filter((field) => field.required && !String(profile?.[field.key] ?? "").trim())
+    .map((field) => field.label);
 
-  useEffect(() => {
-    api
-      .get("/onboarding/catalog")
-      .then((res) => setCatalog(res.data))
-      .catch(() => null);
-  }, []);
+const keyboardFor = (type) => {
+  if (type === "email") return "email-address";
+  if (type === "tel") return "phone-pad";
+  if (type === "number") return "number-pad";
+  return "default";
+};
 
+// One blank from the field schema. `select` expands its options in place rather
+// than opening a modal — these forms are already inside a ScrollView, and a
+// modal over a scrolling form is the fiddliest thing to hit on a phone.
+function SchemaField({ field, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const current = String(value ?? "");
+
+  if (field.type === "select") {
+    return (
+      <View style={styles.stFieldBlock}>
+        <Text style={styles.label}>
+          {field.label}
+          {field.required ? " *" : ""}
+        </Text>
+        {field.help ? <Text style={styles.cardMeta}>{field.help}</Text> : null}
+        <Pressable
+          onPress={() => setOpen((v) => !v)}
+          style={({ pressed }) => [styles.pickerField, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Text style={styles.pickerFieldText}>{current || "Select…"}</Text>
+          <Text style={styles.pickerChevron}>{open ? "▴" : "▾"}</Text>
+        </Pressable>
+
+        {open && (
+          <ScrollView style={styles.schemaOptionList} nestedScrollEnabled>
+            {(field.options || []).map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                style={({ pressed }) => [styles.stOptionRow, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={styles.pickerRowText}>{option}</Text>
+                {option === current && <Text style={styles.pickerRowNote}>✓</Text>}
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <Text style={styles.label}>
+        {field.label}
+        {field.required ? " *" : ""}
+      </Text>
+      {field.help ? <Text style={styles.cardMeta}>{field.help}</Text> : null}
+      <TextInput
+        style={styles.input}
+        value={current}
+        placeholder={field.placeholder || ""}
+        placeholderTextColor={colors.muted}
+        keyboardType={keyboardFor(field.type)}
+        autoCapitalize={
+          field.type === "email"
+            ? "none"
+            : field.type === "initials"
+              ? "characters"
+              : "sentences"
+        }
+        onChangeText={onChange}
+      />
+    </View>
+  );
+}
+
+// The company details both agreements are filled from — legal name, authority
+// numbers, address, signer.
+//
+// This screen only ever existed on the web, so a carrier who signed in on their
+// phone was shown the agreements with no way to give the details that go into
+// them, and the server rejected the signature listing a dozen fields the phone
+// had never asked for.
+function CarrierProfileScreen({ sections, profile, onBack, onSaved }) {
+  const [values, setValues] = useState(profile || {});
+  const [saving, setSaving] = useState(false);
+
+  const gaps = profileGapsFor(sections, values);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await api.put("/onboarding/profile", { profile: values });
+      if (gaps.length) {
+        // Saved either way — a carrier reading their MC number off a card in
+        // the yard should not lose the half they have already typed.
+        Alert.alert("Saved", `Still needed: ${gaps.join(", ")}.`);
+        return;
+      }
+      onSaved(res.data.onboarding);
+    } catch (error) {
+      Alert.alert("Could not save", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>Company details</Text>
+        <Text style={styles.subtitle}>
+          Typed once — these are the blanks on page 1 and the signature page of
+          both agreements.
+        </Text>
+
+        {(sections || []).map((section) => (
+          <View key={section.section} style={styles.card}>
+            <Text style={styles.cardTitle}>{section.section}</Text>
+            {section.help ? <Text style={styles.cardMeta}>{section.help}</Text> : null}
+            {(section.fields || []).map((field) => (
+              <SchemaField
+                key={field.key}
+                field={field}
+                value={values[field.key]}
+                onChange={(text) =>
+                  setValues((current) => ({ ...current, [field.key]: text }))
+                }
+              />
+            ))}
+          </View>
+        ))}
+
+        {gaps.length ? (
+          <Text style={styles.gateFooter}>Still needed: {gaps.join(", ")}.</Text>
+        ) : (
+          <Text style={styles.signedNote}>
+            ✓ Everything the agreements need is filled in.
+          </Text>
+        )}
+
+        <PrimaryButton
+          title={saving ? "Saving…" : "Save details"}
+          onPress={save}
+          disabled={saving}
+        />
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// Appendix A of the contractor agreement: the tractors and trailers being put
+// into service. The server refuses to produce that document with an empty
+// appendix, so the phone has to be able to fill it in too.
+function CarrierEquipmentScreen({ appendix, equipment, onBack, onSaved }) {
+  const columns = appendix?.columns || [];
+  const [rows, setRows] = useState(
+    equipment?.length ? equipment.map((row) => ({ ...row })) : [{}],
+  );
+  const [saving, setSaving] = useState(false);
+
+  const setCell = (index, key, text) =>
+    setRows((current) =>
+      current.map((row, i) => (i === index ? { ...row, [key]: text } : row)),
+    );
+
+  const save = async () => {
+    const filled = rows.filter((row) =>
+      columns.some((column) => String(row[column.key] ?? "").trim()),
+    );
+
+    if (!filled.length) {
+      Alert.alert("Appendix A", "Add at least one piece of equipment.");
+      return;
+    }
+
+    const vinColumn = columns.find((column) => column.key === "vin");
+
+    for (const row of filled) {
+      const missing = columns
+        .filter((column) => column.required && !String(row[column.key] ?? "").trim())
+        .map((column) => column.label);
+      if (missing.length) {
+        Alert.alert("Still needed", missing.join(", "));
+        return;
+      }
+
+      // Same VIN check the web form applies — catching a transcription error
+      // while the truck is still in front of the person typing.
+      const vin = String(row.vin ?? "").trim().toUpperCase();
+      if (vin && vinColumn?.pattern && !new RegExp(vinColumn.pattern).test(vin)) {
+        Alert.alert(
+          "Check the VIN",
+          vinColumn.patternMessage || "That VIN does not look right.",
+        );
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const res = await api.put("/onboarding/profile", { equipment: filled });
+      onSaved(res.data.onboarding);
+    } catch (error) {
+      Alert.alert("Could not save", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>{appendix?.title || "Equipment"}</Text>
+        {appendix?.help ? <Text style={styles.subtitle}>{appendix.help}</Text> : null}
+
+        {rows.map((row, index) => (
+          <View key={index} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Unit {index + 1}</Text>
+              {rows.length > 1 && (
+                <Pressable
+                  onPress={() =>
+                    setRows((current) => current.filter((_, i) => i !== index))
+                  }
+                >
+                  <Text style={styles.removeLink}>Remove</Text>
+                </Pressable>
+              )}
+            </View>
+            {columns.map((column) => (
+              <SchemaField
+                key={column.key}
+                field={column}
+                value={row[column.key]}
+                onChange={(text) => setCell(index, column.key, text)}
+              />
+            ))}
+          </View>
+        ))}
+
+        <SecondaryButton
+          title="Add another unit"
+          onPress={() => setRows((current) => [...current, {}])}
+        />
+        <PrimaryButton
+          title={saving ? "Saving…" : "Save equipment"}
+          onPress={save}
+          disabled={saving}
+        />
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function CarrierDocumentationScreen({
+  data,
+  catalog,
+  onSign,
+  onEditProfile,
+  onEditEquipment,
+  onRefresh,
+  onLogout,
+}) {
   const signedKeys = (data?.agreements || [])
     .filter((a) => a.signedAt)
     .map((a) => a.key);
+
+  const gaps = profileGapsFor(catalog?.sharedProfile, data?.profile);
+  const equipmentCount = (data?.equipment || []).length;
+  const needsEquipment = (catalog?.agreements || []).some((a) => a.appendixA);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -2219,25 +2719,98 @@ function CarrierDocumentationScreen({ data, onSign, onRefresh, onLogout }) {
           contract they are dispatched under, so it comes first.
         </Text>
 
-        {(catalog?.agreements || []).map((agreement) => {
-          const done = signedKeys.includes(agreement.key);
+        {catalog === undefined && (
+          <View style={styles.card}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        )}
 
-          return (
-            <View key={agreement.key} style={styles.card}>
-              <Text style={styles.cardTitle}>{agreement.title}</Text>
-              <Text style={styles.cardMeta}>
-                With {agreement.counterparty} · {agreement.pages} pages
+        {catalog === null && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Could not load the paperwork</Text>
+            <Text style={styles.cardBody}>
+              Check your connection and refresh. Signing out will not lose
+              anything you have already saved.
+            </Text>
+          </View>
+        )}
+
+        {catalog ? (
+          <>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Company details</Text>
+            <Text style={styles.cardBody}>
+              Your legal name, MC and USDOT numbers, address and authorised signer.
+              Both agreements are filled in from these.
+            </Text>
+            {gaps.length ? (
+              <>
+                <Text style={styles.cardMeta}>Still needed: {gaps.join(", ")}.</Text>
+                <PrimaryButton title="Add company details" onPress={onEditProfile} />
+              </>
+            ) : (
+              <>
+                <Text style={styles.signedNote}>✓ Complete</Text>
+                <SecondaryButton title="Review details" onPress={onEditProfile} />
+              </>
+            )}
+          </View>
+
+          {needsEquipment && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Equipment (Appendix A)</Text>
+              <Text style={styles.cardBody}>
+                The tractors and trailers you are putting into service. The
+                contractor agreement cannot be signed with an empty appendix.
               </Text>
-              <Text style={styles.cardBody}>{agreement.summary}</Text>
-
-              {done ? (
-                <Text style={styles.signedNote}>✓ Signed</Text>
+              {equipmentCount ? (
+                <>
+                  <Text style={styles.signedNote}>
+                    ✓ {equipmentCount} unit{equipmentCount === 1 ? "" : "s"} listed
+                  </Text>
+                  <SecondaryButton title="Review equipment" onPress={onEditEquipment} />
+                </>
               ) : (
-                <PrimaryButton title="Read & sign" onPress={() => onSign(agreement)} />
+                <PrimaryButton title="Add equipment" onPress={onEditEquipment} />
               )}
             </View>
-          );
-        })}
+          )}
+
+          {(catalog.agreements || []).map((agreement) => {
+            const done = signedKeys.includes(agreement.key);
+            // What is stopping this one being signed right now. Shown up front
+            // rather than letting the carrier read fifteen pages, tick every box
+            // and draw a signature only to be told a blank they were never shown
+            // is missing.
+            const blockers = [];
+            if (gaps.length) blockers.push("your company details");
+            if (agreement.appendixA && !equipmentCount) {
+              blockers.push("at least one unit in Appendix A");
+            }
+
+            return (
+              <View key={agreement.key} style={styles.card}>
+                <Text style={styles.cardTitle}>{agreement.title}</Text>
+                <Text style={styles.cardMeta}>
+                  With {agreement.counterparty} · {agreement.pages} pages
+                </Text>
+                <Text style={styles.cardBody}>{agreement.summary}</Text>
+
+                {done ? (
+                  <Text style={styles.signedNote}>✓ Signed</Text>
+                ) : blockers.length ? (
+                  <>
+                    <Text style={styles.cardMeta}>Finish {blockers.join(" and ")} first.</Text>
+                    <PrimaryButton title="Read & sign" onPress={() => {}} disabled />
+                  </>
+                ) : (
+                  <PrimaryButton title="Read & sign" onPress={() => onSign(agreement)} />
+                )}
+              </View>
+            );
+          })}
+          </>
+        ) : null}
 
         <Text style={styles.gateFooter}>
           Driver licences and insurance are asked for after this — they will not
@@ -2255,11 +2828,14 @@ function CarrierDocumentationScreen({ data, onSign, onRefresh, onLogout }) {
 // acknowledgement ticked, and a drawn signature — the same three things the web
 // form collects, because the server accepts a signature from either and produces
 // the same filled PDF from it.
-function AgreementSignScreen({ agreement, onBack, onSigned }) {
+function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
   const [values, setValues] = useState({});
   const [accepted, setAccepted] = useState([]);
-  const [signedName, setSignedName] = useState("");
-  const [signedTitle, setSignedTitle] = useState("");
+  // Prefilled from the authorised signer on the company details, which is who
+  // this is meant to be — still editable, because a second officer sometimes
+  // signs one of the two.
+  const [signedName, setSignedName] = useState(profile?.signerName || "");
+  const [signedTitle, setSignedTitle] = useState(profile?.signerTitle || "");
   const [signature, setSignature] = useState("");
   const [saving, setSaving] = useState(false);
   const [showPad, setShowPad] = useState(false);
@@ -2276,6 +2852,23 @@ function AgreementSignScreen({ agreement, onBack, onSigned }) {
       Alert.alert("Still needed", missing.join(", "));
       return;
     }
+
+    // A field that declares a shape has to match it — the EIN certification's
+    // nine digits, and anything added to config/carrierAgreements.js later. The
+    // server checks the same rule; catching it here means the carrier is told
+    // before they draw a signature rather than after.
+    const malformed = (agreement.fields || [])
+      .filter((f) => f.pattern && String(values[f.key] || "").trim())
+      .find((f) => !new RegExp(f.pattern).test(String(values[f.key]).trim()));
+
+    if (malformed) {
+      Alert.alert(
+        `Check the ${malformed.label.toLowerCase()}`,
+        malformed.patternMessage || "That does not look right.",
+      );
+      return;
+    }
+
     if (!allAcknowledged) {
       Alert.alert("Confirm each point", "Every acknowledgement has to be ticked.");
       return;
@@ -2324,22 +2917,16 @@ function AgreementSignScreen({ agreement, onBack, onSigned }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.listContent}>
+      <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>{agreement.title}</Text>
         <Text style={styles.subtitle}>With {agreement.counterparty}</Text>
 
         {(agreement.fields || []).map((field) => (
           <View key={field.key} style={styles.card}>
-            <Text style={styles.label}>
-              {field.label}
-              {field.required ? " *" : ""}
-            </Text>
-            {field.help ? <Text style={styles.cardMeta}>{field.help}</Text> : null}
-            <TextInput
-              style={styles.input}
-              value={values[field.key] || ""}
-              placeholder={field.placeholder || ""}
-              onChangeText={(text) =>
+            <SchemaField
+              field={field}
+              value={values[field.key]}
+              onChange={(text) =>
                 setValues((current) => ({ ...current, [field.key]: text }))
               }
             />
@@ -3523,6 +4110,35 @@ const styles = StyleSheet.create({
   signatureScreen: {
     flex: 1,
   },
+  capacityNotice: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    backgroundColor: "#fffbeb",
+    padding: 14,
+    marginBottom: 12,
+  },
+  capacityTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#92400e",
+    marginBottom: 4,
+  },
+  capacityBody: {
+    fontSize: 12,
+    color: "#b45309",
+    lineHeight: 17,
+  },
+  signatureReceiver: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.muted,
+    marginBottom: 6,
+  },
   signaturePadWrap: {
     flex: 1,
     paddingHorizontal: 16,
@@ -3640,6 +4256,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
   },
+  // Capped rather than free-running: the state list is fifty-one rows and would
+  // otherwise push the rest of the form off the bottom of the screen.
+  schemaOptionList: {
+    marginTop: 6,
+    maxHeight: 220,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  removeLink: { fontSize: 12, fontWeight: "700", color: colors.danger },
   stOptionRow: {
     flexDirection: "row",
     alignItems: "center",

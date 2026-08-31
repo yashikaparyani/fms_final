@@ -1,8 +1,12 @@
 // ─── Load urgency model ──────────────────────────────────────────────────────
 // Loads are ranked by how soon they pick up. The buckets drive the row tint and
-// the priority badge; the order itself is the pickup date, earliest first, so
-// the table reads as a calendar of what is happening when.
-// Shared by the Pending, Dispatch Management and All Transit tables.
+// the priority badge.
+//
+// The order they are listed in is a different question, and the answer is the
+// delivery date, earliest first — see sortByDeliveryDate. What the office is
+// asked all day is when a load lands, not when it left, so the table is read as
+// a calendar of what is due when.
+// Shared by the Pending, Dispatch Management, All Transit and Over tables.
 
 export const URGENCY = {
   URGENT:  "URGENT",   // picks up in under 5 days
@@ -73,7 +77,7 @@ export const isLfdAlarming = (row) => {
 };
 
 /**
- * Decorate each row with its `urgency`, then order strictly by pickup date,
+ * Decorate each row with its `urgency`, then order strictly by `dateOf`,
  * earliest first — July, then August, then September.
  *
  * The date line is the whole order: an expired July load sits above a live
@@ -82,18 +86,32 @@ export const isLfdAlarming = (row) => {
  * row tint and the priority badge, so an overdue load is still obvious where it
  * sits.
  *
- * Loads with no pickup date cannot be placed on that line at all, so they
- * collect at the end rather than at the top, where a missing date would
- * otherwise sort as the earliest of all.
+ * Loads with no date cannot be placed on that line at all, so they collect at
+ * the end rather than at the top, where a missing date would otherwise sort as
+ * the earliest of all.
  */
-export const sortByPickupDate = (rows) =>
+const sortByDate = (rows, dateOf) =>
   rows
     .map((row) => ({ ...row, urgency: urgencyOf(row) }))
     .sort((a, b) => {
-      const aDate = pickupDateOf(a);
-      const bDate = pickupDateOf(b);
+      const aDate = dateOf(a);
+      const bDate = dateOf(b);
       if (!aDate && !bDate) return 0;
       if (!aDate) return 1;
       if (!bDate) return -1;
       return new Date(aDate) - new Date(bDate);
     });
+
+/**
+ * The order every Load Management tab is read in: earliest delivery date at the
+ * top.
+ *
+ * Delivery rather than pickup because the question the office is answering is
+ * "what is due next" — a load picking up tomorrow and delivering in three weeks
+ * is not more pressing than one delivering the day after tomorrow, and ordering
+ * by pickup put it above.
+ */
+export const sortByDeliveryDate = (rows) => sortByDate(rows, dropDateOf);
+
+/** Pickup order, kept for anywhere that genuinely wants the departure line. */
+export const sortByPickupDate = (rows) => sortByDate(rows, pickupDateOf);

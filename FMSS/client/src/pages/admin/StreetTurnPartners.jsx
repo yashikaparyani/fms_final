@@ -9,7 +9,17 @@ const config = {
   endpoint: "/street-turn-partners",
   namePlaceholder: "e.g. Acme Logistics",
   fields: [
-    { name: "code", label: "Code", placeholder: "e.g. ACME" },
+    // The SCAC, not a code of our own. It is the transferee's identifier on the
+    // Street Turn Container and Chassis Transfer Agreement — it is what the
+    // terminal and the shipping line recognise them by — and until this field
+    // was surfaced there was nowhere in the UI to enter it, so every agreement
+    // printed with the SCAC line blank.
+    {
+      name: "scac",
+      label: "SCAC Code",
+      placeholder: "e.g. ACME",
+      hint: "Printed on the transfer agreement as the transferee's identifier.",
+    },
     {
       name: "email",
       label: "Email",

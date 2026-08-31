@@ -24,6 +24,7 @@ const CarrierOnboarding = require("../models/CarrierOnboarding");
 const FleetOwner = require("../models/FleetOwner");
 const User = require("../models/User");
 const { AGREEMENT_BY_KEY } = require("../config/carrierAgreements");
+const { OVERLAYS } = require("../config/agreementOverlay");
 const { buildFilledAgreement } = require("../services/agreementOverlayService");
 
 const run = async () => {
@@ -64,7 +65,13 @@ const run = async () => {
     let rebuilt = 0;
 
     for (const onboarding of records) {
-      const signedAgreements = (onboarding.agreements || []).filter((a) => a.signedAt);
+      // Only the counterparty contracts have an original to re-render onto.
+      // A document we author ourselves — the EIN certification — is already the
+      // real thing, so there is nothing here for it to be rebuilt from and
+      // buildFilledAgreement would throw on it.
+      const signedAgreements = (onboarding.agreements || []).filter(
+        (a) => a.signedAt && OVERLAYS[a.key],
+      );
       if (!signedAgreements.length) continue;
 
       const carrier = await FleetOwner.findById(onboarding.fleetOwner)

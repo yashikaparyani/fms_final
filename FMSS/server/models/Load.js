@@ -755,6 +755,20 @@ const loadSchema = new mongoose.Schema(
     pickedUpCity: String,
     pickedUpState: String,
 
+    // ─── Who actually took the delivery ─────────────────────────────────────
+    // The signature on the POD proves somebody signed; it does not say who, and
+    // a scrawl six weeks later is not a name anybody can act on. This is the
+    // name the driver is asked for at the door, printed under RECEIVED BY on
+    // the POD beside the signature — so a customer disputing a delivery is
+    // answered with a person rather than a mark.
+    receivedBy: {
+      name: { type: String, trim: true },
+      // Free text on purpose: "warehouse supervisor", "night receiver". The
+      // driver is asked who they handed it to, not to classify them.
+      title: { type: String, trim: true },
+      capturedAt: Date,
+    },
+
     deliveredAt: Date,
     deliveredCity: String,
     deliveredState: String,
@@ -923,10 +937,11 @@ const loadSchema = new mongoose.Schema(
 );
 
 // ===================== AUTO LOAD ID =====================
-// "NY-LD-0001" — the branch code comes from locationId, which the tenant plugin
-// has already stamped by the time this runs (it hooks pre-validate, this is
-// pre-save). Each branch has its own counter, so numbering starts at 1 per
-// location while staying unique across the business.
+// "LD 0001" — no branch code. Unlike a carrier or a driver code, a load number
+// is read aloud dozens of times a day, so it is kept as short as it can be
+// while staying unique; the branch a load belongs to is on the load itself
+// (locationId) for anyone who needs it. Numbering therefore comes from one
+// business-wide counter — see utils/sequence.js.
 loadSchema.pre("save", async function () {
   if (this.loadId) return; // already set
 
@@ -955,6 +970,19 @@ loadSchema.pre("save", function syncAmountWithReceivables() {
 /** True once this load is being run by named carrier legs rather than one carrier. */
 loadSchema.methods.hasLegs = function () {
   return Array.isArray(this.assignments) && this.assignments.length > 0;
+};
+
+/**
+ * True once somebody is actually carrying this load.
+ *
+ * Either the primary carrier is set, or the load has been split into legs and
+ * each leg names its own. Transport status hangs off this: every value it can
+ * take — ready to pick up, picked up, in transit — is a report about a carrier
+ * doing something, so there is nothing truthful to say until there is a carrier
+ * to say it about. See the gate in controllers/loadController.js.
+ */
+loadSchema.methods.hasCarrier = function () {
+  return Boolean(this.assignedFleetOwner?.fleetOwnerId) || this.hasLegs();
 };
 
 /**

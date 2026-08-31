@@ -7,6 +7,7 @@ const {
   createFleetOwnerByStaff,
   loginUser,
   getMe,
+  changePassword,
 } = require("../controllers/authController");
 const validate = require("../middleware/validate");
 const { userSchemaZod } = require("../validators/userValidator");
@@ -61,5 +62,10 @@ router.post(
 );
 
 router.get("/me", protect, getMe);
+
+// Any signed-in account may change its own password — staff, admin,
+// customer, carrier and driver alike. No role gate: the route only ever
+// acts on the caller's own record.
+router.put("/change-password", protect, changePassword);
 
 module.exports = router;

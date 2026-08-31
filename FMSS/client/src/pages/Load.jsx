@@ -8,6 +8,10 @@ import LoadSearchResults from "./staff/LoadSearchResults";
 import { PendingActions, CheckCircle, LocationOn, DoneAll, Search, Close } from "@mui/icons-material";
 import api from "../api";
 import { notify } from "../utils/swal";
+import {
+  SELECTABLE_TRANSPORT_STATUSES,
+  transportStatusLabel,
+} from "../utils/transportStatus";
 
 const TABS = [
 
@@ -15,36 +19,18 @@ const TABS = [
   { key: "verified", label: "Dispatch Management", icon: <CheckCircle fontSize="small" /> },
  { key: "assigned", label: "All Transit", icon: <LocationOn fontSize="small" /> },
   // Where a load goes once it stops moving — delivered, terminated, street
-  // turned or empty in yard. It leaves All Transit at that point rather than
-  // sitting in both.
+  // turned, in the yard or dropped at a warehouse. It leaves All Transit at that
+  // point rather than sitting in both.
   { key: "over", label: "Over", icon: <DoneAll fontSize="small" /> },
 ];
 
-// Transport-status values a staff user can filter the load list by. Mirrors the
-// transportStatus enum on the Load model.
-const STATUS_FILTERS = [
-  "LOAD_PLANNER",
-  "NEW_LOAD",
-  "ASSIGNED",
-  "READY_TO_PICKUP",
-  "PICKED_UP",
-  "IN_TRANSIT",
-  "REACHED_DESTINATION",
-  "DELIVERED",
-  "TERMINATED",
-  "PAPERWORK_PENDING",
-  "INVOICED",
-  "STREET_TURN",
-  "EMPTY_IN_YARD",
-  "LOADED_IN_YARD",
-  "DRIVER_ON_WAITING",
-  "DROP_IN_WAREHOUSE",
-];
+// Transport-status values a staff user can filter the load list by — the same
+// list the status controls offer, so a status can be filtered for exactly when
+// it can be set. Load Planner and New Load are deliberately absent; see
+// utils/transportStatus.js.
+const STATUS_FILTERS = SELECTABLE_TRANSPORT_STATUSES;
 
-const labelizeStatus = (value) =>
-  value
-    ? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    : "";
+const labelizeStatus = (value) => (value ? transportStatusLabel(value) : "");
 
 const Load = () => {
   const [searchParams, setSearchParams] = useSearchParams();

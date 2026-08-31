@@ -166,7 +166,11 @@ describe("Multi-location users", () => {
 });
 
 describe("Per-location ID sequences", () => {
-  it("prefixes IDs with the branch code and counts per branch", async () => {
+  it("numbers loads once across the business, with no branch code", async () => {
+    // A load number is read aloud all day, so it carries no branch letters —
+    // which means the number itself has to be unique everywhere, or two
+    // branches would both issue LD 0001 and the second would fail the unique
+    // index. See utils/sequence.js.
     const a = await runWithTenant({ locationId: String(ny._id) }, () =>
       Load.create(newLoad()),
     );
@@ -177,17 +181,17 @@ describe("Per-location ID sequences", () => {
       Load.create(newLoad()),
     );
 
-    expect(a.loadId).toBe("NY-LD-0001");
-    expect(b.loadId).toBe("NY-LD-0002");
-    // Chicago starts its own count at 1, and cannot collide with New York.
-    expect(c.loadId).toBe("CHI-LD-0001");
+    expect(a.loadId).toBe("LD 0001");
+    expect(b.loadId).toBe("LD 0002");
+    // Chicago continues the same count rather than starting its own.
+    expect(c.loadId).toBe("LD 0003");
   });
 
-  it("prefixes fleet owner codes the same way", async () => {
+  it("numbers carrier codes business-wide too, with no branch prefix", async () => {
     const fo = await runWithTenant({ locationId: String(chi._id) }, () =>
       FleetOwner.create({ carrierName: "Windy City Haulage" }),
     );
-    expect(fo.fleetOwnerCode).toBe("CHI-FO-0001");
+    expect(fo.fleetOwnerCode).toBe("SLINE 00001");
   });
 
   it("keeps customers separate per location", async () => {

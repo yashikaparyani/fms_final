@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
@@ -9,6 +10,8 @@ import StreetTurnAgreementDocument, {
   Section,
 } from "../street-turn/StreetTurnAgreementDocument";
 import api from "../../api";
+import { printElement } from "../../utils/printElement";
+import { notify } from "../../utils/swal";
 
 // ─── The office's copy of the transfer agreement ──────────────────────────────
 // Every party is emailed the agreement when a street turn is confirmed, and the
@@ -180,6 +183,7 @@ const StreetTurnAgreementCard = ({ load }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const documentRef = useRef(null);
 
   const loadId = load?.loadId;
   // A load that was never street turned has no agreement to fetch.
@@ -211,18 +215,51 @@ const StreetTurnAgreementCard = ({ load }) => {
     };
   }, [loadId, confirmedAt]);
 
+  const handlePrint = () => {
+    setOpen(true);
+
+    // One frame for React to commit the expanded document before it is copied.
+    requestAnimationFrame(() => {
+      const printed = printElement(
+        documentRef.current,
+        `Street Turn Transfer Agreement — ${loadId}`,
+      );
+      if (!printed) {
+        notify.error("Could not open the print view. Check your browser settings.");
+      }
+    });
+  };
+
   if (!confirmedAt) return null;
 
   return (
     <Card>
       <SectionHeader label="Street Turn Transfer Agreement" accent="#84cc16">
-        <button
-          onClick={() => setOpen((v) => !v)}
-          className="btn-secondary flex items-center gap-1 text-xs"
-        >
-          {open ? "Hide" : "View"}
-          {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Printing needs the document rendered, so the button opens it
+              first — clicking Print and getting a blank sheet because the
+              card happened to be collapsed would be its own bug. The print
+              itself is deferred a frame so the node exists to be copied. */}
+          <button
+            onClick={handlePrint}
+            disabled={!detail?.confirmed}
+            title={
+              detail?.confirmed
+                ? "Print the transfer agreement"
+                : "Nothing to print yet"
+            }
+            className="btn-secondary flex items-center gap-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <PrintOutlinedIcon fontSize="small" /> Print
+          </button>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="btn-secondary flex items-center gap-1 text-xs"
+          >
+            {open ? "Hide" : "View"}
+            {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+          </button>
+        </div>
       </SectionHeader>
 
       <div className="p-4 md:p-5">
@@ -251,7 +288,7 @@ const StreetTurnAgreementCard = ({ load }) => {
             {/* The document itself is long, so it opens on request rather than
                 pushing the rest of the load's details off the screen. */}
             {open && (
-              <div className="mt-5 pt-5 border-t border-hairline">
+              <div ref={documentRef} className="mt-5 pt-5 border-t border-hairline">
                 <StreetTurnAgreementDocument
                   agreement={detail.agreement}
                   loadId={detail.loadId}

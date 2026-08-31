@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
-import Swal from "sweetalert2";
-import AppSelect from "../../components/AppSelect";
-import StreetTurnConfirmDialog from "../../components/StreetTurnConfirmDialog";
-import { notify } from "../../utils/swal";
+import CarrierCell from "../../components/loads/CarrierCell";
+import UpdateStatusModal from "../../components/loads/UpdateStatusModal";
+import AssignCarrierPicker from "../../components/loads/AssignCarrierPicker";
 import { LfdCell, UrgencyBadge } from "../../components/UrgencyCells";
 import LoadColorModeToggle from "../../components/LoadColorModeToggle";
+import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
+import { carrierOnLoad } from "../../utils/loadCarrier";
 import {
   STATUS_ROW_COLORS,
   rowColorFor,
@@ -21,280 +22,14 @@ import {
   dropDateOf,
   isLfdAlarming,
   pickupDateOf,
-  sortByPickupDate,
+  sortByDeliveryDate,
 } from "../../utils/loadUrgency";
+import {
+  isAssignedToCarrier,
+  STATUS_LOCKED_REASON,
+} from "../../utils/loadAssignment";
 
-const { LoadIdCell, CustomerCell, AddressCell, StatusBadge, DateCell, fmtDate } = LoadTable;
-
-// ─── Transport Status Options ─────────────────────────────────────────────────
-const TRANSPORT_STATUS_OPTIONS = [
-  { value: "NEW_LOAD",             label: "New Load" },
-  { value: "ASSIGNED",             label: "Assigned" },
-  { value: "READY_TO_PICKUP",      label: "Ready to Pickup" },
-  { value: "PICKED_UP",            label: "Picked Up" },
-  { value: "IN_TRANSIT",           label: "In Transit" },
-  { value: "REACHED_DESTINATION",  label: "Reached Destination" },
-  { value: "DELIVERED",            label: "Delivered" },
-  { value: "TERMINATED",           label: "Terminated" },
-  { value: "PAPERWORK_PENDING",    label: "Paperwork Pending" },
-  { value: "INVOICED",             label: "Invoiced" },
-  { value: "STREET_TURN",          label: "Street Turn" },
-  { value: "EMPTY_IN_YARD",        label: "Empty in Yard" },
-  { value: "LOADED_IN_YARD",       label: "Loaded in Yard" },
-  { value: "DRIVER_ON_WAITING",    label: "Driver on Waiting" },
-  { value: "DROP_IN_WAREHOUSE",    label: "Drop in Warehouse" },
-];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const findOwner = (fleetOwners, id) =>
-  id ? fleetOwners.find((o) => o._id === id || o._id === id?.$oid) : null;
-
-const getAssignedOwner = (load, fleetOwners) => {
-  if (load?.assignedFleetOwner?.fleetOwnerName) {
-    const fo = findOwner(fleetOwners, load.assignedFleetOwner.fleetOwnerId);
-    return { name: load.assignedFleetOwner.fleetOwnerName, phone: fo?.phone || null };
-  }
-  const fo = findOwner(fleetOwners, load?.winningBid?.fleetOwnerId);
-  if (fo) return { name: fo.carrierName, phone: fo.phone || null };
-  return null;
-};
-
-const getAssignedName = (load, fleetOwners) =>
-  getAssignedOwner(load, fleetOwners)?.name || null;
-
-// wa.me needs digits only (with country code if the number has one)
-const waLink = (phone) => `https://wa.me/${String(phone).replace(/\D/g, "")}`;
-
-const WhatsAppButton = ({ phone }) => {
-  if (!phone) return null;
-  return (
-    <a
-      href={waLink(phone)}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      title={`WhatsApp ${phone}`}
-      className="flex-shrink-0 text-green-600 hover:text-green-700 transition-colors"
-    >
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-      </svg>
-    </a>
-  );
-};
-
-// ─── Carrier Cell (desktop) ───────────────────────────────────────────────────
-// A load split between carriers is shown as its legs, in running order. Naming
-// only the first would read as "this load is with one carrier" when it is with
-// two, and the leg each one runs is the thing dispatch is actually asked about.
-const CarrierLegs = ({ load }) => (
-  <div className="space-y-1.5">
-    {load.assignments.map((leg, index) => (
-      <div key={leg._id || index} className="leading-tight">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold text-white bg-indigo-600 rounded px-1 py-px flex-shrink-0">
-            {index + 1}
-          </span>
-          <span className="text-xs font-bold text-green-800 truncate">
-            {leg.fleetOwnerName}
-          </span>
-        </div>
-        <p className="text-[10px] text-gray-500 pl-5 truncate">
-          {[leg.origin?.city, leg.destination?.city].filter(Boolean).join(" → ") ||
-            "—"}
-          {leg.transportStatus
-            ? " · " + leg.transportStatus.replace(/_/g, " ").toLowerCase()
-            : ""}
-        </p>
-      </div>
-    ))}
-  </div>
-);
-
-const CarrierCell = ({ load, fleetOwners }) => {
-  if (load.assignments?.length) return <CarrierLegs load={load} />;
-
-  const owner = getAssignedOwner(load, fleetOwners);
-  if (owner) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <span className="w-2 h-2 rounded-full bg-green-600 flex-shrink-0" />
-        <span className="text-xs font-bold text-green-800">
-          {owner.name}
-          {owner.phone && <span className="font-semibold text-green-700"> ({owner.phone})</span>}
-        </span>
-        <WhatsAppButton phone={owner.phone} />
-      </div>
-    );
-  }
-  return <span className="text-xs text-gray-400 italic">Not assigned</span>;
-};
-
-// ─── Desktop Assign Dropdown ──────────────────────────────────────────────────
-const AssignDropdown = ({ loadId, fleetOwners, onConfirm, onCancel, saving }) => {
-  const [ownerId, setOwnerId] = useState("");
-  return (
-    <div className="flex flex-col gap-1.5 max-w-[280px]">
-      <AppSelect
-        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.phone ? `${fo.carrierName} (${fo.phone})` : fo.carrierName }))}
-        value={ownerId}
-        onChange={setOwnerId}
-        placeholder="Search fleet owner…"
-      />
-      <div className="flex gap-1.5">
-        <button
-          disabled={!ownerId || saving}
-          onClick={() => onConfirm(loadId, ownerId, fleetOwners)}
-          className="flex-1 text-xs py-1.5 px-2 rounded-md font-semibold text-white transition"
-          style={{ background: !ownerId || saving ? "#d1d5db" : "#16a34a", cursor: !ownerId || saving ? "not-allowed" : "pointer" }}
-        >
-          {saving ? "Saving…" : "Confirm"}
-        </button>
-        <button
-          onClick={onCancel}
-          className="text-xs py-1.5 px-2 rounded-md border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 transition"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ─── Update Status Modal ──────────────────────────────────────────────────────
-const UpdateStatusModal = ({ load, onClose, onSaved }) => {
-  const [status, setStatus] = useState(load.transportStatus || "");
-  const [note, setNote]     = useState("");
-  const [saving, setSaving] = useState(false);
-  // A street turn needs the handover details before it can be saved.
-  const [showStreetTurn, setShowStreetTurn] = useState(false);
-
-  const save = async (streetTurn) => {
-    setSaving(true);
-    try {
-      await api.put(`/loads/${load.loadId}/transport-status`, {
-        transportStatus: status,
-        note,
-        source: "web",
-        ...(streetTurn ? { streetTurn } : {}),
-      });
-      notify.success(`Status updated to "${TRANSPORT_STATUS_OPTIONS.find(o => o.value === status)?.label}"`);
-      setShowStreetTurn(false);
-      onSaved();
-    } catch (err) {
-      notify.error(err?.response?.data?.message || "Failed to update status");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSave = () => {
-    if (!status) { notify.error("Please select a status"); return; }
-    if (status === "STREET_TURN") { setShowStreetTurn(true); return; }
-    save(null);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-gray-800">Update Status</h3>
-              <p className="text-xs text-gray-400">Load <span className="font-semibold text-gray-600">{load.loadId}</span></p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <div className="relative">
-            <AppSelect
-              options={TRANSPORT_STATUS_OPTIONS}
-              value={status}
-              onChange={setStatus}
-              placeholder="Select new status…"
-              isDisabled={saving}
-            />
-            <label className="input-label">Status <span className="text-red-400">*</span></label>
-          </div>
-          <div className="relative">
-            <textarea
-              rows={2}
-              className="w-full border border-gray-200 rounded-lg px-3 pt-5 pb-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-              placeholder="Optional note…"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              disabled={saving}
-            />
-            <label className="input-label">Note (optional)</label>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
-            {saving ? "Saving…" : "Update Status"}
-          </button>
-        </div>
-      </div>
-
-      <StreetTurnConfirmDialog
-        isShow={showStreetTurn}
-        load={load}
-        saving={saving}
-        onCancel={() => setShowStreetTurn(false)}
-        onConfirm={save}
-      />
-    </div>
-  );
-};
-
-// ─── Mobile Assign Inline ─────────────────────────────────────────────────────
-const MobileAssignInline = ({ loadId, fleetOwners, onConfirm, onCancel, saving }) => {
-  const [ownerId, setOwnerId] = useState("");
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <AppSelect
-        options={fleetOwners.map((fo) => ({ value: fo._id, label: fo.phone ? `${fo.carrierName} (${fo.phone})` : fo.carrierName }))}
-        value={ownerId}
-        onChange={setOwnerId}
-        placeholder="Search fleet owner…"
-      />
-      <div style={{ display: "flex", gap: 6 }}>
-        <button
-          disabled={!ownerId || saving}
-          onClick={() => onConfirm(loadId, ownerId, fleetOwners)}
-          style={{
-            flex: 1, fontSize: 12, padding: "6px 0", borderRadius: 6, border: "none",
-            background: !ownerId || saving ? "#d1d5db" : "#16a34a",
-            color: "#fff", fontWeight: 600, cursor: !ownerId || saving ? "not-allowed" : "pointer",
-          }}
-        >
-          {saving ? "Saving…" : "Confirm"}
-        </button>
-        <button
-          onClick={onCancel}
-          style={{ fontSize: 12, padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f3f4f6", color: "#374151", cursor: "pointer" }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-};
+const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 const AssignedLoadsTable = () => {
@@ -305,13 +40,12 @@ const AssignedLoadsTable = () => {
   const [loading, setLoading]             = useState(true);
   const [fleetOwners, setFleetOwners]     = useState([]);
   const [openRow, setOpenRow]             = useState(null);      // reassign inline open
-  const [saving, setSaving]               = useState(false);
   const [statusModal, setStatusModal]     = useState(null);      // load object for status modal
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
 
-  const sortedRows = useMemo(() => sortByPickupDate(rows), [rows]);
+  const sortedRows = useMemo(() => sortByDeliveryDate(rows), [rows]);
 
   // `silent` leaves the spinner alone so the background refresh is invisible.
   const fetchLoads = async ({ silent = false } = {}) => {
@@ -325,6 +59,8 @@ const AssignedLoadsTable = () => {
       if (!silent) setLoading(false);
     }
   };
+
+  const { saving, assign, unassign } = useCarrierAssignment(fetchLoads);
 
   useEffect(() => {
     fetchLoads();
@@ -340,61 +76,9 @@ const AssignedLoadsTable = () => {
     enabled: !openRow && !saving && !statusModal,
   });
 
-  // ── Reassign ────────────────────────────────────────────────────────────────
   const handleAssign = async (loadId, ownerId, owners) => {
-    const owner = owners.find((o) => o._id === ownerId);
-    if (!owner) { notify.error("Owner not found"); return; }
-    const result = await Swal.fire({
-      title: "Assign Fleet Owner?",
-      html: `Assign <strong>${owner.carrierName}</strong> to load <strong>${loadId}</strong>?`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: "#2563eb",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: "✓ Yes, Assign",
-      cancelButtonText: "Cancel",
-    });
-    if (!result.isConfirmed) return;
-    setSaving(true);
-    try {
-      await api.put(`/loads/${loadId}/assign-fleet-owner`, {
-        fleetOwnerId: owner._id,
-        fleetOwnerName: owner.carrierName,
-      });
-      setOpenRow(null);
-      await fetchLoads();
-      notify.success(`Load ${loadId} assigned to ${owner.carrierName}!`);
-    } catch (err) {
-      console.error("Assignment failed:", err);
-      notify.error("Assignment failed. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Unassign ────────────────────────────────────────────────────────────────
-  const handleUnassign = async (row) => {
-    const result = await Swal.fire({
-      title: "Unassign Load?",
-      html: `Load <strong>${row.loadId}</strong> will be returned to <strong>Dispatch Management</strong> and will be available for bidding / reassignment.`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: "✓ Yes, Unassign",
-      cancelButtonText: "Cancel",
-    });
-    if (!result.isConfirmed) return;
-    setSaving(true);
-    try {
-      await api.put(`/loads/${row.loadId}/unassign`);
-      await fetchLoads();
-      notify.success(`Load ${row.loadId} unassigned — back in Dispatch Management.`);
-    } catch (err) {
-      notify.error(err?.response?.data?.message || "Unassign failed. Please try again.");
-    } finally {
-      setSaving(false);
-    }
+    const done = await assign(loadId, ownerId, owners);
+    if (done) setOpenRow(null);
   };
 
   // ── Desktop columns ──────────────────────────────────────────
@@ -406,7 +90,9 @@ const AssignedLoadsTable = () => {
     { key: "destination",  header: "Destination",                          render: (row) => <AddressCell data={row.drop} /> },
     { key: "deliveryDate", header: "Delivery Date",        width: "110px", render: (row) => <DateCell value={dropDateOf(row)} /> },
     { key: "lfd",          header: "Last Free Date",       width: "120px", render: (row) => <LfdCell row={row} /> },
-    { key: "bidStatus",    header: "Bid Status",           width: "110px", render: (row) => <StatusBadge value={row.bidStatus} /> },
+    // No Bid Status column. By the time a load reaches this tab the bidding is
+    // settled — the answer is "Closed" on nearly every row, and the column that
+    // matters is who won it, which is Carrier / Assignment beside it.
     { key: "carrier",      header: "Carrier / Assignment", width: "180px", render: (row) => <CarrierCell load={row} fleetOwners={fleetOwners} /> },
     {
       key: "actions",
@@ -417,12 +103,11 @@ const AssignedLoadsTable = () => {
   ];
 
   const desktopActions = (row) => {
-    const assignedName = getAssignedName(row, fleetOwners);
-    const isOpen = openRow === row.loadId;
+    const assigned = isAssignedToCarrier(row);
 
-    if (isOpen) {
+    if (openRow === row.loadId) {
       return (
-        <AssignDropdown
+        <AssignCarrierPicker
           loadId={row.loadId}
           fleetOwners={fleetOwners}
           onConfirm={handleAssign}
@@ -438,26 +123,28 @@ const AssignedLoadsTable = () => {
         <button
           onClick={() => setOpenRow(row.loadId)}
           disabled={saving}
-          className={`${assignedName ? "btn-secondary-small" : "btn-primary-small"} disabled:opacity-50`}
+          className={`${assigned ? "btn-secondary-small" : "btn-primary-small"} disabled:opacity-50`}
         >
-          {assignedName ? "Reassign" : "Assign Load"}
+          {assigned ? "Reassign" : "Assign Load"}
         </button>
 
-        {/* Update Status — staff/admin only */}
+        {/* Update Status — staff/admin only, and only once somebody is carrying
+            it. An unassigned load has no carrier for a status to be about. */}
         {isStaffOrAdmin && (
           <button
             onClick={() => setStatusModal(row)}
-            disabled={saving}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition disabled:opacity-50 whitespace-nowrap"
+            disabled={saving || !assigned}
+            title={assigned ? undefined : STATUS_LOCKED_REASON}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             Update Status
           </button>
         )}
 
         {/* Unassign — staff/admin only */}
-        {isStaffOrAdmin && assignedName && (
+        {isStaffOrAdmin && assigned && (
           <button
-            onClick={() => handleUnassign(row)}
+            onClick={() => unassign(row)}
             disabled={saving}
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition disabled:opacity-50 whitespace-nowrap"
           >
@@ -473,7 +160,8 @@ const AssignedLoadsTable = () => {
       <div className="mb-4">
         <h2 className="text-lg font-bold text-gray-900">All Transit</h2>
         <p className="text-sm text-gray-500">
-          Loads still moving, earliest pickup first — finished ones move to the Over tab
+          Loads still moving, earliest delivery date first — finished ones move to
+          the Over tab, invoiceable ones to Accounting
         </p>
         <LoadColorModeToggle
           mode={colorMode}
@@ -488,8 +176,8 @@ const AssignedLoadsTable = () => {
           <p className="text-center text-gray-500 py-10">Loading...</p>
         ) : sortedRows.length > 0 ? (
           sortedRows.map((row) => {
-            const assignedOwner = getAssignedOwner(row, fleetOwners);
-            const assignedName = assignedOwner?.name || null;
+            const carrier = carrierOnLoad(row, fleetOwners);
+            const assigned = isAssignedToCarrier(row);
             const isOpen = openRow === row.loadId;
             return (
               <MobileCard
@@ -520,23 +208,24 @@ const AssignedLoadsTable = () => {
                   },
                   { label: "Load Type",        value: row.truckType },
                   { label: "Container #",       value: row.containerNo },
-                  { label: "Bid Status",        value: row.bidStatus?.replace(/_/g, " ") },
-                  { label: "Status",  value: row.transportStatus?.replace(/_/g, " ") },
+                  { label: "Status",  value: STATUS_LABEL(row.transportStatus) },
                   {
                     label: "Carrier",
-                    value: assignedOwner
-                      ? `${assignedOwner.name}${assignedOwner.phone ? ` (${assignedOwner.phone})` : ""}`
+                    value: carrier
+                      ? `${carrier.name}${carrier.phone ? ` (${carrier.phone})` : ""}`
                       : "Not assigned",
                   },
                 ]}
                 actions={[
-                  ...(!isOpen ? [{ label: assignedName ? "Reassign" : "Assign Load", color: assignedName ? "#f59e0b" : "#2563eb", onClick: () => setOpenRow(row.loadId) }] : []),
-                  ...(isStaffOrAdmin ? [{ label: "Update Status", color: "#2563eb", onClick: () => setStatusModal(row) }] : []),
-                  ...(isStaffOrAdmin && assignedName ? [{ label: "Unassign", color: "#dc2626", onClick: () => handleUnassign(row) }] : []),
+                  ...(!isOpen ? [{ label: assigned ? "Reassign" : "Assign Load", color: assigned ? "#f59e0b" : "#2563eb", onClick: () => setOpenRow(row.loadId) }] : []),
+                  ...(isStaffOrAdmin && assigned
+                    ? [{ label: "Update Status", color: "#2563eb", onClick: () => setStatusModal(row) }]
+                    : []),
+                  ...(isStaffOrAdmin && assigned ? [{ label: "Unassign", color: "#dc2626", onClick: () => unassign(row) }] : []),
                 ]}
               >
                 {isOpen && (
-                  <MobileAssignInline
+                  <AssignCarrierPicker
                     loadId={row.loadId}
                     fleetOwners={fleetOwners}
                     onConfirm={handleAssign}

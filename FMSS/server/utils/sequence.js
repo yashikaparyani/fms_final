@@ -1,18 +1,40 @@
-// ─── Per-location ID sequences ────────────────────────────────────────────────
-// IDs carry their branch: NY-LD-0001, CHI-FO-0007. Each branch counts from 1 in
-// its own counter, and the prefix keeps IDs globally unique so a cross-location
-// report or export is never ambiguous about which branch a row came from.
+// ─── ID sequences ─────────────────────────────────────────────────────────────
+// Most IDs carry their branch: CHI-FO-0007, NY-DR-0003. Each branch counts from
+// 1 in its own counter, and the prefix keeps IDs globally unique so a
+// cross-location report or export is never ambiguous about which branch a row
+// came from. Counter documents are keyed "<entity>:<branch code>", e.g.
+// "fleetOwner:NY".
 //
-// Counter documents are keyed "<entity>:<branch code>", e.g. "load:NY".
+// Loads and carriers are the exceptions — "LD 0014" and "SLINE 00001", with no
+// branch code. The office reads and says both all day and the branch letters
+// were noise in every one of those conversations. Dropping the code means the
+// number itself has to be unique across the whole business, so those two count
+// from a single counter (keyed just "load" / "fleetOwner") rather than one per
+// branch: two branches each issuing their own 0001 would collide on the unique
+// index and fail the create outright.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Counter = require("../models/Counter.model.js");
 
 const PREFIX = {
   load: "LD",
-  fleetOwner: "FO",
+  fleetOwner: "SLINE",
   driver: "DR",
 };
+
+// Entities numbered once across the business rather than once per branch. Both
+// of these are read aloud and quoted constantly, so they carry no branch
+// letters — which means the number itself has to be unique everywhere.
+const UNBRANCHED = new Set(["load", "fleetOwner"]);
+
+// What sits between the prefix and the number. A load reads "LD 0014" and a
+// carrier "SLINE 12345"; a driver keeps the hyphen it has always had.
+const SEPARATOR = { load: " ", fleetOwner: " " };
+
+// How many digits the number is padded to. Carrier codes are quoted on
+// paperwork against a five-digit house series, so they are padded to five.
+const PAD = { fleetOwner: 5 };
+const DEFAULT_PAD = 4;
 
 // Branch codes never change once issued (see models/Branch.js), so caching the
 // id → code mapping for the process lifetime is safe and saves a lookup on every
@@ -36,18 +58,19 @@ const branchCodeFor = async (locationId) => {
 };
 
 /**
- * Next ID for `entity` within a branch, e.g. nextSequence("load", id) → NY-LD-0001.
+ * Next ID for `entity`, e.g. nextSequence("driver", id) → NY-DR-0001,
+ * nextSequence("load", id) → LD 0001, nextSequence("fleetOwner") → SLINE 00001.
  *
- * Falls back to an unprefixed LD-0001 when the record has no location — which
- * only happens for data created before locations existed, or inside an unscoped
- * migration. Those keep working rather than crashing, and read as legacy at a
- * glance.
+ * A branched entity falls back to an unprefixed FO-0001 when the record has no
+ * location — which only happens for data created before locations existed, or
+ * inside an unscoped migration. Those keep working rather than crashing, and
+ * read as legacy at a glance.
  */
 const nextSequence = async (entity, locationId) => {
   const prefix = PREFIX[entity];
   if (!prefix) throw new Error(`No ID prefix registered for "${entity}"`);
 
-  const code = await branchCodeFor(locationId);
+  const code = UNBRANCHED.has(entity) ? null : await branchCodeFor(locationId);
   const counterKey = code ? `${entity}:${code}` : entity;
 
   const counter = await Counter.findByIdAndUpdate(
@@ -56,8 +79,11 @@ const nextSequence = async (entity, locationId) => {
     { returnDocument: "after", upsert: true },
   );
 
-  const number = String(counter.seq).padStart(4, "0");
-  return code ? `${code}-${prefix}-${number}` : `${prefix}-${number}`;
+  const number = String(counter.seq).padStart(PAD[entity] || DEFAULT_PAD, "0");
+  const separator = SEPARATOR[entity] || "-";
+  return code
+    ? `${code}-${prefix}${separator}${number}`
+    : `${prefix}${separator}${number}`;
 };
 
 /** Test/migration helper — the cache would otherwise outlive a dropped database. */

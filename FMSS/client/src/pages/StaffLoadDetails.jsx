@@ -7,6 +7,14 @@ import { toast } from "react-toastify";
 import DocumentUpload from "../components/DocumentUpload";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import {
+  isAssignedToCarrier,
+  STATUS_LOCKED_REASON,
+} from "../utils/loadAssignment";
+import {
+  SELECTABLE_TRANSPORT_STATUSES,
+  transportStatusLabel,
+} from "../utils/transportStatus";
 
 const DOCUMENT_TYPES = [
   "Load Document",
@@ -146,6 +154,8 @@ const StaffLoadDetails = () => {
   // ──────────────────────────────────────────────────────────
 
   if (!load) return <div className="p-6">Loading...</div>;
+
+  const statusUnlocked = isAssignedToCarrier(load);
 
   const rows = [load];
 
@@ -692,28 +702,33 @@ const StaffLoadDetails = () => {
       />
 
       {/* TRANSPORT STATUS */}
+      {/* Locked until a carrier has the load — every value below is a statement
+          about a carrier, and there is nobody for it to be about until then. */}
       <div className="bg-white p-4 rounded shadow">
         <h3 className="font-semibold text-gray-700 mb-4">Status</h3>
+        {!statusUnlocked && (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+            {STATUS_LOCKED_REASON}
+          </p>
+        )}
+        {/* The same list every other status control offers — see
+            utils/transportStatus.js. It was a hand-picked seven that included
+            New Load and left out most of the yard and paperwork statuses, so a
+            load could reach a state this screen could not put it back into. */}
         <div className="flex gap-2 flex-wrap">
-          {[
-            "NEW_LOAD",
-            "ASSIGNED",
-            "PICKED_UP",
-            "IN_TRANSIT",
-            "REACHED_DESTINATION",
-            "DELIVERED",
-            "INVOICED",
-          ].map((status) => (
+          {SELECTABLE_TRANSPORT_STATUSES.map((status) => (
             <button
               key={status}
               onClick={() => setSelectedStatus(status)}
-              className={`px-4 py-2 rounded text-sm font-medium ${
+              disabled={!statusUnlocked}
+              title={statusUnlocked ? undefined : STATUS_LOCKED_REASON}
+              className={`px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
                 selectedStatus === status
                   ? "btn-primary"
                   : "btn-secondary"
               }`}
             >
-              {status}
+              {transportStatusLabel(status)}
             </button>
           ))}
         </div>

@@ -14,6 +14,11 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
   const userRole = useSelector((state) => state.auth.user?.role);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Why the board is empty. A carrier with every truck committed is served an
+  // empty list by design, and an empty list on its own reads as "nothing on
+  // offer today" — which is a different thing and leaves them waiting for loads
+  // that will never appear.
+  const [capacity, setCapacity] = useState(null);
   const navigate = useNavigate();
 
   // `silent` leaves the spinner alone so the background refresh is invisible.
@@ -29,8 +34,15 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
 
   useEffect(() => {
     fetchLoads();
+
+    if (userRole === "fleetOwner") {
+      api
+        .get("/loads/my-capacity")
+        .then((res) => setCapacity(res.data))
+        .catch(() => setCapacity(null));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bidStatus]);
+  }, [bidStatus, userRole]);
 
   useAutoRefresh(() => fetchLoads({ silent: true }));
 
@@ -55,19 +67,27 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
     return "—";
   };
 
+  const money = (value) =>
+    value === null || value === undefined
+      ? "—"
+      : `$${Number(value).toLocaleString()}`;
+
   const baseColumns = [
     {
       key: "load",
       header: "Load",
       width: "130px",
       render: (row) => (
-        <LoadIdCell
-          load={row}
-          onClick={() => {
-            const target = userRole === "fleetOwner" ? "open-available-bids" : "bids";
-            navigate(`/${userRole}/${target}/${row.loadId}`);
-          }}
-        />
+        <div className="space-y-1">
+          <LoadIdCell
+            load={row}
+            onClick={() => {
+              const target = userRole === "fleetOwner" ? "open-available-bids" : "bids";
+              navigate(`/${userRole}/${target}/${row.loadId}`);
+            }}
+          />
+          <NegotiatedBadge row={row} />
+        </div>
       ),
     },
     {
@@ -253,6 +273,26 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
     </div>
   );
 
+  // An offer the office has put to this carrier and not yet had an answer to.
+  // It arrives on the same list as the open loads but is a different thing —
+  // there is a specific number waiting on a yes or no — so it is marked as such
+  // rather than left to look like another load to bid on.
+  const NegotiatedBadge = ({ row }) => {
+    if (!row.negotiation) return null;
+    return (
+      <span
+        className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-bold"
+        title={`Offered ${money(row.negotiation.amount)}${
+          row.negotiation.previousAmount
+            ? ` against your bid of ${money(row.negotiation.previousAmount)}`
+            : ""
+        }`}
+      >
+        NEGOTIATED {money(row.negotiation.amount)}
+      </span>
+    );
+  };
+
   const META = {
     OPEN:     { subtitle: "Loads currently open for bidding",   empty: "No live bidding loads found."     },
     UPCOMING: { subtitle: "Loads with bidding scheduled ahead", empty: "No upcoming bidding loads found." },
@@ -262,6 +302,15 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
 
   return (
     <div className="p-5">
+      {capacity?.atCapacity && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-bold text-amber-900">
+            Bidding is paused while your {capacity.trucks === 1 ? "truck is" : "trucks are"} committed
+          </p>
+          <p className="text-xs text-amber-800 mt-0.5">{capacity.message}</p>
+        </div>
+      )}
+
       <LoadTable
         title="Loads with Bidding"
         subtitle={meta.subtitle}
@@ -270,7 +319,11 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
         actions={actions}
         colorBy="bidStatus"
         loading={loading}
-        emptyMessage={meta.empty}
+        emptyMessage={
+          capacity?.atCapacity
+            ? "Nothing to bid on until your current load is delivered."
+            : meta.empty
+        }
       />
     </div>
   );

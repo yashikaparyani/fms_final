@@ -2,6 +2,10 @@ const Load = require("../models/Load");
 const Bid = require("../models/bidSchema");
 const FleetOwner = require("../models/FleetOwner");
 const mongoose = require("mongoose");
+const {
+  carrierAvailability,
+  atCapacityMessage,
+} = require("../utils/carrierCapacity");
 
 // @desc    Place or update a bid on a load
 // @route   POST /api/loads/:loadId/bids
@@ -21,7 +25,20 @@ const placeOrUpdateBid = async (req, res) => {
         .json({ message: "Only fleet owners can place bids" });
     }
 
-    // Load is looked up by your custom string loadId (e.g. "LD-0001")
+    // ─── One truck, one load ─────────────────────────────────────────────────
+    // A carrier with every truck committed cannot take another load, so letting
+    // them bid on one produces an offer that could never be awarded. The board
+    // is already hidden from them (see getLoads); this is the same rule at the
+    // write end, for a stale tab or a direct call.
+    const availability = await carrierAvailability(fleetOwner._id);
+    if (availability.atCapacity) {
+      return res.status(409).json({
+        code: "CARRIER_AT_CAPACITY",
+        message: atCapacityMessage(availability),
+      });
+    }
+
+    // Load is looked up by your custom string loadId (e.g. "LD 0001")
     const load = await Load.findOne({ loadId: req.params.loadId });
     if (!load) {
       return res.status(404).json({ message: "Load not found" });

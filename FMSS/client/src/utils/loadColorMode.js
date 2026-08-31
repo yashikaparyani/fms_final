@@ -127,6 +127,51 @@ export const STATUS_ROW_COLORS = {
   TERMINATED: { bg: "#fef2f2", border: "#ef4444" },
 };
 
+// ─── Status badges ───────────────────────────────────────────────────────────
+// The badge form of the same scale. Derived from STATUS_ROW_COLORS rather than
+// written out again, so a badge and the row it sits on can never disagree about
+// what colour a status is — only the ink is chosen here, because a pale tint
+// that works behind a whole row is unreadable as text.
+//
+// Every status gets its own ink. The map this replaces reused one green for
+// ASSIGNED, REACHED DESTINATION and DELIVERED and one yellow for IN TRANSIT and
+// PAPERWORK PENDING, which is fine on a badge you read the words of and useless
+// the moment somebody scans a column for "which of these are delivered".
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STATUS_INK = {
+  LOAD_PLANNER: "#475569",
+  NEW_LOAD: "#334155",
+
+  ASSIGNED: "#1d4ed8",
+  READY_TO_PICKUP: "#0369a1",
+
+  PICKED_UP: "#0e7490",
+  IN_TRANSIT: "#a16207",
+  DRIVER_ON_WAITING: "#c2410c",
+
+  REACHED_DESTINATION: "#0f766e",
+  DELIVERED: "#15803d",
+
+  DROP_IN_WAREHOUSE: "#7e22ce",
+  EMPTY_IN_YARD: "#6d28d9",
+  LOADED_IN_YARD: "#a21caf",
+  STREET_TURN: "#4d7c0f",
+
+  PAPERWORK_PENDING: "#be123c",
+  INVOICED: "#075985",
+
+  TERMINATED: "#b91c1c",
+};
+
+/** `{ bg, color, border }` per status — the shape StatusChip and the badges want. */
+export const STATUS_BADGE_COLORS = Object.fromEntries(
+  Object.entries(STATUS_ROW_COLORS).map(([status, { bg, border }]) => [
+    status,
+    { bg, border, color: STATUS_INK[status] || "#374151" },
+  ]),
+);
+
 /** Approval status, used for loads that have not been dispatched yet. */
 export const LOAD_STATUS_ROW_COLORS = {
   DRAFT: { bg: "#f8fafc", border: "#94a3b8" },

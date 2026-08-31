@@ -27,10 +27,13 @@ const LoadColorModeToggle = ({ mode, setMode, rows = [], className = "" }) => {
   const [showLegend, setShowLegend] = useState(false);
   const isStatus = mode === COLOR_MODE.STATUS;
 
+  // Both branches key on `key`. The urgency one used to call it `status`, which
+  // legendFor does not produce — so every entry in the status legend rendered
+  // with an undefined React key.
   const legend = isStatus
     ? legendFor(rows)
     : URGENCY_ORDER.map((key) => ({
-        status: key,
+        key,
         label: URGENCY_LABEL[key].text,
         ...URGENCY_COLORS[key],
       }));
@@ -86,7 +89,7 @@ const LoadColorModeToggle = ({ mode, setMode, rows = [], className = "" }) => {
       {showLegend && (
         <div className="w-full flex flex-wrap gap-x-4 gap-y-2 rounded-lg border border-hairline bg-ink-50 p-3">
           {legend.map((entry) => (
-            <span key={entry.status} className="flex items-center gap-1.5">
+            <span key={entry.key} className="flex items-center gap-1.5">
               <span
                 className="h-3 w-3 rounded-sm border"
                 style={{ background: entry.bg, borderColor: entry.border }}

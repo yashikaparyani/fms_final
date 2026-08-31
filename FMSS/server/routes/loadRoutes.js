@@ -27,6 +27,10 @@ const {
   respondToNegotiation,
   unassignLoad,
   emailCustomer,
+  getMyCapacity,
+  updateStatusHistoryEntry,
+  deleteStatusHistoryEntry,
+  deleteLoad,
 } = require("../controllers/loadController");
 const {
   getLoadAudit,
@@ -35,6 +39,7 @@ const {
 } = require("../controllers/auditController");
 const upload = require("../middleware/upload");
 const { protect, authorizeRoles } = require("../middleware/auth");
+const { requirePermission } = require("../middleware/permissions");
 const { requireDriverLicense } = require("../middleware/driverCompliance");
 
 router
@@ -45,6 +50,15 @@ router
   .route("/getOpenForBid")
   .get(protect, getLoads)
   .post(protect, authorizeRoles("client", "staff", "admin"), getOpenForBid);
+
+// Mounted before "/:loadId" or it would be read as a load number.
+// Drivers ask as well as carriers: the phone app shows the same board.
+router.get(
+  "/my-capacity",
+  protect,
+  authorizeRoles("fleetOwner", "driver"),
+  getMyCapacity,
+);
 
 // Staff-composed message to the customer about one load (tracking page).
 router.post(
@@ -71,7 +85,24 @@ router.put(
 router
   .route("/:loadId")
   .get(protect, getLoadById)
-  .put(protect, authorizeRoles("client", "staff", "admin"), updateLoad);
+  .put(protect, authorizeRoles("client", "staff", "admin"), updateLoad)
+  // Admin only, and narrow — see deleteLoad. `loads.delete` is in the catalog
+  // so the permission reads consistently on the Permissions screen; the role
+  // gate is what actually keeps everyone else out, and admin bypasses the
+  // permission check by role.
+  .delete(
+    protect,
+    authorizeRoles("admin"),
+    requirePermission("loads.delete"),
+    deleteLoad,
+  );
+
+// ─── Status timeline corrections ──────────────────────────────────────────────
+// Admin only. The timeline is evidence — see the note above the controllers.
+router
+  .route("/:loadId/status-history/:entryId")
+  .patch(protect, authorizeRoles("admin"), updateStatusHistoryEntry)
+  .delete(protect, authorizeRoles("admin"), deleteStatusHistoryEntry);
 
 // The executed transfer agreement for a street turned load. Office only: it
 // names both carriers and their SCACs and carries the transferee's signature,

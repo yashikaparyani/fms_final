@@ -1,9 +1,9 @@
 // ─── Carrier agreement field schema ───────────────────────────────────────────
-// Every blank on the two paper agreements a carrier has to sign, described once
-// here so three things cannot drift apart: the form the carrier fills in, the
-// validation on submit, and the PDF that gets generated from the answers.
+// Every blank on the documents a carrier has to sign, described once here so
+// three things cannot drift apart: the form the carrier fills in, the validation
+// on submit, and the PDF that gets generated from the answers.
 //
-// The two documents:
+// The documents:
 //
 //   broker     — S LINE BROKERAGE INC., Transportation Brokerage Agreement.
 //                Between the broker and the CARRIER. 15 pages; the blanks are on
@@ -16,11 +16,15 @@
 //                time), p13 (execution, SS#/EIN, driver licence) and Appendix A
 //                (equipment: make/model/year and VIN).
 //
+//   einVerification — our own one-page taxpayer certification. Unlike the two
+//                above there is no counterparty original behind it, so it is
+//                generated rather than overlaid; see its entry below.
+//
 // The field sets overlap almost entirely — both want the legal name, the
 // address, the signer. `sharedProfile` below is that common core, asked once and
-// written into both documents. Only the genuinely document-specific blanks are
-// listed per agreement, which is why the carrier fills in one form and gets two
-// finished contracts rather than typing their address twice.
+// written into every document. Only the genuinely document-specific blanks are
+// listed per agreement, which is why the carrier fills in one form and gets
+// finished contracts rather than typing their address three times.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const US_STATES = [
@@ -310,11 +314,115 @@ const AGREEMENTS = [
       "I am authorised to sign this agreement on behalf of the contractor.",
     ],
   },
+  {
+    // ── EIN verification ────────────────────────────────────────────────────
+    // Not a counterparty contract like the two above — there is no fifteen-page
+    // original behind it, so it has no entry in config/agreementOverlay.js and
+    // is generated from scratch by services/agreementDocumentService.js.
+    //
+    // Its job is to make the tax ID an attested fact rather than a typed field.
+    // The number reaches settlements, 1099 filings and the carrier's remittance
+    // detail, and a transposed digit is found months later by the IRS rather
+    // than by anybody here. Asking the carrier to state it again and sign for it
+    // catches the mistake at onboarding, and leaves a signed record of who said
+    // it if the filing is ever questioned.
+    key: "einVerification",
+    title: "EIN Verification and Taxpayer Certification",
+    counterparty: "S LINE BROKERAGE, INC.",
+    counterpartyAddress: "9972 Phoenician Way, Sacramento, CA 95829-8006",
+    counterpartyDocket: "MC-1496045",
+    pages: 1,
+    summary:
+      "Confirms the Employer Identification Number we will report your settlements under, and certifies it is the number the IRS issued to the legal name on your operating authority.",
+    fields: [
+      {
+        key: "einNumber",
+        label: "EIN",
+        type: "text",
+        required: true,
+        sensitive: true,
+        placeholder: "12-3456789",
+        // Nine digits, conventionally written XX-XXXXXXX. The hyphen is
+        // optional on the way in and normalised on the way out.
+        pattern: "^\\d{2}-?\\d{7}$",
+        patternMessage: "An EIN is nine digits, written 12-3456789.",
+        help: "Type it again from your IRS notice rather than copying it from the form above — retyping is what makes this a verification.",
+      },
+      {
+        key: "einLegalName",
+        label: "Name exactly as shown on your IRS notice",
+        type: "text",
+        required: true,
+        placeholder: "SWIFT HAULAGE LLC",
+        help: "From your CP 575 or 147C letter. It must be the name the EIN was issued to, which is not always the name you trade under.",
+      },
+      {
+        key: "einCertificationInitials",
+        label: "Taxpayer certification — your initials",
+        type: "initials",
+        required: true,
+        help: "By initialling you certify, under penalty of perjury, that the number above is your correct taxpayer identification number and that you are not subject to backup withholding.",
+      },
+    ],
+    acknowledgements: [
+      "The EIN stated above is the number the IRS issued to the legal name shown, and I have read it from the IRS notice itself.",
+      "I understand this number will be used to report payments made to me, including on any Form 1099 issued.",
+      "I will notify the office in writing if this number or the legal name it was issued to changes.",
+      "I am authorised to certify this on behalf of the carrier.",
+    ],
+  },
 ];
 
 const AGREEMENT_BY_KEY = new Map(AGREEMENTS.map((a) => [a.key, a]));
 
 const AGREEMENT_KEYS = AGREEMENTS.map((a) => a.key);
+
+// ─── Appendix A equipment ─────────────────────────────────────────────────────
+
+/** The equipment table's column spec, wherever it is rendered or checked. */
+const EQUIPMENT_COLUMNS = AGREEMENT_BY_KEY.get("contractor").appendixA.columns;
+
+const VIN_COLUMN = EQUIPMENT_COLUMNS.find((c) => c.key === "vin");
+const VIN_PATTERN = new RegExp(VIN_COLUMN.pattern);
+
+/** True for a VIN that is the right shape. Blank is not a valid VIN. */
+const isValidVin = (value) => VIN_PATTERN.test(String(value || "").trim().toUpperCase());
+
+/**
+ * VIN problems across a set of Appendix A rows, as `{ index, message }`.
+ *
+ * `requireVin` separates the two moments this is asked. While the carrier is
+ * still typing, a row they have not reached the VIN on yet is unfinished, not
+ * wrong, and refusing to save it loses the rest of what they typed. At signing
+ * the schedule is being executed, so a blank VIN is a blank in a contract and
+ * has to be filled.
+ */
+const equipmentVinProblems = (rows = [], { requireVin = false } = {}) => {
+  const problems = [];
+
+  rows.forEach((row, index) => {
+    const vin = String(row?.vin || "").trim();
+
+    if (!vin) {
+      if (requireVin) {
+        problems.push({ index, message: `Row ${index + 1}: a VIN is required.` });
+      }
+      return;
+    }
+
+    if (!isValidVin(vin)) {
+      // The count is the mistake nine times out of ten — a transposed or
+      // dropped character — so it is named before the alphabet rule.
+      const detail =
+        vin.length === 17
+          ? VIN_COLUMN.patternMessage
+          : `it has ${vin.length} character${vin.length === 1 ? "" : "s"}, not 17.`;
+      problems.push({ index, message: `Row ${index + 1}: ${detail}` });
+    }
+  });
+
+  return problems;
+};
 
 /** Every required shared field, flattened — used by the completeness check. */
 const requiredProfileFields = () =>
@@ -365,6 +473,10 @@ module.exports = {
   AGREEMENTS,
   AGREEMENT_BY_KEY,
   AGREEMENT_KEYS,
+  EQUIPMENT_COLUMNS,
+  VIN_COLUMN,
+  isValidVin,
+  equipmentVinProblems,
   US_STATES,
   requiredProfileFields,
   profileGaps,

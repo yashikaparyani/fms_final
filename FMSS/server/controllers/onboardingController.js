@@ -11,6 +11,7 @@ const {
   AGREEMENT_BY_KEY,
   AGREEMENT_KEYS,
   profileGaps,
+  equipmentVinProblems,
 } = require("../config/carrierAgreements");
 const {
   catalog: insuranceCatalog,
@@ -19,6 +20,11 @@ const {
 // The carrier gets the counterparty's own fifteen-page document with its
 // blanks filled, not a summary of it — see services/agreementOverlayService.
 const { buildFilledAgreement } = require("../services/agreementOverlayService");
+// Documents with no counterparty original behind them (the EIN certification)
+// are generated instead. Which of the two runs is decided by whether the
+// agreement has an overlay map — see documentBuilderFor below.
+const { buildAgreementDocument } = require("../services/agreementDocumentService");
+const { OVERLAYS } = require("../config/agreementOverlay");
 const { certificateMeta } = require("../utils/insuranceCertificate");
 const { serveFile } = require("../utils/serveFile");
 
@@ -36,6 +42,21 @@ const { serveFile } = require("../utils/serveFile");
 // ─────────────────────────────────────────────────────────────────────────────
 
 const trimmed = (value) => String(value ?? "").trim();
+
+/**
+ * How a given agreement's signed copy is produced.
+ *
+ * The two counterparty contracts are filled in on their own pinned originals;
+ * anything we author ourselves has no original to fill, so it is generated. The
+ * presence of an overlay map is the thing that distinguishes them, which keeps
+ * this from being a list of keys that has to be remembered when a document is
+ * added.
+ */
+const documentBuilderFor = (agreementKey) =>
+  OVERLAYS[agreementKey] ? buildFilledAgreement : buildAgreementDocument;
+
+/** Digits only — how two tax IDs are compared, so 12-3456789 equals 123456789. */
+const digitsOf = (value) => String(value ?? "").replace(/\D/g, "");
 
 const isOffice = (user) => ["staff", "admin"].includes(user?.role);
 
@@ -336,6 +357,19 @@ const saveProfile = async (req, res) => {
     }
 
     if (Array.isArray(req.body.equipment)) {
+      // A VIN that has been typed has to be a VIN. One left blank is a row the
+      // carrier has not finished, which this form deliberately tolerates — see
+      // the note above. Checked before anything is written so a bad row does
+      // not land in the document and then get reported.
+      const vinProblems = equipmentVinProblems(req.body.equipment);
+
+      if (vinProblems.length) {
+        return res.status(400).json({
+          message: `Check the VIN — ${vinProblems.map((p) => p.message).join(" ")}`,
+          equipmentErrors: vinProblems,
+        });
+      }
+
       onboarding.equipment = req.body.equipment.map((row) => ({
         unitNumber: trimmed(row.unitNumber),
         equipmentType: trimmed(row.equipmentType),
@@ -409,6 +443,41 @@ const signAgreement = async (req, res) => {
       });
     }
 
+    // A field that declares a shape has to match it. Checked here rather than
+    // per document so a new field with a `pattern` is validated the day it is
+    // added to config/carrierAgreements.js.
+    const malformed = (agreement.fields || [])
+      .filter((f) => f.pattern && trimmed(values[f.key]))
+      .filter((f) => !new RegExp(f.pattern).test(trimmed(values[f.key])))
+      .map((f) => `${f.label}: ${f.patternMessage || "that does not look right."}`);
+
+    if (malformed.length) {
+      return res.status(400).json({ message: malformed.join(" ") });
+    }
+
+    // The EIN certification exists to catch a mistyped tax ID, so the number
+    // certified here has to be the number already on the carrier's profile.
+    // Compared on digits: one of the two is routinely written with the hyphen
+    // and the other without, and that is not a discrepancy.
+    if (agreement.key === "einVerification") {
+      const profileTaxId = digitsOf(onboarding.profile?.taxId);
+      const certified = digitsOf(values.einNumber);
+
+      if (onboarding.profile?.taxIdType !== "EIN") {
+        return res.status(400).json({
+          message:
+            "Your tax ID type is not set to EIN. Set it on the company details above before certifying an EIN.",
+        });
+      }
+
+      if (profileTaxId && certified !== profileTaxId) {
+        return res.status(400).json({
+          message:
+            "The EIN you have certified does not match the tax ID on your company details. Correct whichever one is wrong before signing.",
+        });
+      }
+    }
+
     const signedName = trimmed(req.body.signedName) || trimmed(onboarding.profile.signerName);
     const signedTitle = trimmed(req.body.signedTitle) || trimmed(onboarding.profile.signerTitle);
 
@@ -432,11 +501,28 @@ const signAgreement = async (req, res) => {
       });
     }
 
-    if (agreement.key === "contractor" && !(onboarding.equipment || []).length) {
-      return res.status(400).json({
-        message:
-          "Appendix A needs at least one piece of equipment before this agreement can be signed.",
+    if (agreement.key === "contractor") {
+      if (!(onboarding.equipment || []).length) {
+        return res.status(400).json({
+          message:
+            "Appendix A needs at least one piece of equipment before this agreement can be signed.",
+        });
+      }
+
+      // Signing executes the equipment schedule, so every VIN on it has to be
+      // complete and correct — not merely well-formed where one was typed.
+      const vinProblems = equipmentVinProblems(onboarding.equipment, {
+        requireVin: true,
       });
+
+      if (vinProblems.length) {
+        return res.status(400).json({
+          message: `Appendix A cannot be signed yet — ${vinProblems
+            .map((p) => p.message)
+            .join(" ")}`,
+          equipmentErrors: vinProblems,
+        });
+      }
     }
 
     const signed = {
@@ -457,11 +543,11 @@ const signAgreement = async (req, res) => {
 
     const drivers = await driversFor(carrier._id);
 
-    const document = await buildFilledAgreement({
+    const document = await documentBuilderFor(agreement.key)({
       agreementKey: agreement.key,
       profile: onboarding.profile,
       signed,
-      // Fills Appendix A on the contractor agreement; ignored by the broker one.
+      // Fills Appendix A on the contractor agreement; ignored by the others.
       equipment: onboarding.equipment || [],
       carrierCode: carrier.fleetOwnerCode || String(carrier._id).slice(-6),
     });

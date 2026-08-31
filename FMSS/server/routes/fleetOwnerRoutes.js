@@ -5,7 +5,7 @@ const {
   getFleetOwnerById,
   createFleetOwner,
   updateFleetOwner,
-  deleteFleetOwner,
+  setFleetOwnerStatus,
   sendCredentialsToFleetOwner,
   getAssignedLoadToConfirm
 } = require("../controllers/fleetOwnerController");
@@ -26,8 +26,16 @@ router.route("/")
 
 router.route("/:id")
   .get(protect, authorizeRoles("staff", "admin"), getFleetOwnerById)
-  .put(protect, authorizeRoles("staff", "admin"), updateFleetOwner)
-  .delete(protect, authorizeRoles("staff", "admin"), deleteFleetOwner);
+  .put(protect, authorizeRoles("staff", "admin"), updateFleetOwner);
+
+// Deliberately no DELETE. A carrier's name is stamped on every load they ever
+// ran, so removing the row orphans that history — see setFleetOwnerStatus.
+router.patch(
+  "/:id/status",
+  protect,
+  authorizeRoles("staff", "admin"),
+  setFleetOwnerStatus,
+);
 
 router.post("/:id/send-credentials", protect, authorizeRoles("staff", "admin"), sendCredentialsToFleetOwner);
 

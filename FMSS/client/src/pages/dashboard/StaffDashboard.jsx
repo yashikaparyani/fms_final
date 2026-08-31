@@ -90,6 +90,7 @@ useAutoRefresh(() => fetchStats({ silent: true }));
     "LOAD_PLANNER",
     "NEW_LOAD",
     "ASSIGNED",
+    "READY_TO_PICKUP",
     "PICKED_UP",
     "IN_TRANSIT",
     "REACHED_DESTINATION",
@@ -130,6 +131,20 @@ useAutoRefresh(() => fetchStats({ silent: true }));
       value: stats?.assignedLoads || 0,
       color: "indigo",
       onClick: () => navigate(byTransportStatus("ASSIGNED")),
+    },
+    // Verified work nobody is carrying. Its transport status is locked until it
+    // is assigned, so this is the queue that gates everything else on the board.
+    {
+      label: "Unassigned",
+      value: stats?.unassignedLoads || 0,
+      color: "red",
+      onClick: () => navigate(`/${role}/loads?unassigned=true`),
+    },
+    {
+      label: "Ready to Pickup",
+      value: stats?.readyToPickupLoads || 0,
+      color: "indigo",
+      onClick: () => navigate(byTransportStatus("READY_TO_PICKUP")),
     },
     {
       label: "Picked Up",
@@ -193,11 +208,13 @@ useAutoRefresh(() => fetchStats({ silent: true }));
       color: "orange",
       onClick: () => navigate(byTransportStatus("STREET_TURN")),
     },
+    // An invoiceable load has left All Transit for Accounting, so the tile opens
+    // the queue it actually went to rather than a load list it is no longer in.
     {
       label: "Invoiceable",
       value: stats?.invoiceableLoads || 0,
       color: "purple",
-      onClick: () => navigate(byTransportStatus("INVOICED")),
+      onClick: () => navigate(`/${role}/accounting`),
     },
     {
       label: "Same Day Loads",

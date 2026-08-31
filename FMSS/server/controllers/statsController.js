@@ -4,7 +4,11 @@ const Bid = require("../models/bidSchema");
 const FleetOwner = require("../models/FleetOwner");
 const { resolveTimeZone, dayRangeInTz } = require("../utils/timezone");
 const { lfdFilter } = require("../utils/lfdBuckets");
-const { pickupDayFilter, accessorialFilter } = require("../utils/dashboardBuckets");
+const {
+  pickupDayFilter,
+  accessorialFilter,
+  unassignedFilter,
+} = require("../utils/dashboardBuckets");
 const { findCarrierFor } = require("../utils/carrierAccount");
 
 // @desc    Get dashboard stats based on user role
@@ -130,6 +134,15 @@ const getStats = async (req, res) => {
         transportStatus: "ASSIGNED",
       });
 
+      // The carrier has accepted and is on their way to the pickup. It is a
+      // stage of its own in the transport enum and was the one stage the
+      // dashboard never reported, so a load sat in "Assigned" on the board while
+      // dispatch had already been told the truck was rolling.
+      const readyToPickupLoads = await Load.countDocuments({
+        ...baseFilter,
+        transportStatus: "READY_TO_PICKUP",
+      });
+
       const pickedupLoads = await Load.countDocuments({
         ...baseFilter,
         transportStatus: "PICKED_UP",
@@ -210,6 +223,11 @@ const getStats = async (req, res) => {
 
       const accessorialLoads = await Load.countDocuments(accessorialFilter());
 
+      // Verified loads nobody is carrying. Their status is locked until they are
+      // assigned, so this is the queue that has to be worked before anything
+      // else on the board can move — see utils/dashboardBuckets.js.
+      const unassignedLoads = await Load.countDocuments(unassignedFilter());
+
       // ─── LFD buckets ─────────────────────────────────────────────────────
       // Three mutually exclusive groups; see utils/lfdBuckets.js. The same
       // filters back `GET /loads?lfd=…`, so each tile and the list it opens
@@ -271,6 +289,8 @@ const getStats = async (req, res) => {
         loadPlanner,
         newLoads,
         assignedLoads,
+        readyToPickupLoads,
+        unassignedLoads,
         pickedupLoads,
         enrouteLoads,
         reachedDestinationLoads,

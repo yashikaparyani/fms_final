@@ -117,7 +117,7 @@ const drawCenteredCellText = (doc, text, x, y, width, height, options = {}) => {
   });
 };
 
-const buildPodDocument = async ({ load, signatureData }) => {
+const buildPodDocument = async ({ load, signatureData, receivedBy }) => {
   ensurePodDir();
 
   const fileName = `${load.loadId}-POD.pdf`;
@@ -260,6 +260,26 @@ const buildPodDocument = async ({ load, signatureData }) => {
 
   doc.font("Helvetica-Bold").fontSize(8).text("RECEIVED", 490, 368);
   doc.font("Helvetica-Bold").fontSize(8).text("BY    X", 490, 382);
+
+  // The name under the signature. A mark on its own does not say who took the
+  // delivery, and that is the first thing asked when one is disputed — so the
+  // name the driver was given at the door is printed with it, in the strip
+  // below the signature box.
+  const receiverName = safeText(receivedBy?.name || load.receivedBy?.name || "");
+  if (receiverName) {
+    const receiverTitle = safeText(receivedBy?.title || load.receivedBy?.title || "");
+    doc
+      .font("Helvetica")
+      .fontSize(6.5)
+      .fillColor("#374151")
+      .text(
+        receiverTitle ? `${receiverName} — ${receiverTitle}` : receiverName,
+        466,
+        390,
+        { width: 188, align: "right", ellipsis: true },
+      );
+    doc.fillColor("#111827");
+  }
 
   if (signatureData) {
     const signatureBuffer = Buffer.from(signatureData.split(",")[1] || signatureData, "base64");

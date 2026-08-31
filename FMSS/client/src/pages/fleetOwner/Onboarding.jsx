@@ -91,6 +91,7 @@ const Onboarding = () => {
   const [profile, setProfile] = useState({});
   const [equipment, setEquipment] = useState([{ ...EQUIPMENT_BLANK }]);
   const [errors, setErrors] = useState({});
+  const [equipmentErrors, setEquipmentErrors] = useState({});
 
   const [driverRows, setDriverRows] = useState([{ ...DRIVER_BLANK }]);
   const [driverErrors, setDriverErrors] = useState({});
@@ -154,7 +155,47 @@ const Onboarding = () => {
     });
   };
 
+  /**
+   * Per-row VIN problems, keyed by row index for BulkEntryTable.
+   *
+   * The same rule the server applies (and the same one the phone app applies):
+   * a VIN is exactly 17 characters and never uses I, O or Q. Checked here as
+   * well as there so a transposed character is caught while the truck is still
+   * in front of the person typing, rather than on a round trip.
+   */
+  const vinErrorsFor = (rows) => {
+    const column = equipmentColumns.find((c) => c.key === "vin");
+    if (!column?.pattern) return {};
+
+    const shape = new RegExp(column.pattern);
+    const problems = {};
+
+    rows.forEach((row, index) => {
+      const vin = String(row.vin || "").trim().toUpperCase();
+      if (!vin || shape.test(vin)) return; // blank is unfinished, not wrong
+
+      problems[index] =
+        vin.length === 17
+          ? column.patternMessage
+          : `A VIN is 17 characters — this one has ${vin.length}.`;
+    });
+
+    return problems;
+  };
+
   const saveProgress = async ({ silent = false, nextStep } = {}) => {
+    // Checked against the rows as displayed, so a complaint lands on the row the
+    // carrier is looking at rather than on its position in the filtered payload.
+    const vinProblems = vinErrorsFor(equipment);
+
+    if (Object.keys(vinProblems).length) {
+      setEquipmentErrors(vinProblems);
+      notify.error("Check the VINs highlighted below — a VIN is 17 characters.");
+      return false;
+    }
+
+    setEquipmentErrors({});
+
     try {
       setSaving(true);
       const { data: saved } = await api.put("/onboarding/profile", {
@@ -629,8 +670,17 @@ const Onboarding = () => {
               <BulkEntryTable
                 columns={equipmentColumns}
                 rows={equipment}
-                onChange={setEquipment}
+                onChange={(rows) => {
+                  setEquipment(rows);
+                  // Clear a row's complaint as soon as it is being corrected —
+                  // leaving it red while the VIN is retyped reads as a second
+                  // failure.
+                  setEquipmentErrors((current) =>
+                    Object.keys(current).length ? vinErrorsFor(rows) : current,
+                  );
+                }}
                 blankRow={EQUIPMENT_BLANK}
+                errors={equipmentErrors}
                 addLabel="Add equipment"
               />
             )}

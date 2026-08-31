@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { PRE_DISPATCH, STATUS_BADGE_COLORS } from "../utils/loadColorMode";
+import { transportStatusLabel } from "../utils/transportStatus";
 // ── Status → row colour mapping ──────────────────────────────
 const statusRowColor = {
   // Transport status colours
@@ -26,6 +28,14 @@ const statusRowColor = {
 };
 
 const defaultRowColor = { bg: "#ffffff", border: "#e5e7eb" };
+
+const defaultBadge = { bg: "#f3f4f6", color: "#374151" };
+
+/** Inline style for a transport-status pill — see STATUS_BADGE_COLORS. */
+const statusBadgeStyle = (status) => {
+  const { bg, color } = STATUS_BADGE_COLORS[status] || defaultBadge;
+  return { backgroundColor: bg, color };
+};
 
 const getRowColor = (load, colorBy, colorMap) => {
   const val = load[colorBy];
@@ -127,27 +137,17 @@ const LoadIdCell = ({ load, onClick }) => {
           {load.containerNo}
         </div>
       )}
-      {load.transportStatus && load.transportStatus !== "NEW_LOAD" && load.transportStatus !== "LOAD_PLANNER" && (
+      {/* Pre-dispatch statuses are left off: every row in the Pending table
+          holds one, so printing it says nothing about that particular load.
+          Colours come from the shared scale — this used to sort sixteen
+          statuses into three buckets, so "reached destination", "terminated"
+          and "paperwork pending" all came out the same amber. */}
+      {load.transportStatus && !PRE_DISPATCH.has(load.transportStatus) && (
         <span
           className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded"
-          style={{
-            backgroundColor:
-              load.transportStatus === "DELIVERED"
-                ? "#dcfce7"
-                : load.transportStatus === "PICKED_UP" ||
-                    load.transportStatus === "IN_TRANSIT"
-                  ? "#dbeafe"
-                  : "#fef3c7",
-            color:
-              load.transportStatus === "DELIVERED"
-                ? "#166534"
-                : load.transportStatus === "PICKED_UP" ||
-                    load.transportStatus === "IN_TRANSIT"
-                  ? "#1e40af"
-                  : "#92400e",
-          }}
+          style={statusBadgeStyle(load.transportStatus)}
         >
-          {load.transportStatus.replace(/_/g, " ")}
+          {transportStatusLabel(load.transportStatus)}
         </span>
       )}
       {load.isUrgent && (

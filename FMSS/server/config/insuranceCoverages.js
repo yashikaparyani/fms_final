@@ -14,7 +14,9 @@
 //
 // `required: true` means onboarding is not complete without it. The optional
 // ones are still collected because shippers routinely ask for them and a
-// certificate that arrives late holds up a load.
+// certificate that arrives late holds up a load. Optional does not mean
+// unchecked: a filed policy is measured against the limits and ratings below
+// whether or not it was required, so an under-limit CGL is still flagged.
 //
 // Limits are stored in whole dollars. `minLimit` is checked on submission and
 // surfaced as a warning rather than a hard rejection: a broker sometimes accepts
@@ -39,7 +41,12 @@ const COVERAGES = [
   {
     key: "generalLiability",
     label: "Commercial General Liability",
-    required: true,
+    // Optional by house policy. The agreement still asks for it and the limits
+    // below are still checked when a certificate is filed — what changed is
+    // that a missing CGL no longer holds the whole onboarding shut. Owner
+    // operators frequently carry auto liability and cargo only, and blocking
+    // them outright cost more work than it prevented.
+    required: false,
     minLimit: 1000000,
     minAggregate: 2000000,
     minAmBest: "A",
@@ -65,7 +72,11 @@ const COVERAGES = [
   {
     key: "workersComp",
     label: "Workers' Compensation",
-    required: true,
+    // Optional by house policy. A carrier with no employees is not required to
+    // carry it in most states — they carry Occupational Accident instead, which
+    // is already listed below — so a hard requirement was wrong for a large
+    // share of the carriers being onboarded.
+    required: false,
     minLimit: null, // statutory — the state sets it, not the contract
     statutory: true,
     minAggregate: null,

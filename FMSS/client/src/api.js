@@ -6,8 +6,20 @@ const api = axios.create({
   baseURL: "/api", // Proxy to backend
 });
 
+// A load id contains a space — "LD 0014" — and it is interpolated straight into
+// request paths all over the app. A literal space is not legal in a URL path, so
+// it is percent-encoded here, once, rather than at each of the sixty-odd call
+// sites that would otherwise have to remember. Only the path is touched;
+// `params` is serialised (and encoded) by axios itself.
+const encodePathSpaces = (url = "") => {
+  const [path, ...rest] = String(url).split("?");
+  return [path.replace(/ /g, "%20"), ...rest].join("?");
+};
+
 api.interceptors.request.use(
   (config) => {
+    if (config.url) config.url = encodePathSpaces(config.url);
+
     const state = store.getState();
     const token = state.auth.api_token || localStorage.getItem("api_token");
 

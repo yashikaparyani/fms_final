@@ -19,7 +19,7 @@ import {
   dropDateOf,
   isLfdAlarming,
   pickupDateOf,
-  sortByPickupDate,
+  sortByDeliveryDate,
 } from "../../utils/loadUrgency";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell } = LoadTable;
@@ -52,7 +52,7 @@ const PendingLoadsTable = () => {
 
   useAutoRefresh(() => fetchLoads({ silent: true }));
 
-  const sortedRows = useMemo(() => sortByPickupDate(rows), [rows]);
+  const sortedRows = useMemo(() => sortByDeliveryDate(rows), [rows]);
 
   const verifyLoad = async (id) => {
     const result = await Swal.fire({
@@ -174,7 +174,7 @@ const columns = [
       <div className="mb-4">
         <h2 className="text-lg font-bold text-gray-900">Pending Loads</h2>
         <p className="text-sm text-gray-500">
-          Loads awaiting verification, earliest pickup first
+          Loads awaiting verification, earliest delivery date first
         </p>
 
         <LoadColorModeToggle

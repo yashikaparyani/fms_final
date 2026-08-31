@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
+import BlockIcon from "@mui/icons-material/Block";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import EmailIcon from "@mui/icons-material/Email";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
@@ -39,7 +40,11 @@ const StaffFleetOwners = () => {
   // the spinner.
   const fetchFleetOwners = async ({ silent = false } = {}) => {
     try {
-      const res = await api.get("/fleet-owners");
+      // The directory is the one screen inactive carriers still belong on —
+      // everywhere else (the assignment pickers) they are correctly hidden.
+      const res = await api.get("/fleet-owners", {
+        params: { includeInactive: true },
+      });
       setFleetOwners(res.data);
     } catch {
       if (!silent) notify.error("Failed to fetch fleet owners");
@@ -48,27 +53,38 @@ const StaffFleetOwners = () => {
     }
   };
 
-  const handleDelete = async (id, name) => {
+  // A carrier is stood down, never deleted. Their name is stamped on every load
+  // they ever ran — every leg, every won bid, every settlement — and removing
+  // the row leaves all of that pointing at nothing, so a historical load loses
+  // its carrier and last quarter's report quietly changes. The server has no
+  // delete route at all; see setFleetOwnerStatus.
+  const handleSetActive = async (row, active) => {
     const result = await Swal.fire({
-      title: "Delete Fleet Owner?",
-      html: `Are you sure you want to delete <strong>${name}</strong>? This action cannot be undone.`,
-      icon: "warning",
+      title: active ? "Reactivate this carrier?" : "Make this carrier inactive?",
+      html: active
+        ? `<strong>${row.carrierName}</strong> will be offered loads again.`
+        : `<strong>${row.carrierName}</strong> will stop appearing in assignment ` +
+          "and bidding, but every load they have already run keeps its history.",
+      icon: active ? "question" : "warning",
       showCancelButton: true,
-      confirmButtonColor: "#dc2626",
+      confirmButtonColor: active ? "#16a34a" : "#d97706",
       cancelButtonColor: "#6b7280",
-      confirmButtonText: "Yes, Delete",
+      confirmButtonText: active ? "Yes, reactivate" : "Yes, make inactive",
       cancelButtonText: "Cancel",
     });
-    if (result.isConfirmed) {
-      try {
-        await api.delete(`/fleet-owners/${id}`);
-        notify.success("Deleted successfully");
-        fetchFleetOwners();
-      } catch {
-        notify.error("Delete failed");
-      }
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await api.patch(`/fleet-owners/${row._id}/status`, { active });
+      notify.success(res.data?.message || "Updated");
+      fetchFleetOwners();
+    } catch (err) {
+      notify.error(err?.response?.data?.message || "Could not update the carrier");
     }
   };
+
+/** `active` is the current field; `isActive` is what older rows carry. */
+  const isActiveCarrier = (row) => row.active !== false && row.isActive !== false;
 
   const handleSendCredentials = async (id) => {
     setSendingCredentials(id);
@@ -157,7 +173,23 @@ const StaffFleetOwners = () => {
       <button onClick={() => handleSendCredentials(row._id)} className="btn-secondary p-1 text-white bg-blue-600 border-blue-600"><EmailIcon fontSize="small" /></button>
       <button onClick={() => handleShareWhatsApp(row._id)} className="btn-secondary p-1 text-white bg-green-600 border-green-600"><WhatsAppIcon fontSize="small" /></button>
       <button onClick={() => navigate(`/staff/fleet-owners/${row._id}/edit`)} className="btn-secondary p-1 text-white bg-cyan-600 border-cyan-600"><EditIcon fontSize="small" /></button>
-      <button onClick={() => handleDelete(row._id, row.carrierName)} className="btn-delete p-1"><DeleteIcon fontSize="small" /></button>
+      {isActiveCarrier(row) ? (
+        <button
+          onClick={() => handleSetActive(row, false)}
+          title="Make inactive — keeps their history, stops new loads"
+          className="btn-secondary p-1 text-white bg-amber-600 border-amber-600"
+        >
+          <BlockIcon fontSize="small" />
+        </button>
+      ) : (
+        <button
+          onClick={() => handleSetActive(row, true)}
+          title="Reactivate this carrier"
+          className="btn-secondary p-1 text-white bg-green-600 border-green-600"
+        >
+          <CheckCircleOutlineIcon fontSize="small" />
+        </button>
+      )}
     </div>
   );
 
@@ -185,7 +217,7 @@ const StaffFleetOwners = () => {
           <p className="text-center text-gray-500 py-10">Loading...</p>
         ) : filtered.length > 0 ? (
           filtered.map((f) => {
-            const isActive = f.isActive !== false;
+            const isActive = isActiveCarrier(f);
             return (
               <MobileCard
                 key={f._id}
@@ -205,7 +237,9 @@ const StaffFleetOwners = () => {
                   { icon: <EmailIcon style={{ fontSize: 18 }} />,    color: "#2563eb", onClick: () => handleSendCredentials(f._id), disabled: sendingCredentials === f._id },
                   { icon: <WhatsAppIcon style={{ fontSize: 18 }} />, color: "#16a34a", onClick: () => handleShareWhatsApp(f._id),  disabled: sendingCredentials === f._id },
                   { icon: <EditIcon style={{ fontSize: 18 }} />,     color: "#0891b2", onClick: () => navigate(`/staff/fleet-owners/${f._id}/edit`) },
-                  { icon: <DeleteIcon style={{ fontSize: 18 }} />,   color: "#dc2626", onClick: () => handleDelete(f._id, f.carrierName) },
+                  isActive
+                    ? { icon: <BlockIcon style={{ fontSize: 18 }} />, color: "#d97706", onClick: () => handleSetActive(f, false) }
+                    : { icon: <CheckCircleOutlineIcon style={{ fontSize: 18 }} />, color: "#16a34a", onClick: () => handleSetActive(f, true) },
                 ]}
               />
             );

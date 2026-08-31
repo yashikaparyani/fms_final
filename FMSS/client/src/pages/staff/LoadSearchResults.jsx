@@ -16,13 +16,28 @@ const TAB_OF_STATUS = {
   ASSIGNED:             { key: "assigned", label: "All Transit",         className: "bg-blue-100 text-blue-800" },
 };
 
-const TAB_ROW_COLOR = {
-  pending:  { bg: "#fffbeb", border: "#f59e0b" },
-  verified: { bg: "#edf9ee", border: "#22c55e" },
-  assigned: { bg: "#eff6ff", border: "#3b82f6" },
+// An invoiceable load is still workflow-status ASSIGNED, but it has left All
+// Transit for Accounting (see ACCOUNTING_TRANSPORT_STATUSES in
+// server/controllers/loadController.js). Labelling it "All Transit" would send
+// somebody to a tab it is no longer in, so the transport status is checked
+// first.
+const ACCOUNTING_TAB = {
+  key: "accounting",
+  label: "Accounting",
+  className: "bg-purple-100 text-purple-800",
 };
 
-const tabOf = (row) => TAB_OF_STATUS[row.status] || null;
+const TAB_ROW_COLOR = {
+  pending:    { bg: "#fffbeb", border: "#f59e0b" },
+  verified:   { bg: "#edf9ee", border: "#22c55e" },
+  assigned:   { bg: "#eff6ff", border: "#3b82f6" },
+  accounting: { bg: "#faf5ff", border: "#a855f7" },
+};
+
+const tabOf = (row) =>
+  row.transportStatus === "INVOICED"
+    ? ACCOUNTING_TAB
+    : TAB_OF_STATUS[row.status] || null;
 
 const TabBadge = ({ row }) => {
   const tab = tabOf(row);
@@ -93,12 +108,9 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
           </h2>
           {!loading && results.length > 0 && (
             <p className="text-sm text-gray-500">
-              {["pending", "verified", "assigned"]
-                .filter((k) => counts[k])
-                .map((k) => {
-                  const label = Object.values(TAB_OF_STATUS).find((t) => t.key === k).label;
-                  return `${counts[k]} in ${label}`;
-                })
+              {[...Object.values(TAB_OF_STATUS), ACCOUNTING_TAB]
+                .filter((tab) => counts[tab.key])
+                .map((tab) => `${counts[tab.key]} in ${tab.label}`)
                 .join(" · ")}
             </p>
           )}

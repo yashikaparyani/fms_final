@@ -54,6 +54,11 @@ const UpdateLoadStatusPage = () => {
   const [note, setNote] = useState("");
   const [files, setFiles] = useState([]);
   const [signatureData, setSignatureData] = useState("");
+  // Who took the delivery. A signature proves somebody signed, not who —
+  // and "who signed for it" is the first question asked when a delivery is
+  // disputed weeks later.
+  const [receivedByName, setReceivedByName] = useState("");
+  const [receivedByTitle, setReceivedByTitle] = useState("");
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
 
@@ -102,6 +107,13 @@ const UpdateLoadStatusPage = () => {
       return;
     }
 
+    if (transportStatus === "DELIVERED" && !receivedByName.trim()) {
+      const message = "Enter the name of the person who took the delivery";
+      setSubmitError(message);
+      notify.error(message);
+      return;
+    }
+
     let location;
     try {
       setLocating(true);
@@ -124,6 +136,10 @@ const UpdateLoadStatusPage = () => {
       formData.append("longitude", location.longitude);
       if (location.accuracy) formData.append("accuracy", location.accuracy);
       if (signatureData) formData.append("signatureData", signatureData);
+      if (receivedByName.trim()) {
+        formData.append("receivedByName", receivedByName.trim());
+        formData.append("receivedByTitle", receivedByTitle.trim());
+      }
       files.forEach((file) => formData.append("proofImages", file));
 
       await api.put(`/loads/${loadId}/transport-status`, formData);
@@ -394,6 +410,41 @@ const UpdateLoadStatusPage = () => {
                     : "No supporting files selected"}
                 </div>
               </div>
+
+              {transportStatus === "DELIVERED" && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{
+                    display: "block", fontSize: 11, fontWeight: 700,
+                    color: "#6b7280", marginBottom: 8,
+                    textTransform: "uppercase", letterSpacing: "0.06em",
+                  }}>
+                    Received by{requiredMark}
+                  </label>
+                  <input
+                    type="text"
+                    value={receivedByName}
+                    onChange={(e) => setReceivedByName(e.target.value)}
+                    placeholder="Name of the person who took the delivery"
+                    style={{
+                      width: "100%", padding: "8px 10px", fontSize: 14,
+                      border: "1px solid #d1d5db", borderRadius: 8, marginBottom: 8,
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={receivedByTitle}
+                    onChange={(e) => setReceivedByTitle(e.target.value)}
+                    placeholder="Their role (optional) — e.g. Warehouse supervisor"
+                    style={{
+                      width: "100%", padding: "8px 10px", fontSize: 14,
+                      border: "1px solid #d1d5db", borderRadius: 8,
+                    }}
+                  />
+                  <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
+                    Printed on the POD beside the signature.
+                  </p>
+                </div>
+              )}
 
               {transportStatus === "DELIVERED" && (
                 <div>

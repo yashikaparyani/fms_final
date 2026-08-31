@@ -129,7 +129,7 @@ Content-Type: application/json
 ```json
 {
   "_id": "MONGO_OBJECT_ID",
-  "loadId": "LD-0001",
+  "loadId": "LD 0001",
   "customerName": "Client Name",
   "status": "DRAFT",
   "transportStatus": "NEW_LOAD",
@@ -139,7 +139,7 @@ Content-Type: application/json
 }
 ```
 
-**Capture:** Note down `loadId` (e.g., "LD-0001") for subsequent tests
+**Capture:** Note down `loadId` (e.g., "LD 0001") for subsequent tests
 
 ---
 
@@ -188,7 +188,7 @@ Content-Type: application/json
 **Steps:**
 1. Log in as Staff/Admin
 2. Navigate to Loads List
-3. Click on load "LD-0001" to open details page
+3. Click on load "LD 0001" to open details page
 4. Scroll through entire page
 
 **Verification - Identification Section:**
@@ -373,7 +373,7 @@ Content-Type: application/json
 
 **Steps:**
 1. Log in as Staff
-2. Navigate to Load "LD-0001"
+2. Navigate to Load "LD 0001"
 3. Verify load status is "VERIFIED" (required for bid scheduling)
 4. If status is still "DRAFT" or "PENDING_VERIFICATION", verify/approve load
 
@@ -390,10 +390,10 @@ Content-Type: application/json
 
 **Steps:**
 1. Log in as Staff
-2. Navigate to Load "LD-0001"
+2. Navigate to Load "LD 0001"
 3. Call API to schedule bidding:
 
-**POST** `http://localhost:5001/loads/LD-0001/schedule-bidding`
+**POST** `http://localhost:5001/loads/LD 0001/schedule-bidding`
 
 **Headers:**
 ```
@@ -414,7 +414,7 @@ Content-Type: application/json
 **Expected Response:**
 ```json
 {
-  "loadId": "LD-0001",
+  "loadId": "LD 0001",
   "bidStatus": "OPEN",
   "bidStartTime": "2026-05-16T14:00:00Z",
   "bidEndTime": "2026-05-16T18:00:00Z",
@@ -441,9 +441,9 @@ Content-Type: application/json
 
 **Steps:**
 1. Create 2-3 test Fleet Owner accounts if needed
-2. Each logs in and submits bids on load "LD-0001"
+2. Each logs in and submits bids on load "LD 0001"
 
-**POST** `http://localhost:5001/loads/LD-0001/submit-bid`
+**POST** `http://localhost:5001/loads/LD 0001/submit-bid`
 
 **Request (Fleet Owner 1):**
 ```json
@@ -484,7 +484,7 @@ Content-Type: application/json
 1. Log in as Staff
 2. After bids are submitted, call award-bid endpoint to select Fleet Owner 2 (4100 bid)
 
-**POST** `http://localhost:5001/loads/LD-0001/award-bid`
+**POST** `http://localhost:5001/loads/LD 0001/award-bid`
 
 **Headers:**
 ```
@@ -503,7 +503,7 @@ Content-Type: application/json
 **Expected Response:**
 ```json
 {
-  "loadId": "LD-0001",
+  "loadId": "LD 0001",
   "winningBid": {
     "fleetOwnerId": "FLEET_OWNER_2_ID",
     "fleetOwnerName": "Fleet Owner 2",
@@ -619,13 +619,13 @@ Content-Type: application/json
 ### Test Case 4.7: Rebid Load (REQ 16)
 **Objective:** Test REQ 16 - Reset load, clear all bids, restart bidding
 
-**Pre-condition:** Load with awarded bid (use LD-0001 from Test 4.4)
+**Pre-condition:** Load with awarded bid (use LD 0001 from Test 4.4)
 
 **Steps:**
-1. Verify load LD-0001 has winningBid and bidStatus="CLOSED"
+1. Verify load LD 0001 has winningBid and bidStatus="CLOSED"
 2. Call rebid endpoint to clear all bids and restart
 
-**POST** `http://localhost:5001/loads/LD-0001/rebid`
+**POST** `http://localhost:5001/loads/LD 0001/rebid`
 
 **Request Body:**
 ```json
@@ -638,7 +638,7 @@ Content-Type: application/json
 **Expected Response:**
 ```json
 {
-  "loadId": "LD-0001",
+  "loadId": "LD 0001",
   "bidStatus": "OPEN",
   "bids": [],
   "winningBid": null,
@@ -668,7 +668,7 @@ Content-Type: application/json
 
 **Steps:**
 1. Log in as Fleet Owner or Driver
-2. Use load LD-0001 (should be ASSIGNED from Test 4.4)
+2. Use load LD 0001 (should be ASSIGNED from Test 4.4)
 3. In Load Details, click Transport Status: "PICKED_UP"
 4. Click "Save Details"
 
@@ -748,13 +748,13 @@ Content-Type: application/json
 **Verification (Backend - Check API response):**
 ```json
 {
-  "loadId": "LD-0001",
+  "loadId": "LD 0001",
   "transportStatus": "DELIVERED",
   "documents": [
     {
       "documentType": "Proof of Delivery",
-      "fileName": "LD-0001-POD.pdf",
-      "filePath": "uploads/pod/LD-0001-POD.pdf",
+      "fileName": "LD 0001-POD.pdf",
+      "filePath": "uploads/pod/LD 0001-POD.pdf",
       "dateReceived": "2026-05-16T20:30:45.123Z"
     },
     ...
@@ -773,18 +773,18 @@ Content-Type: application/json
 1. In server terminal, verify file exists:
 
 ```bash
-Test-Path "D:\fms\FMSS\FMSS\server\uploads\pod\LD-0001-POD.pdf"
+Test-Path "D:\fms\FMSS\FMSS\server\uploads\pod\LD 0001-POD.pdf"
 # Expected: True
 ```
 
 2. Optionally, check file size:
 ```bash
-Get-Item "D:\fms\FMSS\FMSS\server\uploads\pod\LD-0001-POD.pdf" | Select-Object Length
+Get-Item "D:\fms\FMSS\FMSS\server\uploads\pod\LD 0001-POD.pdf" | Select-Object Length
 # Expected: ~10-50 KB (PDF file with embedded data)
 ```
 
 **Verification:**
-- [ ] File exists at path: `server/uploads/pod/LD-0001-POD.pdf`
+- [ ] File exists at path: `server/uploads/pod/LD 0001-POD.pdf`
 - [ ] File size > 0 KB (not empty)
 - [ ] File is readable PDF (try opening in Adobe Reader or browser)
 
@@ -803,7 +803,7 @@ Get-Item "D:\fms\FMSS\FMSS\server\uploads\pod\LD-0001-POD.pdf" | Select-Object L
 **Verification:**
 - [ ] POD appears as row in Documents table
 - [ ] Document Type: "Proof of Delivery"
-- [ ] File Name: "LD-0001-POD.pdf"
+- [ ] File Name: "LD 0001-POD.pdf"
 - [ ] Date Received: Current timestamp (or delivery timestamp)
 - [ ] "View" link present
 - [ ] No Delete button next to POD (cannot delete auto-generated)
@@ -831,7 +831,7 @@ Get-Item "D:\fms\FMSS\FMSS\server\uploads\pod\LD-0001-POD.pdf" | Select-Object L
   - Loading/Unloading times table
   - Signature section (if signature data provided)
 - [ ] Can download PDF
-- [ ] File name: `LD-0001-POD.pdf`
+- [ ] File name: `LD 0001-POD.pdf`
 
 **Pass Criteria:** PDF opens, displays correctly, contains expected load information
 
@@ -879,7 +879,7 @@ Get-Item "D:\fms\FMSS\FMSS\server\uploads\pod\LD-0001-POD.pdf" | Select-Object L
 1. Use MongoDB Compass or Postman to query load:
 
 ```
-GET http://localhost:5001/loads/LD-0001
+GET http://localhost:5001/loads/LD 0001
 ```
 
 2. Review response JSON structure
@@ -888,7 +888,7 @@ GET http://localhost:5001/loads/LD-0001
 - [ ] Load document contains:
   ```json
   {
-    "loadId": "LD-0001",
+    "loadId": "LD 0001",
     "customerName": "Client Name",
     "refNo": "TEST-REF-001",
     "bidStatus": "CLOSED",
@@ -905,8 +905,8 @@ GET http://localhost:5001/loads/LD-0001
     "documents": [
       {
         "documentType": "Proof of Delivery",
-        "fileName": "LD-0001-POD.pdf",
-        "filePath": "uploads/pod/LD-0001-POD.pdf",
+        "fileName": "LD 0001-POD.pdf",
+        "filePath": "uploads/pod/LD 0001-POD.pdf",
         "dateReceived": "2026-05-16T..."
       },
       {
@@ -939,7 +939,7 @@ GET http://localhost:5001/loads/LD-0001
 **Objective:** Final verification that all page sections display correctly
 
 **Steps:**
-1. Open Load Details for LD-0001
+1. Open Load Details for LD 0001
 2. Verify each section one more time
 
 **Verification Checklist:**
@@ -1029,7 +1029,7 @@ GET http://localhost:5001/loads/LD-0001
 
 ### POD Auto-Generation ✓
 - [ ] PDF generated on DELIVERED status
-- [ ] File created at: `server/uploads/pod/LD-0001-POD.pdf`
+- [ ] File created at: `server/uploads/pod/LD 0001-POD.pdf`
 - [ ] Document added to load.documents array
 - [ ] POD viewable/downloadable
 
@@ -1067,7 +1067,7 @@ GET http://localhost:5001/loads/LD-0001
 
 ```bash
 # Reset test load data
-db.loads.deleteOne({ loadId: "LD-0001" })
+db.loads.deleteOne({ loadId: "LD 0001" })
 db.loads.deleteOne({ loadId: "LD-0002" })
 db.loads.deleteOne({ loadId: "LD-0003" })
 

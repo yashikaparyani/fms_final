@@ -42,6 +42,8 @@ const ensureDir = () => fs.mkdirSync(AGREEMENT_DIR, { recursive: true });
 const safe = (value) =>
   value === undefined || value === null || value === "" ? "—" : String(value);
 
+const trimmed = (value) => String(value ?? "").trim();
+
 const formatDate = (value) => {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
@@ -331,7 +333,10 @@ const pageFurniture = (doc, agreement, profile) => {
 /**
  * Render the signed agreement to a PDF on disk.
  *
- * @param {object}  args.agreementKey  "broker" | "contractor"
+ * Used for documents with no counterparty original to fill in — see
+ * documentBuilderFor in controllers/onboardingController.js.
+ *
+ * @param {object}  args.agreementKey  a key from config/carrierAgreements.js
  * @param {object}  args.profile       shared answers (config/carrierAgreements)
  * @param {object}  args.signed        the signedAgreement sub-document
  * @param {array}   args.equipment     Appendix A rows (contractor only)
@@ -400,11 +405,18 @@ const buildAgreementDocument = async ({
 
   doc.moveDown(1);
 
+  // A document we author is complete in itself; one that stands in for a
+  // counterparty's contract has to say so and point at the original, or it reads
+  // as though these three pages were the whole agreement.
+  const standsInForAnOriginal = agreement.pages > 1;
+
   paragraph(
     doc,
     `This is the executed record of the ${agreement.title} between ${agreement.counterparty} and the carrier identified below. ` +
-      `It records the particulars supplied by the carrier, the clauses they separately initialled, the acknowledgements they confirmed, and their signature. ` +
-      `The full ${agreement.pages}-page terms are those of the ${agreement.title} as furnished by ${agreement.counterparty}; paragraph and page references below point into that document.`,
+      `It records the particulars supplied by the carrier, the clauses they separately initialled, the acknowledgements they confirmed, and their signature.` +
+      (standsInForAnOriginal
+        ? ` The full ${agreement.pages}-page terms are those of the ${agreement.title} as furnished by ${agreement.counterparty}; paragraph and page references below point into that document.`
+        : ""),
     { size: 8 },
   );
 
@@ -437,6 +449,32 @@ const buildAgreementDocument = async ({
   if (agreementKey === "contractor" && signed.values?.operatingLocation) {
     heading(doc, "Operating location (Appendix B rate schedule)");
     fieldGrid(doc, [["Location", signed.values.operatingLocation]], 1);
+  }
+
+  // ── The document's own answers ───────────────────────────────────────────
+  // Everything the agreement asked for that is not an initial and not already
+  // printed above. Rendered from the schema rather than named field by field,
+  // so a document authored here (the EIN certification) states what it recorded
+  // without this file needing a branch per document.
+  //
+  // Nothing is masked. The two counterparty contracts are produced by the
+  // overlay service, so what reaches here is a document whose purpose is to
+  // record the values themselves — an EIN certification with the EIN starred
+  // out certifies nothing. Access is controlled by the download route, which
+  // streams through the API rather than /uploads.
+  const answered = (agreement.fields || []).filter(
+    (f) =>
+      f.type !== "initials" &&
+      f.key !== "operatingLocation" &&
+      trimmed(signed.values?.[f.key]),
+  );
+
+  if (answered.length) {
+    heading(doc, "Certified particulars");
+    fieldGrid(
+      doc,
+      answered.map((f) => [f.label, signed.values[f.key]]),
+    );
   }
 
   // ── Separately initialled clauses ────────────────────────────────────────

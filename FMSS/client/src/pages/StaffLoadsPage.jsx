@@ -21,6 +21,7 @@ const StaffLoadsPage = () => {
   const lfdParam = params.get("lfd"); // expired | today | upcoming
   const pickupDayParam = params.get("pickupDay"); // today | tomorrow
   const accessorialParam = params.get("accessorial") === "true";
+  const unassignedParam = params.get("unassigned") === "true";
   // Dashboard tiles count verified loads only, so a drill-down opened from one
   // passes `status` through — without it the list would show more rows than the
   // number the user just clicked.
@@ -35,9 +36,9 @@ const StaffLoadsPage = () => {
     try {
       if (!silent) setLoading(true);
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      // The LFD, pickup-day and accessorial buckets carry their own status
-      // scoping server-side, so each is requested on its own — mixing in a
-      // transport-status tab would return a subset of the dashboard tile the
+      // The LFD, pickup-day, accessorial and unassigned buckets carry their own
+      // status scoping server-side, so each is requested on its own — mixing in
+      // a transport-status tab would return a subset of the dashboard tile the
       // user just clicked.
       const query = lfdParam
         ? { lfd: lfdParam, tz }
@@ -45,7 +46,9 @@ const StaffLoadsPage = () => {
           ? { pickupDay: pickupDayParam, tz }
           : accessorialParam
             ? { accessorial: "true" }
-            : { transportStatus: fetchStatus, ...(statusParam && { status: statusParam }) };
+            : unassignedParam
+              ? { unassigned: "true" }
+              : { transportStatus: fetchStatus, ...(statusParam && { status: statusParam }) };
       const res = await api.get("/loads", { params: query });
       setRows(res.data);
     } catch (err) {
@@ -61,7 +64,14 @@ const StaffLoadsPage = () => {
     fetchLoads();
     // Refetching is driven by the active filter alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchStatus, lfdParam, pickupDayParam, accessorialParam, statusParam]);
+  }, [
+    fetchStatus,
+    lfdParam,
+    pickupDayParam,
+    accessorialParam,
+    unassignedParam,
+    statusParam,
+  ]);
 
   // Hold the refresh while an assignment picker or the scheduling modal is
   // open, so a row cannot shift or vanish mid-action.
@@ -87,6 +97,7 @@ const StaffLoadsPage = () => {
     { key: "IN_TRANSIT", label: "In Transit" },
     { key: "PICKED_UP", label: "Picked Up" },
     { key: "ASSIGNED", label: "Assigned" },
+    { key: "READY_TO_PICKUP", label: "Ready to Pickup" },
     { key: "NEW_LOAD", label: "New Load" },
     { key: "REACHED_DESTINATION", label: "Reached Dest." },
     { key: "DRIVER_ON_WAITING", label: "Driver Waiting" },

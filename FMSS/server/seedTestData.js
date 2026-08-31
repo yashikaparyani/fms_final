@@ -87,7 +87,7 @@ mongoose.connect("mongodb://127.0.0.1:27017/fms")
 
     // ── Sample loads ─────────────────────────────────────────────
     // customer field requires an ObjectId — use clientUser._id.
-    // Let the Load pre-save hook auto-generate loadId (LD-XXXX format).
+    // Let the Load pre-save hook auto-generate loadId ("LD 0001").
     const now = new Date();
     const T   = (h) => new Date(now.getTime() + h * 60 * 60 * 1000);
 

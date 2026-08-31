@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
+import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import { money } from "../../components/accounting/ChargeEditor";
@@ -11,9 +12,16 @@ import { notify } from "../../utils/swal";
 // ─── Financial summary ────────────────────────────────────────────────────────
 // Revenue against expense across loads, and what each driver is owed.
 //
-// Two tabs rather than two screens, because they answer the same question from
-// two directions — "did this period make money" and "who do we still have to
-// pay" — and an accountant closing a month looks at both.
+// Three tabs rather than three screens, because they answer the same question
+// from three directions — "what still has to be billed", "did this period make
+// money" and "who do we still have to pay" — and an accountant closing a month
+// looks at all of them.
+//
+// The first of those is the queue. A load marked invoiceable leaves dispatch's
+// All Transit tab and arrives here (see ACCOUNTING_TRANSPORT_STATUSES in
+// server/controllers/loadController.js); it is the only tab that ignores the
+// date range, because a load that has been waiting to be billed since last month
+// is precisely the one that must not fall off the screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const startOfMonth = () => {
@@ -26,9 +34,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 const AccountingSummary = () => {
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState("loads");
+  const [tab, setTab] = useState("invoiceable");
   const [range, setRange] = useState({ from: startOfMonth(), to: today() });
   const [summary, setSummary] = useState(null);
+  const [invoiceable, setInvoiceable] = useState(null);
   const [payroll, setPayroll] = useState(null);
   const [unsettledOnly, setUnsettledOnly] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -36,11 +45,16 @@ const AccountingSummary = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [summaryRes, payrollRes] = await Promise.all([
+      const [summaryRes, invoiceableRes, payrollRes] = await Promise.all([
         api.get("/accounting/summary", { params: range }),
+        // Deliberately unranged — see the note at the top of the file.
+        api.get("/accounting/summary", {
+          params: { transportStatus: "INVOICED" },
+        }),
         api.get("/accounting/payroll", { params: { ...range, unsettledOnly } }),
       ]);
       setSummary(summaryRes.data);
+      setInvoiceable(invoiceableRes.data);
       setPayroll(payrollRes.data);
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not load the figures");
@@ -211,9 +225,15 @@ const AccountingSummary = () => {
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-200">
         {[
+          {
+            key: "invoiceable",
+            label: "Awaiting invoice",
+            icon: ReceiptLongOutlinedIcon,
+            count: invoiceable?.rows?.length || 0,
+          },
           { key: "loads", label: "Per load", icon: AssessmentOutlinedIcon },
           { key: "payroll", label: "Payroll", icon: BadgeOutlinedIcon },
-        ].map(({ key, label, icon: Icon }) => (
+        ].map(({ key, label, icon: Icon, count }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -224,11 +244,31 @@ const AccountingSummary = () => {
             }`}
           >
             <Icon fontSize="small" /> {label}
+            {count > 0 && (
+              <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                {count}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {tab === "loads" ? (
+      {tab === "invoiceable" ? (
+        <>
+          <p className="text-sm text-gray-500">
+            Loads dispatch has marked invoiceable. They have left All Transit and
+            are waiting to be billed — the date range above does not apply here.
+          </p>
+          <LoadTable
+            loads={invoiceable?.rows || []}
+            columns={columns}
+            loading={loading}
+            colorBy="__none"
+            pageSize={20}
+            emptyMessage="Nothing waiting to be invoiced."
+          />
+        </>
+      ) : tab === "loads" ? (
         <LoadTable
           loads={summary?.rows || []}
           columns={columns}

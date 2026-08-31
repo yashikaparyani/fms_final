@@ -19,7 +19,12 @@ const {
   PICKUP_DAYS,
   pickupDayFilter,
   accessorialFilter,
+  unassignedFilter,
 } = require("../utils/dashboardBuckets");
+const {
+  carrierAvailability,
+  atCapacityMessage,
+} = require("../utils/carrierCapacity");
 const {
   sendLoadRequiresChanges,
   sendBidWon,
@@ -646,15 +651,43 @@ const SEARCHABLE_TAB_STATUSES = ["PENDING_VERIFICATION", "VERIFIED", "ASSIGNED"]
 //
 // Defined here rather than in the browser so the two halves of the split cannot
 // drift: All Transit asks for everything but these, the Over tab asks for
-// exactly these, and adding a fifth terminal status moves loads between the two
-// tabs from one edit. The phone app keeps its own copy of this list
-// (mobile/App.js) because it filters a different endpoint client-side.
+// exactly these, and adding a terminal status moves loads between the two tabs
+// from one edit. The phone app keeps its own copy of this list (mobile/App.js)
+// because it filters a different endpoint client-side.
+//
+// "Over" means the truck has finished with it, not that the box has been
+// emptied: a container loaded in the yard or dropped at a warehouse is sitting
+// somewhere waiting on somebody else, and dispatch has nothing left to do about
+// it. Both used to sit in All Transit indefinitely, which is why that tab filled
+// up with loads nobody was moving.
 const COMPLETED_TRANSPORT_STATUSES = [
   "DELIVERED",
   "TERMINATED",
   "STREET_TURN",
   "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "DROP_IN_WAREHOUSE",
 ];
+
+// Transport statuses that hand the load to the back office. An invoiceable load
+// is finished as far as dispatch is concerned — nothing about it will move
+// again — but it is not finished as a piece of work: somebody still has to bill
+// it. So it leaves All Transit without landing in Over, and turns up in
+// Accounting instead, which is where the person who has to act on it is sitting.
+//
+// Kept separate from COMPLETED_TRANSPORT_STATUSES rather than added to it: the
+// Over tab is the archive of journeys that ended, and a load waiting to be
+// invoiced filed under "done" is exactly how it stops being invoiced.
+const ACCOUNTING_TRANSPORT_STATUSES = ["INVOICED"];
+
+// Everything that has left dispatch's hands, by one route or the other.
+const OFF_TRANSIT_TRANSPORT_STATUSES = [
+  ...COMPLETED_TRANSPORT_STATUSES,
+  ...ACCOUNTING_TRANSPORT_STATUSES,
+];
+
+/** Trimmed string, or "" — multipart bodies arrive as strings either way. */
+const trimmedText = (value) => String(value ?? "").trim();
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -714,11 +747,70 @@ const getLoads = async (req, res) => {
       query.creatorId = req.user._id;
     }
 
+    // The carrier's own bids on whatever comes back, resolved once and attached
+    // to the payload below. Populated only for a fleet owner.
+    let bidsByLoad = null;
+
     if (req.user.role === "fleetOwner") {
-      query.status = "VERIFIED";
-      query.bidStatus = req.query.bidStatus
-        ? req.query.bidStatus
-        : { $in: ["OPEN", "UPCOMING"] };
+      const carrier = await findCarrierFor(req.user, "_id");
+
+      // A counter-offer the office has put to this carrier and not yet had an
+      // answer to. It belongs on their board whatever the bid window is doing —
+      // the window has usually closed by the time an offer is made, and an
+      // offer nobody can see is an offer nobody answers.
+      const negotiatingLoadIds = carrier
+        ? (
+            await Bid.find({
+              fleetOwnerId: carrier._id,
+              "negotiation.status": "PENDING",
+            })
+              .select("loadId")
+              .lean()
+          ).map((bid) => bid.loadId)
+        : [];
+
+      // ─── One truck, one load ───────────────────────────────────────────────
+      // A carrier with every truck already committed is not shown the board at
+      // all. Browsing loads they are not allowed to accept wastes their time
+      // and produces bids the office then has to unpick — see
+      // utils/carrierCapacity.js. Their open negotiations are the one exception:
+      // an offer already made to them is theirs to answer, and hiding it would
+      // strand a live negotiation with no way to decline it.
+      const availability = await carrierAvailability(carrier?._id);
+
+      if (availability.atCapacity) {
+        if (!negotiatingLoadIds.length) return res.json([]);
+        query._id = { $in: negotiatingLoadIds };
+      } else if (negotiatingLoadIds.length) {
+        query.$or = [
+          {
+            status: "VERIFIED",
+            bidStatus: req.query.bidStatus
+              ? req.query.bidStatus
+              : { $in: ["OPEN", "UPCOMING"] },
+          },
+          { _id: { $in: negotiatingLoadIds } },
+        ];
+      }
+
+      // Only applied as plain fields when the `$or` above did not already say
+      // it — the two forms cannot both be present or they would intersect and
+      // drop the negotiated loads straight back out.
+      if (!query.$or) {
+        query.status = "VERIFIED";
+        query.bidStatus = req.query.bidStatus
+          ? req.query.bidStatus
+          : { $in: ["OPEN", "UPCOMING"] };
+      }
+
+      bidsByLoad = new Map(
+        carrier
+          ? (await Bid.find({ fleetOwnerId: carrier._id }).lean()).map((bid) => [
+              String(bid.loadId),
+              bid,
+            ])
+          : [],
+      );
     }
 
     if (req.query.status && req.user.role !== "fleetOwner") {
@@ -729,15 +821,21 @@ const getLoads = async (req, res) => {
       query.bidStatus = req.query.bidStatus;
     }
 
-    // `?completed=true` is the Over tab, `?completed=false` is everything
-    // still running. Skipped when the caller named a transport status
-    // outright — the status dropdown is more specific than the tab split and
-    // must win, or filtering for Delivered would come back empty.
-    if (req.query.completed !== undefined && !req.query.transportStatus) {
+    // `?completed=true` is the Over tab, `?completed=false` is everything still
+    // running, and `?accounting=true` is the loads waiting to be invoiced.
+    // Skipped when the caller named a transport status outright — the status
+    // dropdown is more specific than the tab split and must win, or filtering
+    // for Delivered would come back empty.
+    //
+    // All Transit excludes both terminal sets, so an invoiceable load drops out
+    // of it without turning up in Over.
+    if (req.query.accounting === "true" && !req.query.transportStatus) {
+      query.transportStatus = { $in: ACCOUNTING_TRANSPORT_STATUSES };
+    } else if (req.query.completed !== undefined && !req.query.transportStatus) {
       query.transportStatus =
         req.query.completed === "true"
           ? { $in: COMPLETED_TRANSPORT_STATUSES }
-          : { $nin: COMPLETED_TRANSPORT_STATUSES };
+          : { $nin: OFF_TRANSIT_TRANSPORT_STATUSES };
     }
 
     if (
@@ -783,9 +881,21 @@ const getLoads = async (req, res) => {
       Object.assign(query, accessorialFilter());
     }
 
+    // `?unassigned=true` opens the loads behind the Unassigned tile — verified
+    // work nobody is carrying, whose status is locked until somebody is.
+    if (req.query.unassigned === "true" && req.user.role !== "fleetOwner") {
+      Object.assign(query, unassignedFilter());
+    }
+
     const term = (req.query.q || "").trim();
     if (term) {
-      query.$or = await buildSearchClause(term);
+      // Nested under `$and` rather than assigned to `query.$or`: the carrier
+      // visibility scope above may already own the top-level `$or`, and one
+      // silently overwriting the other returns the wrong loads rather than
+      // failing.
+      (query.$and = query.$and || []).push({
+        $or: await buildSearchClause(term),
+      });
       // With no explicit status, a search spans the three tabs at once. The
       // role scoping above still applies on top of this.
       if (!req.query.status && req.user.role !== "fleetOwner") {
@@ -837,12 +947,39 @@ const getLoads = async (req, res) => {
           customerName = customerRecord?.customerName || "—";
         }
 
+        // The carrier's own bid on this load, and any counter-offer waiting on
+        // them. Attached here so the board can mark a negotiated load as such
+        // rather than showing it as an ordinary open one — the difference is
+        // the whole point of the offer.
+        const myBid = bidsByLoad?.get(String(load._id));
+
         return {
           ...load,
           customerName,
           bidCount: bidCountMap.get(String(load._id)) || load.bids?.length || 0,
           pickup: hydrateStopFromAddressMap(load.pickup, addressMap),
           drop: hydrateStopFromAddressMap(load.drop, addressMap),
+          ...(bidsByLoad
+            ? {
+                myBid: myBid
+                  ? { amount: myBid.amount, status: myBid.status }
+                  : null,
+                // Only a still-open offer. Once answered, `amount` above
+                // already reflects the outcome — the same shape /bidRoutes/myBids
+                // returns, so the two screens read it the same way.
+                negotiation:
+                  myBid?.negotiation?.status === "PENDING"
+                    ? {
+                        // Carried so the board can answer the offer in place —
+                        // /negotiation/respond identifies the bid, not the load.
+                        bidId: myBid._id,
+                        amount: myBid.negotiation.amount,
+                        previousAmount: myBid.negotiation.previousAmount,
+                        offeredAt: myBid.negotiation.offeredAt,
+                      }
+                    : null,
+              }
+            : {}),
         };
       }),
     );
@@ -1157,8 +1294,18 @@ const updateLoad = async (req, res) => {
         // actually waiting for changes.
         if (req.body.status !== "REQUIRES_CHANGES") load.changesNote = undefined;
       }
-      if (req.body.transportStatus)
+      // Same rule the dedicated status endpoint enforces — see the note there.
+      // An edit screen is not a way around it.
+      if (req.body.transportStatus) {
+        if (!load.hasCarrier()) {
+          return res.status(409).json({
+            code: "LOAD_NOT_ASSIGNED",
+            message:
+              "This load has not been assigned to a carrier yet, so its transport status cannot be set.",
+          });
+        }
         load.transportStatus = req.body.transportStatus;
+      }
     }
 
     await load.save();
@@ -1350,6 +1497,25 @@ const updateTransportStatus = async (req, res) => {
     if (!load) {
       return res.status(404).json({
         message: "Load not found",
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // NOTHING TO REPORT UNTIL SOMEBODY IS CARRYING IT
+    // ─────────────────────────────────────────────
+    // Every transport status is a statement about a carrier — ready to pick up,
+    // picked up, in transit, delivered. On an unassigned load there is nobody
+    // those statements could be about, so setting one records a movement that
+    // did not happen and then drives the dashboards, the customer's tracking
+    // page and the LFD alarms off it. The status stays locked until the load is
+    // assigned; assignment itself sets ASSIGNED, which is the first honest value
+    // it can have.
+    if (!load.hasCarrier()) {
+      return res.status(409).json({
+        success: false,
+        code: "LOAD_NOT_ASSIGNED",
+        message:
+          "This load has not been assigned to a carrier yet. Assign it first — its status cannot be updated before then.",
       });
     }
 
@@ -1591,9 +1757,35 @@ const updateTransportStatus = async (req, res) => {
         });
       }
 
+      // Who took it. Required of the carrier side for the same reason the photo
+      // is: a signature says somebody signed, not who, and "who signed for it"
+      // is the first question asked when a delivery is disputed. The office
+      // marking a load delivered from their desk was not at the door, so they
+      // are asked for it but not held to it.
+      const receivedByName = trimmedText(req.body.receivedByName);
+
+      if (!receivedByName && ["fleetOwner", "driver"].includes(role)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The name of the person who took the delivery is required when marking DELIVERED.",
+        });
+      }
+
+      if (receivedByName) {
+        load.receivedBy = {
+          name: receivedByName,
+          title: trimmedText(req.body.receivedByTitle),
+          capturedAt: new Date(),
+        };
+      }
+
       generatedPodDocument = await buildPodDocument({
         load,
         signatureData,
+        // Passed rather than read off `load` inside the builder so the POD is
+        // stamped with the name given at this delivery even on a re-delivery.
+        receivedBy: load.receivedBy,
       });
     }
 
@@ -2223,6 +2415,27 @@ const assignFleetOwner = async (req, res) => {
   try {
     const { fleetOwnerId, fleetOwnerName } = req.body;
 
+    // ─── One truck, one load ─────────────────────────────────────────────────
+    // Checked here as well as on the carrier's own screens, because this is the
+    // office assigning directly and never goes near them. Reassigning a load to
+    // the carrier who already holds it is not a second load, so it is allowed —
+    // otherwise correcting a typo in a carrier name would be blocked by the
+    // load being corrected.
+    const availability = await carrierAvailability(fleetOwnerId);
+    if (
+      availability.atCapacity &&
+      availability.blockingLoad?.loadId !== req.params.loadId
+    ) {
+      return res.status(409).json({
+        code: "CARRIER_AT_CAPACITY",
+        message:
+          `${fleetOwnerName || "That carrier"} has no truck free — ` +
+          `${availability.running} of ${availability.trucks} already running, ` +
+          `including load ${availability.blockingLoad?.loadId || "in progress"}. ` +
+          "Pick another carrier, or wait until that load is delivered.",
+      });
+    }
+
     // Read before the update so the trail can say who the load moved *from* —
     // a reassignment is exactly the change somebody later asks about, and
     // findOneAndUpdate only hands back one side of it.
@@ -2767,6 +2980,24 @@ const awardBid = async (req, res) => {
     const fleetOwner = await FleetOwner.findById(fleetOwnerId);
     if (!fleetOwner) return res.status(404).json({ message: "Fleet owner not found" });
 
+    // Awarding is an assignment by another name, so it answers to the same
+    // capacity rule — see utils/carrierCapacity.js. A carrier whose bid was
+    // placed before their truck was committed can still be sitting on the list.
+    const availability = await carrierAvailability(fleetOwner._id);
+    if (
+      availability.atCapacity &&
+      availability.blockingLoad?.loadId !== load.loadId
+    ) {
+      return res.status(409).json({
+        code: "CARRIER_AT_CAPACITY",
+        message:
+          `${fleetOwner.carrierName || "That carrier"} has no truck free — ` +
+          `${availability.running} of ${availability.trucks} already running, ` +
+          `including load ${availability.blockingLoad?.loadId || "in progress"}. ` +
+          "Award it to another bidder, or wait until that load is delivered.",
+      });
+    }
+
     await applyBidAward(load, { fleetOwner, amount: bidAmount });
 
     res.status(200).json({
@@ -3180,6 +3411,250 @@ const unassignLoad = async (req, res) => {
 
 // ========================= EXPORT =========================
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATUS TIMELINE CORRECTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+// The timeline is a record of what happened and when, and it is read as one —
+// by the customer chasing a delivery, by accounting working out detention, by
+// anybody arguing about a late arrival. It is also, unavoidably, sometimes
+// wrong: a driver marks a load picked up an hour after they actually loaded, or
+// taps the wrong status and immediately taps the right one, leaving a step in
+// the history that never happened.
+//
+// So the timeline can be corrected — but only by an admin, and every correction
+// is written to the audit trail with what it used to say. An editable history
+// with no record of the edit is not a record at all.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** The load and the one history entry named by the route, or an error to send. */
+const findHistoryEntry = async (loadId, entryId) => {
+  const load = await Load.findOne({ loadId });
+  if (!load) return { error: { status: 404, message: "Load not found" } };
+
+  const entry = load.transportStatusHistory?.id(entryId);
+  if (!entry) {
+    return {
+      error: { status: 404, message: "That entry is not on this load's timeline." },
+    };
+  }
+
+  return { load, entry };
+};
+
+// @desc    Correct the time or note on one timeline entry
+// @route   PATCH /api/loads/:loadId/status-history/:entryId
+// @access  Private (admin)
+const updateStatusHistoryEntry = async (req, res) => {
+  try {
+    const { load, entry, error } = await findHistoryEntry(
+      req.params.loadId,
+      req.params.entryId,
+    );
+    if (error) return res.status(error.status).json({ message: error.message });
+
+    const changes = [];
+
+    if (req.body.changedAt !== undefined) {
+      const when = new Date(req.body.changedAt);
+      if (Number.isNaN(when.getTime())) {
+        return res.status(400).json({ message: "That is not a valid date and time." });
+      }
+      // A status dated into the future reads as a typo rather than a record.
+      if (when > new Date()) {
+        return res.status(400).json({
+          message: "A status cannot be recorded as happening in the future.",
+        });
+      }
+
+      if (new Date(entry.changedAt).getTime() !== when.getTime()) {
+        changes.push({
+          field: "changedAt",
+          label: "Status time",
+          from: entry.changedAt ? new Date(entry.changedAt).toISOString() : "—",
+          to: when.toISOString(),
+        });
+        entry.changedAt = when;
+      }
+    }
+
+    if (req.body.note !== undefined) {
+      const note = trimmedText(req.body.note);
+      if (note !== (entry.note || "")) {
+        changes.push({
+          field: "note",
+          label: "Status note",
+          from: entry.note || "—",
+          to: note || "—",
+        });
+        entry.note = note;
+      }
+    }
+
+    if (!changes.length) {
+      return res.status(400).json({ message: "Nothing was changed." });
+    }
+
+    // The load's own `transportStatus` is deliberately untouched: this corrects
+    // the record of a step, not which step the load is on. Re-ordering is left
+    // to the reader — StatusTimeline sorts by `changedAt` on every render, so a
+    // corrected time moves the entry to where it belongs on its own.
+    load.markModified("transportStatusHistory");
+    await load.save();
+
+    await audit.record({
+      load,
+      kind: "STATUS",
+      action: "load.status_history_edited",
+      summary: `Timeline entry "${entry.status}" corrected`,
+      changes,
+      user: req.user,
+      req,
+    });
+
+    res.json({
+      message: "Timeline entry updated.",
+      transportStatusHistory: load.transportStatusHistory,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Remove one entry from the status timeline
+// @route   DELETE /api/loads/:loadId/status-history/:entryId
+// @access  Private (admin)
+const deleteStatusHistoryEntry = async (req, res) => {
+  try {
+    const { load, entry, error } = await findHistoryEntry(
+      req.params.loadId,
+      req.params.entryId,
+    );
+    if (error) return res.status(error.status).json({ message: error.message });
+
+    // The latest entry is what the load's current status rests on. Deleting it
+    // would leave the load claiming a status nothing in its history accounts
+    // for, so the way to undo a wrong current status is to set the right one —
+    // which is what the status control is already for.
+    const latest = [...load.transportStatusHistory]
+      .sort((a, b) => new Date(a.changedAt) - new Date(b.changedAt))
+      .at(-1);
+
+    if (String(latest?._id) === String(entry._id)) {
+      return res.status(409).json({
+        code: "CANNOT_DELETE_CURRENT_STATUS",
+        message:
+          "This is the load's current status and cannot be deleted. Set the correct status instead — the timeline will follow.",
+      });
+    }
+
+    const removed = { status: entry.status, changedAt: entry.changedAt };
+    load.transportStatusHistory.pull({ _id: entry._id });
+    await load.save();
+
+    await audit.record({
+      load,
+      kind: "STATUS",
+      action: "load.status_history_deleted",
+      summary: `Timeline entry "${removed.status}" removed`,
+      changes: [
+        {
+          field: "transportStatusHistory",
+          label: "Timeline entry",
+          from: `${removed.status} at ${new Date(removed.changedAt).toISOString()}`,
+          to: "removed",
+        },
+      ],
+      user: req.user,
+      req,
+    });
+
+    res.json({
+      message: "Timeline entry removed.",
+      transportStatusHistory: load.transportStatusHistory,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Delete a load outright
+// @route   DELETE /api/loads/:loadId
+// @access  Private (admin)
+//
+// Deliberately narrow. Almost every real "delete this load" is "this should
+// never have been created" — a duplicate, a test row, a mistyped submission.
+// A load that has actually run has documents, an audit trail, accounting lines
+// and a carrier's settlement hanging off it, so one that got as far as being
+// assigned is refused; the way to end those is to terminate them, which keeps
+// the record.
+const deleteLoad = async (req, res) => {
+  try {
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    if (load.hasCarrier()) {
+      return res.status(409).json({
+        code: "LOAD_HAS_CARRIER",
+        message:
+          "This load has been assigned to a carrier and cannot be deleted — its history, documents and settlement would go with it. Terminate it instead.",
+      });
+    }
+
+    const lines =
+      (load.accounting?.receivables?.lines?.length || 0) +
+      (load.accounting?.payables?.lines?.length || 0);
+
+    if (lines > 0) {
+      return res.status(409).json({
+        code: "LOAD_HAS_ACCOUNTING",
+        message:
+          "This load carries accounting lines and cannot be deleted. Clear them first, or terminate the load instead.",
+      });
+    }
+
+    // Written before the delete. The audit row copies the load id and location
+    // it needs, so it outlives the row it describes.
+    await audit.record({
+      load,
+      kind: "SYSTEM",
+      action: "load.deleted",
+      summary: `Load ${load.loadId} deleted`,
+      body: trimmedText(req.body?.reason) || undefined,
+      user: req.user,
+      req,
+    });
+
+    await Load.deleteOne({ _id: load._id });
+
+    res.json({ message: `Load ${load.loadId} deleted.` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Whether this carrier has room for another load
+// @route   GET /api/loads/my-capacity
+// @access  Private (fleetOwner, driver)
+//
+// The board returns an empty list to a carrier who is at capacity, and an empty
+// list on its own is indistinguishable from "nothing is on offer today". This
+// is what lets their screens say which of the two it is — being told you cannot
+// bid is workable; silence is not.
+const getMyCapacity = async (req, res) => {
+  try {
+    const carrier = await findCarrierFor(req.user, "_id");
+    const availability = await carrierAvailability(carrier?._id);
+
+    res.json({
+      ...availability,
+      message: atCapacityMessage(availability),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   setLoadDrivers,
   getLoads,
@@ -3207,4 +3682,8 @@ module.exports = {
   respondToNegotiation,
   unassignLoad,
   emailCustomer,
+  getMyCapacity,
+  updateStatusHistoryEntry,
+  deleteStatusHistoryEntry,
+  deleteLoad,
 };

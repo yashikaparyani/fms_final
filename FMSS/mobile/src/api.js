@@ -36,7 +36,17 @@ const api = axios.create({
 
 export const LOCATION_KEY = "fmss_location_id";
 
+// A load id contains a space — "LD 0014" — and goes straight into request
+// paths. React Native's networking layer will not encode it for us the way a
+// browser does, so it is done here, once, for every request the app makes.
+const encodePathSpaces = (url = "") => {
+  const [path, ...rest] = String(url).split("?");
+  return [path.replace(/ /g, "%20"), ...rest].join("?");
+};
+
 api.interceptors.request.use(async (config) => {
+  if (config.url) config.url = encodePathSpaces(config.url);
+
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

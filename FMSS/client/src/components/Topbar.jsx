@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LogoutIcon from "@mui/icons-material/Logout";
+import LockResetIcon from "@mui/icons-material/LockReset";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../redux/authSlice";
+import ChangePasswordDialog from "./ChangePasswordDialog";
 import { visibleNavItems } from "./navItems";
 import NotificationBell from "./NotificationBell"; // 👈 import
 import LocationSwitcher from "./LocationSwitcher";
@@ -13,6 +15,10 @@ import { clearActiveLocation } from "../utils/activeLocation";
 
 const Topbar = () => {
   const [isProfileOpen, setIsProfileOpen]       = useState(false);
+  // Offered to every role from here rather than from a per-role settings screen:
+  // carriers and drivers never see one, and they are the accounts most likely to
+  // still be on the password the office issued them.
+  const [isPasswordOpen, setIsPasswordOpen]     = useState(false);
   const [isNotificationOpen, setNotificationOpen] = useState(false); // 👈 controlled here
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -105,6 +111,18 @@ const Topbar = () => {
                     Profile
                   </div>
                 </Link>
+                <button
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setIsPasswordOpen(true);
+                  }}
+                  className="w-full text-left"
+                >
+                  <div className="flex hover:bg-accent-50 hover:text-accent-700 px-3 py-2.5 text-sm font-semibold text-ink-800 items-center gap-2 transition-colors border-t border-hairline">
+                    <LockResetIcon fontSize="small" />
+                    Change password
+                  </div>
+                </button>
                 <button onClick={handleLogout} className="w-full text-left">
                   <div className="flex hover:bg-bad-50 hover:text-bad-700 px-3 py-2.5 text-sm font-semibold text-ink-800 items-center gap-2 transition-colors border-t border-hairline">
                     <LogoutIcon fontSize="small" />
@@ -203,6 +221,11 @@ const Topbar = () => {
           })}
         </div>
       )}
+
+      <ChangePasswordDialog
+        open={isPasswordOpen}
+        onClose={() => setIsPasswordOpen(false)}
+      />
     </>
   );
 };

@@ -8,6 +8,10 @@ const {
   fallBackToBidding,
 } = require("../services/instantDispatchService");
 const { settingsFor, saveSettings } = require("../services/dispatchSettingsService");
+const {
+  carrierAvailability,
+  atCapacityMessage,
+} = require("../utils/carrierCapacity");
 
 // ─── Instant dispatch ─────────────────────────────────────────────────────────
 // The carrier's side of the "find me a truck now" route, plus the office's
@@ -109,6 +113,19 @@ const acceptOffer = async (req, res) => {
     if (!carrier) {
       return res.status(404).json({
         message: "No carrier profile is linked to your account.",
+      });
+    }
+
+    // ─── One truck, one load ─────────────────────────────────────────────────
+    // Accepting an instant-dispatch offer assigns the load on the spot, so it
+    // answers to the same capacity rule as every other route onto a truck — see
+    // utils/carrierCapacity.js. Checked before the claim rather than after: a
+    // carrier who cannot run it must not win the race for it.
+    const availability = await carrierAvailability(carrier._id);
+    if (availability.atCapacity) {
+      return res.status(409).json({
+        code: "CARRIER_AT_CAPACITY",
+        message: atCapacityMessage(availability),
       });
     }
 

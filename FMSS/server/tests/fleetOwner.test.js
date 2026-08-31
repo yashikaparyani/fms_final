@@ -137,23 +137,82 @@ describe("Fleet Owner API", () => {
     });
   });
 
-  describe("DELETE /api/fleet-owners/:id", () => {
-    it("should delete a fleet owner", async () => {
-      const fleetOwner = await seed(() => FleetOwner.create({
-        carrierName: "To Be Deleted",
-        phone: "555-555-5555"
-      }));
+  describe("PATCH /api/fleet-owners/:id/status", () => {
+    // A carrier is stood down, never deleted: their name is stamped on every
+    // load they ever ran, and removing the row orphans all of it.
+    const makeCarrier = () =>
+      seed(() =>
+        FleetOwner.create({
+          carrierName: "To Be Stood Down",
+          phone: "555-555-5555",
+        }),
+      );
+
+    it("makes a fleet owner inactive without removing them", async () => {
+      const fleetOwner = await makeCarrier();
+
+      const res = await request(app)
+        .patch(`/api/fleet-owners/${fleetOwner._id}/status`)
+        .set("role", "staff")
+        .send({ active: false });
+
+      expect(res.statusCode).toEqual(200);
+
+      const stored = await seed(() => FleetOwner.findById(fleetOwner._id));
+      expect(stored).not.toBeNull();
+      expect(stored.active).toBe(false);
+      expect(stored.status).toBe("INACTIVE");
+    });
+
+    it("takes an inactive carrier out of the list the pickers read", async () => {
+      const fleetOwner = await makeCarrier();
+
+      await request(app)
+        .patch(`/api/fleet-owners/${fleetOwner._id}/status`)
+        .set("role", "staff")
+        .send({ active: false });
+
+      const listed = await request(app).get("/api/fleet-owners").set("role", "staff");
+      expect(listed.body.map((f) => f.carrierName)).not.toContain("To Be Stood Down");
+
+      // The directory still has to be able to see and reactivate them.
+      const all = await request(app)
+        .get("/api/fleet-owners?includeInactive=true")
+        .set("role", "staff");
+      expect(all.body.map((f) => f.carrierName)).toContain("To Be Stood Down");
+    });
+
+    it("brings them back", async () => {
+      const fleetOwner = await makeCarrier();
+
+      await request(app)
+        .patch(`/api/fleet-owners/${fleetOwner._id}/status`)
+        .set("role", "staff")
+        .send({ active: false });
+
+      const res = await request(app)
+        .patch(`/api/fleet-owners/${fleetOwner._id}/status`)
+        .set("role", "staff")
+        .send({ active: true });
+
+      expect(res.statusCode).toEqual(200);
+
+      const stored = await seed(() => FleetOwner.findById(fleetOwner._id));
+      expect(stored.active).toBe(true);
+      expect(stored.status).toBe("ACTIVE");
+    });
+
+    it("offers no way to delete one at all", async () => {
+      const fleetOwner = await makeCarrier();
 
       const res = await request(app)
         .delete(`/api/fleet-owners/${fleetOwner._id}`)
         .set("role", "staff");
 
-      expect(res.statusCode).toEqual(200);
-      expect(res.body.message).toEqual("Fleet owner deleted");
+      expect(res.statusCode).toEqual(404);
 
-      // Verify deletion
-      const deleted = await seed(() => FleetOwner.findById(fleetOwner._id));
-      expect(deleted).toBeNull();
+      const stored = await seed(() => FleetOwner.findById(fleetOwner._id));
+      expect(stored).not.toBeNull();
     });
   });
 

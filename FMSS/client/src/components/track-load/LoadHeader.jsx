@@ -2,9 +2,14 @@ import EditIcon from "@mui/icons-material/Edit";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import SearchIcon from "@mui/icons-material/Search";
 import TimelineIcon from "@mui/icons-material/Timeline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 import Card from "./Card";
 import MetaBadge from "./MetaBadge";
+import {
+  isAssignedToCarrier,
+  STATUS_LOCKED_REASON,
+} from "../../utils/loadAssignment";
 import StatusChip, {
   LOAD_STATUS_COLOR,
   TRANSPORT_STATUS_COLOR,
@@ -26,11 +31,16 @@ const LoadHeader = ({
   userRole,
   onUpdateStatus,
   onEditLoad,
+  onDeleteLoad,
   onRebid,
   searchId,
   setSearchId,
   handleSearch,
 }) => {
+  // The status control is dead until a carrier has the load — the status is a
+  // statement about a carrier, and there is nobody for it to be about yet.
+  const statusUnlocked = isAssignedToCarrier(load);
+
   // Admin/staff can edit any load; clients only before it's verified.
   const canEditLoad =
     ["admin", "staff"].includes(userRole) ||
@@ -85,11 +95,29 @@ const LoadHeader = ({
             <div className="flex gap-2">
               <button
                 onClick={onUpdateStatus}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600 transition"
+                disabled={!statusUnlocked}
+                title={statusUnlocked ? undefined : STATUS_LOCKED_REASON}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 disabled:hover:text-gray-700"
               >
                 <EditIcon fontSize="inherit" />
                 Update
               </button>
+
+              {/* Admin only, and only while the load can still honestly be
+                  deleted. Once a carrier is on it the load has documents, an
+                  audit trail and a settlement hanging off it — the server
+                  refuses those outright, so offering the button would only
+                  produce an error. Terminate is the way to end one of those. */}
+              {userRole === "admin" && !statusUnlocked && (
+                <button
+                  onClick={() => onDeleteLoad && onDeleteLoad(load)}
+                  title="Delete this load"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-red-600 border border-red-600 rounded-lg text-white hover:bg-red-700 transition"
+                >
+                  <DeleteOutlineIcon fontSize="inherit" style={{ fontSize: "14px" }} />
+                  Delete
+                </button>
+              )}
 
               {load.status === "ASSIGNED" && (
                 <button

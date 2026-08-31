@@ -167,6 +167,7 @@ describe("Credit limit enforcement on load creation", () => {
 
     const [load] = await runUnscoped(() => Load.find());
     expect(String(load.locationId)).toBe(String(branch._id));
-    expect(load.loadId).toBe("NY-LD-0001");
+    // Load numbers carry no branch code — see utils/sequence.js.
+    expect(load.loadId).toBe("LD 0001");
   });
 });
