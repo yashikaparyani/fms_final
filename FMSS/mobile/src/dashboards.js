@@ -273,6 +273,13 @@ export function CarrierHome({
             onPress={() => onOpen("documents")}
           />
           <ActionTile
+            icon="doc"
+            title="Insurance"
+            subtitle="Your cover"
+            color={colors.primary}
+            onPress={() => onOpen("insurance")}
+          />
+          <ActionTile
             icon="drivers"
             title="Drivers"
             subtitle="Your team"

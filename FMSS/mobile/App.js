@@ -874,6 +874,407 @@ function CarrierDocumentsScreen({ onBack }) {
   );
 }
 
+// ─── The carrier's roster ─────────────────────────────────────────────────────
+// Who they can put on a load, and whether each one is actually allowed to drive
+// it. A driver with no licence copy on file cannot update a load — see
+// middleware/driverCompliance.js — so that gap leads the card rather than being
+// discovered at a dock.
+// ─────────────────────────────────────────────────────────────────────────────
+const DRIVER_BLANK = {
+  name: "",
+  phone: "",
+  email: "",
+  licenseNumber: "",
+  licenseState: "",
+  licenseClass: "A",
+  licenseExpiry: "",
+};
+
+function DriverForm({ initial, states, onCancel, onSubmit, saving, title }) {
+  const [form, setForm] = useState({ ...DRIVER_BLANK, ...(initial || {}) });
+  const set = (key) => (text) => setForm((f) => ({ ...f, [key]: text }));
+
+  const field = (key, label, extra = {}) => (
+    <SchemaField
+      field={{ key, label, ...extra }}
+      value={form[key]}
+      onChange={set(key)}
+    />
+  );
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{title}</Text>
+
+      {field("name", "Driver name", { required: true })}
+      {field("phone", "Phone", { type: "tel" })}
+      {field("email", "Email", {
+        type: "email",
+        help: "They sign into the driver app with this. Leave it blank if they will not use it.",
+      })}
+      {field("licenseNumber", "Licence number")}
+      {field("licenseState", "Issuing state", { type: "select", options: states || [] })}
+      {field("licenseClass", "Class", { type: "select", options: ["A", "B", "C"] })}
+      {field("licenseExpiry", "Licence expires", { placeholder: "YYYY-MM-DD" })}
+
+      <PrimaryButton
+        title={saving ? "Saving…" : "Save driver"}
+        disabled={saving}
+        onPress={() => {
+          if (!form.name.trim()) {
+            Alert.alert("Name needed", "A driver needs a name.");
+            return;
+          }
+          onSubmit(form);
+        }}
+      />
+      <SecondaryButton title="Cancel" onPress={onCancel} disabled={saving} />
+    </View>
+  );
+}
+
+function CarrierDriversScreen({ onBack }) {
+  const [drivers, setDrivers] = useState([]);
+  const [states, setStates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null); // a driver, or the string "new"
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      const [file, catalog] = await Promise.all([
+        api.get("/onboarding"),
+        api.get("/onboarding/catalog").catch(() => null),
+      ]);
+      setDrivers(file.data?.drivers || []);
+      if (catalog) setStates(catalog.data?.states || []);
+    } catch (error) {
+      Alert.alert(
+        "Could not load drivers",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const addDriver = async (form) => {
+    setSaving(true);
+    try {
+      const res = await api.post("/drivers/bulk", { drivers: [form] });
+      // The bulk route reports per-row failures in the body rather than
+      // throwing, so a rejected row looks like a success unless it is read out.
+      const failure = (res.data?.failed || [])[0];
+      if (failure) {
+        Alert.alert("Could not add", failure.message);
+        return;
+      }
+      setEditing(null);
+      await load({ silent: true });
+    } catch (error) {
+      Alert.alert("Could not add", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveDriver = async (form) => {
+    setSaving(true);
+    try {
+      await api.put(`/drivers/${form._id}`, form);
+      setEditing(null);
+      await load({ silent: true });
+    } catch (error) {
+      Alert.alert("Could not save", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadLicence = async (driver) => {
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ["image/*", "application/pdf"],
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled) return;
+
+    const asset = picked.assets?.[0];
+    if (!asset) return;
+
+    const body = new FormData();
+    body.append("license", {
+      uri: asset.uri,
+      name: asset.name || "licence.jpg",
+      type: asset.mimeType || "image/jpeg",
+    });
+
+    setSaving(true);
+    try {
+      await api.post(`/onboarding/drivers/${driver._id}/license`, body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      await load({ silent: true });
+      Alert.alert("Uploaded", `${driver.name} is cleared to update loads.`);
+    } catch (error) {
+      Alert.alert("Upload failed", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <BrandMark compact />
+          <DriverForm
+            title={editing === "new" ? "Add a driver" : `Edit ${editing.name}`}
+            initial={editing === "new" ? null : editing}
+            states={states}
+            saving={saving}
+            onCancel={() => setEditing(null)}
+            onSubmit={editing === "new" ? addDriver : saveDriver}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+      >
+        <BrandMark compact />
+        <Text style={styles.title}>Your drivers</Text>
+        <Text style={styles.subtitle}>
+          A driver cannot update a load until a copy of their licence is on file.
+        </Text>
+
+        <PrimaryButton title="Add a driver" onPress={() => setEditing("new")} />
+
+        {!loading && !drivers.length ? (
+          <Text style={styles.empty}>No drivers yet.</Text>
+        ) : null}
+
+        {drivers.map((driver) => {
+          const onFile = !!driver.licenseDocument?.fileName;
+          const expired =
+            driver.licenseExpiry && new Date(driver.licenseExpiry) < new Date();
+
+          return (
+            <View key={driver._id} style={styles.card}>
+              <Text style={styles.cardTitle}>{driver.name}</Text>
+              <Text style={styles.cardMeta}>
+                {[driver.phone, driver.email].filter(Boolean).join(" · ") ||
+                  "No contact details"}
+              </Text>
+              <Text style={styles.cardMeta}>
+                {[
+                  driver.licenseNumber || "No licence number",
+                  driver.licenseState,
+                  driver.licenseClass ? `Class ${driver.licenseClass}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Text>
+
+              {expired ? (
+                <Text style={styles.fieldError}>
+                  Licence expired {fmtDate(driver.licenseExpiry)}.
+                </Text>
+              ) : onFile ? (
+                <Text style={styles.signedNote}>✓ Licence copy on file</Text>
+              ) : (
+                <Text style={styles.fieldError}>
+                  No licence copy — this driver cannot update loads.
+                </Text>
+              )}
+
+              <SecondaryButton
+                title={onFile ? "Replace licence copy" : "Upload licence copy"}
+                onPress={() => uploadLicence(driver)}
+                disabled={saving}
+              />
+              <SecondaryButton
+                title="Edit details"
+                onPress={() => setEditing(driver)}
+              />
+            </View>
+          );
+        })}
+
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── What the carrier is insured for ──────────────────────────────────────────
+// Read-only on purpose: a carrier does not file their own certificates. Their
+// agency does, through a one-off link — see controllers/insuranceController.js.
+// What the carrier needs from a phone is to know where that stands, what is on
+// file, and what is short, so they can chase the right person.
+// ─────────────────────────────────────────────────────────────────────────────
+function CarrierInsuranceScreen({ onBack }) {
+  const [file, setFile] = useState(null);
+  const [coverages, setCoverages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      const [onboarding, catalog] = await Promise.all([
+        api.get("/onboarding"),
+        api.get("/onboarding/catalog").catch(() => null),
+      ]);
+      setFile(onboarding.data);
+      setCoverages(catalog?.data?.insurance?.coverages || []);
+    } catch (error) {
+      Alert.alert(
+        "Could not load insurance",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const insurance = file?.insurance || {};
+  const policies = insurance.policies || [];
+  const labelFor = (key) =>
+    coverages.find((c) => c.key === key)?.label || key;
+
+  const remind = async () => {
+    setBusy(true);
+    try {
+      const res = await api.post("/insurance/remind", {});
+      Alert.alert("Reminder sent", res.data?.message || "Your agent has been reminded.");
+      await load({ silent: true });
+    } catch (error) {
+      Alert.alert(
+        "Could not send it",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+      >
+        <BrandMark compact />
+        <Text style={styles.title}>Your insurance</Text>
+        <Text style={styles.subtitle}>
+          Filed by your agency on your behalf. Ask them for a change — this is a
+          record of what they have sent us.
+        </Text>
+
+        {/* Where it stands, first — it is the only part most people open this for. */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Status</Text>
+          {insurance.submittedAt ? (
+            <Text style={styles.signedNote}>
+              ✓ Filed {fmtDate(insurance.submittedAt)}
+              {insurance.submittedByName ? ` by ${insurance.submittedByName}` : ""}
+            </Text>
+          ) : insurance.invitedAt ? (
+            <>
+              <Text style={styles.cardBody}>
+                Waiting on {insurance.agencyName || insurance.agentEmail || "your agency"}.
+                Asked {fmtDate(insurance.invitedAt)}
+                {insurance.reminderSentAt
+                  ? `, reminded ${fmtDate(insurance.reminderSentAt)}`
+                  : ""}
+                .
+              </Text>
+              <SecondaryButton
+                title={busy ? "Sending…" : "Send them a reminder"}
+                onPress={remind}
+                disabled={busy}
+              />
+            </>
+          ) : (
+            <Text style={styles.cardBody}>
+              Nothing filed yet, and no agency has been asked. The office can send
+              your agent the request — or do it from the website.
+            </Text>
+          )}
+
+          {insurance.agencyName || insurance.agentEmail ? (
+            <Text style={styles.cardMeta}>
+              {[insurance.agencyName, insurance.agentName, insurance.agentEmail, insurance.agentPhone]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* What the office flagged as short, stated as they recorded it. */}
+        {(insurance.shortfalls || []).length ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Needs attention</Text>
+            {insurance.shortfalls.map((problem, i) => (
+              <Text key={i} style={styles.fieldError}>
+                • {problem}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {policies.map((policy, i) => (
+          <View key={policy.policyNumber || i} style={styles.card}>
+            <Text style={styles.cardTitle}>{labelFor(policy.coverage)}</Text>
+            <Text style={styles.cardMeta}>
+              {[policy.insurerName, policy.policyNumber].filter(Boolean).join(" · ") ||
+                "No insurer recorded"}
+            </Text>
+            <Text style={styles.cardBody}>
+              {policy.limit ? `Limit ${money(policy.limit)}` : "No limit recorded"}
+              {policy.aggregateLimit ? ` · Aggregate ${money(policy.aggregateLimit)}` : ""}
+            </Text>
+            {policy.expiryDate ? (
+              new Date(policy.expiryDate) < new Date() ? (
+                <Text style={styles.fieldError}>
+                  Expired {fmtDate(policy.expiryDate)}
+                </Text>
+              ) : (
+                <Text style={styles.cardMeta}>
+                  Expires {fmtDate(policy.expiryDate)}
+                </Text>
+              )
+            ) : null}
+          </View>
+        ))}
+
+        {!loading && !policies.length && insurance.submittedAt ? (
+          <Text style={styles.empty}>No policies on the filing.</Text>
+        ) : null}
+
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 // ─── Bidding, in one place ────────────────────────────────────────────────────
 // Two halves of the same job: what is open to bid on, and what has already been
 // bid on. They were two top-level tabs, which meant checking whether a bid had
@@ -3592,6 +3993,8 @@ function FleetHomeScreen({ session, onLogout }) {
   const [showLicense, setShowLicense] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showDocuments, setShowDocuments] = useState(false);
+  const [showDrivers, setShowDrivers] = useState(false);
+  const [showInsurance, setShowInsurance] = useState(false);
   const [compliance, setCompliance] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -3722,6 +4125,14 @@ function FleetHomeScreen({ session, onLogout }) {
         case "documents":
           setShowDocuments(true);
           break;
+        // Their roster and their cover. Both used to fall through to the group
+        // below and land on Loads, which is why the tiles appeared inert.
+        case "drivers":
+          setShowDrivers(true);
+          break;
+        case "insurance":
+          setShowInsurance(true);
+          break;
         case "postLoad":
         case "quotes":
         case "payments":
@@ -3730,7 +4141,6 @@ function FleetHomeScreen({ session, onLogout }) {
         case "bidding":
         case "loads":
         case "carriers":
-        case "drivers":
           setTab("loads");
           break;
         default:
@@ -3788,6 +4198,14 @@ function FleetHomeScreen({ session, onLogout }) {
 
   if (showDocuments) {
     return <CarrierDocumentsScreen onBack={() => setShowDocuments(false)} />;
+  }
+
+  if (showDrivers) {
+    return <CarrierDriversScreen onBack={() => setShowDrivers(false)} />;
+  }
+
+  if (showInsurance) {
+    return <CarrierInsuranceScreen onBack={() => setShowInsurance(false)} />;
   }
 
   if (showNotifications) {
