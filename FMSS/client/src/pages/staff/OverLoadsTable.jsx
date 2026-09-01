@@ -7,7 +7,8 @@ import UpdateStatusModal from "../../components/loads/UpdateStatusModal";
 import AssignCarrierPicker from "../../components/loads/AssignCarrierPicker";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
-import { carrierNameOnLoad } from "../../utils/loadCarrier";
+import AssignDriversDialog from "../../components/fleetOwner/AssignDriversDialog";
+import { carrierIdOnLoad, carrierNameOnLoad } from "../../utils/loadCarrier";
 import { isAssignedToCarrier, STATUS_LOCKED_REASON } from "../../utils/loadAssignment";
 import { STATUS_BADGE_COLORS, STATUS_ROW_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
@@ -40,6 +41,13 @@ const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 // arrives is still counted under "All", so a status added to the server's
 // completed set but not listed here is missing a sub-tab rather than missing
 // from the screen.
+// Statuses where the load has stopped rather than finished: the box is sitting
+// in a yard or at a warehouse and somebody still has to move it. Reassigning
+// changes which carrier owns it; this changes who actually drives the next
+// stretch, which is usually the only thing that needs to change — the carrier
+// is the same, the driver who dropped it has gone home.
+const AWAITING_A_DRIVER = ["DROP_IN_WAREHOUSE", "LOADED_IN_YARD", "EMPTY_IN_YARD"];
+
 const SUB_TABS = [
   "DELIVERED",
   "TERMINATED",
@@ -77,6 +85,7 @@ const OverLoadsTable = () => {
   const [subTab, setSubTab] = useState("");
   const [openRow, setOpenRow] = useState(null); // reassign picker open on this load
   const [statusModal, setStatusModal] = useState(null);
+  const [driverModal, setDriverModal] = useState(null);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
@@ -108,7 +117,7 @@ const OverLoadsTable = () => {
   // Hold the refresh while a picker or the status modal is open, so a row
   // cannot shift or vanish mid-action.
   useAutoRefresh(() => fetchLoads({ silent: true }), {
-    enabled: !openRow && !saving && !statusModal,
+    enabled: !openRow && !saving && !statusModal && !driverModal,
   });
 
   // Same delivery-date order as the other three tabs, so a load does not change
@@ -184,6 +193,19 @@ const OverLoadsTable = () => {
         >
           {assigned ? "Reassign" : "Assign Load"}
         </button>
+
+        {/* Only where the load is parked rather than done. Offering it on a
+            delivered or terminated load would be offering to send somebody to
+            collect a box that is not there. */}
+        {assigned && AWAITING_A_DRIVER.includes(row.transportStatus) && (
+          <button
+            onClick={() => setDriverModal(row)}
+            disabled={saving}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition disabled:opacity-50 whitespace-nowrap"
+          >
+            Assign another driver
+          </button>
+        )}
 
         {/* Locked until a carrier has the load, exactly as on All Transit — a
             status is a statement about a carrier. */}
@@ -351,6 +373,17 @@ const OverLoadsTable = () => {
           emptyMessage="No finished loads yet."
         />
       </div>
+
+      <AssignDriversDialog
+        open={Boolean(driverModal)}
+        load={driverModal}
+        fleetOwnerId={carrierIdOnLoad(driverModal)}
+        onClose={() => setDriverModal(null)}
+        onSaved={async () => {
+          setDriverModal(null);
+          await fetchLoads();
+        }}
+      />
 
       {statusModal && (
         <UpdateStatusModal

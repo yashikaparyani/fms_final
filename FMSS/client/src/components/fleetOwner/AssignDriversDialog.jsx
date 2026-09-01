@@ -68,7 +68,9 @@ const StopFields = ({ label, value, onChange, disabled }) => (
   </div>
 );
 
-const AssignDriversDialog = ({ open, onClose, load, onSaved }) => {
+// `fleetOwnerId` is for the office, who have no roster of their own: it names
+// whose drivers to offer. A carrier opening this omits it and gets theirs.
+const AssignDriversDialog = ({ open, onClose, load, onSaved, fleetOwnerId }) => {
   const [drivers, setDrivers] = useState([]);
   const [rows, setRows] = useState([{ ...BLANK }]);
   const [loading, setLoading] = useState(true);
@@ -90,11 +92,11 @@ const AssignDriversDialog = ({ open, onClose, load, onSaved }) => {
     setRows(existing.length ? existing : [{ ...BLANK }]);
 
     api
-      .get("/drivers")
+      .get("/drivers", { params: fleetOwnerId ? { fleetOwnerId } : {} })
       .then(({ data }) => setDrivers(data.drivers || data || []))
-      .catch(() => notify.error("Could not load your driver roster"))
+      .catch(() => notify.error("Could not load the driver roster"))
       .finally(() => setLoading(false));
-  }, [open, load]);
+  }, [open, load, fleetOwnerId]);
 
   if (!open) return null;
 

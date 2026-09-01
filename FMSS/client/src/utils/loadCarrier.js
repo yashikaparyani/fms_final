@@ -54,6 +54,13 @@ export const carrierOnLoad = (load, fleetOwners = []) => {
   return null;
 };
 
+/** The carrier's id, for a call that has to name whose roster to read. */
+export const carrierIdOnLoad = (load) =>
+  idOf(load?.assignedFleetOwner?.fleetOwnerId) ||
+  idOf(load?.assignments?.[0]?.fleetOwnerId) ||
+  idOf(load?.winningBid?.fleetOwnerId) ||
+  null;
+
 /** Just the name, for a column that has no room for anything else. */
 export const carrierNameOnLoad = (load, fleetOwners = []) =>
   carrierOnLoad(load, fleetOwners)?.name || null;

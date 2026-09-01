@@ -107,13 +107,21 @@ const PAYOUT_LABEL = {
 // the driver is warned first.
 const REMOVES_FROM_BOARD = ["INVOICED", "DROP_IN_WAREHOUSE", "TERMINATED"];
 
+// What the carrier has finished driving. Deliberately NOT the list the web Over
+// tab uses: that one is the office's archive of every load that stopped moving,
+// this one answers a driver asking whether anything is left for them to do.
+//
+//   PAPERWORK_PENDING is here — the driving is done, only documents remain.
+//   LOADED_IN_YARD is not — the box is loaded and still has to be taken
+//   somewhere, which is work, so it stays under Assigned.
+//
+// TERMINATED and DROP_IN_WAREHOUSE are in neither: the server stops returning
+// those to a carrier at all — see CARRIER_HIDDEN_TRANSPORT_STATUSES.
 const completedStatuses = [
   "DELIVERED",
-  "TERMINATED",
   "STREET_TURN",
   "EMPTY_IN_YARD",
-  "LOADED_IN_YARD",
-  "DROP_IN_WAREHOUSE",
+  "PAPERWORK_PENDING",
 ];
 
 // Forward-only progression order. A stage already reached can't be redone,
