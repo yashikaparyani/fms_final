@@ -140,13 +140,19 @@ const SHARED_PROFILE = [
     // often goes to a lawyer or a head office rather than the yard. Defaulting it
     // to the business address is right for most carriers and saves retyping.
     help: "Where formal legal notices should be sent. Leave blank to use the business address above.",
+    // `copyFrom` names the field this one repeats, so a form can offer to fill
+    // the whole section in one tap rather than making somebody type their own
+    // address a second time. It mirrors what noticeAddressFor() already does on
+    // the server when these are left blank — the difference is that the carrier
+    // gets to see and correct the result before it goes onto the agreement.
+    copyLabel: "Same as business address",
     fields: [
-      { key: "noticeName", label: "Name", type: "text", paper: "Broker p12" },
-      { key: "noticeAttn", label: "Attention", type: "text", paper: "Broker p12" },
-      { key: "noticeStreet", label: "Street", type: "text", paper: "Broker p12" },
-      { key: "noticeCity", label: "City", type: "text", paper: "Broker p12" },
-      { key: "noticeState", label: "State", type: "select", options: US_STATES, paper: "Broker p12" },
-      { key: "noticeZip", label: "ZIP", type: "text", paper: "Broker p12" },
+      { key: "noticeName", label: "Name", type: "text", copyFrom: "legalName", paper: "Broker p12" },
+      { key: "noticeAttn", label: "Attention", type: "text", copyFrom: "signerName", paper: "Broker p12" },
+      { key: "noticeStreet", label: "Street", type: "text", copyFrom: "street", paper: "Broker p12" },
+      { key: "noticeCity", label: "City", type: "text", copyFrom: "city", paper: "Broker p12" },
+      { key: "noticeState", label: "State", type: "select", options: US_STATES, copyFrom: "state", paper: "Broker p12" },
+      { key: "noticeZip", label: "ZIP", type: "text", copyFrom: "zip", paper: "Broker p12" },
     ],
   },
   {

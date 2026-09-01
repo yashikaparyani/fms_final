@@ -111,17 +111,35 @@ const resolveCarrier = async (req, requestedId) => {
 const loadOrCreate = async (carrier, user) => {
   let onboarding = await CarrierOnboarding.findOne({ fleetOwner: carrier._id });
 
+  // What the carrier already gave when their account was created. They should
+  // not be retyping their own company name, email and phone three minutes after
+  // somebody entered them — and a number retyped from memory is how the file
+  // ends up with a different one from the account.
+  const fromAccount = {
+    legalName: carrier.carrierName || "",
+    signerEmail: carrier.email || "",
+    signerPhone: carrier.phone || "",
+  };
+
   if (!onboarding) {
-    onboarding = await CarrierOnboarding.create({
+    return CarrierOnboarding.create({
       fleetOwner: carrier._id,
       userId: carrier.userId,
-      // Seeded from what the carrier already gave at signup so the first screen
-      // is half-filled rather than blank — they should not have to retype their
-      // own company name three minutes after entering it.
-      profile: {
-        legalName: carrier.carrierName || "",
-      },
+      profile: fromAccount,
     });
+  }
+
+  // Files created before this seeding existed, or before the carrier had an
+  // email on record, get the blanks filled on next read. Only blanks: anything
+  // the carrier has actually typed is theirs and is left alone.
+  const missing = Object.entries(fromAccount).filter(
+    ([key, value]) => value && !String(onboarding.profile?.[key] ?? "").trim(),
+  );
+
+  if (missing.length) {
+    onboarding.profile = { ...(onboarding.profile || {}), ...Object.fromEntries(missing) };
+    onboarding.markModified("profile");
+    await onboarding.save();
   }
 
   return onboarding;

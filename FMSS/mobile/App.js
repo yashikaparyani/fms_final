@@ -47,6 +47,7 @@ import {
 import {
   TOP_INSET as UI_TOP_INSET,
   AppHeader,
+  BrandMark,
   BottomTabs,
   GradientHeader,
   Icon,
@@ -743,6 +744,53 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
   );
 }
 
+// ─── Bidding, in one place ────────────────────────────────────────────────────
+// Two halves of the same job: what is open to bid on, and what has already been
+// bid on. They were two top-level tabs, which meant checking whether a bid had
+// landed was a trip to the other end of the tab bar and back.
+//
+// "Available" leads because it is the one with something to do in it; History is
+// where a carrier goes to see how a bid ended.
+// ─────────────────────────────────────────────────────────────────────────────
+function BidsTab({ onOpenAssigned, onOpenDetail }) {
+  const [half, setHalf] = useState("available");
+
+  const halves = [
+    { key: "available", label: "Available" },
+    { key: "history", label: "History" },
+  ];
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={styles.subTabRow}>
+        {halves.map((item) => {
+          const on = half === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              onPress={() => setHalf(item.key)}
+              style={[styles.subTab, on && styles.subTabActive]}
+            >
+              <Text style={[styles.subTabText, on && styles.subTabTextActive]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {half === "available" ? (
+        <AvailableBidsTab
+          onOpenAssigned={onOpenAssigned}
+          onOpenDetail={onOpenDetail}
+        />
+      ) : (
+        <MyBidsTab onOpenDetail={onOpenDetail} />
+      )}
+    </View>
+  );
+}
+
 function MyBidsTab({ onOpenDetail }) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1002,7 +1050,10 @@ function OverLoadsTab({ onTrack, onOpenDetail }) {
       renderItem={({ item }) => (
         <LoadCard load={item} onPress={() => onOpenDetail(item)}>
           <View style={styles.actionRow}>
-            <SecondaryButton title="View documents" onPress={() => onTrack(item)} />
+            <SecondaryButton
+              title="View documents"
+              onPress={() => onTrack(item, { documentsOnly: true })}
+            />
           </View>
         </LoadCard>
       )}
@@ -1635,7 +1686,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
   );
 }
 
-function TrackingScreen({ load: initialLoad, onBack }) {
+function TrackingScreen({ load: initialLoad, onBack, documentsOnly = false }) {
   const [load, setLoad] = useState(initialLoad);
   const [tracking, setTracking] = useState(null);
   const [position, setPosition] = useState(null);
@@ -1987,6 +2038,12 @@ function TrackingScreen({ load: initialLoad, onBack }) {
           </Pill>
         </View>
 
+        {/* A finished load is opened from the Over tab to read its paperwork.
+            Its status cannot change any more, so the map, the status buttons
+            and the signature pad are all noise in front of the one thing that
+            was actually asked for. */}
+        {!documentsOnly && (
+          <>
         <LoadCard load={load}>
           <Text style={styles.sectionTitle}>Current location</Text>
           <Text style={styles.muted}>
@@ -2031,6 +2088,9 @@ function TrackingScreen({ load: initialLoad, onBack }) {
             onPress={() => setSignatureOpen(true)}
           />
         </View>
+
+          </>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Documents</Text>
@@ -2479,21 +2539,36 @@ const keyboardFor = (type) => {
 // One blank from the field schema. `select` expands its options in place rather
 // than opening a modal — these forms are already inside a ScrollView, and a
 // modal over a scrolling form is the fiddliest thing to hit on a phone.
-function SchemaField({ field, value, onChange }) {
+function SchemaField({ field, value, onChange, error, onLayout }) {
   const [open, setOpen] = useState(false);
   const current = String(value ?? "");
 
+  // The asterisk is the only thing on the form that says "you cannot submit
+  // without this", so it is red rather than the same grey as the label it
+  // follows — on a phone the label wraps and a grey asterisk disappears into it.
+  const label = (
+    <Text style={styles.label}>
+      {field.label}
+      {field.required ? <Text style={styles.requiredStar}> *</Text> : null}
+    </Text>
+  );
+
+  const problem = error ? (
+    <Text style={styles.fieldError}>{error}</Text>
+  ) : null;
+
   if (field.type === "select") {
     return (
-      <View style={styles.stFieldBlock}>
-        <Text style={styles.label}>
-          {field.label}
-          {field.required ? " *" : ""}
-        </Text>
+      <View style={styles.stFieldBlock} onLayout={onLayout}>
+        {label}
         {field.help ? <Text style={styles.cardMeta}>{field.help}</Text> : null}
         <Pressable
           onPress={() => setOpen((v) => !v)}
-          style={({ pressed }) => [styles.pickerField, { opacity: pressed ? 0.7 : 1 }]}
+          style={({ pressed }) => [
+            styles.pickerField,
+            error && styles.inputInvalid,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
         >
           <Text style={styles.pickerFieldText}>{current || "Select…"}</Text>
           <Text style={styles.pickerChevron}>{open ? "▴" : "▾"}</Text>
@@ -2516,19 +2591,17 @@ function SchemaField({ field, value, onChange }) {
             ))}
           </ScrollView>
         )}
+        {problem}
       </View>
     );
   }
 
   return (
-    <View>
-      <Text style={styles.label}>
-        {field.label}
-        {field.required ? " *" : ""}
-      </Text>
+    <View onLayout={onLayout}>
+      {label}
       {field.help ? <Text style={styles.cardMeta}>{field.help}</Text> : null}
       <TextInput
-        style={styles.input}
+        style={[styles.input, error && styles.inputInvalid]}
         value={current}
         placeholder={field.placeholder || ""}
         placeholderTextColor={colors.muted}
@@ -2542,6 +2615,7 @@ function SchemaField({ field, value, onChange }) {
         }
         onChangeText={onChange}
       />
+      {problem}
     </View>
   );
 }
@@ -2556,20 +2630,104 @@ function SchemaField({ field, value, onChange }) {
 function CarrierProfileScreen({ sections, profile, onBack, onSaved }) {
   const [values, setValues] = useState(profile || {});
   const [saving, setSaving] = useState(false);
+  // Marked only after a save has actually been refused. Reds on a form nobody
+  // has tried to submit yet read as failure before anything has been done.
+  const [errors, setErrors] = useState({});
+
+  const scrollRef = useRef(null);
+  // Where each field sits down the page, so a complaint about one can put it on
+  // screen instead of naming it and leaving the carrier to hunt. Filled by
+  // onLayout: the card's offset plus the field's offset within it.
+  const cardTops = useRef({});
+  const fieldTops = useRef({});
 
   const gaps = profileGapsFor(sections, values);
 
+  const allFields = (sections || []).flatMap((section) =>
+    (section.fields || []).map((field) => ({ ...field, section: section.section })),
+  );
+
+  /** Required and still empty, in the order they appear on the page. */
+  const missingFields = () =>
+    allFields.filter(
+      (field) => field.required && !String(values[field.key] ?? "").trim(),
+    );
+
+  const revealField = (field) => {
+    const y =
+      (cardTops.current[field.section] || 0) + (fieldTops.current[field.key] || 0);
+    // A little above the field so its label is in view too, not scrolled to the
+    // very top edge under the header.
+    scrollRef.current?.scrollTo({ y: Math.max(y - 90, 0), animated: true });
+  };
+
+  const setField = (key, text) => {
+    setValues((current) => ({ ...current, [key]: text }));
+    // The complaint goes the moment it is being answered.
+    setErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
+  /** Fill a section from the fields it repeats — see `copyFrom` in the schema. */
+  const copySection = (section) => {
+    setValues((current) => {
+      const next = { ...current };
+      (section.fields || []).forEach((field) => {
+        if (field.copyFrom && current[field.copyFrom]) {
+          next[field.key] = current[field.copyFrom];
+        }
+      });
+      return next;
+    });
+  };
+
   const save = async () => {
+    const missing = missingFields();
+
+    if (missing.length) {
+      // Say it on the fields themselves and go to the first one. The list in an
+      // alert was accurate and useless: it named six labels and left somebody
+      // scrolling a long form looking for them.
+      setErrors(
+        Object.fromEntries(missing.map((field) => [field.key, "Fill this in."])),
+      );
+      revealField(missing[0]);
+      Alert.alert(
+        "Still needed",
+        missing.length === 1
+          ? `${missing[0].label} is required.`
+          : `${missing.length} required fields are still empty. They are marked in red — the first one is on screen.`,
+      );
+      return;
+    }
+
+    setErrors({});
     setSaving(true);
     try {
       const res = await api.put("/onboarding/profile", { profile: values });
-      if (gaps.length) {
-        // Saved either way — a carrier reading their MC number off a card in
-        // the yard should not lose the half they have already typed.
-        Alert.alert("Saved", `Still needed: ${gaps.join(", ")}.`);
-        return;
-      }
       onSaved(res.data.onboarding);
+    } catch (error) {
+      Alert.alert("Could not save", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Keep what has been typed without demanding the rest of the form. */
+  const saveDraft = async () => {
+    setSaving(true);
+    try {
+      await api.put("/onboarding/profile", { profile: values });
+      Alert.alert(
+        "Saved",
+        gaps.length
+          ? `Kept what you have typed. Still needed: ${gaps.join(", ")}.`
+          : "Everything the agreements need is filled in.",
+      );
     } catch (error) {
       Alert.alert("Could not save", error.response?.data?.message || error.message);
     } finally {
@@ -2579,32 +2737,72 @@ function CarrierProfileScreen({ sections, profile, onBack, onSaved }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <BrandMark compact />
         <Text style={styles.title}>Company details</Text>
         <Text style={styles.subtitle}>
           Typed once — these are the blanks on page 1 and the signature page of
-          both agreements.
+          both agreements. Fields marked{" "}
+          <Text style={styles.requiredStar}>*</Text> are required.
         </Text>
 
-        {(sections || []).map((section) => (
-          <View key={section.section} style={styles.card}>
-            <Text style={styles.cardTitle}>{section.section}</Text>
-            {section.help ? <Text style={styles.cardMeta}>{section.help}</Text> : null}
-            {(section.fields || []).map((field) => (
-              <SchemaField
-                key={field.key}
-                field={field}
-                value={values[field.key]}
-                onChange={(text) =>
-                  setValues((current) => ({ ...current, [field.key]: text }))
-                }
-              />
-            ))}
-          </View>
-        ))}
+        {(sections || []).map((section) => {
+          // A section every field of which repeats another can be filled in one
+          // tap, once there is something to copy.
+          const canCopy =
+            (section.fields || []).some((f) => f.copyFrom) &&
+            (section.fields || []).some(
+              (f) => f.copyFrom && String(values[f.copyFrom] ?? "").trim(),
+            );
+
+          return (
+            <View
+              key={section.section}
+              style={styles.card}
+              onLayout={(e) => {
+                cardTops.current[section.section] = e.nativeEvent.layout.y;
+              }}
+            >
+              <Text style={styles.cardTitle}>{section.section}</Text>
+              {section.help ? <Text style={styles.cardMeta}>{section.help}</Text> : null}
+
+              {canCopy && (
+                <Pressable
+                  onPress={() => copySection(section)}
+                  style={({ pressed }) => [styles.copyChip, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <Text style={styles.copyChipText}>
+                    ⧉ {section.copyLabel || "Copy from above"}
+                  </Text>
+                </Pressable>
+              )}
+
+              {(section.fields || []).map((field) => (
+                <SchemaField
+                  key={field.key}
+                  field={field}
+                  value={values[field.key]}
+                  error={errors[field.key]}
+                  onLayout={(e) => {
+                    fieldTops.current[field.key] = e.nativeEvent.layout.y;
+                  }}
+                  onChange={(text) => setField(field.key, text)}
+                />
+              ))}
+            </View>
+          );
+        })}
 
         {gaps.length ? (
-          <Text style={styles.gateFooter}>Still needed: {gaps.join(", ")}.</Text>
+          <Pressable onPress={() => revealField(missingFields()[0] || {})}>
+            <Text style={styles.gateFooter}>
+              Still needed: {gaps.join(", ")}. Tap to jump to the first one.
+            </Text>
+          </Pressable>
         ) : (
           <Text style={styles.signedNote}>
             ✓ Everything the agreements need is filled in.
@@ -2614,6 +2812,11 @@ function CarrierProfileScreen({ sections, profile, onBack, onSaved }) {
         <PrimaryButton
           title={saving ? "Saving…" : "Save details"}
           onPress={save}
+          disabled={saving}
+        />
+        <SecondaryButton
+          title="Save and finish later"
+          onPress={saveDraft}
           disabled={saving}
         />
         <SecondaryButton title="Back" onPress={onBack} />
@@ -3218,6 +3421,14 @@ function FleetHomeScreen({ session, onLogout }) {
   const [tab, setTab] = useState("home");
   const [loadTab, setLoadTab] = useState(carrierSide ? "assigned" : "all");
   const [selectedLoad, setSelectedLoad] = useState(null);
+  // How that load was opened. The Over tab opens a finished load to read its
+  // paperwork, not to update a status that can no longer change.
+  const [selectedLoadMode, setSelectedLoadMode] = useState(null);
+
+  const openLoadScreen = (load, mode = null) => {
+    setSelectedLoadMode(mode);
+    setSelectedLoad(load);
+  };
   const [detailLoad, setDetailLoad] = useState(null);
   const [showLicense, setShowLicense] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -3398,9 +3609,11 @@ function FleetHomeScreen({ session, onLogout }) {
   // Segmented control inside the Loads tab.
   const loadSegments = useMemo(() => {
     if (!carrierSide) return [{ key: "all", label: "All" }];
+    // No separate Available segment: bidding is one job with two halves —
+    // what is open to bid on, and what has been bid on — and they are read
+    // against each other. They live as sub-tabs inside My Bids.
     return [
       { key: "assigned", label: "Assigned" },
-      !isDriver && { key: "available", label: "Available" },
       !isDriver && { key: "myBids", label: "My Bids" },
       { key: "over", label: "Over" },
     ].filter(Boolean);
@@ -3427,7 +3640,16 @@ function FleetHomeScreen({ session, onLogout }) {
   }
 
   if (selectedLoad) {
-    return <TrackingScreen load={selectedLoad} onBack={() => setSelectedLoad(null)} />;
+    return (
+      <TrackingScreen
+        load={selectedLoad}
+        documentsOnly={selectedLoadMode?.documentsOnly}
+        onBack={() => {
+          setSelectedLoad(null);
+          setSelectedLoadMode(null);
+        }}
+      />
+    );
   }
 
   if (detailLoad) {
@@ -3478,7 +3700,7 @@ function FleetHomeScreen({ session, onLogout }) {
     body = (
       <>
         <AppHeader theme={theme} eyebrow="Bidding" title="My Bids" onBell={bell} unread={unreadCount} />
-        <MyBidsTab onOpenDetail={setDetailLoad} />
+        <BidsTab onOpenDetail={setDetailLoad} />
       </>
     );
   } else {
@@ -3527,17 +3749,16 @@ function FleetHomeScreen({ session, onLogout }) {
         ) : null}
 
         {loadTab === "assigned" && (
-          <AssignedLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />
+          <AssignedLoadsTab onTrack={openLoadScreen} onOpenDetail={setDetailLoad} />
         )}
-        {loadTab === "available" && (
-          <AvailableBidsTab
+        {loadTab === "myBids" && (
+          <BidsTab
             onOpenAssigned={() => setLoadTab("assigned")}
             onOpenDetail={setDetailLoad}
           />
         )}
-        {loadTab === "myBids" && <MyBidsTab onOpenDetail={setDetailLoad} />}
         {loadTab === "over" && (
-          <OverLoadsTab onTrack={setSelectedLoad} onOpenDetail={setDetailLoad} />
+          <OverLoadsTab onTrack={openLoadScreen} onOpenDetail={setDetailLoad} />
         )}
         {loadTab === "all" && (
           <LoadListTab
@@ -4302,6 +4523,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   removeLink: { fontSize: 12, fontWeight: "700", color: colors.danger },
+  requiredStar: { color: colors.danger, fontWeight: "900" },
+  inputInvalid: { borderColor: colors.danger, borderWidth: 1.5 },
+  fieldError: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.danger,
+  },
+  copyChip: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#eef2ff",
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+  },
+  copyChipText: { fontSize: 12, fontWeight: "700", color: "#3730a3" },
+  subTabRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  subTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  subTabActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  subTabText: { fontSize: 13, fontWeight: "700", color: colors.muted },
+  subTabTextActive: { color: colors.onBrand },
   stOptionRow: {
     flexDirection: "row",
     alignItems: "center",

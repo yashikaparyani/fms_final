@@ -159,6 +159,28 @@ export function GradientHeader({ from, to, style, children }) {
 }
 
 /**
+ * The company mark: an "SL" tile and the wordmark, the same pairing the web app
+ * puts in its sidebar.
+ *
+ * Drawn rather than shipped as an image on purpose — it stays crisp at every
+ * screen density, costs no asset download, and travels in an over-the-air
+ * update like any other code. Swap in an <Image> here when there is a real
+ * logo file to use.
+ */
+export function BrandMark({ compact = false }) {
+  return (
+    <View style={s.brandRow}>
+      <View style={[s.brandTile, compact && s.brandTileCompact]}>
+        <Text style={[s.brandTileText, compact && s.brandTileTextCompact]}>SL</Text>
+      </View>
+      <Text style={[s.brandWord, compact && s.brandWordCompact]}>
+        S LINE <Text style={s.brandWordLight}>TRANSPORT</Text>
+      </Text>
+    </View>
+  );
+}
+
+/**
  * Standard screen header. Renders either a greeting (home screens) or a back
  * title (detail screens), plus the bell with its unread dot.
  */
@@ -175,6 +197,7 @@ export function AppHeader({
 }) {
   return (
     <GradientHeader from={theme.headerFrom} to={theme.headerTo}>
+      <BrandMark />
       <View style={s.headerRow}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={12} style={s.headerIconBtn}>
@@ -514,6 +537,40 @@ export function withAlpha(hex, alpha) {
 }
 
 const s = StyleSheet.create({
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  brandTile: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    // Reads as a tile on the gradient without a second colour to maintain.
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  brandTileCompact: { width: 22, height: 22, borderRadius: 6 },
+  brandTileText: {
+    color: colors.onBrand,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  brandTileTextCompact: { fontSize: 10 },
+  brandWord: {
+    color: colors.onBrand,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  brandWordCompact: { fontSize: 11, letterSpacing: 1 },
+  // The second word sits back so the eye lands on "S LINE".
+  brandWordLight: { fontWeight: "600", opacity: 0.75 },
   gradientHeader: {
     paddingTop: TOP_INSET + spacing.md,
     paddingHorizontal: spacing.lg,
