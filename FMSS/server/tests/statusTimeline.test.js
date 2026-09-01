@@ -27,6 +27,7 @@ jest.mock("../middleware/auth", () =>
 const {
   updateStatusHistoryEntry,
   deleteStatusHistoryEntry,
+  getLoadById,
 } = require("../controllers/loadController");
 
 const app = express();
@@ -40,6 +41,7 @@ const scoped = (handler) => (req, res) =>
 
 app.patch("/api/loads/:loadId/status-history/:entryId", scoped(updateStatusHistoryEntry));
 app.delete("/api/loads/:loadId/status-history/:entryId", scoped(deleteStatusHistoryEntry));
+app.get("/api/loads/:loadId", scoped(getLoadById));
 
 const AN_HOUR = 3600000;
 const base = new Date("2026-03-01T08:00:00.000Z");
@@ -189,5 +191,23 @@ describe("Deleting an entry", () => {
     );
 
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("The tracking page's view of the timeline", () => {
+  // The admin edit and delete controls address an entry by id, and render only
+  // for an entry that has one. getLoadById hand-builds each history row rather
+  // than passing it through, so the id has to be carried deliberately — it was
+  // dropped, and the controls silently disappeared for every load.
+  it("carries each entry's id", async () => {
+    await makeLoad();
+
+    const res = await request(app).get("/api/loads/LD 0001");
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.transportStatusHistory.length).toBeGreaterThan(0);
+    res.body.transportStatusHistory.forEach((entry) => {
+      expect(entry._id).toBeTruthy();
+    });
   });
 });

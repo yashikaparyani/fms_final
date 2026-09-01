@@ -1126,6 +1126,12 @@ const getLoadById = async (req, res) => {
     // Transport history trail
     const transportHistory = (load.transportStatusHistory || []).map(
       (item) => ({
+        // Entries are addressed by id when one is corrected or removed — see
+        // the admin controls on the tracking page. This projection is
+        // hand-built rather than passed through, so leaving the id out of it
+        // silently disabled those controls: they render only for a row that
+        // can be named, and every row arrived unnamed.
+        _id: item._id,
         status: item.status,
         note: item.note || "",
         changedAt: item.changedAt,
