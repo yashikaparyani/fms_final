@@ -1130,6 +1130,10 @@ function CarrierInsuranceScreen({ onBack }) {
   const [coverages, setCoverages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [agent, setAgent] = useState(null); // the invite form, once opened
+  // The agency's one-off link. Held so it can be passed on by hand when the
+  // email does not land — the server hands it back for exactly that reason.
+  const [link, setLink] = useState("");
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -1158,6 +1162,32 @@ function CarrierInsuranceScreen({ onBack }) {
   const policies = insurance.policies || [];
   const labelFor = (key) =>
     coverages.find((c) => c.key === key)?.label || key;
+
+  const sendRequest = async () => {
+    if (!String(agent?.agentEmail || "").trim()) {
+      Alert.alert("Email needed", "Enter your agent's email address.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await api.post("/insurance/invite", agent);
+      setFile(res.data?.onboarding || file);
+      setAgent(null);
+      // Shown rather than swallowed: when the send fails this link is the only
+      // way the agency gets in, and the message says so.
+      setLink(res.data?.link || "");
+      Alert.alert("Request sent", res.data?.message || "Your agent has been asked.");
+      await load({ silent: true });
+    } catch (error) {
+      Alert.alert(
+        "Could not send it",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const remind = async () => {
     setBusy(true);
@@ -1214,10 +1244,26 @@ function CarrierInsuranceScreen({ onBack }) {
             </>
           ) : (
             <Text style={styles.cardBody}>
-              Nothing filed yet, and no agency has been asked. The office can send
-              your agent the request — or do it from the website.
+              Nothing filed yet, and no agency has been asked yet.
             </Text>
           )}
+
+          {/* Re-asking is legitimate — a carrier changes agency, or the first
+              email went to the wrong address — so this stays available until
+              the filing actually lands. */}
+          {!insurance.submittedAt && !agent ? (
+            <SecondaryButton
+              title={insurance.invitedAt ? "Ask a different agent" : "Send request to your agent"}
+              onPress={() =>
+                setAgent({
+                  agencyName: insurance.agencyName || "",
+                  agentName: insurance.agentName || "",
+                  agentEmail: insurance.agentEmail || "",
+                  agentPhone: insurance.agentPhone || "",
+                })
+              }
+            />
+          ) : null}
 
           {insurance.agencyName || insurance.agentEmail ? (
             <Text style={styles.cardMeta}>
@@ -1227,6 +1273,50 @@ function CarrierInsuranceScreen({ onBack }) {
             </Text>
           ) : null}
         </View>
+
+        {agent ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Ask your agent for certificates</Text>
+            <Text style={styles.cardBody}>
+              We email them a one-off link. They file the certificates directly —
+              you do not have to collect or forward anything.
+            </Text>
+
+            {[
+              { key: "agencyName", label: "Agency name" },
+              { key: "agentName", label: "Agent name" },
+              { key: "agentEmail", label: "Agent email", type: "email", required: true },
+              { key: "agentPhone", label: "Agent phone", type: "tel" },
+            ].map((field) => (
+              <SchemaField
+                key={field.key}
+                field={field}
+                value={agent[field.key]}
+                onChange={(text) => setAgent((a) => ({ ...a, [field.key]: text }))}
+              />
+            ))}
+
+            <PrimaryButton
+              title={busy ? "Sending…" : "Send the request"}
+              onPress={sendRequest}
+              disabled={busy}
+            />
+            <SecondaryButton title="Cancel" onPress={() => setAgent(null)} disabled={busy} />
+          </View>
+        ) : null}
+
+        {link ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Their link</Text>
+            <Text style={styles.cardBody}>
+              If the email does not arrive, send them this. It is theirs alone and
+              expires.
+            </Text>
+            <Text selectable style={styles.cardMeta}>
+              {link}
+            </Text>
+          </View>
+        ) : null}
 
         {/* What the office flagged as short, stated as they recorded it. */}
         {(insurance.shortfalls || []).length ? (
