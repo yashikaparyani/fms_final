@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as DocumentPicker from "expo-document-picker";
+import * as Updates from "expo-updates";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
@@ -871,6 +872,70 @@ function CarrierDocumentsScreen({ onBack }) {
         <SecondaryButton title="Back" onPress={onBack} />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// ─── Updates that announce themselves ─────────────────────────────────────────
+// By default expo-updates checks on launch, downloads in the background, and
+// applies on the NEXT launch. On a phone that is rarely closed — a driver's, all
+// day — that means a fix can sit downloaded and unused for days, and nobody can
+// tell whether it arrived. Backgrounding is not enough either: Android keeps the
+// launch alive, so reopening from recents replays the old bundle.
+//
+// So the app asks on its own, and says so when there is something to apply.
+// Tapping restarts straight into the new version.
+//
+// Silent about everything else on purpose: no update, no network, a development
+// build where updates never apply — all of it is nothing the person holding the
+// phone can act on.
+function UpdateBanner() {
+  const [ready, setReady] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Updates are disabled in dev, where checking throws rather than returning.
+    if (__DEV__ || !Updates.isEnabled) return undefined;
+
+    (async () => {
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (!check.isAvailable || cancelled) return;
+        await Updates.fetchUpdateAsync();
+        if (!cancelled) setReady(true);
+      } catch {
+        // Offline, or no update server for this build. Nothing to say.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!ready) return null;
+
+  return (
+    <Pressable
+      onPress={async () => {
+        setApplying(true);
+        try {
+          await Updates.reloadAsync();
+        } catch (error) {
+          setApplying(false);
+          Alert.alert(
+            "Could not restart",
+            "Close the app fully and open it again to finish updating.",
+          );
+        }
+      }}
+      style={styles.updateBanner}
+    >
+      <Text style={styles.updateBannerText}>
+        {applying ? "Restarting…" : "A new version is ready — tap to restart"}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -4451,6 +4516,7 @@ function FleetHomeScreen({ session, onLogout }) {
   return (
     <View style={styles.shell}>
       <StatusBar style="light" />
+      <UpdateBanner />
       {body}
       <BottomTabs tabs={tabs} active={tab} onChange={setTab} accent={theme.accent} />
     </View>
@@ -5201,6 +5267,17 @@ const styles = StyleSheet.create({
   },
   removeLink: { fontSize: 12, fontWeight: "700", color: colors.danger },
   requiredStar: { color: colors.danger, fontWeight: "900" },
+  updateBanner: {
+    backgroundColor: colors.brand,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  updateBannerText: {
+    color: colors.onBrand,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   inputInvalid: { borderColor: colors.danger, borderWidth: 1.5 },
   fieldError: {
     marginTop: 4,
