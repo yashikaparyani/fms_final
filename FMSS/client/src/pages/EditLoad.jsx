@@ -770,7 +770,16 @@ const EditLoad = () => {
                       control={control}
                       render={({ field }) => (
                         <AppSelect
-                          options={customers.map((c) => ({ value: c._id, label: `${c.firstName} ${c.lastName} (${c.email})` }))}
+                          // The business name, as the create form and every load table show it.
+                          // This asked for firstName/lastName, which /customers does
+                          // not return — so every customer read "N/A N/A" and the
+                          // dropdown could only be used by reading the address.
+                          options={customers.map((c) => ({
+                            value: c._id,
+                            label: c.customerName
+                              ? `${c.customerName}${c.email ? ` (${c.email})` : ""}`
+                              : c.email || "Unnamed customer",
+                          }))}
                           value={field.value}
                           onChange={field.onChange}
                           placeholder="Search customer..."
