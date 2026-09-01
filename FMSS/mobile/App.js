@@ -1013,7 +1013,13 @@ function OverLoadsTab({ onTrack, onOpenDetail }) {
 
 // `askReceiver` is off for the agreement-signing flow, which is the carrier
 // signing for themselves — there is nobody else to name.
-function SignatureModal({ visible, onClose, onSigned, askReceiver = false }) {
+function SignatureModal({
+  visible,
+  onClose,
+  onSigned,
+  askReceiver = false,
+  initialReceiver = null,
+}) {
   const signatureRef = useRef(null);
   // Who took the delivery. The signature proves somebody signed; it does not
   // say who, and "who signed for it" is the first question asked when a
@@ -1021,13 +1027,20 @@ function SignatureModal({ visible, onClose, onSigned, askReceiver = false }) {
   const [receiverName, setReceiverName] = useState("");
   const [receiverTitle, setReceiverTitle] = useState("");
 
-  // Cleared between deliveries — the last consignee's name must not be sitting
-  // in the box at the next drop, where it would be signed for without being read.
+  // Reopened for the SAME delivery — a failed save, a retry — comes back with
+  // what the driver already typed. Opened for a new one comes back empty:
+  // `initialReceiver` is cleared once a delivery lands, so the last consignee's
+  // name is never sitting in the box at the next drop where it would be signed
+  // for without being read.
   useEffect(() => {
     if (visible) {
-      setReceiverName("");
-      setReceiverTitle("");
+      setReceiverName(initialReceiver?.name || "");
+      setReceiverTitle(initialReceiver?.title || "");
     }
+    // `initialReceiver` is deliberately not a dependency: the box is seeded when
+    // the sheet opens, and must not be yanked back to the stored value while the
+    // driver is halfway through correcting it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleSave = () => {
@@ -1629,6 +1642,11 @@ function TrackingScreen({ load: initialLoad, onBack }) {
   const [note, setNote] = useState("");
   const [proofImages, setProofImages] = useState([]);
   const [signatureData, setSignatureData] = useState("");
+  // Held beside the signature, and for the same reason. Both are captured on
+  // the same sheet, so if only the signature survives a failed save the retry
+  // skips the sheet — the signature is already in hand — and is then rejected
+  // by the server for a name the driver has already typed.
+  const [receivedBy, setReceivedBy] = useState(null);
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [streetTurnOpen, setStreetTurnOpen] = useState(false);
@@ -1782,8 +1800,10 @@ function TrackingScreen({ load: initialLoad, onBack }) {
     status,
     signatureOverride = signatureData,
     streetTurnOverride = null,
-    // Captured on the signature sheet at the door — see SignatureModal.
-    receiverOverride = null,
+    // Captured on the signature sheet at the door — see SignatureModal. Falls
+    // back to what that sheet already gave us, so a retry does not arrive
+    // without it.
+    receiverOverride = receivedBy,
   ) => {
     try {
       // Forward-only: block moving back to an already-passed stage.
@@ -1836,7 +1856,15 @@ function TrackingScreen({ load: initialLoad, onBack }) {
         return;
       }
 
-      if (status === "DELIVERED" && !signatureOverride) {
+      // Both halves come off the same sheet, so both have to be missing-checked
+      // against it. Testing the signature alone meant a delivery that failed
+      // after signing — no photo, no GPS, a dropped connection — retried with a
+      // signature in hand, skipped the sheet, and was refused by the server for
+      // a name the driver had already given it.
+      if (
+        status === "DELIVERED" &&
+        (!signatureOverride || !receiverOverride?.name)
+      ) {
         pendingDeliveryStatusRef.current = status;
         setSignatureOpen(true);
         return;
@@ -1879,6 +1907,11 @@ function TrackingScreen({ load: initialLoad, onBack }) {
       setStreetTurnOpen(false);
       if (["PICKED_UP", "DELIVERED"].includes(status)) setProofImages([]);
       if (status === "DELIVERED") {
+        // Landed. Drop what was captured at this door so the next drop starts
+        // from a blank sheet rather than inheriting this consignee's name and
+        // mark — the whole reason the sheet used to clear itself on open.
+        setSignatureData("");
+        setReceivedBy(null);
         watcherRef.current?.remove?.();
         watcherRef.current = null;
         await stopBackgroundTracking().catch(() => null);
@@ -2054,12 +2087,14 @@ function TrackingScreen({ load: initialLoad, onBack }) {
       <SignatureModal
         visible={signatureOpen}
         askReceiver
+        initialReceiver={receivedBy}
         onClose={() => {
           pendingDeliveryStatusRef.current = null;
           setSignatureOpen(false);
         }}
         onSigned={(signature, receiver) => {
           setSignatureData(signature);
+          setReceivedBy(receiver?.name ? receiver : null);
           const pendingStatus = pendingDeliveryStatusRef.current;
           pendingDeliveryStatusRef.current = null;
           setSignatureOpen(false);
