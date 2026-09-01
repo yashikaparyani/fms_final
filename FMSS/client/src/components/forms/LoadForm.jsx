@@ -679,6 +679,19 @@ const LoadForm = () => {
   const dispatchMode = watch("dispatchMode");
   const isInstant = dispatchMode === "INSTANT";
 
+  // ── Who gets to choose how the load finds a carrier ───────────────────────
+  // Only the customer. They are the one trading price against speed on their
+  // own freight, and "find the nearest driver" is the promise being made to
+  // them.
+  //
+  // The office posting a load is doing dispatch, not shopping: they have the
+  // board, the carrier list and instant dispatch as an action on the load
+  // itself once it exists. Offering the same decision twice, in two places,
+  // only invited a load to be committed to a route before anyone had looked at
+  // it. Office-posted loads default to BID, which is what the model already
+  // does — see dispatchMode in models/Load.js.
+  const choosesDispatchMode = role === "client";
+
   const truckTypeOptions     = ["Container", "Flatbed", "Reefer", "Van", "Dry Van", "Open Truck", "Refrigerated", "Other"];
   const containerTypeOptions = ["40 Std", "40 HC", "45", "20"];
   const commodityOptions     = ["Chilled", "Dry", "Other", "Produce", "Frozen"];
@@ -906,11 +919,14 @@ const LoadForm = () => {
                 </div>
               </div>
 
-              <h3 className="form-subtitle">Delivery Modality</h3>
               {/* ── How this load finds a carrier ────────────────────────────
                   The choice is put up front and as two plain cards rather than
                   a dropdown, because it is the one decision on this form that
-                  changes what happens to the load rather than describing it. */}
+                  changes what happens to the load rather than describing it.
+                  Customers only — see choosesDispatchMode. */}
+              {choosesDispatchMode && (
+                <>
+              <h3 className="form-subtitle">Delivery Modality</h3>
               <div className="mb-6">
                 <p className="text-sm font-semibold text-gray-800 mb-1">
                   How would you like to find a carrier?
@@ -976,6 +992,8 @@ const LoadForm = () => {
                   </p>
                 )}
               </div>
+                </>
+              )}
 
               <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-8">
                 <div className="flex items-center gap-6">

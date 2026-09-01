@@ -213,6 +213,10 @@ const emptyStop = {
   company: "",   // companyName resolved
   address: "", city: "", state: "", zip: "",
   pickupDate: "", deliveryDate: "",
+  // The appointment window. A date alone says which day to turn up, not when —
+  // and a driver sent to a warehouse on the right day at the wrong hour waits,
+  // which is what detention is argued about afterwards.
+  fromTime: "", toTime: "",
 };
 
 // An <input type="date"> needs a bare YYYY-MM-DD; the API hands back an ISO
@@ -237,6 +241,10 @@ const normalizeStop = (s = {}) => ({
   zip:     s.zip     || "",
   pickupDate:   toDateInput(s.pickupDate),
   deliveryDate: toDateInput(s.deliveryDate),
+  // Stored as plain "HH:MM" strings, which is what <input type="time"> wants,
+  // so they pass straight through in both directions.
+  fromTime: s.fromTime || "",
+  toTime:   s.toTime   || "",
 });
 
 // Shape a stop for the API.
@@ -400,6 +408,32 @@ const StopForm = ({ data, onChange, loading, isPickup, allCompanies, setAllCompa
         <label className="input-label">
           {isPickup ? "Pickup Date" : "Delivery Date"}
         </label>
+      </div>
+
+      {/* Appointment window, beside the date it qualifies. Both halves are
+          optional: plenty of stops are "any time that day", and forcing a
+          window would have people inventing one. */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="relative">
+          <input
+            type="time"
+            className={uiStyles.input}
+            value={data.fromTime || ""}
+            onChange={(e) => set("fromTime", e.target.value)}
+            disabled={loading}
+          />
+          <label className="input-label">From Time</label>
+        </div>
+        <div className="relative">
+          <input
+            type="time"
+            className={uiStyles.input}
+            value={data.toTime || ""}
+            onChange={(e) => set("toTime", e.target.value)}
+            disabled={loading}
+          />
+          <label className="input-label">To Time</label>
+        </div>
       </div>
 
       {/* Modals */}
