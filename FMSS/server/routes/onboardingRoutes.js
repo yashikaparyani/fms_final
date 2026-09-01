@@ -6,6 +6,9 @@ const {
   saveProfile,
   signAgreement,
   downloadAgreement,
+  agreementDownloadLink,
+  allowAgreementDownloadToken,
+  downloadAgreementByToken,
   uploadDriverLicense,
   downloadDriverLicense,
   reviewOnboarding,
@@ -51,12 +54,28 @@ router
 router.put("/profile", protect, carrierOrOffice, saveProfile);
 
 router.post("/agreements/:key/sign", protect, carrierOrOffice, signAgreement);
+// A one-off, five-minute link the phone can hand to the system PDF viewer —
+// see the note above agreementDownloadLink.
+router.get(
+  "/agreements/:key/link",
+  protect,
+  authorizeRoles("fleetOwner", "staff", "admin"),
+  agreementDownloadLink,
+);
+
+// The token check runs first and, when it recognises one, skips the session
+// chain with next("route"). Anything it does not recognise falls through and is
+// authenticated normally, so an absent or expired token is refused rather than
+// quietly granted.
 router.get(
   "/agreements/:key/download",
+  allowAgreementDownloadToken,
   protect,
   authorizeRoles("fleetOwner", "staff", "admin"),
   downloadAgreement,
 );
+
+router.get("/agreements/:key/download", downloadAgreementByToken);
 
 router.post(
   "/drivers/:driverId/license",

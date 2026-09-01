@@ -910,3 +910,68 @@ describe("Office review", () => {
     expect(res.body.reviewNote).toMatch(/wrong insured/);
   });
 });
+
+describe("Opening a signed agreement from the phone", () => {
+  // The app hands a URL to the system PDF viewer, which carries no
+  // Authorization header — so the link has to carry its own, and that
+  // authorisation must be worth no more than the one file it names.
+  const linkFor = (key) =>
+    call("get", `/api/onboarding/agreements/${key}/link`, carrierUser, ny);
+
+  const signBroker = () =>
+    call("put", "/api/onboarding/profile", carrierUser, ny)
+      .send({ profile: FULL_PROFILE })
+      .then(() =>
+        call("post", "/api/onboarding/agreements/broker/sign", carrierUser, ny).send({
+          values: { arbitrationInitials: "RK", classWaiverInitials: "RK" },
+          acknowledgements: [1, 2, 3, 4],
+          signedName: "Ravi Kumar",
+          signedTitle: "Owner",
+        }),
+      );
+
+  it("hands back a link that opens the document with no session", async () => {
+    await signBroker();
+
+    const link = await linkFor("broker");
+    expect(link.statusCode).toBe(200);
+
+    const token = new URL(link.body.url).searchParams.get("token");
+    // No Authorization header at all — this is the system viewer's request.
+    const res = await request(app).get(
+      `/api/onboarding/agreements/broker/download?token=${token}`,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/pdf/);
+  });
+
+  it("refuses the same token for a different agreement", async () => {
+    await signBroker();
+
+    const link = await linkFor("broker");
+    const token = new URL(link.body.url).searchParams.get("token");
+
+    const res = await request(app).get(
+      `/api/onboarding/agreements/contractor/download?token=${token}`,
+    );
+
+    // Falls through to the ordinary session chain, which has nobody to let in.
+    expect([401, 403]).toContain(res.statusCode);
+  });
+
+  it("refuses a request with no token and no session", async () => {
+    await signBroker();
+
+    const res = await request(app).get("/api/onboarding/agreements/broker/download");
+    expect([401, 403]).toContain(res.statusCode);
+  });
+
+  it("refuses a token that is not a download token", async () => {
+    // An ordinary login JWT in the query string must not stand in for one.
+    const res = await request(app).get(
+      `/api/onboarding/agreements/broker/download?token=${tokenFor(carrierUser)}`,
+    );
+    expect([401, 403]).toContain(res.statusCode);
+  });
+});

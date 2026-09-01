@@ -751,6 +751,129 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
   );
 }
 
+// ─── The carrier's own paperwork ──────────────────────────────────────────────
+// The agreements they have signed, and the ones they still have to. This is the
+// only place in the app they can read back what they put their name to — the
+// onboarding gate shows them on the way in and then disappears once everything
+// is signed, which is exactly when somebody wants to look one up.
+//
+// Opening one goes through a short-lived link rather than the authenticated
+// download route directly: the system PDF viewer carries no Authorization
+// header. See agreementDownloadLink in the onboarding controller.
+// ─────────────────────────────────────────────────────────────────────────────
+function CarrierDocumentsScreen({ onBack }) {
+  const [state, setState] = useState({ loading: true, agreements: [], signed: [] });
+  const [opening, setOpening] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [catalogRes, fileRes] = await Promise.all([
+        api.get("/onboarding/catalog"),
+        api.get("/onboarding"),
+      ]);
+      setState({
+        loading: false,
+        agreements: catalogRes.data?.agreements || [],
+        signed: fileRes.data?.agreements || [],
+      });
+    } catch (error) {
+      setState({ loading: false, agreements: [], signed: [], error: true });
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const view = async (agreement) => {
+    setOpening(agreement.key);
+    try {
+      const res = await api.get(`/onboarding/agreements/${agreement.key}/link`);
+      const url = res.data?.url;
+      if (!url) throw new Error("No link came back for that document.");
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert(
+        "Could not open it",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setOpening(null);
+    }
+  };
+
+  const signedFor = (key) => state.signed.find((a) => a.key === key && a.signedAt);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={state.loading} onRefresh={load} />
+        }
+      >
+        <BrandMark compact />
+        <Text style={styles.title}>Your documents</Text>
+        <Text style={styles.subtitle}>
+          The agreements you have signed with us. Tap one to open it.
+        </Text>
+
+        {state.loading && (
+          <View style={styles.card}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        )}
+
+        {!state.loading && state.error && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Could not load your paperwork</Text>
+            <Text style={styles.cardBody}>
+              Check your connection and pull down to try again.
+            </Text>
+          </View>
+        )}
+
+        {state.agreements.map((agreement) => {
+          const done = signedFor(agreement.key);
+          return (
+            <View key={agreement.key} style={styles.card}>
+              <Text style={styles.cardTitle}>{agreement.title}</Text>
+              <Text style={styles.cardBody}>{agreement.summary}</Text>
+
+              {done ? (
+                <>
+                  <Text style={styles.signedNote}>
+                    ✓ Signed {fmtDate(done.signedAt)}
+                    {done.signedName ? ` by ${done.signedName}` : ""}
+                  </Text>
+                  {done.hasDocument ? (
+                    <SecondaryButton
+                      title={opening === agreement.key ? "Opening…" : "View document"}
+                      onPress={() => view(agreement)}
+                      disabled={opening === agreement.key}
+                    />
+                  ) : (
+                    <Text style={styles.cardMeta}>
+                      Signed, but the copy is still being prepared. Pull down to
+                      refresh in a moment.
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.cardMeta}>
+                  Not signed yet. It is on your onboarding checklist.
+                </Text>
+              )}
+            </View>
+          );
+        })}
+
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 // ─── Bidding, in one place ────────────────────────────────────────────────────
 // Two halves of the same job: what is open to bid on, and what has already been
 // bid on. They were two top-level tabs, which meant checking whether a bid had
@@ -3468,6 +3591,7 @@ function FleetHomeScreen({ session, onLogout }) {
   const [detailLoad, setDetailLoad] = useState(null);
   const [showLicense, setShowLicense] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showDocuments, setShowDocuments] = useState(false);
   const [compliance, setCompliance] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -3592,9 +3716,14 @@ function FleetHomeScreen({ session, onLogout }) {
         case "more":
           setTab("more");
           break;
+        // Their own signed agreements, not a load list. This used to fall
+        // through to the group below and land on Loads, which is why the tile
+        // appeared to do nothing.
+        case "documents":
+          setShowDocuments(true);
+          break;
         case "postLoad":
         case "quotes":
-        case "documents":
         case "payments":
         case "history":
         case "pending":
@@ -3656,6 +3785,10 @@ function FleetHomeScreen({ session, onLogout }) {
   }, [carrierSide, isDriver]);
 
   /* ---- Full-screen routes. These sit above the tab bar. ---- */
+
+  if (showDocuments) {
+    return <CarrierDocumentsScreen onBack={() => setShowDocuments(false)} />;
+  }
 
   if (showNotifications) {
     return (

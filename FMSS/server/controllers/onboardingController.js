@@ -1,6 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
+const { getJwtSecret } = require("../utils/jwtSecret");
+const { frontendUrl } = require("../utils/frontendUrl");
+const { runUnscoped } = require("../utils/tenantContext");
 
 const CarrierOnboarding = require("../models/CarrierOnboarding");
 const FleetOwner = require("../models/FleetOwner");
@@ -607,6 +611,95 @@ const signAgreement = async (req, res) => {
 // Streamed through the API rather than served from /uploads: the static mount
 // has no idea who is asking, and these documents carry a carrier's tax ID and
 // signature.
+// ─── Opening a signed agreement from the phone ────────────────────────────────
+// The download route is authenticated, and the app opens PDFs by handing a URL
+// to the system viewer — which carries no Authorization header. Rather than add
+// a file-system dependency to the app (a native change, so it could not reach
+// installed phones over the air), the app asks for a link and gets one that
+// carries its own short-lived authorisation.
+//
+// Scoped to one carrier and one agreement and valid for five minutes: long
+// enough to open, too short and too narrow to be worth passing on. The same
+// shape as the insurance agent's one-off link, for the same reason.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Where a phone reaches this API — the public site, with /api on the end. */
+const frontendApiBase = () => `${frontendUrl()}/api`;
+
+const DOWNLOAD_TOKEN_SCOPE = "agreement-download";
+const DOWNLOAD_TOKEN_TTL = "5m";
+
+const agreementDownloadLink = async (req, res) => {
+  try {
+    const carrier = await resolveCarrier(req, req.query.fleetOwnerId);
+    const agreement = AGREEMENT_BY_KEY.get(req.params.key);
+    if (!agreement) return res.status(404).json({ message: "Unknown agreement." });
+
+    const token = jwt.sign(
+      {
+        scope: DOWNLOAD_TOKEN_SCOPE,
+        carrierId: String(carrier._id),
+        key: req.params.key,
+      },
+      getJwtSecret(),
+      { expiresIn: DOWNLOAD_TOKEN_TTL },
+    );
+
+    res.json({
+      url: `${frontendApiBase()}/onboarding/agreements/${req.params.key}/download?token=${token}`,
+      expiresInSeconds: 300,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+/**
+ * Lets a request through on a download token instead of a session.
+ *
+ * Only ever grants the one file the token names. Anything else — a different
+ * agreement, a different carrier, an expired or differently-scoped token — falls
+ * through to the ordinary auth chain and is refused there.
+ */
+const allowAgreementDownloadToken = (req, res, next) => {
+  const token = req.query.token;
+  if (!token) return next();
+
+  try {
+    const claims = jwt.verify(String(token), getJwtSecret());
+    if (claims.scope !== DOWNLOAD_TOKEN_SCOPE) return next();
+    if (claims.key !== req.params.key) return next();
+
+    req.agreementDownload = { carrierId: claims.carrierId };
+    return next("route");
+  } catch {
+    return next();
+  }
+};
+
+const downloadAgreementByToken = async (req, res) => {
+  try {
+    // No session, so no location context was ever opened — and this collection
+    // is tenant-scoped, which would otherwise throw rather than return the file.
+    // Read unscoped: the token names one carrier and one agreement, so it is
+    // the authorisation, exactly as the insurance agent's link is.
+    const onboarding = await runUnscoped(() =>
+      CarrierOnboarding.findOne({ fleetOwner: req.agreementDownload.carrierId }),
+    );
+    const signed = (onboarding?.agreements || []).find((a) => a.key === req.params.key);
+    const agreement = AGREEMENT_BY_KEY.get(req.params.key);
+
+    return serveFile(req, res, {
+      filePath: signed?.document?.filePath,
+      filename: `${agreement?.title || req.params.key}.pdf`,
+      mimeType: signed?.document?.mimeType || "application/pdf",
+      disposition: "inline",
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 const downloadAgreement = async (req, res) => {
   try {
     const carrier = await resolveCarrier(req, req.query.fleetOwnerId);
@@ -858,6 +951,9 @@ module.exports = {
   saveProfile,
   signAgreement,
   downloadAgreement,
+  agreementDownloadLink,
+  allowAgreementDownloadToken,
+  downloadAgreementByToken,
   uploadDriverLicense,
   downloadDriverLicense,
   reviewOnboarding,
