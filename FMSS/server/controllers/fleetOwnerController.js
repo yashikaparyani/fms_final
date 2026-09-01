@@ -4,7 +4,7 @@ const Load = require("../models/Load")
 const { sendFleetOwnerCredentials } = require("../services/emailService");
 const {
   findCarrierFor,
-  carrierLoadFilter,
+  carrierVisibleLoadFilter,
   carrierLoadView,
 } = require("../utils/carrierAccount");
 const mongoose = require("mongoose");
@@ -418,8 +418,9 @@ const getAssignedLoadToConfirm = async (req, res) => {
      const fleetOwnerId = new mongoose.Types.ObjectId(fleetOwner._id);
 
     // Loads this carrier holds outright, plus loads where they run one leg
-    // of a split — see carrierLoadFilter.
-    const assignedLoads = await Load.find(carrierLoadFilter(fleetOwnerId))
+    // of a split, minus what has stopped being their business — see
+    // carrierVisibleLoadFilter.
+    const assignedLoads = await Load.find(carrierVisibleLoadFilter(fleetOwnerId))
       .sort({ createdAt: -1 })
       .lean();
 

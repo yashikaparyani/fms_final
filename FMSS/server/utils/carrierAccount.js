@@ -81,6 +81,42 @@ const carrierLoadFilter = (fleetOwnerId) => ({
   ],
 });
 
+/**
+ * Statuses at which a load stops being the carrier's business.
+ *
+ * Not the same question as "is it finished" — a delivered load is finished and
+ * the carrier still needs it, because the POD is on it and that is what they
+ * invoice against. These three are the ones where there is nothing left for
+ * them on it at all:
+ *
+ *   INVOICED           the office has billed it; what happens next is between
+ *                      them and the customer
+ *   DROP_IN_WAREHOUSE  the box was handed over and is somebody else's problem
+ *   TERMINATED         it is off; there is no work to do and no paperwork to
+ *                      chase
+ *
+ * Deliberately narrower than the capacity module's finished list
+ * (utils/carrierCapacity.js), which answers "is this truck free" — a different
+ * question with a different answer for DELIVERED.
+ */
+const CARRIER_HIDDEN_TRANSPORT_STATUSES = [
+  "INVOICED",
+  "DROP_IN_WAREHOUSE",
+  "TERMINATED",
+];
+
+/**
+ * The carrier's work, as they should be shown it.
+ *
+ * `carrierLoadFilter` answers "is this theirs", which stays true forever and is
+ * the right question for reading one load by id. This answers "should it still
+ * be on their board", which is what every list they browse wants.
+ */
+const carrierVisibleLoadFilter = (fleetOwnerId) => ({
+  ...carrierLoadFilter(fleetOwnerId),
+  transportStatus: { $nin: CARRIER_HIDDEN_TRANSPORT_STATUSES },
+});
+
 
 /**
  * The figure a carrier should be shown for a load, and where it came from.
@@ -153,6 +189,8 @@ module.exports = {
   carrierPayoutFor,
   carrierLoadView,
   carrierLoadFilter,
+  carrierVisibleLoadFilter,
+  CARRIER_HIDDEN_TRANSPORT_STATUSES,
   carrierUserIdFor,
   findCarrierFor,
   isCarrierSide,

@@ -99,6 +99,13 @@ const PAYOUT_LABEL = {
 // Kept in step with COMPLETED_TRANSPORT_STATUSES in
 // server/controllers/loadController.js — the web Over tab and this one have to
 // agree about which loads a carrier has finished with.
+// Setting one of these hands the load off for good: it leaves the carrier's
+// board entirely rather than moving to Over. Kept in step with
+// CARRIER_HIDDEN_TRANSPORT_STATUSES in server/utils/carrierAccount.js — the
+// server is what actually stops returning them; this list only decides whether
+// the driver is warned first.
+const REMOVES_FROM_BOARD = ["INVOICED", "DROP_IN_WAREHOUSE", "TERMINATED"];
+
 const completedStatuses = [
   "DELIVERED",
   "TERMINATED",
@@ -1855,8 +1862,37 @@ function TrackingScreen({ load: initialLoad, onBack, documentsOnly = false }) {
     // back to what that sheet already gave us, so a retry does not arrive
     // without it.
     receiverOverride = receivedBy,
+    // Set by the confirmation below when the driver has said yes to a status
+    // that takes the load off their board.
+    confirmedRemoval = false,
   ) => {
     try {
+      // A status that takes the load off their board is worth one question
+      // first — it is not recoverable from the app, and "the load vanished"
+      // is otherwise a support call rather than a decision they made.
+      if (REMOVES_FROM_BOARD.includes(status) && !confirmedRemoval) {
+        Alert.alert(
+          `Mark as ${labelize(status)}?`,
+          "This load will be removed from your list. You will not be able to open it or update it again from the app.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: `Yes, ${labelize(status)}`,
+              style: "destructive",
+              onPress: () =>
+                updateStatus(
+                  status,
+                  signatureOverride,
+                  streetTurnOverride,
+                  receiverOverride,
+                  true,
+                ),
+            },
+          ],
+        );
+        return;
+      }
+
       // Forward-only: block moving back to an already-passed stage.
       if (isStatusLocked(status)) {
         Alert.alert(
