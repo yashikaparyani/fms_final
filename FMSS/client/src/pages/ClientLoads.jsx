@@ -7,17 +7,14 @@ import LoadTable from "../components/LoadTable";
 import MobileCard from "../components/MobileCard";
 import { useSelector } from "react-redux";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { formatDate } from "../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
 
 const fmtDate = (v) =>
   v
-    ? new Date(v).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+    ? formatDate(v)
     : null;
 
 const ClientLoads = () => {

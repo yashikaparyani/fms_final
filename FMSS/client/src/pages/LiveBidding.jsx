@@ -8,6 +8,7 @@ import SectionHeader from "../components/SectionHeader";
 import { RiLoader5Fill } from "react-icons/ri";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { formatDateTime, formatTime } from "../utils/dates";
 
 // ─── API layer ────────────────────────────────────────────────────────────────
 // All API calls live here. Components just call these functions.
@@ -206,7 +207,7 @@ const LiveBidding = () => {
             <p className="text-xs text-gray-500">End Time</p>
             <p className="text-sm font-medium text-gray-700">
               {loadDetails?.bidEndTime
-                ? new Date(loadDetails.bidEndTime).toLocaleString()
+                ? formatDateTime(loadDetails.bidEndTime)
                 : "—"}
             </p>
           </div>
@@ -427,7 +428,7 @@ const LiveBidding = () => {
                             )}
                           </p>
                           <p className="text-xs text-gray-400">
-                            {new Date(bid.submittedAt).toLocaleTimeString()}
+                            {formatTime(bid.submittedAt)}
                           </p>
                         </div>
                       </div>

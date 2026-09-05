@@ -12,6 +12,7 @@ import { visibleNavItems } from "./navItems";
 import NotificationBell from "./NotificationBell"; // 👈 import
 import LocationSwitcher from "./LocationSwitcher";
 import { clearActiveLocation } from "../utils/activeLocation";
+import { displayName, initialsOf } from "../utils/displayName";
 
 const Topbar = () => {
   const [isProfileOpen, setIsProfileOpen]       = useState(false);
@@ -97,10 +98,10 @@ const Topbar = () => {
               className="w-10 h-10 rounded-full flex justify-center items-center text-white font-bold shadow-card"
               style={{ background: "var(--role-accent)" }}
             >
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+              {initialsOf(user)}
             </div>
             <div className="hidden md:flex flex-col">
-              <h4 className="text-sm font-bold">{user?.firstName}</h4>
+              <h4 className="text-sm font-bold">{displayName(user)}</h4>
               <h4 className="text-[11px] font-semibold tracking-wide text-ink-500">{user?.role?.toUpperCase()}</h4>
             </div>
             {isProfileOpen && (

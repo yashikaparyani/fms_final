@@ -18,6 +18,7 @@ import OnboardingStatusBadge from "../../components/onboarding/OnboardingStatusB
 import { uiStyles } from "../../style/uiStyles";
 import { usePermissions } from "../../hooks/usePermissions";
 import { onboardingStatusMeta } from "../../utils/onboardingStatus";
+import { formatDateNumeric } from "../../utils/dates";
 
 // ─── One carrier's file, as the office reviews it ─────────────────────────────
 // Everything the carrier and their insurance agency handed over, on one page,
@@ -36,7 +37,7 @@ const money = (value) =>
     : `$${Number(value).toLocaleString("en-US")}`;
 
 const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("en-US") : "—";
+  value ? formatDateNumeric(value) : "—";
 
 const isPast = (value) => !!value && new Date(value) < new Date();
 

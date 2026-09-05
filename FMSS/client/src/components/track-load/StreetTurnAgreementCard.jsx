@@ -12,6 +12,7 @@ import StreetTurnAgreementDocument, {
 import api from "../../api";
 import { printElement } from "../../utils/printElement";
 import { notify } from "../../utils/swal";
+import { formatDateTime } from "../../utils/dates";
 
 // ─── The office's copy of the transfer agreement ──────────────────────────────
 // Every party is emailed the agreement when a street turn is confirmed, and the
@@ -28,13 +29,7 @@ import { notify } from "../../utils/swal";
 
 const fmt = (value) =>
   value
-    ? new Date(value).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
+    ? formatDateTime(value)
     : "—";
 
 /**

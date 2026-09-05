@@ -38,6 +38,8 @@ const branchSchema = new mongoose.Schema(
     zip: { type: String, trim: true },
     phone: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
+    // Printed on the letterhead of every invoice this branch issues.
+    website: { type: String, trim: true },
 
     // Deactivated rather than deleted — a branch's loads must stay readable.
     active: { type: Boolean, default: true },

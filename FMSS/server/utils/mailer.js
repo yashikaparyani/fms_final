@@ -29,7 +29,7 @@ const createEmailResult = ({
 
 /**
  * Sends an email using the global DB EmailConfig settings.
- * @param {Object} options - { to, subject, text, html }
+ * @param {Object} options - { to, cc, replyTo, subject, text, html, attachments }
  * @returns {Object} structured delivery status
  */
 const sendEmail = async (options) => {
@@ -80,6 +80,19 @@ const sendEmail = async (options) => {
       text: options.text,
       html: options.html,
     };
+
+    // Copies and attachments are passed through only when the caller asked for
+    // them. Set unconditionally — even to undefined — nodemailer is fine, but an
+    // empty `cc` header on every credential email is noise in every inbox.
+    if (options.cc) mailOptions.cc = options.cc;
+    if (options.replyTo) mailOptions.replyTo = options.replyTo;
+
+    // An invoice is not an invoice until the PDF is on the mail. Attachments are
+    // buffers rather than paths on purpose — see services/invoiceDocumentService.js
+    // for why nothing renders to disk first.
+    if (Array.isArray(options.attachments) && options.attachments.length) {
+      mailOptions.attachments = options.attachments;
+    }
 
     const info = await transporter.sendMail(mailOptions);
     console.log("Email sent: %s", info.messageId);

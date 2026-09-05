@@ -87,8 +87,26 @@ const skippedManualEmailStatus = (channel) => ({
 
 const getCustomers = async (req, res) => {
   try {
-    // 1. Get all users
-    const users = await User.find({ role: "client" })
+    // ── Scoped to the branch in play ──────────────────────────────────────────
+    // User is not tenant-scoped by the Mongoose plugin — it cannot be, because
+    // signing in has to find an account before there is any tenant context to
+    // scope it with. So the branch filter is applied here, by hand, and without
+    // it a customer signed up in Los Angeles was listed under every branch in
+    // the business.
+    //
+    // `locationIds` is always populated by middleware/location.js: one entry for
+    // a single active branch, the user's whole set in "all locations" mode.
+    // Accounts predating the fix that assigns a customer to a branch have an
+    // empty `locations` array, so they are matched too — invisible everywhere
+    // would be worse than visible everywhere, and they are repaired on save.
+    const scope = (req.locationIds || []).filter(Boolean);
+
+    const users = await User.find({
+      role: "client",
+      ...(scope.length
+        ? { $or: [{ locations: { $in: scope } }, { locations: { $size: 0 } }] }
+        : {}),
+    })
       .sort({ createdAt: -1 })
       .lean();
 

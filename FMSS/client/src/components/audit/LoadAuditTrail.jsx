@@ -18,6 +18,7 @@ import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { usePermissions } from "../../hooks/usePermissions";
+import { formatDateNumeric, formatDateTime } from "../../utils/dates";
 
 // ─── Load audit trail & notes ─────────────────────────────────────────────────
 // Everything that happened to a load, in one chronological list: field edits,
@@ -56,17 +57,11 @@ const relativeTime = (value) => {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return days === 1 ? "yesterday" : `${days} days ago`;
-  return new Date(value).toLocaleDateString("en-US");
+  return formatDateNumeric(value);
 };
 
 const fullTime = (value) =>
-  new Date(value).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  formatDateTime(value);
 
 const LoadAuditTrail = ({ loadId }) => {
   const { role } = usePermissions();
@@ -427,7 +422,7 @@ const LoadAuditTrail = ({ loadId }) => {
                         <span className="inline-flex items-center gap-1">
                           <CheckCircleIcon style={{ fontSize: 14 }} />
                           Closed by {entry.followUp.resolvedByName} on{" "}
-                          {new Date(entry.followUp.resolvedAt).toLocaleDateString("en-US")}
+                          {formatDateNumeric(entry.followUp.resolvedAt)}
                           {entry.followUp.resolutionNote
                             ? ` — ${entry.followUp.resolutionNote}`
                             : ""}
@@ -437,7 +432,7 @@ const LoadAuditTrail = ({ loadId }) => {
                           <span>
                             {entry.followUp.overdue ? "Overdue" : "Due"}
                             {entry.followUp.dueAt
-                              ? ` ${new Date(entry.followUp.dueAt).toLocaleDateString("en-US")}`
+                              ? ` ${formatDateNumeric(entry.followUp.dueAt)}`
                               : ""}
                             {entry.followUp.assignedToName
                               ? ` · ${entry.followUp.assignedToName}`

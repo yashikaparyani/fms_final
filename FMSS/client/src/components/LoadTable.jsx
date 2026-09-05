@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { PRE_DISPATCH, STATUS_BADGE_COLORS } from "../utils/loadColorMode";
 import { transportStatusLabel } from "../utils/transportStatus";
+import { formatDate, formatDateTime } from "../utils/dates";
 // ── Status → row colour mapping ──────────────────────────────
 const statusRowColor = {
   // Transport status colours
@@ -45,24 +46,12 @@ const getRowColor = (load, colorBy, colorMap) => {
 // ── Formatters ───────────────────────────────────────────────
 const fmtDate = (v) => {
   if (!v) return null;
-  return new Date(v).toLocaleDateString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
+  return formatDate(v);
 };
 
 const fmtDateTime = (v) => {
   if (!v) return null;
-  const d = new Date(v);
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return formatDateTime(v);
 };
 
 // Compare calendar days, not instants: a date stored at midnight would

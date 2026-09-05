@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
+import { formatDate } from "../../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, StatusBadge } = LoadTable;
 
@@ -200,7 +201,7 @@ const MobileAddressCard = ({ row, onEdit }) => {
         {[
           { label: "Load Type", value: row.truckType },
           { label: "Created",    value: row.createdAt
-              ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              ? formatDate(row.createdAt)
               : null },
         ].map(({ label, value }) =>
           value ? (
@@ -280,7 +281,7 @@ const UpdateAddressPage = () => {
     },
     { key: "created", header: "Created", width: "100px", render: (row) => (
       <span className="text-xs text-gray-600">
-        {row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+        {row.createdAt ? formatDate(row.createdAt) : "—"}
       </span>
     )},
   ];

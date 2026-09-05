@@ -15,6 +15,7 @@ import {
   onboardingRowColors,
   onboardingStatusMeta,
 } from "../../utils/onboardingStatus";
+import { formatDateNumeric } from "../../utils/dates";
 
 // ─── Onboarding review queue ──────────────────────────────────────────────────
 // The office side of carrier onboarding. A carrier finishes their paperwork and
@@ -37,7 +38,7 @@ const TABS = [
 ];
 
 const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("en-US") : "—";
+  value ? formatDateNumeric(value) : "—";
 
 /** Whole days since `value`, for "waiting 4 days" rather than a bare date. */
 const daysSince = (value) => {

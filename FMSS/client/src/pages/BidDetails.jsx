@@ -14,6 +14,7 @@ import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import UnassignedNote from "../components/UnassignedNote";
+import { formatDateTime } from "../utils/dates";
 
 // ─── API layer ────────────────────────────────────────────────────────────────
 const bidDetailsApi = {
@@ -262,7 +263,7 @@ const BidDetails = () => {
             <p className="text-xs text-gray-500">End Time</p>
             <p className="text-sm font-medium text-gray-700">
               {load?.bidEndTime
-                ? new Date(load.bidEndTime).toLocaleString()
+                ? formatDateTime(load.bidEndTime)
                 : "—"}
             </p>
           </div>
@@ -301,7 +302,7 @@ const BidDetails = () => {
             <p className="text-[11px] text-green-600 mt-1">
               ✓ Acceptance mail sent
               {load.acceptanceMailSentAt
-                ? ` on ${new Date(load.acceptanceMailSentAt).toLocaleString()}`
+                ? ` on ${formatDateTime(load.acceptanceMailSentAt)}`
                 : ""}
             </p>
           )}
@@ -414,7 +415,7 @@ const BidDetails = () => {
 
                           {/* Submitted time + score */}
                           <p className="text-xs text-gray-400">
-                            {new Date(bid.submittedAt).toLocaleString()}
+                            {formatDateTime(bid.submittedAt)}
                             {bid.rating != null && (
                               <span className="ml-2 text-indigo-400">
                                 ★ {bid.rating.toFixed(1)}

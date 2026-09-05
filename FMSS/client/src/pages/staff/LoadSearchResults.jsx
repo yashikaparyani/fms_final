@@ -3,11 +3,12 @@ import { useSelector } from "react-redux";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import { dropDateOf, pickupDateOf } from "../../utils/loadUrgency";
+import { formatDate } from "../../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell } = LoadTable;
 
 const fmtDate = (v) =>
-  v ? new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+  v ? formatDate(v) : null;
 
 // Which tab a result would normally live under, so a mixed list stays legible.
 const TAB_OF_STATUS = {

@@ -9,6 +9,7 @@ import LeafletMap from "../../components/LeafletMap";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import { formatDateTime } from "../../utils/dates";
 
 // ─── Where my drivers are ─────────────────────────────────────────────────────
 // The carrier's own fleet on one map, built from the position reports the
@@ -223,7 +224,7 @@ const DriverLocations = () => {
                       <div>
                         <p className="text-[10px] uppercase text-gray-400">Reported</p>
                         <p className="text-gray-700">
-                          {new Date(row.location.recordedAt).toLocaleString("en-US")}
+                          {formatDateTime(row.location.recordedAt)}
                         </p>
                       </div>
                     </div>

@@ -46,7 +46,7 @@ const Login = ({ allowedRole, showRegister = true, title }) => {
       driver: "var(--color-good-600)",
       fleetOwner: "var(--color-accent-600)",
       client: "var(--color-aqua-600)",
-      staff: "var(--color-bad-600)",
+      staff: "var(--color-brand-400)",
       admin: "var(--color-brand-800)",
     }[allowedRoles?.[0]] || "var(--color-accent-600)";
 

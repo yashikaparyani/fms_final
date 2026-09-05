@@ -117,11 +117,24 @@ const REMOVES_FROM_BOARD = ["INVOICED", "DROP_IN_WAREHOUSE", "TERMINATED"];
 //
 // TERMINATED and DROP_IN_WAREHOUSE are in neither: the server stops returning
 // those to a carrier at all — see CARRIER_HIDDEN_TRANSPORT_STATUSES.
+// ── When a load stops being the carrier's ────────────────────────────────────
+// Mirrors CARRIER_FINISHED_STATUSES in server/config/transportStatuses.js, and
+// must stay in step with it: the Assigned tile's count comes from the server
+// using that list, and this filters the list underneath it.
+//
+// PAPERWORK_PENDING used to be in here, which was the bug. It sits mid-journey,
+// so moving a load into it made the load vanish from Assigned without arriving
+// in Completed — and the tile still counted it in neither. A load is the
+// carrier's until it is delivered (or the trip ends some other way); paperwork
+// is not the end of the trip.
 const completedStatuses = [
   "DELIVERED",
+  "TERMINATED",
   "STREET_TURN",
   "EMPTY_IN_YARD",
-  "PAPERWORK_PENDING",
+  "LOADED_IN_YARD",
+  "DROP_IN_WAREHOUSE",
+  "INVOICED",
 ];
 
 // Forward-only progression order. A stage already reached can't be redone,
@@ -267,26 +280,48 @@ const labelize = (value) =>
 const money = (value) =>
   value || value === 0 ? `$ ${Number(value).toLocaleString()}` : "-";
 
+// ─── Dates ────────────────────────────────────────────────────────────────────
+// Mirrors server/utils/dates.js and client/src/utils/dates.js. The distinction
+// matters more here than anywhere else, because a driver's phone is set to
+// whatever timezone they are standing in.
+//
+// A CALENDAR DATE — a pickup date, a due date — is stored at UTC midnight and
+// read back in UTC, so it says the same day on a phone in Newark, a phone in
+// Los Angeles and the invoice the office printed. Read in the device's own zone
+// it moves: UTC midnight on the 15th is 8pm on the 14th in New York.
+//
+// An INSTANT — createdAt, a status change — is shown on the US business clock,
+// so a driver and a dispatcher discussing "the 3:42 update" mean the same
+// moment.
+const BUSINESS_TIME_ZONE = "America/New_York";
+
 const fmtDate = (value) => {
   if (!value) return "-";
   const d = new Date(value);
-  return Number.isNaN(d.getTime())
-    ? "-"
-    : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  if (Number.isNaN(d.getTime())) return "-";
+
+  return d.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 };
 
 const fmtDateTime = (value) => {
   if (!value) return "-";
   const d = new Date(value);
-  return Number.isNaN(d.getTime())
-    ? "-"
-    : d.toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  if (Number.isNaN(d.getTime())) return "-";
+
+  return d.toLocaleString("en-US", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 };
 
 const toLocationPayload = (position) => ({
@@ -4024,7 +4059,7 @@ function NotificationsScreen({ onBack, onOpenLoad }) {
             <Text style={styles.notifBody}>{item.message}</Text>
             <Text style={styles.notifMeta}>
               {item.load?.loadId ? item.load.loadId + " · " : ""}
-              {new Date(item.createdAt).toLocaleString()}
+              {fmtDateTime(item.createdAt)}
             </Text>
           </Pressable>
         )}

@@ -5,17 +5,14 @@ import api from "../../api";
 import { useNavigate } from "react-router-dom";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import AssignDriversDialog from "../../components/fleetOwner/AssignDriversDialog";
+import { formatDate } from "../../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
 
 const fmtDate = (v) =>
   v
-    ? new Date(v).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+    ? formatDate(v)
     : null;
 
 const AssignedLoad = () => {

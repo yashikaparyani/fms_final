@@ -8,6 +8,8 @@ import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import Swal from "sweetalert2";
 import { usePermissions } from "../../hooks/usePermissions";
+import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/dates";
+import { formatDateNumeric, formatDateTime, formatTime } from "../../utils/dates";
 
 // ─── Report centre ────────────────────────────────────────────────────────────
 // One screen for every report, driven entirely by the catalog the server serves.
@@ -19,12 +21,10 @@ import { usePermissions } from "../../hooks/usePermissions";
 // frontend change at all.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const today = () => new Date().toISOString().slice(0, 10);
 
-const startOfMonth = () => {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-};
+
+// From utils/dates.js — see the note there on why toISOString() is the wrong way
+// to fill a date input.
 
 const fmt = (value, type) => {
   if (value === null || value === undefined || value === "") return "—";
@@ -38,9 +38,9 @@ const fmt = (value, type) => {
     case "percent":
       return `${Number(value)}%`;
     case "date":
-      return new Date(value).toLocaleDateString("en-US");
+      return formatDateNumeric(value);
     case "datetime":
-      return new Date(value).toLocaleString("en-US");
+      return formatDateTime(value);
     case "number":
       return Number(value).toLocaleString("en-US");
     default:
@@ -436,7 +436,7 @@ const ReportCentre = () => {
             <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
               <p className="text-xs text-gray-500">
                 {report
-                  ? `${report.totals.count} row${report.totals.count === 1 ? "" : "s"} · generated ${new Date(report.generatedAt).toLocaleTimeString("en-US")}`
+                  ? `${report.totals.count} row${report.totals.count === 1 ? "" : "s"} · generated ${formatTime(report.generatedAt)}`
                   : ""}
               </p>
               <div className="flex items-center gap-2">

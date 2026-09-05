@@ -1,4 +1,5 @@
 import React from "react";
+import { formatDate } from "../../utils/dates";
 
 /**
  * Dashboard cards.
@@ -116,11 +117,7 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
           className="text-[11px] font-bold text-center mb-3 whitespace-nowrap"
           style={{ color: "var(--role-accent)" }}
         >
-          {new Date(stats.date + "T00:00:00").toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+          {formatDate(stats.date)}
         </div>
       )}
 

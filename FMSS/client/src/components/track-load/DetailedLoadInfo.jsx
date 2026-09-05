@@ -3,25 +3,16 @@ import Card from "./Card";
 import SectionHeader from "./SectionHeader";
 import InfoRow from "./InfoRow";
 import StatusChip, { TRANSPORT_STATUS_COLOR } from "./StatusChip";
+import { formatDate, formatDateTime } from "../../utils/dates";
 
 const fmt = (v) =>
   v
-    ? new Date(v).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
+    ? formatDate(v)
     : "—";
 
 const fmtFull = (v) =>
   v
-    ? new Date(v).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatDateTime(v)
     : "—";
 
 const money = (v) =>

@@ -5,6 +5,7 @@ import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import { formatDateTime } from "../../utils/dates";
 
 // ─── WhatsApp messaging panel ─────────────────────────────────────────────────
 // Compose an approved template, pick who gets it, send. The message is queued
@@ -354,12 +355,7 @@ const WhatsAppPanel = () => {
                       </span>
                     </td>
                     <td className="py-2 text-[11px] text-gray-500 whitespace-nowrap">
-                      {new Date(m.createdAt).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
+                      {formatDateTime(m.createdAt)}
                     </td>
                   </tr>
                 ))}

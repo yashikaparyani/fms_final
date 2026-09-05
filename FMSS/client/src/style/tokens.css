@@ -123,12 +123,16 @@ body[data-role="client"] {
   --role-to: var(--color-aqua-500);
 }
 
+/* Deep indigo — the same brand family as admin, a clear step lighter.
+   The two back-office portals reading as related is deliberate; the red-to-orange
+   this replaced was the loudest thing on a screen people sit in front of all day,
+   and it collided with the red the app uses to mean "something is wrong". */
 body[data-role="staff"] {
-  --role-accent: var(--color-bad-600);
-  --role-accent-dark: var(--color-bad-700);
-  --role-accent-soft: var(--color-bad-100);
-  --role-from: var(--color-bad-700);
-  --role-to: var(--color-fuel-500);
+  --role-accent: var(--color-brand-400);
+  --role-accent-dark: var(--color-brand-600);
+  --role-accent-soft: var(--color-brand-100);
+  --role-from: var(--color-brand-600);
+  --role-to: var(--color-brand-400);
 }
 
 body[data-role="admin"] {

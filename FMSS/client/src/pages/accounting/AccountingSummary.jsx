@@ -8,6 +8,7 @@ import LoadTable from "../../components/LoadTable";
 import { money } from "../../components/accounting/ChargeEditor";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
+import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/dates";
 
 // ─── Financial summary ────────────────────────────────────────────────────────
 // Revenue against expense across loads, and what each driver is owed.
@@ -19,17 +20,15 @@ import { notify } from "../../utils/swal";
 //
 // The first of those is the queue. A load marked invoiceable leaves dispatch's
 // All Transit tab and arrives here (see ACCOUNTING_TRANSPORT_STATUSES in
-// server/controllers/loadController.js); it is the only tab that ignores the
-// date range, because a load that has been waiting to be billed since last month
-// is precisely the one that must not fall off the screen.
+// server/controllers/loadController.js) and leaves again once an invoice is
+// raised against it; it is the only tab that ignores the date range, because a
+// load that has been waiting to be billed since last month is precisely the one
+// that must not fall off the screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const startOfMonth = () => {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-};
-
-const today = () => new Date().toISOString().slice(0, 10);
+// From utils/dates.js rather than built here: `new Date().toISOString()` returns
+// tomorrow's date for anyone east of Greenwich in their evening, so a date range
+// defaulted that way starts a day out for half the world.
 
 const AccountingSummary = () => {
   const navigate = useNavigate();
@@ -48,9 +47,10 @@ const AccountingSummary = () => {
       const [summaryRes, invoiceableRes, payrollRes] = await Promise.all([
         api.get("/accounting/summary", { params: range }),
         // Deliberately unranged — see the note at the top of the file.
-        api.get("/accounting/summary", {
-          params: { transportStatus: "INVOICED" },
-        }),
+        // `awaitingInvoice` rather than a transport status: the server drops the
+        // ones already billed, which it can only know by reading the invoice
+        // register. See server/services/billingState.js.
+        api.get("/accounting/summary", { params: { awaitingInvoice: true } }),
         api.get("/accounting/payroll", { params: { ...range, unsettledOnly } }),
       ]);
       setSummary(summaryRes.data);

@@ -87,7 +87,8 @@ const getBranches = async (req, res) => {
 // @access  Private (admin)
 const createBranch = async (req, res) => {
   try {
-    const { name, code, address, city, state, zip, phone, email } = req.body;
+    const { name, code, address, city, state, zip, phone, email, website } =
+      req.body;
 
     if (!String(name || "").trim() || !String(code || "").trim()) {
       return res
@@ -113,6 +114,7 @@ const createBranch = async (req, res) => {
       zip,
       phone,
       email,
+      website,
       createdBy: req.user._id,
     });
 
@@ -152,7 +154,16 @@ const updateBranch = async (req, res) => {
       branch.code = String(req.body.code).toUpperCase();
     }
 
-    for (const field of ["name", "address", "city", "state", "zip", "phone", "email"]) {
+    for (const field of [
+      "name",
+      "address",
+      "city",
+      "state",
+      "zip",
+      "phone",
+      "email",
+      "website",
+    ]) {
       if (req.body[field] !== undefined) branch[field] = req.body[field];
     }
     if (req.body.active !== undefined) branch.active = !!req.body.active;

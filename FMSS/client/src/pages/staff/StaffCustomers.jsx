@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EmailIcon from "@mui/icons-material/Email";
+import CircularProgress from "@mui/material/CircularProgress";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { notify } from "../../utils/swal";
 import api from "../../api";
@@ -39,6 +40,12 @@ const StaffCustomers = () => {
   };
 
   const handleSendCredentials = async (id) => {
+    // A second press while the first is in flight would issue a second password
+    // and invalidate the one already on its way. The disabled button stops this
+    // for a mouse; the guard stops it for a double-click that lands in the same
+    // tick, and for the keyboard.
+    if (sendingCredentials) return;
+
     setSendingCredentials(id);
     try {
       const res = await api.post(`/customers/${id}/send-credentials`, {
@@ -53,6 +60,8 @@ const StaffCustomers = () => {
   };
 
   const handleShareWhatsApp = async (id) => {
+    if (sendingCredentials) return;
+
     setSendingCredentials(id);
     try {
       const res = await api.post(`/customers/${id}/send-credentials`, {
@@ -140,17 +149,38 @@ const StaffCustomers = () => {
     },
   ];
 
-  const desktopActions = (row) => (
+  // ── Why these two buttons show their working ────────────────────────────────
+  // Sending credentials waits on an SMTP round trip, which is slow enough that a
+  // button which does not visibly change reads as a button that did not fire. It
+  // was being clicked two or three times, and every click issues a NEW password
+  // — so the mail the customer eventually opens holds a password that has
+  // already been replaced by the next click, and they cannot log in.
+  //
+  // So the row goes busy the instant it is pressed: the icon becomes a spinner
+  // and both buttons refuse further presses until the request settles.
+  const desktopActions = (row) => {
+    const busy = sendingCredentials === row._id;
+
+    return (
     <div className="flex gap-2">
       <button
         onClick={() => handleSendCredentials(row._id)}
-        className="btn-secondary p-1 text-white bg-blue-600 border-blue-600"
+        disabled={busy}
+        title={busy ? "Sending credentials…" : "Email login credentials"}
+        aria-busy={busy}
+        className="btn-secondary p-1 text-white bg-blue-600 border-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        <EmailIcon fontSize="small" />
+        {busy ? (
+          <CircularProgress size={18} thickness={5} sx={{ color: "#fff" }} />
+        ) : (
+          <EmailIcon fontSize="small" />
+        )}
       </button>
       <button
         onClick={() => handleShareWhatsApp(row._id)}
-        className="btn-secondary p-1 text-white bg-green-600 border-green-600"
+        disabled={busy}
+        title={busy ? "Preparing credentials…" : "Share login credentials on WhatsApp"}
+        className="btn-secondary p-1 text-white bg-green-600 border-green-600 disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <WhatsAppIcon fontSize="small" />
       </button>
@@ -164,7 +194,8 @@ const StaffCustomers = () => {
         <DeleteIcon fontSize="small" />
       </button>
     </div>
-  );
+    );
+  };
 
   return (
     <div className={uiStyles.page}>

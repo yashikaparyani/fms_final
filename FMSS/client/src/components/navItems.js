@@ -33,6 +33,8 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import SummarizeOutlinedIcon from "@mui/icons-material/SummarizeOutlined";
+import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 
 // ─── Sidebar / mobile navigation ──────────────────────────────────────────────
 // `visible` is the role gate — which portal an entry belongs to at all.
@@ -294,6 +296,30 @@ export const navItems = [
         visible: ["staff", "admin"],
         permission: "reports.view",
         description: "Receivables, payables, margin and driver payroll",
+      },
+      {
+        label: "Invoices",
+        path: "accounting/invoices",
+        icon: ReceiptLongOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+        description: "Customer invoices, carrier bills and the payments against them",
+      },
+      {
+        label: "Customer Accounts",
+        path: "accounting/customers",
+        icon: PeopleAltOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+        description: "What each customer owes, how old it is, and their statement",
+      },
+      {
+        label: "Load Ledger",
+        path: "accounting/load-ledger",
+        icon: PaymentsOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+        description: "Receivable against payable per load, with every extra charge",
       },
       {
         label: "Report Centre",

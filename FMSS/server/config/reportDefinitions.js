@@ -1,5 +1,8 @@
 const { totalsFor, profitFor, labelFor } = require("./chargeTypes");
 const { resolveTimeZone, utcFromLocal } = require("../utils/timezone");
+// "Has this been billed" is a question about the invoice register, not about a
+// field on the load. See services/billingState.js.
+const billingState = require("../services/billingState");
 
 // ─── Report definitions ───────────────────────────────────────────────────────
 // Every report the system can produce, declared as data: which loads it selects,
@@ -125,6 +128,35 @@ const NOT_YET_PICKED_UP = [
   "READY_TO_PICKUP",
 ];
 
+/**
+ * Fill in whether each row's load has been invoiced and paid.
+ *
+ * Read from the invoice register rather than from the date on the load — see
+ * services/billingState.js for why those two disagreed, and why the date is
+ * still consulted as a fallback for loads billed before the register existed.
+ *
+ * Used by every report that selects on invoice state, so that the answer a
+ * report gives matches the badge on the accounting screen. Two screens
+ * disagreeing about whether a customer has been billed is worse than either of
+ * them being wrong on its own.
+ */
+const withBillingState = async (rows, loads) => {
+  const byLoad = await billingState.arStateFor(loads.map((load) => load.loadId));
+
+  return rows.map((row, index) => {
+    const state = billingState.stateOf(loads[index], byLoad);
+
+    return {
+      ...row,
+      invoiced: state.invoiced,
+      paid: state.paid,
+      invoiceNumber: state.invoiceNumber,
+      invoicedAt: state.invoicedAt,
+      paidAt: state.paidAt,
+    };
+  });
+};
+
 // ─── The reports ──────────────────────────────────────────────────────────────
 
 const REPORTS = [
@@ -158,23 +190,23 @@ const REPORTS = [
         ...dateRange("createdAt", params),
       };
       if (params.customer) query.customer = params.customer;
-      if (params.invoiceState === "unpaid") {
-        query["accounting.receivables.paidAt"] = { $exists: false };
-      }
-      if (params.invoiceState === "uninvoiced") {
-        query["accounting.receivables.invoicedAt"] = { $exists: false };
-      }
+      // The invoice-state filters are NOT applied here. Whether a load has been
+      // invoiced or paid is answered by the invoice register, so the selection
+      // happens in postFilter below, once `enrich` has read it.
       return query;
     },
     row: (load) => {
       const totals = totalsFor(load.accounting?.receivables?.lines || []);
       return {
         ...baseRow(load),
-        invoiceNumber: load.accounting?.receivables?.invoiceNumber || "",
-        invoicedAt: load.accounting?.receivables?.invoicedAt || null,
-        paidAt: load.accounting?.receivables?.paidAt || null,
         ...totals,
       };
+    },
+    enrich: withBillingState,
+    postFilter: (row, params) => {
+      if (params.invoiceState === "unpaid") return !row.paid;
+      if (params.invoiceState === "uninvoiced") return !row.invoiced;
+      return true;
     },
     totals: ["linehaul", "accessorials", "total", "settled", "balance"],
   },
@@ -750,13 +782,15 @@ const REPORTS = [
       { key: "total", label: "Billable", type: "money" },
     ],
     filter: (params) => {
+      // Not narrowed by invoice state here — see the receivables report above.
       const query = {
         transportStatus: { $in: ["DELIVERED", "PAPERWORK_PENDING"] },
-        "accounting.receivables.invoicedAt": { $exists: false },
       };
       if (params.customer) query.customer = params.customer;
       return query;
     },
+    enrich: withBillingState,
+    postFilter: (row) => !row.invoiced,
     row: (load) => {
       const deliveredAt =
         load.completedAt || enteredStatusAt(load, "DELIVERED") || null;

@@ -10,6 +10,7 @@ const {
   unassignedFilter,
 } = require("../utils/dashboardBuckets");
 const { findCarrierFor } = require("../utils/carrierAccount");
+const { CARRIER_FINISHED_STATUSES } = require("../config/transportStatuses");
 
 // @desc    Get dashboard stats based on user role
 // @route   GET /api/stats
@@ -454,22 +455,22 @@ const getStats = async (req, res) => {
       // TRIPS
       // =========================
 
+      // ── The tile and the list have to agree ──────────────────────────────
+      // "1 running" beside a list showing nothing is worse than either number
+      // being wrong on its own — it reads as the app having lost the load. So
+      // both are derived from the same rule: running is everything that is not
+      // finished, which is the complement of the finished set rather than a
+      // hand-written list of the stages before it. A status added to the
+      // workflow later then lands in "running" by default, where it belongs,
+      // instead of falling into the gap between two lists.
       const activeTrips = await Load.countDocuments({
         "assignedFleetOwner.fleetOwnerId": fleetOwnerId,
-        transportStatus: {
-          $in: [
-            "ASSIGNED",
-            "READY_TO_PICKUP",
-            "PICKED_UP",
-            "IN_TRANSIT",
-            "REACHED_DESTINATION",
-          ],
-        },
+        transportStatus: { $nin: CARRIER_FINISHED_STATUSES },
       });
 
       const completedTrips = await Load.countDocuments({
         "assignedFleetOwner.fleetOwnerId": fleetOwnerId,
-        transportStatus: "DELIVERED",
+        transportStatus: { $in: CARRIER_FINISHED_STATUSES },
       });
 
       // =========================

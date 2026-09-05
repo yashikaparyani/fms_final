@@ -488,16 +488,28 @@ describe("Summary", () => {
     expect(res.body.totals.outstandingReceivable).toBe(600);
   });
 
-  it("leaves unbilled loads out of the average margin", async () => {
-    // A load nobody has invoiced yet is not a zero-margin load, and averaging it
+  it("leaves loads with no revenue out of the average margin", async () => {
+    // A load nobody has priced yet is not a zero-margin load, and averaging it
     // in drags the figure toward a number that means nothing.
     await newLoad({ amount: 0 });
 
     const res = await call("get", "/api/accounting/summary", staff, ny);
 
     expect(res.body.totals.loads).toBe(2);
-    expect(res.body.totals.billedLoads).toBe(1);
     expect(res.body.totals.averageMarginPercent).toBe(30);
+  });
+
+  it("counts only loads with an invoice raised as billed", async () => {
+    // `billedLoads` is captioned "n of m billed" on the summary screen, so it
+    // counts documents in the register — not loads that merely have a price on
+    // them. Both loads here are priced; neither has been invoiced.
+    await newLoad({ amount: 500 });
+
+    const res = await call("get", "/api/accounting/summary", staff, ny);
+
+    expect(res.body.totals.loads).toBe(2);
+    expect(res.body.totals.billedLoads).toBe(0);
+    expect(res.body.rows.every((row) => row.invoiced === false)).toBe(true);
   });
 
   it("groups the payroll run by driver", async () => {

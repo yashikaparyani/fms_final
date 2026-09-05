@@ -4,6 +4,7 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import api from "../../api";
 import { notify } from "../../utils/swal";
+import { formatDate } from "../../utils/dates";
 
 // ─── A stored document, read on the page ──────────────────────────────────────
 // Certificates of insurance, signed agreements, driver licences — every one of
@@ -29,11 +30,7 @@ const prettySize = (bytes) => {
 
 const fmtDate = (value) =>
   value
-    ? new Date(value).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
+    ? formatDate(value)
     : "";
 
 const DocumentPreview = ({

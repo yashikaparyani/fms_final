@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 export const palette = {
-  navy: { 900: "#07152E", 800: "#0B1E3D", 700: "#102B57", 600: "#16386F" },
+  navy: { 900: "#07152E", 800: "#0B1E3D", 700: "#102B57", 600: "#16386F", 400: "#2A4D86", 100: "#D7E3F6", 50: "#EEF3FB" },
   blue: { 700: "#1544A3", 600: "#1D6FE0", 500: "#2E86F0", 100: "#DDEBFD", 50: "#EFF6FF" },
   green: { 700: "#12803C", 600: "#16A34A", 500: "#22C55E", 100: "#D6F5E0", 50: "#ECFDF3" },
   orange: { 700: "#C2410C", 600: "#EA580C", 500: "#F97316", 100: "#FFEAD5", 50: "#FFF7ED" },
@@ -141,16 +141,20 @@ export const roleTheme = {
     headerFrom: palette.teal[700],
     headerTo: palette.teal[500],
   },
+  // Deep indigo — the same family as admin, a clear step lighter. The two
+  // back-office portals reading as related is deliberate; the red-to-orange this
+  // replaced was the loudest thing on a screen people sit in front of all day,
+  // and it collided with the red the app uses to mean "something is wrong".
   staff: {
     key: "staff",
     label: "Freight Broker",
     tagline: "Find trucks, book loads fast",
-    accent: palette.red[600],
-    accentDark: palette.red[700],
-    accentLight: palette.red[100],
-    accentFaint: palette.red[50],
-    headerFrom: palette.red[700],
-    headerTo: palette.orange[500],
+    accent: palette.navy[400],
+    accentDark: palette.navy[600],
+    accentLight: palette.navy[100],
+    accentFaint: palette.navy[50],
+    headerFrom: palette.navy[600],
+    headerTo: palette.navy[400],
   },
   admin: {
     key: "admin",

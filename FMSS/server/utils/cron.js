@@ -6,6 +6,8 @@ const FleetOwner = require("../models/FleetOwner");
 const { runUnscoped } = require("./tenantContext");
 const { drainQueue } = require("../services/whatsappService");
 const { expireStaleOffers } = require("../services/instantDispatchService");
+// Nightly chaser on unpaid customer invoices — see services/reminderService.js.
+const { sendDueReminders } = require("../services/reminderService");
 
 const startCronJobs = () => {
   // Run every minute.
@@ -133,8 +135,35 @@ const startCronJobs = () => {
     }
   });
 
+  // ── Payment reminders ─────────────────────────────────────────────────────
+  // Once a day at 09:00, not every minute: a reminder is a letter to a customer,
+  // and the ladder in services/reminderService.js is measured in days. Running
+  // it on the minute schedule above would ask "is today a reminder day" 1,440
+  // times and depend entirely on the send-once-per-day guard to avoid mailing
+  // somebody 1,440 times.
+  //
+  // Nine in the morning because a chaser that arrives overnight is read in the
+  // same batch as the overnight spam. The server's local time is close enough —
+  // this does not need to be nine o'clock in the customer's timezone to work.
+  //
+  // sendDueReminders opens its own unscoped context: overdue invoices span every
+  // branch, and this sweep runs outside any request.
+  cron.schedule("0 9 * * *", async () => {
+    try {
+      const result = await sendDueReminders();
+      if (result.sent || result.failed) {
+        console.log(
+          `Payment reminders: ${result.sent} sent, ${result.failed} failed, ` +
+            `${result.skipped} not due (of ${result.considered} open invoices).`,
+        );
+      }
+    } catch (error) {
+      console.error("Payment reminder sweep failed:", error.message);
+    }
+  });
+
   console.log(
-    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue).",
+    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue, payment reminders).",
   );
 };
 

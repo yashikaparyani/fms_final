@@ -32,15 +32,11 @@ import LoadAuditTrail from "../components/audit/LoadAuditTrail";
 import ScheduleBidding from "./ScheduleBidding";
 import Swal from "sweetalert2";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { formatDateTime } from "../utils/dates";
 
 const fmtShort = (v) =>
   v
-    ? new Date(v).toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatDateTime(v)
     : "-";
 
 const fmtFreshness = (v) => {
@@ -54,13 +50,7 @@ const fmtFreshness = (v) => {
 
 const fmtFull = (v) =>
   v
-    ? new Date(v).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatDateTime(v)
     : "—";
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────

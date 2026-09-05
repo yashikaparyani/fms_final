@@ -1,4 +1,5 @@
 import PhotoLibraryIcon from "@mui/icons-material/PhotoLibrary";
+import { formatDateTime } from "../../utils/dates";
 
 // Driver-uploaded pictures (pickup proof etc.) shown under the Documents tab.
 // Currently the only driver image source is load.pickupProof.images; add new
@@ -14,14 +15,7 @@ const fileUrl = (filePath) =>
 
 const fmtDateTime = (v) =>
   v
-    ? new Date(v).toLocaleString("en-US", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      })
+    ? formatDateTime(v)
     : null;
 
 const collectPictures = (load) => {

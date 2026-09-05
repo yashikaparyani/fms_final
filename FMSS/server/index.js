@@ -31,6 +31,10 @@ const onboardingRoutes = require("./routes/onboardingRoutes");
 const insuranceRoutes = require("./routes/insuranceRoutes");
 // Per-load receivables, payables, driver payroll and the reports built on them.
 const accountingRoutes = require("./routes/accountingRoutes");
+// Customer invoices and carrier bills — the documents raised off a load ledger.
+const invoiceRoutes = require("./routes/invoiceRoutes");
+// Money in and money out, each with the reference that proves it moved.
+const paymentRoutes = require("./routes/paymentRoutes");
 const whatsappRoutes = require("./routes/whatsappRoutes");
 // Cross-load audit views. A single load's trail lives under /api/loads/:id/audit.
 const auditRoutes = require("./routes/auditRoutes");
@@ -125,6 +129,8 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/insurance", insuranceRoutes);
 app.use("/api/accounting", accountingRoutes);
+app.use("/api/invoices", invoiceRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/reports", reportRoutes);

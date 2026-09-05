@@ -8,6 +8,7 @@ import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import api from "../../api";
 import ChargeEditor, { money } from "../../components/accounting/ChargeEditor";
+import LoadBillingPanel from "../../components/accounting/LoadBillingPanel";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 
@@ -209,6 +210,14 @@ const LoadAccounting = () => {
         <Stat label="Driver pay" value={data.payroll?.amount || 0} tone="amber" />
       </div>
 
+      {/* ── Billing ────────────────────────────────────────────────────── */}
+      {/* Above the ledgers rather than below them: the figures underneath are
+          working data that gets edited once and then rarely, while this is the
+          part somebody comes back to the screen for — has the customer paid,
+          has the carrier been paid. `refresh` re-reads the ledgers too, because
+          raising an invoice can change what the load's own accounting says. */}
+      <LoadBillingPanel loadId={loadId} onChanged={load} />
+
       {/* ── Receivables ────────────────────────────────────────────────── */}
       <div className={uiStyles.card}>
         <div className="flex items-center gap-2 mb-1">
@@ -220,6 +229,17 @@ const LoadAccounting = () => {
           The total here is the load's base amount; changing it updates the figure
           on every other screen.
         </p>
+
+        {/* A load nobody has itemised still has a value — its base amount. The
+            line below is that figure shown as a charge, not something somebody
+            typed, and saying so is the difference between "this is costed" and
+            "this still needs breaking down". Saving replaces it for good. */}
+        {data.receivables.derived && (
+          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <strong>Not itemised yet.</strong> This is the load's base amount shown
+            as a single charge. Add the accessorials and save to replace it.
+          </p>
+        )}
 
         <ChargeEditor
           side="receivable"
@@ -274,6 +294,14 @@ const LoadAccounting = () => {
           Never shown to the customer. The gap between this and the receivables is
           the margin above.
         </p>
+
+        {data.payables.derived && (
+          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <strong>Not itemised yet.</strong> These are the carrier rates already
+            agreed on this load, shown as charges. Add the accessorials and save to
+            replace them.
+          </p>
+        )}
 
         {/* Split loads settle carrier by carrier: two carriers on one load are
             owed two different amounts, and one payable total cannot say who

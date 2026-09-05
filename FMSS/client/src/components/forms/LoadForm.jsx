@@ -11,6 +11,9 @@ import api from "../../api";
 import AddressFields from "../AddressFields";
 import MapPicker from "../MapPicker";
 import BaseAmountDialog from "../accounting/BaseAmountDialog";
+// A pickup date is a calendar date. Filling the input via toISOString() shifts
+// it a day for anyone whose timezone is not UTC — see utils/dates.js.
+import { toDateInput } from "../../utils/dates";
 
 
 // A Drop moves two containers — one dropped, one taken away — so it exposes a
@@ -574,7 +577,7 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
 
             <div className={`${uiStyles.grid2} mt-3`}>
               <div className="relative">
-                <input type="date" className={uiStyles.input} value={data[isPickup ? 'pickupDate' : 'deliveryDate'] ? (new Date(data[isPickup ? 'pickupDate' : 'deliveryDate']).toISOString().slice(0,10)) : ''} onChange={(e) => set(isPickup ? 'pickupDate' : 'deliveryDate', e.target.value)} disabled={loading} />
+                <input type="date" className={uiStyles.input} value={data[isPickup ? 'pickupDate' : 'deliveryDate'] ? toDateInput(data[isPickup ? 'pickupDate' : 'deliveryDate']) : ''} onChange={(e) => set(isPickup ? 'pickupDate' : 'deliveryDate', e.target.value)} disabled={loading} />
                 <label className="input-label">
                   {isPickup ? 'Pickup Date' : 'Delivery Date'}
                 </label>

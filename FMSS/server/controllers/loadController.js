@@ -660,31 +660,14 @@ const SEARCHABLE_TAB_STATUSES = ["PENDING_VERIFICATION", "VERIFIED", "ASSIGNED"]
 // somewhere waiting on somebody else, and dispatch has nothing left to do about
 // it. Both used to sit in All Transit indefinitely, which is why that tab filled
 // up with loads nobody was moving.
-const COMPLETED_TRANSPORT_STATUSES = [
-  "DELIVERED",
-  "TERMINATED",
-  "STREET_TURN",
-  "EMPTY_IN_YARD",
-  "LOADED_IN_YARD",
-  "DROP_IN_WAREHOUSE",
-];
-
-// Transport statuses that hand the load to the back office. An invoiceable load
-// is finished as far as dispatch is concerned — nothing about it will move
-// again — but it is not finished as a piece of work: somebody still has to bill
-// it. So it leaves All Transit without landing in Over, and turns up in
-// Accounting instead, which is where the person who has to act on it is sitting.
-//
-// Kept separate from COMPLETED_TRANSPORT_STATUSES rather than added to it: the
-// Over tab is the archive of journeys that ended, and a load waiting to be
-// invoiced filed under "done" is exactly how it stops being invoiced.
-const ACCOUNTING_TRANSPORT_STATUSES = ["INVOICED"];
-
-// Everything that has left dispatch's hands, by one route or the other.
-const OFF_TRANSIT_TRANSPORT_STATUSES = [
-  ...COMPLETED_TRANSPORT_STATUSES,
-  ...ACCOUNTING_TRANSPORT_STATUSES,
-];
+// Defined in config/transportStatuses.js rather than here, because the carrier
+// app's stats counted one version of this list and its load list filtered on
+// another — see the note at the top of that file.
+const {
+  COMPLETED_TRANSPORT_STATUSES,
+  ACCOUNTING_TRANSPORT_STATUSES,
+  OFF_TRANSIT_TRANSPORT_STATUSES,
+} = require("../config/transportStatuses");
 
 /** Trimmed string, or "" — multipart bodies arrive as strings either way. */
 const trimmedText = (value) => String(value ?? "").trim();

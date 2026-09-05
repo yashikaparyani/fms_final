@@ -20,6 +20,18 @@ const PREFIX = {
   load: "LD",
   fleetOwner: "SLINE",
   driver: "DR",
+
+  // ── Accounting ────────────────────────────────────────────────────────────
+  // A load's own invoice IS its load number — "LD 0014" — and a carrier bill on
+  // it is "LD 0014-AP1", so neither is numbered here; see
+  // services/invoiceService.js. These three cover the documents that have no
+  // load to take a number from.
+  //
+  // All branched. A payment reference is quoted back by a bank or a customer
+  // weeks later, and knowing which office issued it is most of finding it.
+  manualInvoice: "MI",
+  receipt: "RCP", // money in
+  payment: "PMT", // money out
 };
 
 // Entities numbered once across the business rather than once per branch. Both

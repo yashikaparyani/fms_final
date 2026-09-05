@@ -15,6 +15,7 @@ import {
   SELECTABLE_TRANSPORT_STATUSES,
   transportStatusLabel,
 } from "../utils/transportStatus";
+import { formatDateNumeric, formatDateTime } from "../utils/dates";
 
 const DOCUMENT_TYPES = [
   "Load Document",
@@ -266,14 +267,14 @@ const StaffLoadDetails = () => {
       headerName: "Order Bill Date",
       flex: 1,
       renderCell: (p) =>
-        p.value ? new Date(p.value).toLocaleDateString() : "-",
+        p.value ? formatDateNumeric(p.value) : "-",
     },
     {
       field: "lastFreeDate",
       headerName: "Last Free Date",
       flex: 1,
       renderCell: (p) =>
-        p.value ? new Date(p.value).toLocaleDateString() : "-",
+        p.value ? formatDateNumeric(p.value) : "-",
     },
     { field: "description", headerName: "Description", flex: 2 },
     { field: "remarks", headerName: "Remarks", flex: 2 },
@@ -285,7 +286,7 @@ const StaffLoadDetails = () => {
     documentType: doc.documentType,
     fileName: doc.fileName,
     dateReceived: doc.dateReceived
-      ? new Date(doc.dateReceived).toLocaleDateString()
+      ? formatDateNumeric(doc.dateReceived)
       : "-",
     filePath: doc.filePath,
   }));
@@ -365,7 +366,7 @@ const StaffLoadDetails = () => {
           <div>
             <label className={labelClass}>Order Bill Date</label>
             <div className="px-3 py-2 text-sm bg-gray-50 rounded border">
-              {load?.orderBillDate ? new Date(load.orderBillDate).toLocaleDateString() : "-"}
+              {load?.orderBillDate ? formatDateNumeric(load.orderBillDate) : "-"}
             </div>
           </div>
           <div>
@@ -478,13 +479,13 @@ const StaffLoadDetails = () => {
           <div>
             <label className={labelClass}>Created On</label>
             <div className="px-3 py-2 text-sm bg-white rounded border">
-              {load?.createdAt ? new Date(load.createdAt).toLocaleString() : "-"}
+              {load?.createdAt ? formatDateTime(load.createdAt) : "-"}
             </div>
           </div>
           <div>
             <label className={labelClass}>Updated On</label>
             <div className="px-3 py-2 text-sm bg-white rounded border">
-              {load?.updatedAt ? new Date(load.updatedAt).toLocaleString() : "-"}
+              {load?.updatedAt ? formatDateTime(load.updatedAt) : "-"}
             </div>
           </div>
           <div className="md:col-span-2">
@@ -498,7 +499,7 @@ const StaffLoadDetails = () => {
           <div>
             <label className={labelClass}>Last Free Date</label>
             <div className="px-3 py-2 text-sm bg-white rounded border">
-              {load?.lastFreeDate ? new Date(load.lastFreeDate).toLocaleDateString() : "-"}
+              {load?.lastFreeDate ? formatDateNumeric(load.lastFreeDate) : "-"}
             </div>
           </div>
         </div>
@@ -525,7 +526,7 @@ const StaffLoadDetails = () => {
               </td>
               <td className="border p-2">
                 {load?.pickup?.pickupDate
-                  ? `${new Date(load.pickup.pickupDate).toLocaleDateString()} ${load.pickup.fromTime || ""} To ${load.pickup.toTime || ""}`
+                  ? `${formatDateNumeric(load.pickup.pickupDate)} ${load.pickup.fromTime || ""} To ${load.pickup.toTime || ""}`
                   : "-"}
               </td>
               <td className="border p-2">{load?.pickup?.apptNumber || "-"}</td>
@@ -556,7 +557,7 @@ const StaffLoadDetails = () => {
               </td>
               <td className="border p-2">
                 {load?.drop?.deliveryDate
-                  ? `${new Date(load.drop.deliveryDate).toLocaleDateString()} ${load.drop.fromTime || ""} To ${load.drop.toTime || ""}`
+                  ? `${formatDateNumeric(load.drop.deliveryDate)} ${load.drop.fromTime || ""} To ${load.drop.toTime || ""}`
                   : "-"}
               </td>
               <td className="border p-2">{load?.drop?.apptNumber || "-"}</td>

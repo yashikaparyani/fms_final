@@ -9,11 +9,32 @@ const escapeHtml = (value = "") =>
 const routeText = (load) =>
   `${load.pickup?.city || "TBD"}, ${load.pickup?.state || ""} to ${load.drop?.city || "TBD"}, ${load.drop?.state || ""}`;
 
-const customerCredentials = ({ customer, password, frontendUrl }) => ({
+// Staff who add a customer without typing a first name get "N/A" written into
+// the user record (see authController.js), and the account name people actually
+// know them by lives on the Customer profile instead. Greeting somebody "Hello
+// N/A!" in the first email they get from us is not a small thing, so a
+// placeholder is treated as no name at all.
+const PLACEHOLDER_NAMES = new Set(["n/a", "na", "null", "undefined", "-", "--"]);
+
+const realName = (...candidates) => {
+  for (const candidate of candidates) {
+    const value = String(candidate ?? "").trim();
+    if (value && !PLACEHOLDER_NAMES.has(value.toLowerCase())) return value;
+  }
+  return "";
+};
+
+const customerCredentials = ({ customer, password, frontendUrl }) => {
+  // `name` is what the caller resolved from the Customer profile; the user's own
+  // fields are the fallback for callers that have no profile to read.
+  const greeting =
+    realName(customer.name, customer.customerName, customer.firstName) || "Customer";
+
+  return {
   subject: "FMS - Your Customer Portal Credentials",
-  text: `Hello ${customer.firstName || "Customer"}, your FMS login is ${frontendUrl}/client-login. Email: ${customer.email}. Password: ${password}. Please login and change your password immediately.`,
+  text: `Hello ${greeting}, your FMS login is ${frontendUrl}/client-login. Email: ${customer.email}. Password: ${password}. Please login and change your password immediately.`,
   html: `
-    <h3>Hello ${escapeHtml(customer.firstName || "Customer")}!</h3>
+    <h3>Hello ${escapeHtml(greeting)}!</h3>
     <p>Your login credentials for the FMS system:</p>
     <p><strong>Login URL:</strong> ${escapeHtml(frontendUrl)}/client-login</p>
     <p><strong>Email:</strong> ${escapeHtml(customer.email)}</p>
@@ -21,7 +42,8 @@ const customerCredentials = ({ customer, password, frontendUrl }) => ({
     <br/>
     <p>Please login and change your password immediately.</p>
   `,
-});
+  };
+};
 
 // `email` is where this is sent; `loginEmail` is what to type at the sign-in
 // screen. They are usually the same, but a carrier's paperwork contact is not

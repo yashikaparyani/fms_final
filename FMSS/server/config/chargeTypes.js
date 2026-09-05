@@ -223,24 +223,28 @@ const chargesFor = (side) =>
 const money = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 /**
- * Total one side's lines.
+ * Total lines that already know their own kind.
  *
- * Returns the three figures that are meaningful, never a single "sum" — see the
- * note at the top of this file for why an advance must not land in `total`.
+ * The arithmetic itself, separated from where the kind came from. Ledger lines
+ * carry a `chargeType` and look their kind up in the catalog; an invoice line
+ * carries the kind directly, because an invoice is frozen at issue and must not
+ * change its mind about what a line was if the catalog is edited next year — and
+ * because a hand-typed invoice line has no catalog entry to look up at all.
+ *
+ * Both routes end here, so there is still exactly one place that knows an
+ * advance is not added to the total. Splitting the arithmetic in two to serve
+ * the second caller is precisely how the two would come to disagree.
  */
-const totalsFor = (lines = []) => {
+const totalsByKind = (lines = []) => {
   let linehaul = 0;
   let accessorials = 0;
   let settled = 0;
 
   for (const line of lines) {
-    const spec = CHARGE_BY_KEY.get(line?.chargeType);
-    if (!spec) continue; // unknown key contributes nothing rather than NaN
+    const amount = Number(line?.amount) || 0;
 
-    const amount = Number(line.amount) || 0;
-
-    if (spec.kind === "linehaul") linehaul += amount;
-    else if (spec.kind === "settlement") settled += amount;
+    if (line?.kind === "linehaul") linehaul += amount;
+    else if (line?.kind === "settlement") settled += amount;
     else accessorials += amount;
   }
 
@@ -254,6 +258,24 @@ const totalsFor = (lines = []) => {
     balance: money(total - settled),
   };
 };
+
+/**
+ * Total one side's ledger lines.
+ *
+ * Returns the three figures that are meaningful, never a single "sum" — see the
+ * note at the top of this file for why an advance must not land in `total`.
+ */
+const totalsFor = (lines = []) =>
+  totalsByKind(
+    (lines || []).map((line) => {
+      const spec = CHARGE_BY_KEY.get(line?.chargeType);
+      // An unknown key contributes nothing rather than NaN. Given the kind
+      // "settlement" it would also be silently deducted from the total, which is
+      // worse than being ignored.
+      if (!spec) return { kind: "unknown", amount: 0 };
+      return { kind: spec.kind, amount: line.amount };
+    }),
+  );
 
 /**
  * Profit and loss for one load.
@@ -299,6 +321,7 @@ module.exports = {
   helpFor,
   chargesFor,
   totalsFor,
+  totalsByKind,
   profitFor,
   isValidCharge,
   money,

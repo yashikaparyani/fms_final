@@ -21,11 +21,12 @@ import {
   pickupDateOf,
   sortByDeliveryDate,
 } from "../../utils/loadUrgency";
+import { formatDate } from "../../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell } = LoadTable;
 
 const fmtDate = (v) =>
-  v ? new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+  v ? formatDate(v) : null;
 
 // ── Page ──────────────────────────────────────────────────────
 const PendingLoadsTable = () => {

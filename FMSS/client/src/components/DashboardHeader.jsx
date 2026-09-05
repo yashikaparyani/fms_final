@@ -1,5 +1,6 @@
 import React from "react";
 import { useSelector } from "react-redux";
+import { firstNameOf } from "../utils/displayName";
 
 /**
  * The coloured band at the top of a dashboard — the web counterpart of the
@@ -15,7 +16,11 @@ import { useSelector } from "react-redux";
  */
 const DashboardHeader = ({ title, subtitle, stats = [], actions, children }) => {
   const user = useSelector((state) => state.auth.user);
-  const firstName = user?.firstName;
+  // Not `user.firstName` — that is "N/A" on accounts staff created without a
+  // contact name, and greeting somebody by a placeholder is worse than not
+  // greeting them at all. firstNameOf falls through to the company name and
+  // then the email, and returns "" only when there is genuinely nothing.
+  const firstName = firstNameOf(user);
 
   return (
     <div className="role-gradient rounded-card shadow-card text-white overflow-hidden">

@@ -8,6 +8,7 @@ import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import { formatDate } from "../../utils/dates";
 
 // ─── Loads offered to me right now ────────────────────────────────────────────
 // A customer asked for the fast route and one of my drivers is near their
@@ -29,7 +30,7 @@ const money = (value) =>
 
 const fmtDate = (value) =>
   value
-    ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? formatDate(value)
     : "—";
 
 /** Minutes and seconds left, or null once it has run out. */

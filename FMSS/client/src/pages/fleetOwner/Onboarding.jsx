@@ -19,6 +19,7 @@ import BulkEntryTable from "../../components/BulkEntryTable";
 import FieldRenderer from "../../components/onboarding/FieldRenderer";
 import SignaturePad from "../../components/onboarding/SignaturePad";
 import { usePermissions } from "../../hooks/usePermissions";
+import { formatDateNumeric } from "../../utils/dates";
 
 // ─── Carrier onboarding ───────────────────────────────────────────────────────
 // Everything after the short signup: the two agreements, the drivers and their
@@ -66,7 +67,7 @@ const money = (value) =>
     : `$${Number(value).toLocaleString("en-US")}`;
 
 const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("en-US") : "—";
+  value ? formatDateNumeric(value) : "—";
 
 const Onboarding = () => {
   const { role } = usePermissions();

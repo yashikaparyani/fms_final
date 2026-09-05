@@ -8,6 +8,7 @@ import StreetTurnAgreementDocument, {
   Section,
 } from "../components/street-turn/StreetTurnAgreementDocument";
 import api from "../api";
+import { formatDateTime } from "../utils/dates";
 
 /**
  * The street turn partner's acknowledgement page.
@@ -132,7 +133,7 @@ const StreetTurnSign = () => {
             Thank you. Load <strong className="text-ink-800">{detail?.loadId}</strong> is
             recorded as accepted by {detail?.signedName || "you"}
             {detail?.signedAt
-              ? ` on ${new Date(detail.signedAt).toLocaleString()}`
+              ? ` on ${formatDateTime(detail.signedAt)}`
               : ""}
             .
           </p>

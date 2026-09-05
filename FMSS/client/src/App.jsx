@@ -60,6 +60,11 @@ import MyLicense from "./pages/driver/MyLicense";
 import DriverDashboard from "./pages/driver/DriverDashboard";
 import AccountingSummary from "./pages/accounting/AccountingSummary";
 import LoadAccounting from "./pages/accounting/LoadAccounting";
+import Invoices from "./pages/accounting/Invoices";
+import InvoiceDetail from "./pages/accounting/InvoiceDetail";
+import ManualInvoice from "./pages/accounting/ManualInvoice";
+import CustomerLedger from "./pages/accounting/CustomerLedger";
+import LoadLedgerReport from "./pages/accounting/LoadLedgerReport";
 import ReportCentre from "./pages/reports/ReportCentre";
 import InsuranceSubmission from "./pages/insurance/InsuranceSubmission";
 import PermissionGate from "./components/PermissionGate";
@@ -249,6 +254,13 @@ function App() {
               carrier's business, which is why there is no filtered version. */}
           <Route path="accounting" element={<PermissionGate permission="reports.view"><AccountingSummary /></PermissionGate>} />
           <Route path="report-centre" element={<PermissionGate permission="reports.view"><ReportCentre /></PermissionGate>} />
+          {/* Mounted before "accounting/:loadId", or every one of these paths
+              is read as a load id and resolves to a load that does not exist. */}
+          <Route path="accounting/invoices" element={<PermissionGate permission="reports.view"><Invoices /></PermissionGate>} />
+          <Route path="accounting/invoices/new" element={<PermissionGate permission="loads.edit"><ManualInvoice /></PermissionGate>} />
+          <Route path="accounting/invoices/:id" element={<PermissionGate permission="reports.view"><InvoiceDetail /></PermissionGate>} />
+          <Route path="accounting/customers" element={<PermissionGate permission="reports.view"><CustomerLedger /></PermissionGate>} />
+          <Route path="accounting/load-ledger" element={<PermissionGate permission="reports.view"><LoadLedgerReport /></PermissionGate>} />
           <Route path="accounting/:loadId" element={<PermissionGate permission="loads.view"><LoadAccounting /></PermissionGate>} />
           <Route
             path="create-fleet-owner"
@@ -339,6 +351,13 @@ function App() {
               carrier's business, which is why there is no filtered version. */}
           <Route path="accounting" element={<PermissionGate permission="reports.view"><AccountingSummary /></PermissionGate>} />
           <Route path="report-centre" element={<PermissionGate permission="reports.view"><ReportCentre /></PermissionGate>} />
+          {/* Mounted before "accounting/:loadId", or every one of these paths
+              is read as a load id and resolves to a load that does not exist. */}
+          <Route path="accounting/invoices" element={<PermissionGate permission="reports.view"><Invoices /></PermissionGate>} />
+          <Route path="accounting/invoices/new" element={<PermissionGate permission="loads.edit"><ManualInvoice /></PermissionGate>} />
+          <Route path="accounting/invoices/:id" element={<PermissionGate permission="reports.view"><InvoiceDetail /></PermissionGate>} />
+          <Route path="accounting/customers" element={<PermissionGate permission="reports.view"><CustomerLedger /></PermissionGate>} />
+          <Route path="accounting/load-ledger" element={<PermissionGate permission="reports.view"><LoadLedgerReport /></PermissionGate>} />
           <Route path="accounting/:loadId" element={<PermissionGate permission="loads.view"><LoadAccounting /></PermissionGate>} />
           <Route
             path="create-fleet-owner"

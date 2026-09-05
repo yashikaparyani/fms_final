@@ -14,16 +14,11 @@ import StatusChip, {
   LOAD_STATUS_COLOR,
   TRANSPORT_STATUS_COLOR,
 } from "./StatusChip";
+import { formatDateTime } from "../../utils/dates";
 
 const fmtFull = (v) =>
   v
-    ? new Date(v).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatDateTime(v)
     : "—";
 
 const LoadHeader = ({

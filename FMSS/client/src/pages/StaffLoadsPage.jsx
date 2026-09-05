@@ -7,6 +7,7 @@ import AppSelect from "../components/AppSelect";
 import { uiStyles } from "../style/uiStyles";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useDispatchActions } from "../hooks/useDispatchActions";
+import { formatDate } from "../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
@@ -230,7 +231,7 @@ const StaffLoadsPage = () => {
   };
 
   const heading = dateParam
-    ? `Loads for ${new Date(dateParam + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}`
+    ? `Loads for ${formatDate(dateParam + "T00:00:00")}`
     : lfdParam
       ? (LFD_TITLES[lfdParam] ?? `LFD — ${lfdParam}`)
       : pickupDayParam
@@ -315,11 +316,7 @@ const StaffLoadsPage = () => {
                 {
                   label: "Last Free Date",
                   value: row.lastFreeDate
-                    ? new Date(row.lastFreeDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "2-digit",
-                        year: "numeric",
-                      })
+                    ? formatDate(row.lastFreeDate)
                     : null,
                 },
               ]}

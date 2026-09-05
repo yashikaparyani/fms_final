@@ -7,6 +7,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
+import { formatDateNumeric } from "../../utils/dates";
 
 // ─── My licence ───────────────────────────────────────────────────────────────
 // The one screen a driver has to visit before they can work.
@@ -26,7 +27,7 @@ const US_STATES = [
 ];
 
 const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("en-US") : "—";
+  value ? formatDateNumeric(value) : "—";
 
 const MyLicense = () => {
   const navigate = useNavigate();

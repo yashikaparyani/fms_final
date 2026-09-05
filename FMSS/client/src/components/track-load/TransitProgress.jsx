@@ -1,5 +1,6 @@
 import { PRE_DISPATCH, STATUS_BADGE_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
+import { formatDateTime } from "../../utils/dates";
 
 // ─── Transit progress ─────────────────────────────────────────────────────────
 // Origin to destination on one line: how far along the load is, and how long is
@@ -71,12 +72,7 @@ const humanise = (ms) => {
 
 const fmtDateTime = (value) =>
   value
-    ? new Date(value).toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
+    ? formatDateTime(value)
     : "—";
 
 const cityOf = (stop) =>

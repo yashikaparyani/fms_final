@@ -6,6 +6,7 @@ import api from "../../api";
 import { notify } from "../../utils/swal";
 import { STATUS_BADGE_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
+import { formatDateTime } from "../../utils/dates";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 // What happened to this load and when, in order.
@@ -24,13 +25,7 @@ import { transportStatusLabel } from "../../utils/transportStatus";
 
 const fmtFull = (v) =>
   v
-    ? new Date(v).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatDateTime(v)
     : "—";
 
 const formatDuration = (ms) => {

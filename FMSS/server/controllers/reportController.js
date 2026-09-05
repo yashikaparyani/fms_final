@@ -70,9 +70,16 @@ const runReport = async (key, params) => {
 
   let rows = loads.map(report.row);
 
+  // Reports that need something the Load collection does not hold — whether an
+  // invoice has been raised, which lives in the register. Given the rows and the
+  // loads they came from, it returns the rows with the extra fields on them, and
+  // the filter below then has something to select on.
+  if (report.enrich) rows = await report.enrich(rows, loads, params);
+
   // Reports whose selection cannot be expressed as a query — "has at least one
-  // accessorial" needs the totals computed first.
-  if (report.postFilter) rows = rows.filter(report.postFilter);
+  // accessorial" needs the totals computed first, and the invoice-state filters
+  // need `enrich` above to have run.
+  if (report.postFilter) rows = rows.filter((row) => report.postFilter(row, params));
 
   if (report.sortRows) rows = rows.sort(report.sortRows);
 

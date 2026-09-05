@@ -8,6 +8,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import api from "../../api";
+import { formatDateNumeric } from "../../utils/dates";
 
 /**
  * The office side of public registration.
@@ -167,7 +168,7 @@ const SignupApprovals = () => {
                           <span className="badge-gray">{request.locationId.name}</span>
                         )}
                         <span className="text-[11px] text-ink-400">
-                          {new Date(request.createdAt).toLocaleDateString()}
+                          {formatDateNumeric(request.createdAt)}
                         </span>
                       </div>
                     </div>

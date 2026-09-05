@@ -344,6 +344,16 @@ const createCustomerByStaff = async (req, res) => {
     // ✅ VALIDATION
     if (!email || !phone) throw new Error("Email and phone are required");
 
+    const locationsForNewCustomer = (
+      req.locationId ? [req.locationId] : req.locationIds || []
+    ).map(String);
+
+    if (!locationsForNewCustomer.length) {
+      throw new Error(
+        "Pick a single location before adding a customer — the account has to belong to one.",
+      );
+    }
+
     // ✅ DUPLICATE CHECK
     const exists = await User.findOne({ email }).session(session);
     if (exists) throw new Error("User already exists");
@@ -356,13 +366,29 @@ const createCustomerByStaff = async (req, res) => {
     const [createdUser] = await User.create(
       [
         {
-          firstName: firstName || "N/A",
-          lastName:  lastName  || "N/A",
+          // A customer added without a contact name gets the company name as
+          // their first name, not the literal string "N/A". The placeholder was
+          // written straight into the user record and then surfaced everywhere
+          // the account is named — "Welcome back, N/A" on their own dashboard,
+          // "Hello N/A!" in the first email we ever send them.
+          firstName: String(firstName || customerName || "").trim(),
+          lastName: String(lastName || "").trim(),
           email,
           password: hashedPassword,
           phone,
           role: "client",
           isVerified: true,
+          // ── The branch this customer belongs to ────────────────────────────
+          // Without it the account has an empty `locations` list, and every
+          // tenant-scoped read it makes comes back empty — the shipping line and
+          // chassis company pickers on their own New Load form are blank, and
+          // middleware/location.js refuses the request outright with
+          // NO_LOCATION. A customer belongs to the branch of the person who
+          // signed them up, which is where their freight will be dispatched
+          // from. `locationIds` is the "all locations" case; the single active
+          // branch is the normal one.
+          locations: locationsForNewCustomer,
+          defaultLocation: locationsForNewCustomer[0],
           addedBy:     req.user._id,
           addedByName: `${req.user.firstName} ${req.user.lastName}`,
         },

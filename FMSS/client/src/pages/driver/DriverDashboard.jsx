@@ -12,6 +12,7 @@ import { notify } from "../../utils/swal";
 import { uiStyles } from "../../style/uiStyles";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import DashboardHeader from "../../components/DashboardHeader";
+import { formatDateNumeric } from "../../utils/dates";
 
 // ─── The driver's own board ───────────────────────────────────────────────────
 // A driver is a sub-account of a carrier, and the carrier's screens show the
@@ -25,7 +26,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("en-US") : "—";
+  value ? formatDateNumeric(value) : "—";
 
 const labelize = (value) =>
   value ? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";

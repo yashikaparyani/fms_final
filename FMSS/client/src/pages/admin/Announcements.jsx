@@ -6,6 +6,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import api from "../../api";
+import { formatDateNumeric } from "../../utils/dates";
 
 /**
  * Where the office writes to everybody.
@@ -365,7 +366,7 @@ const Announcements = () => {
                               : "Everyone"}
                           </span>
                           <span className="text-[11px] text-ink-400">
-                            {new Date(item.createdAt).toLocaleDateString()}
+                            {formatDateNumeric(item.createdAt)}
                           </span>
                         </div>
                       </div>

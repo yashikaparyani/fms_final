@@ -9,6 +9,7 @@ import LinkOffIcon from "@mui/icons-material/LinkOff";
 import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
+import { formatDateTime } from "../../utils/dates";
 
 // ─── Insurance certificate filing ─────────────────────────────────────────────
 // The carrier's own insurance agency lands here from a one-off link in an email.
@@ -535,7 +536,7 @@ const InsuranceSubmission = () => {
                   <p className="text-[11px] text-gray-500">
                     Attached{" "}
                     {certificate.uploadedAt
-                      ? new Date(certificate.uploadedAt).toLocaleString("en-US")
+                      ? formatDateTime(certificate.uploadedAt)
                       : "just now"}
                   </p>
                 </div>
