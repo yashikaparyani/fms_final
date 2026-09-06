@@ -19,6 +19,10 @@ const ledger = require("../services/ledgerFallback");
 // date field on the load. See services/billingState.js for why those two ever
 // disagreed.
 const billingState = require("../services/billingState");
+// Loads booked before the fix carry the literal "N/A N/A" as their customer —
+// the placeholder that used to be written into both name fields. `realName`
+// treats it as absent, so the column reads empty rather than wrong.
+const { realName } = require("../utils/displayName");
 // createdAt and calculatedAt are instants, so their windows are bounded by the
 // business day rather than the UTC day — see utils/dates.js.
 const { instantRange } = require("../utils/dates");
@@ -214,7 +218,7 @@ const presentAccounting = (load) => {
   return {
     loadId: load.loadId,
     _id: load._id,
-    customerName: load.customerName || "",
+    customerName: realName(load.customerName),
     carrierName: load.assignedFleetOwner?.fleetOwnerName || "",
     transportStatus: load.transportStatus,
     amount: load.amount,
@@ -573,7 +577,7 @@ const getSummary = async (req, res) => {
 
       return {
         loadId: load.loadId,
-        customerName: load.customerName || "",
+        customerName: realName(load.customerName),
         carrierName: load.assignedFleetOwner?.fleetOwnerName || "",
         transportStatus: load.transportStatus,
         createdAt: load.createdAt,
@@ -680,7 +684,7 @@ const getPayrollRun = async (req, res) => {
 
       row.loads.push({
         loadId: load.loadId,
-        customerName: load.customerName || "",
+        customerName: realName(load.customerName),
         payType: payroll.payType,
         rate: payroll.rate,
         miles: payroll.miles || null,

@@ -4,6 +4,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EmailIcon from "@mui/icons-material/Email";
 import CircularProgress from "@mui/material/CircularProgress";
+import { displayName } from "../../utils/displayName";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { notify } from "../../utils/swal";
 import api from "../../api";
@@ -229,10 +230,12 @@ const StaffCustomers = () => {
               <MobileCard
                 key={customer._id}
                 statusKey={isActive ? "active" : "inactive"}
-                title={
-                  customer.companyName ||
-                  `${customer.firstName} ${customer.lastName}`
-                }
+                // `companyName` is not a field /customers returns — it is
+                // `customerName` — so this always fell through to the names, and
+                // an account created without a contact name is "N/A N/A" there.
+                // displayName walks customerName → email and treats the
+                // placeholder as absent.
+                title={displayName(customer, "Unnamed customer")}
                 subtitle={customer.email}
                 badge={{ label: isActive ? "Active" : "Inactive" }}
                 fields={[

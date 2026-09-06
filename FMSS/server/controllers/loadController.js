@@ -383,19 +383,17 @@ const createLoad = async (req, res) => {
     // pair. All four numbers are optional — they are frequently unknown at
     // booking time and get filled in later. A Pick only carries the first pair.
 
-    let customerName = "";
-    if (customer) {
-      const findCustomer = await User.findById(customer);
-      if (!findCustomer) {
-        return res
-          .status(400)
-          .json({ message: "Customer does not exist", success: false });
-      }
-      customerName = `${findCustomer.firstName} ${findCustomer.lastName}`;
-    } else {
+    if (!customer) {
       return res
         .status(400)
         .json({ message: "Customer is required", success: false });
+    }
+
+    const findCustomer = await User.findById(customer);
+    if (!findCustomer) {
+      return res
+        .status(400)
+        .json({ message: "Customer does not exist", success: false });
     }
 
     // A customer flagged over their credit limit is frozen: no new work goes on
@@ -406,10 +404,21 @@ const createLoad = async (req, res) => {
       .select("preferences customerName")
       .lean();
 
+    // The business name, not the contact's — a load is booked by the company,
+    // and that is how every table in the app reads. Joining first and last name
+    // is what stamped "N/A N/A" onto the loads already on the board: staff who
+    // added a customer without a contact name got that placeholder written into
+    // both fields. Looked up before the load is built so the name is frozen onto
+    // it correctly; see utils/displayName.js.
+    const customerName = customerDisplayName({
+      profile: customerAccount,
+      user: findCustomer,
+    });
+
     if (customerAccount?.preferences?.creditLimitExceeded) {
       return res.status(403).json({
         success: false,
-        message: `${customerAccount.customerName || customerName} has exceeded their credit limit. No new loads can be created for this customer until the credit limit is cleared.`,
+        message: `${customerName} has exceeded their credit limit. No new loads can be created for this customer until the credit limit is cleared.`,
       });
     }
 
@@ -663,6 +672,7 @@ const SEARCHABLE_TAB_STATUSES = ["PENDING_VERIFICATION", "VERIFIED", "ASSIGNED"]
 // Defined in config/transportStatuses.js rather than here, because the carrier
 // app's stats counted one version of this list and its load list filtered on
 // another — see the note at the top of that file.
+const { customerDisplayName } = require("../utils/displayName");
 const {
   COMPLETED_TRANSPORT_STATUSES,
   ACCOUNTING_TRANSPORT_STATUSES,

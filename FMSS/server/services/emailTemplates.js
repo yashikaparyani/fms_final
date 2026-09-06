@@ -14,15 +14,7 @@ const routeText = (load) =>
 // know them by lives on the Customer profile instead. Greeting somebody "Hello
 // N/A!" in the first email they get from us is not a small thing, so a
 // placeholder is treated as no name at all.
-const PLACEHOLDER_NAMES = new Set(["n/a", "na", "null", "undefined", "-", "--"]);
-
-const realName = (...candidates) => {
-  for (const candidate of candidates) {
-    const value = String(candidate ?? "").trim();
-    if (value && !PLACEHOLDER_NAMES.has(value.toLowerCase())) return value;
-  }
-  return "";
-};
+const { realName } = require("../utils/displayName");
 
 const customerCredentials = ({ customer, password, frontendUrl }) => {
   // `name` is what the caller resolved from the Customer profile; the user's own
