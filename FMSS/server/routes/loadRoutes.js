@@ -12,6 +12,8 @@ const {
   updateTransportStatus,
   uploadDocument,
   deleteDocument,
+  reviewPaperwork,
+  remindPaperwork,
   assignFleetOwner,
   setLoadAssignments,
   setLoadDrivers,
@@ -148,6 +150,23 @@ router.post(
   upload.single("file"),
   uploadDocument,
 );
+// ─── Paperwork review ─────────────────────────────────────────────────────────
+// Office only. Approving a load is what makes it invoiceable, and chasing a
+// carrier for documents is the office speaking on the company's behalf —
+// neither is something the carrier side can do to its own load.
+router.post(
+  "/:loadId/paperwork/review",
+  protect,
+  authorizeRoles("staff", "admin"),
+  reviewPaperwork,
+);
+router.post(
+  "/:loadId/paperwork/remind",
+  protect,
+  authorizeRoles("staff", "admin"),
+  remindPaperwork,
+);
+
 router.post(
   "/:loadId/rating",
   protect,

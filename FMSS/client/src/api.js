@@ -27,6 +27,11 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Whether this request was made as somebody. The 401 handler below needs to
+    // know: a 401 on a request that carried a token is an expired session, and a
+    // 401 on one that did not is simply "no", answered by the screen that asked.
+    config.hadToken = Boolean(token);
+
     // Which location this request operates on. Omitted on first load, in which
     // case the server falls back to the user's default branch and tells us
     // which one it picked via /branches/mine.
@@ -45,9 +50,29 @@ api.interceptors.response.use(
   (error) => {
     if (error.response) {
       if (error.response.status === 401) {
-        // Dispatch logout to clear state and local storage
-        store.dispatch({ type: "auth/logout" });
-        window.location.href = "/login";
+        // ── An expired session, not a refused one ─────────────────────────────
+        // This bounce is for the case where somebody who WAS signed in makes a
+        // request and the server no longer accepts their token. Sending them
+        // back to the door is the right answer to that.
+        //
+        // It is the wrong answer to a failed sign-in. The login form posts
+        // without a token and gets a 401 meaning "wrong email or password" —
+        // and a full page navigation to /login reloads the app, throwing away
+        // the React state holding the message the form had just set. The user
+        // sees the page flash and come back blank, having been told nothing.
+        //
+        // So the redirect is skipped when the request carried no token: there
+        // was no session to expire, and whichever screen asked is already the
+        // one that should be showing the answer. Signing in is named outright as
+        // well — a stale token left in storage would otherwise put a failed
+        // sign-in straight back into the reload it is meant to avoid.
+        const isSignIn = String(error.config?.url || "").includes("/auth/login");
+
+        if (error.config?.hadToken && !isSignIn) {
+          // Dispatch logout to clear state and local storage
+          store.dispatch({ type: "auth/logout" });
+          window.location.href = "/login";
+        }
       } else if (error.response.status === 403) {
         const code = error.response.data?.code;
 

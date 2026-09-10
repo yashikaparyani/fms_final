@@ -57,6 +57,43 @@ export const daysUntil = (value) => {
 export const pickupDateOf = (row) => row.pickups?.[0]?.pickupDate ?? row.pickup?.pickupDate ?? null;
 export const dropDateOf   = (row) => row.drops?.[0]?.deliveryDate ?? row.drop?.deliveryDate ?? null;
 
+// ── The appointment window beside the date ───────────────────────────────────
+// A date on its own does not tell dispatch whether a load is a morning or an
+// afternoon problem, and that is the question the transit boards are read to
+// answer. The stop the window is taken from is the same stop the date above was
+// taken from, so the two never describe different appointments.
+const pickupStopOf = (row) =>
+  row.pickups?.[0]?.pickupDate ? row.pickups[0] : (row.pickup ?? row.pickups?.[0] ?? null);
+const dropStopOf = (row) =>
+  row.drops?.[0]?.deliveryDate ? row.drops[0] : (row.drop ?? row.drops?.[0] ?? null);
+
+/**
+ * The window as it was typed — "08:00", "8am", "0800-1400" are all things that
+ * are actually in this field. It is free text on the model, so it is shown
+ * rather than parsed: turning "8am" into a real time would invent a precision
+ * the data does not have, and get it wrong on the rows that are already ranges.
+ *
+ * Returns "" rather than null when there is nothing, so a caller can test it as
+ * a string and render nothing at all for the many loads with no window set.
+ */
+const windowOf = (stop) => {
+  const from = String(stop?.fromTime ?? "").trim();
+  const to = String(stop?.toTime ?? "").trim();
+  if (from && to) return from === to ? from : `${from}–${to}`;
+  return from || to || "";
+};
+
+export const pickupWindowOf = (row) => windowOf(pickupStopOf(row));
+export const dropWindowOf   = (row) => windowOf(dropStopOf(row));
+
+/**
+ * Date and window as one line, for the phone cards — where each field is a
+ * single label/value pair and there is no second row to hang the time off.
+ * Falls back to the date alone, so a load with no window reads unchanged.
+ */
+export const withWindow = (date, window) =>
+  date && window ? `${date} · ${window}` : date;
+
 export const urgencyOf = (row) => {
   const days = daysUntil(pickupDateOf(row));
   if (days === null) return URGENCY.NO_DATE;

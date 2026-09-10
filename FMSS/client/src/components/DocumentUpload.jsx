@@ -134,7 +134,17 @@ const CameraButton = ({ isDisabled, onClick, compact }) => (
   </button>
 );
 
-const DocumentUpload = ({ loadId, transportStatus, documents = [], refresh }) => {
+// `locked` is set once the office has approved the load's paperwork. The
+// server refuses carrier-side uploads and deletes from that point (see
+// uploadDocument in loadController.js); this stops the buttons offering an
+// action that is going to be refused, and says why.
+const DocumentUpload = ({
+  loadId,
+  transportStatus,
+  documents = [],
+  locked = false,
+  refresh,
+}) => {
   const [uploadingType, setUploadingType] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   // Document type whose camera modal is open; null when closed.
@@ -188,6 +198,16 @@ const DocumentUpload = ({ loadId, transportStatus, documents = [], refresh }) =>
 
   return (
     <div className="font-sans">
+      {locked && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <CheckCircleOutlineIcon style={{ fontSize: 16 }} className="mt-0.5 text-green-700" />
+          <p className="text-xs font-semibold leading-snug text-green-800">
+            This load&apos;s paperwork has been approved. Its documents are locked
+            and can no longer be uploaded, replaced or deleted.
+          </p>
+        </div>
+      )}
+
       {/* Progress bar */}
       <div className="flex items-center gap-4 mb-4 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100">
         <div className="flex-1">
@@ -236,7 +256,7 @@ const DocumentUpload = ({ loadId, transportStatus, documents = [], refresh }) =>
           const isDeleting = deletingId === doc?._id;
           const isPodDoc = type === POD_DOCUMENT_TYPE;
           const isDelivered = transportStatus === "DELIVERED";
-          const isDisabled = isUploading || (isPodDoc && !isDelivered);
+          const isDisabled = locked || isUploading || (isPodDoc && !isDelivered);
 
           return (
             <div
@@ -302,7 +322,9 @@ const DocumentUpload = ({ loadId, transportStatus, documents = [], refresh }) =>
               </div>
 
               <div>
-                {isPodDoc ? null : <DeleteButton docId={doc?._id} isDeleting={isDeleting} onDelete={handleDelete} />}
+                {isPodDoc || locked ? null : (
+                  <DeleteButton docId={doc?._id} isDeleting={isDeleting} onDelete={handleDelete} />
+                )}
               </div>
             </div>
           );
@@ -318,7 +340,7 @@ const DocumentUpload = ({ loadId, transportStatus, documents = [], refresh }) =>
           const isDeleting = deletingId === doc?._id;
           const isPodDoc = type === POD_DOCUMENT_TYPE;
           const isDelivered = transportStatus === "DELIVERED";
-          const isDisabled = isUploading || (isPodDoc && !isDelivered);
+          const isDisabled = locked || isUploading || (isPodDoc && !isDelivered);
 
           return (
             <div
@@ -380,9 +402,11 @@ const DocumentUpload = ({ loadId, transportStatus, documents = [], refresh }) =>
                       onClick={() => { if (!isDisabled) setCameraType(type); }}
                     />
 
-                    <div className="ml-auto">
-                      <DeleteButton docId={doc?._id} isDeleting={isDeleting} onDelete={handleDelete} />
-                    </div>
+                    {!locked && (
+                      <div className="ml-auto">
+                        <DeleteButton docId={doc?._id} isDeleting={isDeleting} onDelete={handleDelete} />
+                      </div>
+                    )}
                   </>
                 )}
               </div>

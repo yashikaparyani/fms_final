@@ -65,8 +65,21 @@ const normalizeLine = (raw, side, userId) => {
   const chargeType = trimmed(raw?.chargeType);
   if (!isValidCharge(chargeType, side)) return null;
 
+  // A percentage is only meaningful on a charge the catalog says may be one.
+  // Anything else claiming to be a percentage is treated as the cash figure it
+  // actually is, rather than silently recomputed against a base it has no
+  // relationship to.
+  const spec = CHARGE_BY_KEY.get(chargeType);
+  const basis =
+    spec?.percentOf && String(raw.basis || "").toUpperCase() === "PERCENT"
+      ? "PERCENT"
+      : "AMOUNT";
+
   return {
     chargeType,
+    basis,
+    // On a PERCENT line this is a placeholder — applyPercentageLines overwrites
+    // it from the rate below once the whole side is known.
     amount: money(toNumberOrNull(raw.amount) ?? 0),
     quantity: toNumberOrNull(raw.quantity) ?? undefined,
     rate: toNumberOrNull(raw.rate) ?? undefined,
@@ -75,9 +88,41 @@ const normalizeLine = (raw, side, userId) => {
     // on one would be meaningless.
     fleetOwnerId:
       side === "payable" && raw.fleetOwnerId ? raw.fleetOwnerId : undefined,
+
+    // Same rule for the driver. `paidAt` is deliberately NOT taken from the
+    // submission — see saveLedger, which carries the stored value forward.
+    driverId: side === "payable" && raw.driverId ? raw.driverId : undefined,
+    driverName: side === "payable" ? trimmed(raw.driverName) || undefined : undefined,
+
     addedBy: userId,
     addedAt: raw.addedAt ? new Date(raw.addedAt) : new Date(),
   };
+};
+
+/**
+ * Turn every percentage line on a side into the cash figure it comes to.
+ *
+ * Run over the whole side at once because a percentage is of the side's
+ * linehaul, which is only known once every line is in hand — and recomputed on
+ * every save rather than trusted from the browser, so correcting a linehaul
+ * from $1,000 to $1,200 moves the fuel surcharge with it instead of leaving it
+ * quoting a figure that no longer follows from anything on screen.
+ *
+ * The percentage is deliberately NOT of the total: fuel of 18% of a total that
+ * already includes the fuel is a circular definition, and whichever order the
+ * lines happened to be in would decide the answer.
+ */
+const applyPercentageLines = (lines) => {
+  const base = lines
+    .filter((line) => CHARGE_BY_KEY.get(line.chargeType)?.kind === "linehaul")
+    .reduce((sum, line) => sum + Number(line.amount || 0), 0);
+
+  for (const line of lines) {
+    if (line.basis !== "PERCENT") continue;
+    line.amount = money((base * (Number(line.rate) || 0)) / 100);
+  }
+
+  return lines;
 };
 
 /**
@@ -170,10 +215,14 @@ const presentLines = (lines = [], side) =>
     label: labelFor(line.chargeType, side),
     kind: CHARGE_BY_KEY.get(line.chargeType)?.kind || "accessorial",
     amount: line.amount,
+    basis: line.basis || "AMOUNT",
     quantity: line.quantity ?? null,
     rate: line.rate ?? null,
     note: line.note || "",
     fleetOwnerId: line.fleetOwnerId ? String(line.fleetOwnerId) : null,
+    driverId: line.driverId ? String(line.driverId) : null,
+    driverName: line.driverName || "",
+    paidAt: line.paidAt || null,
     addedAt: line.addedAt,
   }));
 
@@ -206,6 +255,86 @@ const carrierPayables = (load) => {
       lineCount: own.length,
     };
   });
+};
+
+/**
+ * What each driver on this load is owed, and whether they have had it.
+ *
+ * Built from the load's own driver assignments rather than from the ledger, for
+ * the same reason carrierPayables is built from the legs: a driver who ran the
+ * load and has not been costed yet shows as $0 owed instead of being absent,
+ * and the gap is the thing the office needs to see.
+ *
+ * Drivers who only appear on the ledger are added on the end. That happens when
+ * somebody is taken off the load after being costed, and money already booked
+ * against a name must not disappear from the screen that pays it — it is
+ * exactly the row somebody needs to look at and correct.
+ *
+ * A driver counts as paid when every line owed to them is. Half-paid is
+ * reported as unpaid, because "paid" on a settlement screen has to mean the
+ * whole figure went out.
+ */
+const driverPayables = (load) => {
+  const lines = ledger
+    .payableLinesFor(load)
+    .filter((line) => line.driverId);
+
+  const rows = new Map();
+
+  for (const assignment of load.driverAssignments || []) {
+    if (!assignment.driver) continue;
+    rows.set(String(assignment.driver), {
+      driverId: String(assignment.driver),
+      driverName: assignment.driverName || "",
+      driverCode: assignment.driverCode || "",
+      fleetOwnerId: assignment.fleetOwnerId ? String(assignment.fleetOwnerId) : null,
+      amount: 0,
+      lineCount: 0,
+      paidLineCount: 0,
+      paidAt: null,
+      onLoad: true,
+    });
+  }
+
+  for (const line of lines) {
+    const key = String(line.driverId);
+
+    if (!rows.has(key)) {
+      rows.set(key, {
+        driverId: key,
+        driverName: line.driverName || "",
+        driverCode: "",
+        fleetOwnerId: null,
+        amount: 0,
+        lineCount: 0,
+        paidLineCount: 0,
+        paidAt: null,
+        // Costed, but no longer one of the load's drivers.
+        onLoad: false,
+      });
+    }
+
+    const row = rows.get(key);
+    row.amount = money(row.amount + Number(line.amount || 0));
+    row.lineCount += 1;
+    if (!row.driverName && line.driverName) row.driverName = line.driverName;
+
+    if (line.paidAt) {
+      row.paidLineCount += 1;
+      // The last payment against them is when they were settled.
+      if (!row.paidAt || new Date(line.paidAt) > new Date(row.paidAt)) {
+        row.paidAt = line.paidAt;
+      }
+    }
+  }
+
+  return [...rows.values()].map((row) => ({
+    ...row,
+    paid: row.lineCount > 0 && row.paidLineCount === row.lineCount,
+    // Nothing booked against them yet. Distinct from unpaid: there is no figure
+    // to pay, so the screen offers costing rather than a Pay button.
+    uncosted: row.lineCount === 0,
+  }));
 };
 
 /** One load's books, in the shape every accounting screen reads. */
@@ -251,10 +380,93 @@ const presentAccounting = (load) => {
     // carrier rather than as a single lump.
     carrierPayables: carrierPayables(load),
 
+    // The same, per driver — see driverPayables.
+    driverPayables: driverPayables(load),
+
     payroll: load.accounting?.payroll || null,
 
     profit: profitFor({ receivableLines, payableLines }),
   };
+};
+
+// @desc    Mark one driver's pay on a load as paid, or put it back
+// @route   PUT /api/accounting/loads/:loadId/payables/drivers/:driverId/pay
+// @access  Private (staff, admin)
+//
+// Per driver rather than per line: the office pays a person, not a fuel row, and
+// two drivers on the same load are settled on their own days. Every payable line
+// owed to that driver moves together, so a driver is never half-paid — see
+// driverPayables, which reports anything short of all of them as unpaid.
+//
+// A toggle rather than a one-way stamp. Marking the wrong driver paid on a
+// Friday afternoon is an ordinary mistake, and the alternative to undoing it
+// here is editing the database.
+const payDriver = async (req, res) => {
+  try {
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const driverId = String(req.params.driverId || "");
+    const stored = load.accounting?.payables?.lines || [];
+
+    const owed = stored.filter(
+      (line) => String(line.driverId || "") === driverId,
+    );
+
+    if (!owed.length) {
+      return res.status(400).json({
+        message:
+          "There is nothing on this load's payables for that driver yet. Add their charge and save it first.",
+        code: "DRIVER_NOT_COSTED",
+      });
+    }
+
+    // What the caller is asking for. Sent explicitly rather than inferred, so
+    // two people on the screen at once cannot toggle each other's change back.
+    const paid =
+      req.body.paid === undefined
+        ? !owed.every((line) => line.paidAt)
+        : Boolean(req.body.paid);
+
+    const now = new Date();
+    for (const line of owed) {
+      line.paidAt = paid ? now : undefined;
+      line.paidBy = paid ? req.user._id : undefined;
+    }
+
+    load.markModified("accounting.payables");
+    await load.save();
+
+    const amount = money(
+      owed.reduce((sum, line) => sum + Number(line.amount || 0), 0),
+    );
+    const driverName = owed.find((line) => line.driverName)?.driverName || "the driver";
+
+    // Money leaving the business is the thing that gets disputed, so it goes on
+    // the trail with the figure and the name rather than as "payables changed".
+    await audit
+      .recordFinancial({
+        load,
+        action: paid ? "accounting.driver_paid" : "accounting.driver_unpaid",
+        summary: paid
+          ? `Driver pay of $${amount.toLocaleString("en-US")} marked paid to ${driverName}`
+          : `Driver pay of $${amount.toLocaleString("en-US")} to ${driverName} put back to unpaid`,
+        user: req.user,
+        req,
+      })
+      .catch((error) =>
+        console.error(`Driver pay audit failed for ${load.loadId}:`, error.message),
+      );
+
+    res.json({
+      message: paid
+        ? `Marked $${amount.toLocaleString("en-US")} paid to ${driverName}.`
+        : `${driverName}'s pay is outstanding again.`,
+      accounting: presentAccounting(load),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // @desc    The charge catalog both ledgers are built from
@@ -299,8 +511,42 @@ const saveLedger = (side) => async (req, res) => {
     const lines = submitted
       .map((raw) => normalizeLine(raw, side, req.user._id))
       // A zero-amount line with no note is an empty row the user never filled
-      // in. Dropping it keeps the saved ledger equal to what they meant.
-      .filter((line) => line && (line.amount !== 0 || line.note));
+      // in — but a percentage line is judged on its rate, not on the amount,
+      // which has not been worked out yet at this point.
+      .filter(
+        (line) =>
+          line &&
+          (line.basis === "PERCENT" ? Number(line.rate) > 0 : line.amount !== 0 || line.note),
+      );
+
+    applyPercentageLines(lines);
+
+    // ── Paying somebody is not an edit to the ledger ────────────────────────
+    // The screen submits the whole side every time, so a save would otherwise
+    // wipe `paidAt` off every line — an admin correcting a fuel figure would
+    // silently un-pay a driver who was settled last week. Payment state is
+    // therefore never read from the submission: it is carried forward from what
+    // is stored, keyed by driver, and only the pay endpoint changes it.
+    if (side === "payable") {
+      const paidByDriver = new Map();
+
+      for (const stored of load.accounting?.payables?.lines || []) {
+        if (stored.driverId && stored.paidAt) {
+          paidByDriver.set(String(stored.driverId), {
+            paidAt: stored.paidAt,
+            paidBy: stored.paidBy,
+          });
+        }
+      }
+
+      for (const line of lines) {
+        const settled = line.driverId && paidByDriver.get(String(line.driverId));
+        if (settled) {
+          line.paidAt = settled.paidAt;
+          line.paidBy = settled.paidBy;
+        }
+      }
+    }
 
     const problems = validateLines(lines, side);
     if (problems.length) {
@@ -747,6 +993,7 @@ const settlePayroll = async (req, res) => {
 };
 
 module.exports = {
+  payDriver,
   getCatalog,
   getLoadAccounting,
   saveReceivables: saveLedger("receivable"),

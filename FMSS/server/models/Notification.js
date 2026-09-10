@@ -38,6 +38,14 @@ const notificationSchema = new mongoose.Schema(
         "INSTANT_DISPATCH_TAKEN",
         "INSTANT_DISPATCH_ACCEPTED",
         "INSTANT_DISPATCH_EXPIRED",
+        // Paperwork review — see config/paperwork.js. The first is the office
+        // reminding itself that a delivered load has not been moved on; the
+        // rest travel between the office and the carrier side.
+        "PAPERWORK_DUE",
+        "PAPERWORK_REMINDER",
+        "PAPERWORK_SUBMITTED",
+        "PAPERWORK_CHANGES_REQUESTED",
+        "PAPERWORK_APPROVED",
       ],
       required: true,
     },

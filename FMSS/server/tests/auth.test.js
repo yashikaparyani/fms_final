@@ -95,7 +95,21 @@ describe("Auth API", () => {
       });
 
       expect(res.statusCode).toEqual(401);
-      expect(res.body.message).toEqual("Invalid credentials");
+      expect(res.body.code).toEqual("INVALID_PASSWORD");
+    });
+
+    // The two are told apart on purpose — see the note in loginUser. Somebody
+    // with two email addresses who picks the wrong one is the common case, and
+    // "incorrect password" sends them off trying the same password again.
+    it("says so when the address has no account at all", async () => {
+      const res = await request(app).post("/api/auth/login").send({
+        email: "nobody@test.com",
+        password: "password123",
+      });
+
+      expect(res.statusCode).toEqual(401);
+      expect(res.body.code).toEqual("NO_ACCOUNT");
+      expect(res.body.message).toMatch(/no account/i);
     });
   });
 

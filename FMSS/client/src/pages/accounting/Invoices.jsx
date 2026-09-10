@@ -101,7 +101,7 @@ const Invoices = () => {
     <div className={uiStyles.page}>
       <div className={uiStyles.pageHeader}>
         <div>
-          <h1 className={uiStyles.pageHeaderTitle}>Invoices</h1>
+          <h1 className={uiStyles.pageHeaderTitle}>AR</h1>
           <p className={uiStyles.pageHeaderSubtitle}>
             What customers owe us, and what we owe carriers and drivers
           </p>

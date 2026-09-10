@@ -137,7 +137,9 @@ const loadWiseReport = async (req, res) => {
     // One query for every load's invoices rather than one per load — a 500-load
     // report would otherwise be 500 round trips.
     const loadIds = loads.map((l) => l.loadId).filter(Boolean);
-    const invoices = await Invoice.find({ loadId: { $in: loadIds } })
+    const invoices = await Invoice.find({
+      $or: [{ loadId: { $in: loadIds } }, { loadIds: { $in: loadIds } }],
+    })
       .select("loadId direction status total amountPaid advanceApplied balance dueDate invoiceNumber party")
       .lean();
 
@@ -363,6 +365,14 @@ const customerWiseReport = async (req, res) => {
     );
 
     res.json({
+      // Whose report this is. An aging summary is read as a document — printed,
+      // emailed to an owner, filed against a month — and one with no company
+      // name on it is a page of numbers nobody can attribute later. Taken from
+      // the branch being viewed, the same letterhead its invoices carry.
+      issuer: await issuerFor({ locationId: req.locationId }),
+      // The instant the figures were true. Aging moves every day, so a printed
+      // copy has to say which day it is a picture of.
+      asOf: new Date(),
       totals: {
         customers: rows.length,
         invoices: rows.reduce((acc, row) => acc + row.invoiceCount, 0),
@@ -489,6 +499,11 @@ const emailCustomerStatement = async (req, res) => {
 
     const rows = open.map((invoice) => ({
       invoiceNumber: invoice.invoiceNumber,
+      // The load the customer knows the job by. On a reference-grouped invoice
+      // that is several loads, so they are joined rather than one being picked
+      // — the clerk matching this line to their own paperwork needs all of them.
+      loadId:
+        (invoice.loadIds?.length ? invoice.loadIds.join(", ") : invoice.loadId) || "",
       issueDate: invoice.issueDate,
       dueDate: invoice.dueDate,
       total: invoice.total,

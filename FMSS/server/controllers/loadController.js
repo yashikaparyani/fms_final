@@ -38,6 +38,7 @@ const {
   findCarrierFor,
   accountPersonFor,
   carrierLoadFilter,
+  isCarrierSide,
 } = require("../utils/carrierAccount");
 const whatsapp = require("../services/whatsappEvents");
 const { isValidCharge, money } = require("../config/chargeTypes");
@@ -269,6 +270,15 @@ const {
   maskLoadForViewer,
   maskLoadsForViewer,
 } = require("../utils/loadVisibility");
+
+// What a delivered load still owes, and where its review has got to — see
+// config/paperwork.js for the states and services/paperworkService.js for
+// everybody who gets told about them.
+const paperwork = require("../services/paperworkService");
+const {
+  missingRequiredDocuments,
+  isPaperworkLocked,
+} = require("../config/paperwork");
 
 const POD_DOCUMENT_TYPE = "Proof of Delivery";
 const LEGACY_DOCUMENT_TYPE_ALIASES = {
@@ -589,6 +599,26 @@ const uploadDocument = async (req, res) => {
       });
     }
 
+    // ─────────────────────────────────────────────
+    // APPROVED PAPERWORK IS SEALED
+    // ─────────────────────────────────────────────
+    // Once the office has signed the documents off, the load is invoiceable and
+    // the file they approved is the file that has to stay on it. A driver
+    // replacing a Bill of Lading the week after it was billed against would
+    // leave the invoice quoting a document that no longer exists.
+    //
+    // The office side is not blocked: correcting a finished load from the desk
+    // is normal work, and they are the ones who approved it. This stops the
+    // carrier side, which is where an accidental re-upload comes from.
+    if (isPaperworkLocked(load) && isCarrierSide(req.user)) {
+      return res.status(409).json({
+        success: false,
+        code: "PAPERWORK_LOCKED",
+        message:
+          "The paperwork on this load has been approved and its documents can no longer be changed. Contact the office if something is wrong with them.",
+      });
+    }
+
     load.documents.push({
       documentType: normalizedDocumentType,
       fileName: req.file.originalname,
@@ -596,12 +626,46 @@ const uploadDocument = async (req, res) => {
       dateReceived: new Date(),
     });
 
+    // ─────────────────────────────────────────────
+    // AN UPLOAD IS AN ANSWER
+    // ─────────────────────────────────────────────
+    // On a load waiting for its paperwork, putting a document there is the act
+    // that hands it back to the office — including on a load that was sent back
+    // for changes, which is what closes the request-changes loop without the
+    // driver having to press anything else.
+    const wasAwaitingReview =
+      load.transportStatus === "PAPERWORK_PENDING" &&
+      ["AWAITING_DOCUMENTS", "CHANGES_REQUESTED"].includes(
+        load.paperwork?.state,
+      );
+
+    if (wasAwaitingReview) {
+      load.paperwork.state = "IN_REVIEW";
+      load.paperwork.submittedAt = new Date();
+      load.paperwork.submittedBy = req.user._id;
+    }
+
     await load.save();
+
+    // Told after the save, so the office is never pointed at a document that
+    // failed to store. Never awaited into the response and never able to throw
+    // — see services/paperworkService.js.
+    if (wasAwaitingReview) {
+      paperwork
+        .notifyPaperworkSubmitted({ load, documentType: normalizedDocumentType })
+        .catch((error) =>
+          console.error(
+            `Paperwork submitted notice failed for ${load.loadId}:`,
+            error.message,
+          ),
+        );
+    }
 
     res.json({
       success: true,
       message: "Document uploaded",
       data: load.documents,
+      paperwork: load.paperwork,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -664,17 +728,22 @@ const SEARCHABLE_TAB_STATUSES = ["PENDING_VERIFICATION", "VERIFIED", "ASSIGNED"]
 // from one edit. The phone app keeps its own copy of this list (mobile/App.js)
 // because it filters a different endpoint client-side.
 //
-// "Over" means the truck has finished with it, not that the box has been
-// emptied: a container loaded in the yard or dropped at a warehouse is sitting
-// somewhere waiting on somebody else, and dispatch has nothing left to do about
-// it. Both used to sit in All Transit indefinitely, which is why that tab filled
-// up with loads nobody was moving.
+// "Over" means dispatch has finished with it, not that the box has been emptied:
+// a container loaded in the yard or dropped at a warehouse is sitting somewhere
+// waiting on somebody else, and dispatch has nothing left to do about it. Both
+// used to sit in All Transit indefinitely, which is why that tab filled up with
+// loads nobody was moving.
+//
+// A load waiting on its paperwork is in the tab for the same reason and reads
+// under its own sub-tab there — the driving is done, only documents remain. It
+// is still the carrier's load though, which is why the Over set and the set a
+// carrier counts as finished are two different lists.
 // Defined in config/transportStatuses.js rather than here, because the carrier
 // app's stats counted one version of this list and its load list filtered on
 // another — see the note at the top of that file.
 const { customerDisplayName } = require("../utils/displayName");
 const {
-  COMPLETED_TRANSPORT_STATUSES,
+  OVER_TAB_TRANSPORT_STATUSES,
   ACCOUNTING_TRANSPORT_STATUSES,
   OFF_TRANSIT_TRANSPORT_STATUSES,
 } = require("../config/transportStatuses");
@@ -827,7 +896,7 @@ const getLoads = async (req, res) => {
     } else if (req.query.completed !== undefined && !req.query.transportStatus) {
       query.transportStatus =
         req.query.completed === "true"
-          ? { $in: COMPLETED_TRANSPORT_STATUSES }
+          ? { $in: OVER_TAB_TRANSPORT_STATUSES }
           : { $nin: OFF_TRANSIT_TRANSPORT_STATUSES };
     }
 
@@ -952,6 +1021,20 @@ const getLoads = async (req, res) => {
           bidCount: bidCountMap.get(String(load._id)) || load.bids?.length || 0,
           pickup: hydrateStopFromAddressMap(load.pickup, addressMap),
           drop: hydrateStopFromAddressMap(load.drop, addressMap),
+          // Answered on the list as well as on the single load, so the Over
+          // tab's Transfer to Invoiceable can say what is missing before
+          // somebody clicks it rather than after — see config/paperwork.js for
+          // why the required list is only ever computed server-side. Only
+          // present where a review has actually started.
+          ...(load.paperwork?.state
+            ? {
+                paperwork: {
+                  ...load.paperwork,
+                  missingDocuments: missingRequiredDocuments(load),
+                  locked: isPaperworkLocked(load),
+                },
+              }
+            : {}),
           ...(bidsByLoad
             ? {
                 myBid: myBid
@@ -1148,6 +1231,15 @@ const getLoadById = async (req, res) => {
       pickup: hydrateStopFromAddressMap(load.pickup, loadAddressMap),
       drop: hydrateStopFromAddressMap(load.drop, loadAddressMap),
       transportStatusHistory: transportHistory,
+      // What the paperwork review is still waiting for. Answered here rather
+      // than worked out in the browser so the required list lives in exactly
+      // one place — see config/paperwork.js — and a screen cannot approve a
+      // load against a stale idea of what it needs.
+      paperwork: {
+        ...(load.paperwork || {}),
+        missingDocuments: missingRequiredDocuments(load),
+        locked: isPaperworkLocked(load),
+      },
     };
 
     // Who to contact about this load. A load can carry several drivers, and none
@@ -1659,6 +1751,12 @@ const updateTransportStatus = async (req, res) => {
     // Exception: a load with multiple origins may be marked PICKED_UP once
     // per origin (the client asks the driver to confirm which origin).
     // ─────────────────────────────────────────────
+    // PAPERWORK_PENDING and INVOICED are on the end so the back-office half of
+    // the journey is one-way too: a load whose documents have been approved and
+    // handed to accounting must not be dragged back to Delivered, which would
+    // reopen a review that has already been signed off. The statuses that are
+    // not on this list (STREET_TURN, the yard ones) are deliberately outside the
+    // progression and stay reachable from anywhere.
     const STATUS_ORDER = [
       "ASSIGNED",
       "READY_TO_PICKUP",
@@ -1666,6 +1764,8 @@ const updateTransportStatus = async (req, res) => {
       "IN_TRANSIT",
       "REACHED_DESTINATION",
       "DELIVERED",
+      "PAPERWORK_PENDING",
+      "INVOICED",
     ];
 
     const originCount =
@@ -1704,6 +1804,29 @@ const updateTransportStatus = async (req, res) => {
           /_/g,
           " ",
         )}".`,
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // INVOICEABLE IS NOT A STATUS ANYBODY PICKS
+    // ─────────────────────────────────────────────
+    // It is the result of an action: somebody read the load's documents and
+    // approved them, and approving is what moves it — see reviewPaperwork, and
+    // "Transfer to Invoiceable" on the Over tab. Reachable from this route as
+    // well, it would be reachable without anybody having read the documents the
+    // invoice is then raised against, which is the one thing the paperwork
+    // review exists to prevent.
+    //
+    // So the route is closed rather than conditioned. A conditional — "allowed
+    // once approved" — would leave two ways to do the same thing, and the
+    // second one would quietly become the one people used.
+    if (transportStatus === "INVOICED") {
+      return res.status(409).json({
+        success: false,
+        code: "USE_PAPERWORK_APPROVAL",
+        message:
+          "A load becomes invoiceable by having its paperwork approved, not by setting the status. " +
+          "Open the load's documents and use Transfer to Invoiceable.",
       });
     }
 
@@ -1749,7 +1872,20 @@ const updateTransportStatus = async (req, res) => {
         }
       }
 
-      if (!signatureData) {
+      // Carrier-side only, for the same reason as the photo above. The person
+      // who was at the door can sign for it; the office correcting the record
+      // from their desk cannot, and there is nobody there to ask. Holding them
+      // to it left the load stuck at its previous status with no way forward —
+      // the office could see the delivery had happened and could not say so.
+      //
+      // The POD is still generated either way: buildPodDocument draws the
+      // signature block only when there is one, so an office-marked delivery
+      // produces the same document without the mark. That matters because the
+      // POD is a required document for paperwork approval — skipping it would
+      // make the load permanently un-approvable. Who marked it, and that they
+      // did it without a signature, is on the audit trail and the status
+      // history.
+      if (!signatureData && ["fleetOwner", "driver"].includes(role)) {
         return res.status(400).json({
           success: false,
           message: "Delivery signature is required when marking DELIVERED.",
@@ -1842,6 +1978,27 @@ const updateTransportStatus = async (req, res) => {
       load.deliveredAt = new Date();
       load.deliveredCity = load.drop?.city || "—";
       load.deliveredState = load.drop?.state || "—";
+    }
+
+    // ─── The paperwork queue opens ──────────────────────────────────────────
+    // Moving a load here is the office saying "we are now waiting on this one's
+    // documents", so the review starts at whichever step the load is already
+    // at: a driver who uploaded at the door has nothing left to do and goes
+    // straight into the office's queue, everybody else is waiting on a driver.
+    //
+    // Only ever opened once. A load that comes back through this status after a
+    // correction keeps the review it already has, notes and change count
+    // included — re-opening it would erase the record of what was wrong with it
+    // the first time.
+    if (transportStatus === "PAPERWORK_PENDING" && !load.paperwork?.state) {
+      load.paperwork = {
+        ...(load.paperwork?.toObject?.() || load.paperwork || {}),
+        state: missingRequiredDocuments(load).length
+          ? "AWAITING_DOCUMENTS"
+          : "IN_REVIEW",
+        startedAt: new Date(),
+        startedBy: req.user._id,
+      };
     }
 
     // ─────────────────────────────────────────────
@@ -2200,6 +2357,17 @@ const deleteDocument = async (req, res) => {
     const load = await Load.findOne({ loadId: req.params.loadId });
     if (!load) return res.status(404).json({ message: "Load not found" });
 
+    // Sealed once approved, for the carrier side only — same rule and the same
+    // reason as uploadDocument above.
+    if (isPaperworkLocked(load) && isCarrierSide(req.user)) {
+      return res.status(409).json({
+        success: false,
+        code: "PAPERWORK_LOCKED",
+        message:
+          "The paperwork on this load has been approved and its documents can no longer be removed. Contact the office if something is wrong with them.",
+      });
+    }
+
     load.documents = load.documents.filter(
       (doc) => doc._id.toString() !== req.params.docId,
     );
@@ -2208,6 +2376,266 @@ const deleteDocument = async (req, res) => {
     res.json({ success: true, message: "Document deleted" });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// ========================= 📋 Paperwork review =========================
+// The office's side of PAPERWORK_PENDING: read what the driver sent, and either
+// sign it off or send it back with a reason.
+//
+// Approving is what makes a load invoiceable, and it does the status move
+// itself rather than leaving somebody to do it afterwards from the status
+// dropdown. Two steps would mean a load could be approved and never moved —
+// sitting in the paperwork queue with nothing outstanding, invisible to
+// accounting, which is the same lost load the queue was built to prevent.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** The paperwork block a client can safely be handed back. */
+const paperworkView = (load) => ({
+  ...(load.paperwork?.toObject?.() || load.paperwork || {}),
+  missingDocuments: missingRequiredDocuments(load),
+  locked: isPaperworkLocked(load),
+});
+
+const reviewPaperwork = async (req, res) => {
+  try {
+    const decision = trimmedText(req.body.decision).toUpperCase();
+    const note = trimmedText(req.body.note);
+
+    if (!["APPROVE", "REQUEST_CHANGES"].includes(decision)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Decision must be either "APPROVE" or "REQUEST_CHANGES".',
+      });
+    }
+
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) {
+      return res.status(404).json({ success: false, message: "Load not found" });
+    }
+
+    if (load.transportStatus !== "PAPERWORK_PENDING") {
+      return res.status(409).json({
+        success: false,
+        code: "NOT_IN_PAPERWORK",
+        message:
+          "This load is not in Paperwork Pending, so there is nothing to review. Move it to Paperwork Pending first.",
+      });
+    }
+
+    if (isPaperworkLocked(load)) {
+      return res.status(409).json({
+        success: false,
+        code: "PAPERWORK_LOCKED",
+        message: "This load's paperwork has already been approved.",
+      });
+    }
+
+    load.paperwork = load.paperwork || {};
+
+    // ── Sent back ───────────────────────────────────────────────────────────
+    if (decision === "REQUEST_CHANGES") {
+      // The reason is the whole message. "Changes requested" with no note tells
+      // the driver a document is wrong and nothing about which one or why, and
+      // the next thing that happens is a phone call to the office asking.
+      if (!note) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Say what needs correcting — the note is what the driver is shown.",
+        });
+      }
+
+      load.paperwork.state = "CHANGES_REQUESTED";
+      load.paperwork.changesNote = note;
+      load.paperwork.changesRequestedAt = new Date();
+      load.paperwork.changesRequestedBy = req.user._id;
+      load.paperwork.changeRequestCount =
+        (load.paperwork.changeRequestCount || 0) + 1;
+
+      await load.save();
+
+      const delivery = await paperwork
+        .notifyChangesRequested({ load, note })
+        .catch((error) => ({ sent: false, recipients: 0, reason: error.message }));
+
+      await audit
+        .recordDocument({
+          load,
+          action: "load.paperwork_changes_requested",
+          summary: `Paperwork sent back for changes: ${note}`,
+          user: req.user,
+          req,
+        })
+        .catch((error) =>
+          console.error(`Paperwork audit failed for ${load.loadId}:`, error.message),
+        );
+
+      return res.json({
+        success: true,
+        message: delivery.sent
+          ? `Changes requested. ${delivery.recipients} carrier contact(s) notified.`
+          : `Changes recorded, but nobody could be notified: ${delivery.reason}.`,
+        data: load,
+        paperwork: paperworkView(load),
+        notified: delivery,
+      });
+    }
+
+    // ── Approved ────────────────────────────────────────────────────────────
+    // Checked here rather than trusted from the screen: the browser's list of
+    // what is missing is as old as its last refresh, and approving a load whose
+    // Bill of Lading was deleted a minute ago would seal it in that state.
+    const missing = missingRequiredDocuments(load);
+    if (missing.length) {
+      return res.status(400).json({
+        success: false,
+        code: "DOCUMENTS_MISSING",
+        message: `Cannot approve — still missing: ${missing.join(", ")}.`,
+        missingDocuments: missing,
+      });
+    }
+
+    const previousTransportStatus = load.transportStatus;
+
+    load.paperwork.state = "APPROVED";
+    load.paperwork.approvedAt = new Date();
+    load.paperwork.approvedBy = req.user._id;
+    load.paperwork.approvalNote = note;
+
+    // Approving is the move. See the note at the top of this section.
+    load.transportStatus = "INVOICED";
+    load.transportStatusHistory.push({
+      status: "INVOICED",
+      changedAt: new Date(),
+      changedBy: req.user._id,
+      note: note || "Paperwork approved",
+    });
+
+    await load.save();
+
+    await audit
+      .recordStatusChange({
+        load,
+        field: "transportStatus",
+        from: previousTransportStatus,
+        to: "INVOICED",
+        note: note || "Paperwork approved",
+        user: req.user,
+        req,
+      })
+      .catch((error) =>
+        console.error(`Paperwork audit failed for ${load.loadId}:`, error.message),
+      );
+
+    // Same alert a load gets when it reaches INVOICED through the status
+    // dropdown, so the carrier hears the same thing whichever route it took.
+    whatsapp.onLoadCompleted(load, req.user);
+
+    publishTrackingUpdate(load.loadId, "transport_status", {
+      transportStatus: load.transportStatus,
+      liveTrackingStatus: load.liveTracking?.status || "NOT_STARTED",
+      changedAt: new Date(),
+    });
+
+    const delivery = await paperwork
+      .notifyPaperworkApproved({ load })
+      .catch((error) => ({ sent: false, recipients: 0, reason: error.message }));
+
+    return res.json({
+      success: true,
+      message: "Paperwork approved. The load is now invoiceable.",
+      data: load,
+      paperwork: paperworkView(load),
+      notified: delivery,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Chase the carrier side for the documents.
+ *
+ * By hand rather than on a schedule: the office knows which driver is slow and
+ * which one is mid-run with no signal, and an automatic daily chaser to both of
+ * them is one everybody filters out. There is no cap on how many times it can
+ * be sent — every send is recorded on the load, which is the thing that makes
+ * "we have asked four times" a fact somebody can act on.
+ */
+const remindPaperwork = async (req, res) => {
+  try {
+    const note = trimmedText(req.body.note);
+
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) {
+      return res.status(404).json({ success: false, message: "Load not found" });
+    }
+
+    // Delivered counts as well as Paperwork Pending: a driver can be asked for
+    // the Bill of Lading before the office has moved the load on, and making
+    // them do the move first would just be a step in the way.
+    if (!["DELIVERED", "PAPERWORK_PENDING"].includes(load.transportStatus)) {
+      return res.status(409).json({
+        success: false,
+        code: "NOT_AWAITING_PAPERWORK",
+        message:
+          "This load is not waiting on paperwork, so there is nothing to chase.",
+      });
+    }
+
+    if (isPaperworkLocked(load)) {
+      return res.status(409).json({
+        success: false,
+        code: "PAPERWORK_LOCKED",
+        message: "This load's paperwork has already been approved.",
+      });
+    }
+
+    const delivery = await paperwork
+      .sendDocumentReminder({ load, note })
+      .catch((error) => ({ sent: false, recipients: 0, reason: error.message }));
+
+    load.paperwork = load.paperwork || {};
+    load.paperwork.reminders = load.paperwork.reminders || [];
+    load.paperwork.reminders.push({
+      sentAt: new Date(),
+      sentBy: req.user._id,
+      kind: "DOCUMENTS",
+      note,
+      recipients: delivery.recipients || 0,
+      sent: !!delivery.sent,
+      reason: delivery.sent ? "" : delivery.reason || "",
+    });
+
+    await load.save();
+
+    await audit
+      .recordDocument({
+        load,
+        action: "load.paperwork_reminder_sent",
+        summary: delivery.sent
+          ? `Document reminder sent to ${delivery.recipients} carrier contact(s)`
+          : `Document reminder could not be sent: ${delivery.reason}`,
+        user: req.user,
+        req,
+      })
+      .catch((error) =>
+        console.error(`Paperwork audit failed for ${load.loadId}:`, error.message),
+      );
+
+    // 200 either way: the reminder was recorded, and "nobody on this carrier has
+    // a login" is something the office needs told, not an error to retry.
+    return res.json({
+      success: delivery.sent,
+      message: delivery.sent
+        ? `Reminder sent to ${delivery.recipients} carrier contact(s).`
+        : `Nobody could be reminded: ${delivery.reason}.`,
+      paperwork: paperworkView(load),
+      notified: delivery,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -3668,6 +4096,8 @@ module.exports = {
   updateTransportStatus,
   uploadDocument,
   deleteDocument,
+  reviewPaperwork,
+  remindPaperwork,
   assignFleetOwner,
   setLoadAssignments,
   confirmAssignedLoadByFleetOwner,

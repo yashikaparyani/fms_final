@@ -37,6 +37,9 @@ const { calendarDate, addDays, daysBetween, todayKey } = require("../utils/dates
 // the wording on an invoice already in a customer's filing cabinet.
 const invoiceLineSchema = new mongoose.Schema(
   {
+    // Set on grouped customer invoices so each frozen charge remains tied to
+    // the load that produced it.
+    loadId: { type: String, trim: true },
     // Empty on a manual invoice line, which is free text by design.
     chargeType: { type: String, trim: true },
     label: { type: String, trim: true, required: true },
@@ -156,6 +159,11 @@ const invoiceSchema = new mongoose.Schema(
 
     load: { type: mongoose.Schema.Types.ObjectId, ref: "Load", index: true },
     loadId: { type: String, trim: true, index: true },
+    // A grouped customer invoice keeps the first load above for compatibility
+    // and records every participating load here.
+    loads: [{ type: mongoose.Schema.Types.ObjectId, ref: "Load" }],
+    loadIds: { type: [String], default: [] },
+    referenceNumber: { type: String, trim: true, index: true },
 
     // Which carrier leg this AP bill settles, on a split load. Null on an AR
     // invoice and on a single-carrier AP bill.

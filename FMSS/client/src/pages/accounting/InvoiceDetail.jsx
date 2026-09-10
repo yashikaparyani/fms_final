@@ -50,6 +50,11 @@ const InvoiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  // Which portal this is being read in, so the load link stays inside it. Every
+  // role that can open an invoice has its own /track-load route.
+  const role =
+    JSON.parse(localStorage.getItem("user") || "{}")?.role || "admin";
+
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
@@ -360,21 +365,49 @@ const InvoiceDetail = () => {
               <p className="text-2xl font-extrabold uppercase tracking-tight text-accent-700">
                 {noun}
               </p>
+              {/* The number, at the top, in the size it is actually used at.
+                  It is the one string a customer quotes back — on a remittance,
+                  in an email, on the phone — and it was previously the same
+                  11px as the terms and the due date, four rows down a list. */}
+              <p className="mt-0.5 text-xl font-extrabold tabular-nums text-ink-900">
+                #{invoice.invoiceNumber}
+              </p>
               <div className="mt-2 space-y-1 text-xs">
                 {[
-                  ["Invoice #", invoice.invoiceNumber],
                   ["Date", formatDate(invoice.issueDate)],
                   ["Terms", invoice.termsLabel],
                   ["Due", formatDate(invoice.dueDate)],
                   invoice.loadId && invoice.loadId !== invoice.invoiceNumber
-                    ? ["Load #", invoice.loadId]
+                    ? // The load reference opens the load. A customer ringing
+                      // about an invoice is asking about the move behind it —
+                      // the container number, where it went, when it was
+                      // delivered — and none of that is on this page. Reading
+                      // the load id off the screen and searching for it was the
+                      // step everybody was doing by hand.
+                      ["Load #", invoice.loadId, `/${role}/track-load/${invoice.loadId}`]
                     : null,
+                  // Where the move actually went. A customer querying an invoice
+                  // describes the job by its route long before they can find its
+                  // load number, so the two lines that let staff recognise it
+                  // belong on the document they are both looking at.
+                  invoice.route?.from ? ["From", invoice.route.from] : null,
+                  invoice.route?.to ? ["To", invoice.route.to] : null,
                 ]
                   .filter(Boolean)
-                  .map(([label, value]) => (
+                  .map(([label, value, href]) => (
                     <div key={label} className="flex justify-end gap-3">
                       <span className="text-ink-400">{label}</span>
-                      <span className="w-32 font-semibold text-ink-800">{value}</span>
+                      {href ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(href)}
+                          className="w-32 text-right font-semibold text-accent-700 hover:underline"
+                        >
+                          {value}
+                        </button>
+                      ) : (
+                        <span className="w-32 font-semibold text-ink-800">{value}</span>
+                      )}
                     </div>
                   ))}
               </div>

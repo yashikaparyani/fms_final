@@ -76,6 +76,25 @@ const paymentSchema = new mongoose.Schema(
 
     note: { type: String, trim: true },
 
+    // ── One cheque, several invoices ────────────────────────────────────────
+    // A customer settling six loads with one transfer produces six rows here,
+    // because the invoice is what a payment settles and there are six of them.
+    // This is what says they were the same movement of money: the same batch id
+    // on every row, and the total the customer actually sent.
+    //
+    // Without it the six rows are indistinguishable from six separate cheques —
+    // which matters the day one of them bounces, because reversing the payment
+    // means reversing all six, and matters again when somebody reconciles this
+    // against a bank statement showing a single line.
+    batch: {
+      id: { type: String, trim: true, index: true },
+      // What the customer sent in total, across every row in the batch. Stored
+      // rather than summed on read so a reversal of one row cannot make the
+      // batch look like it was always for less.
+      total: { type: Number },
+      count: { type: Number },
+    },
+
     // Reversal rather than deletion: a payment that turns out to be a bounced
     // cheque must leave a trace, because the invoice went from paid back to
     // outstanding and somebody will ask why.

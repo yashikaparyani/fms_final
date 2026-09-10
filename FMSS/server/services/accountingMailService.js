@@ -1,6 +1,10 @@
 const { sendEmail } = require("../utils/mailer");
 const templates = require("./accountingEmailTemplates");
 const { renderInvoicePdf, titleFor } = require("./invoiceDocumentService");
+const {
+  buildStatementWorkbook,
+  statementFilename,
+} = require("./statementWorkbookService");
 const { METHOD_BY_KEY } = require("../config/paymentMethods");
 
 // ─── Sending money mail ───────────────────────────────────────────────────────
@@ -166,13 +170,31 @@ const sendStatement = async ({ customerName, rows, totals, aging, issuer, to }) 
     };
   }
 
+  // One `asOf` for both the mail and the attachment. Two calls to new Date()
+  // can straddle midnight, and a statement whose body and spreadsheet are dated
+  // a day apart is the kind of discrepancy that gets the whole figure queried.
+  const asOf = new Date();
+
   const template = templates.customerStatement({
     customerName,
     rows,
     totals,
     aging,
     issuer,
-    asOf: new Date(),
+    asOf,
+  });
+
+  // The statement goes as a spreadsheet as well as in the body of the mail. The
+  // table in the email is what gets read; the attachment is what gets worked —
+  // sorted, ticked off and totalled by whoever is paying it. See
+  // services/statementWorkbookService.js.
+  const workbook = buildStatementWorkbook({
+    customerName,
+    rows,
+    totals,
+    aging,
+    issuer,
+    asOf,
   });
 
   const result = await sendEmail({
@@ -180,6 +202,14 @@ const sendStatement = async ({ customerName, rows, totals, aging, issuer, to }) 
     subject: template.subject,
     text: template.text,
     html: template.html,
+    attachments: [
+      {
+        filename: statementFilename(customerName, asOf),
+        content: workbook,
+        contentType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    ],
   });
 
   return { ...toStatus(result), to: address };

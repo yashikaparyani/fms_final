@@ -17,7 +17,26 @@ const TYPE_STYLE = {
   LOAD_REQUIRES_CHANGES:  { dot: "#e65100", pill: "bg-orange-100 text-orange-800" },
   LOAD_VERIFIED:          { dot: "#00695c", pill: "bg-teal-100 text-teal-800" },
   LOAD_STATUS_CHANGED:    { dot: "#1565c0", pill: "bg-blue-100 text-blue-800" },
+  // Paperwork review. Amber for the two that are somebody's outstanding job,
+  // red for a document sent back, green for signed off.
+  PAPERWORK_DUE:               { dot: "#b45309", pill: "bg-amber-100 text-amber-800" },
+  PAPERWORK_REMINDER:          { dot: "#b45309", pill: "bg-amber-100 text-amber-800" },
+  PAPERWORK_SUBMITTED:         { dot: "#1565c0", pill: "bg-blue-100 text-blue-800" },
+  PAPERWORK_CHANGES_REQUESTED: { dot: "#be123c", pill: "bg-rose-100 text-rose-800" },
+  PAPERWORK_APPROVED:          { dot: "#15803d", pill: "bg-green-100 text-green-800" },
 };
+
+// The ones that are about one load's documents. Clicking any of them has to
+// land on that load's Documents tab — a paperwork notice that opens a dashboard
+// leaves the reader to go and find the load themselves, which is the step where
+// it stops being acted on.
+const PAPERWORK_TYPES = new Set([
+  "PAPERWORK_DUE",
+  "PAPERWORK_REMINDER",
+  "PAPERWORK_SUBMITTED",
+  "PAPERWORK_CHANGES_REQUESTED",
+  "PAPERWORK_APPROVED",
+]);
 
 const getStyle = (type) =>
   TYPE_STYLE[type] || { dot: "#888", pill: "bg-gray-100 text-gray-600" };
@@ -70,6 +89,16 @@ const NotificationBell = ({ isOpen, onToggle }) => {
   const getRedirectPath = (notification) => {
     const userRole = user?.role;
     const notifType = notification.type;
+
+    // Straight to the documents, whoever is reading it.
+    if (PAPERWORK_TYPES.has(notifType) && notification.loadId) {
+      if (userRole === "fleetOwner" || userRole === "driver") {
+        return `/${userRole}/load/${notification.loadId}`;
+      }
+      if (userRole === "staff" || userRole === "admin") {
+        return `/${userRole}/track-load/${notification.loadId}?tab=documents`;
+      }
+    }
 
     // Staff/Admin notifications
     if (userRole === "staff" || userRole === "admin") {

@@ -6,6 +6,7 @@ const Customer = require("../models/Customer");
 const User = require("../models/User");
 const FleetOwner = require("../models/FleetOwner");
 const Driver = require("../models/Driver");
+const Load = require("../models/Load");
 const Address = require("../models/common/Address");
 const {
   labelFor,
@@ -117,7 +118,8 @@ const shipToFor = (load) => {
 const referencesFor = (load) =>
   [
     { label: "TRAILER #", value: trimmed(load?.containerNo) },
-    { label: "Ref #", value: trimmed(load?.bookingNo) },
+    { label: "Reference #", value: trimmed(load?.refNo) },
+    { label: "Booking #", value: trimmed(load?.bookingNo) },
   ].filter((ref) => ref.value);
 
 /**
@@ -236,8 +238,9 @@ const driverPartyFor = async (driverId, fallbackName = "") => {
  * The label is resolved once, here, and stored — see the note on the schema
  * about why an invoice must not re-read the catalog when it is displayed.
  */
-const toInvoiceLines = (ledgerLines = [], side) =>
+const toInvoiceLines = (ledgerLines = [], side, loadId) =>
   ledgerLines.map((line) => ({
+    loadId,
     chargeType: line.chargeType,
     label: labelFor(line.chargeType, side),
     kind: CHARGE_BY_KEY.get(line.chargeType)?.kind || "accessorial",
@@ -299,8 +302,49 @@ const syncInvoicePayments = async (invoice) => {
  * need to re-bill void this one and raise another, which leaves both documents
  * on the record.
  */
-const buildCustomerInvoice = async ({ load, user, terms, issueDate, memo }) => {
-  const receivableLines = ledger.receivableLinesFor(load);
+/**
+ * A reference number is matched case-insensitively, which means a regex, which
+ * means every character in it that a regex treats as syntax has to be escaped
+ * first.
+ *
+ * Real reference numbers are full of them — "PO(2026)", "A.B/1", "REF+2" — and
+ * leaving one unescaped is not a near miss. "A.B" silently matches "AxB" and
+ * groups a different customer's load onto the invoice; "PO(2026)" matches the
+ * literal "PO2026" and so groups nothing at all; and an unbalanced "AB(" is not
+ * a valid pattern in the first place, which throws where the invoice is raised.
+ */
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const loadsForCustomerReference = async (load) => {
+  const referenceNumber = trimmed(load?.refNo);
+  if (!referenceNumber) return [load];
+
+  const escaped = escapeRegex(referenceNumber);
+  const filter = {
+    customer: load.customer,
+    refNo: new RegExp(`^${escaped}$`, "i"),
+  };
+  if (load.locationId) filter.locationId = load.locationId;
+
+  const loads = await Load.find(filter).sort({ createdAt: 1, loadId: 1 });
+  return loads.length ? loads : [load];
+};
+
+const buildCustomerInvoice = async ({ load, loads, user, terms, issueDate, memo }) => {
+  const groupedLoads = loads?.length ? loads : await loadsForCustomerReference(load);
+  const referenceNumber = trimmed(groupedLoads[0]?.refNo || load.refNo);
+  const receivableLines = groupedLoads.flatMap((groupedLoad) =>
+    toInvoiceLines(
+      ledger.receivableLinesFor(groupedLoad),
+      "receivable",
+      groupedLoad.loadId,
+    ),
+  );
+  if (groupedLoads.length > 1) {
+    receivableLines.forEach((line) => {
+      line.description = [line.loadId, line.description].filter(Boolean).join(" — ");
+    });
+  }
 
   if (!receivableLines.length) {
     throw new Error(
@@ -308,7 +352,18 @@ const buildCustomerInvoice = async ({ load, user, terms, issueDate, memo }) => {
     );
   }
 
-  let invoice = await Invoice.findOne({ loadId: load.loadId, direction: "AR" });
+  const loadIds = groupedLoads.map((groupedLoad) => groupedLoad.loadId);
+  const existingFilter = referenceNumber
+    ? {
+        direction: "AR",
+        referenceNumber: new RegExp(
+          `^${escapeRegex(referenceNumber)}$`,
+          "i",
+        ),
+        $or: [{ loadId: { $in: loadIds } }, { loadIds: { $in: loadIds } }],
+      }
+    : { loadId: load.loadId, direction: "AR" };
+  let invoice = await Invoice.findOne(existingFilter);
 
   if (invoice && invoice.status === "VOID") {
     throw new Error(
@@ -340,7 +395,10 @@ const buildCustomerInvoice = async ({ load, user, terms, issueDate, memo }) => {
   invoice.issuer = issuer;
   invoice.shipTo = shipToFor(load);
   invoice.references = referencesFor(load);
-  invoice.lines = toInvoiceLines(receivableLines, "receivable");
+  invoice.lines = receivableLines;
+  invoice.loads = groupedLoads.map((groupedLoad) => groupedLoad._id);
+  invoice.loadIds = loadIds;
+  invoice.referenceNumber = referenceNumber || undefined;
   invoice.currency = load.accounting?.receivables?.currency || "USD";
   if (terms) invoice.terms = terms;
   if (issueDate) invoice.issueDate = new Date(issueDate);
@@ -608,7 +666,9 @@ const generateForLoad = async ({ load, user, terms, issueDate, memo, sides }) =>
  * customer ledger, so all three agree on what "outstanding" means.
  */
 const positionForLoad = async (load) => {
-  const invoices = await Invoice.find({ loadId: load.loadId })
+  const invoices = await Invoice.find({
+    $or: [{ loadId: load.loadId }, { loadIds: load.loadId }],
+  })
     .sort({ direction: 1, invoiceNumber: 1 })
     .lean();
 

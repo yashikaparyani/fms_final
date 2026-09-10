@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getMethods,
   recordPayment,
+  receivePayment,
   listPayments,
   reversePayment,
   sendReceipt,
@@ -30,6 +31,9 @@ router.get("/methods", ...office, getMethods);
 
 router.get("/", ...office, canRead, listPayments);
 router.post("/", ...office, canWrite, recordPayment);
+// One payment, several loads. See receivePayment for why it writes a row per
+// invoice rather than a single row against the customer.
+router.post("/receive", ...office, canWrite, receivePayment);
 
 router.put("/:id/reverse", ...office, canWrite, reversePayment);
 router.post("/:id/receipt", ...office, canWrite, sendReceipt);

@@ -76,6 +76,38 @@ const present = (invoice, extra = {}) => {
   };
 };
 
+/**
+ * Where the load behind this invoice went.
+ *
+ * Read from the load rather than copied onto the invoice when it was raised.
+ * The two would be the same on the day and could differ later — a stop
+ * corrected after billing — and of the two, the load is the one that says where
+ * the truck actually went. An invoice quoting a route the load no longer agrees
+ * with is a support call nobody can settle.
+ *
+ * Null on a manual invoice, which has no load behind it.
+ */
+const routeFor = async (invoice) => {
+  if (!invoice.load && !invoice.loadId) return null;
+
+  const load = await Load.findOne(
+    invoice.load ? { _id: invoice.load } : { loadId: invoice.loadId },
+  )
+    .select("pickup drop")
+    .lean();
+
+  if (!load) return null;
+
+  const place = (stop) =>
+    [stop?.city, stop?.state].filter(Boolean).join(", ") || stop?.address || "";
+
+  const from = place(load.pickup);
+  const to = place(load.drop);
+
+  // Nothing worth a row rather than two empty labels.
+  return from || to ? { from, to } : null;
+};
+
 // @desc    Net terms the UI offers
 // @route   GET /api/invoices/terms
 // @access  Private (staff, admin)
@@ -130,6 +162,7 @@ const listInvoices = async (req, res) => {
       filter.$or = [
         { invoiceNumber: rx },
         { loadId: rx },
+        { referenceNumber: rx },
         { "party.name": rx },
         { "party.code": rx },
       ];
@@ -182,7 +215,7 @@ const getInvoice = async (req, res) => {
       .sort({ paidOn: -1 })
       .lean();
 
-    res.json(present(invoice, { payments }));
+    res.json(present(invoice, { payments, route: await routeFor(invoice) }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

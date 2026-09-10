@@ -26,8 +26,23 @@ const ledgerLineSchema = new mongoose.Schema(
     // Both optional and both display-only — the line's `amount` is the figure
     // that counts. Kept because "3 × $75" is how the charge was agreed, and a
     // bare $225 on an invoice is what triggers the customer's phone call.
+    //
+    // `rate` carries the percentage on a PERCENT line, which is the one case
+    // where it is not display-only: `amount` is derived from it on every save.
     quantity: Number,
     rate: Number,
+
+    // How this line was quoted. AMOUNT is a cash figure typed in directly;
+    // PERCENT means `rate` is a percentage of the side's linehaul and `amount`
+    // is worked out from it.
+    //
+    // `amount` is always populated either way, so nothing that totals a ledger
+    // has to know this field exists — see totalsFor, which is unchanged.
+    basis: {
+      type: String,
+      enum: ["AMOUNT", "PERCENT"],
+      default: "AMOUNT",
+    },
 
     note: { type: String, trim: true },
 
@@ -36,6 +51,29 @@ const ledgerLineSchema = new mongoose.Schema(
     // amounts, and a single payable total cannot say who gets what. Left unset
     // on a normal load, where the one carrier owns the whole ledger.
     fleetOwnerId: { type: mongoose.Schema.Types.ObjectId, ref: "FleetOwner" },
+
+    // ── Which driver this line pays ─────────────────────────────────────────
+    // Payables only. A long move is handed over part way and each driver is
+    // owed their own figure, so their pay is lines on this ledger rather than a
+    // separate payroll record — one place where "what does this load cost us"
+    // is answered, and one save that cannot leave the two disagreeing.
+    //
+    // Denormalised name for the same reason every other one on this model is:
+    // a settlement from March has to still name the person it paid after they
+    // come off the roster.
+    driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
+    driverName: { type: String, trim: true },
+
+    // When this line was actually paid out, and by whom. Per line rather than
+    // per ledger because two drivers on one load are paid on their own days —
+    // one settled on Friday and one still owed is the normal state of things,
+    // and a single paid flag on the ledger cannot say that.
+    //
+    // Never written from a submitted ledger: the save carries it forward from
+    // what is already stored (see saveLedger), so editing an amount cannot
+    // silently mark somebody paid or un-pay somebody who has been.
+    paidAt: Date,
+    paidBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     addedAt: { type: Date, default: Date.now },
@@ -672,6 +710,76 @@ const loadSchema = new mongoose.Schema(
         "DROP_IN_WAREHOUSE",
       ],
       default: "NEW_LOAD",
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // PAPERWORK REVIEW
+    // Where a delivered load's documents have got to, between the driver
+    // uploading them and the office signing them off. The states and what
+    // counts as "the paperwork" live in config/paperwork.js.
+    //
+    // Absent on every load that predates this and on every load that has not
+    // reached PAPERWORK_PENDING — `state` is deliberately not defaulted, so
+    // "no paperwork review has started" and "the review is at its first step"
+    // are different answers rather than the same one.
+    // ═══════════════════════════════════════════════════════════
+    paperwork: {
+      state: {
+        type: String,
+        enum: [
+          "AWAITING_DOCUMENTS",
+          "IN_REVIEW",
+          "CHANGES_REQUESTED",
+          "APPROVED",
+        ],
+      },
+
+      // When the load entered PAPERWORK_PENDING, and who moved it.
+      startedAt: Date,
+      startedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+      // The most recent upload that put this into the office's queue.
+      submittedAt: Date,
+      submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+      // What the office asked to be fixed, in their own words. Kept after the
+      // driver re-uploads rather than cleared: the driver opening the load
+      // needs to still be able to read what was wrong with it, and a support
+      // call six weeks later is answered by the note, not by the fact that a
+      // second file exists.
+      changesNote: String,
+      changesRequestedAt: Date,
+      changesRequestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+      // How many times it went back. One round trip is a bad photo; four is a
+      // conversation somebody should have had on the phone.
+      changeRequestCount: { type: Number, default: 0 },
+
+      approvedAt: Date,
+      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      approvalNote: String,
+
+      // Every chase sent to the carrier side, whether or not it landed. A run
+      // of failures against one carrier is what tells somebody their driver has
+      // no working login — if only successes were recorded, that carrier would
+      // simply look quietly un-chased. Same reasoning as `reminders` on Invoice.
+      reminders: [
+        {
+          sentAt: { type: Date, default: Date.now },
+          sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+          // "MOVE_TO_PAPERWORK" is the nudge to the office to move a delivered
+          // load on; "DOCUMENTS" is the chase sent to the carrier side.
+          kind: {
+            type: String,
+            enum: ["MOVE_TO_PAPERWORK", "DOCUMENTS"],
+            default: "DOCUMENTS",
+          },
+          note: String,
+          recipients: { type: Number, default: 0 },
+          sent: { type: Boolean, default: true },
+          reason: String,
+        },
+      ],
     },
 
     // ═══════════════════════════════════════════════════════════

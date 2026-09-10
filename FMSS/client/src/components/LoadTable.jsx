@@ -163,7 +163,10 @@ const CustomerCell = ({ load }) => (
 );
 
 // ── Date Cell ────────────────────────────────────────────────
-const DateCell = ({ value, showExpiry }) => {
+// `time` is the appointment window on the same stop as the date — see
+// pickupWindowOf/dropWindowOf. Optional: most tables ask for the date alone,
+// and a load with no window set renders exactly as it did before.
+const DateCell = ({ value, showExpiry, time }) => {
   if (!value) return <span className="text-gray-400">-</span>;
   const expired = showExpiry && isExpired(value);
   return (
@@ -173,6 +176,11 @@ const DateCell = ({ value, showExpiry }) => {
       >
         {fmtDate(value)}
       </span>
+      {time && (
+        <div className="text-[10px] font-medium text-gray-500 tabular-nums">
+          {time}
+        </div>
+      )}
       {expired && (
         <div className="text-[10px] text-red-500 font-medium">EXPIRED</div>
       )}

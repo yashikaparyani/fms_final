@@ -3,11 +3,16 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api";
 import { notify } from "../../utils/swal";
 import DocumentUpload from "../../components/DocumentUpload";
+import PaperworkReviewCard from "../../components/track-load/PaperworkReviewCard";
+import { isPaperworkLocked } from "../../utils/paperwork";
 import AppSelect from "../../components/AppSelect";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import CircularProgress from "@mui/material/CircularProgress";
 
+// Invoiceable is deliberately absent: it is reached by approving the paperwork,
+// not by picking it here — see ACTION_ONLY_TRANSPORT_STATUSES in
+// utils/transportStatus.js. The server refuses it from this route as well.
 const TRANSPORT_STATUSES = [
   { value: "LOAD_PLANNER",        label: "Load Planner",        color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
   { value: "NEW_LOAD",            label: "New Load",            color: "#1d4ed8", bg: "#dbeafe", border: "#93c5fd" },
@@ -19,7 +24,6 @@ const TRANSPORT_STATUSES = [
   { value: "DELIVERED",           label: "Delivered",           color: "#15803d", bg: "#dcfce7", border: "#bbf7d0" },
   { value: "TERMINATED",          label: "Terminated",          color: "#dc2626", bg: "#fee2e2", border: "#fca5a5" },
   { value: "PAPERWORK_PENDING",   label: "Paperwork Pending",   color: "#a16207", bg: "#fef9c3", border: "#fde047" },
-  { value: "INVOICED",            label: "Invoiced",            color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
   { value: "STREET_TURN",         label: "Street Turn",         color: "#166534", bg: "#f0fdf4", border: "#bbf7d0" },
   { value: "EMPTY_IN_YARD",       label: "Empty in Yard",       color: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb" },
   { value: "LOADED_IN_YARD",      label: "Loaded in Yard",      color: "#86198f", bg: "#fdf4ff", border: "#f0abfc" },
@@ -521,12 +525,19 @@ const UpdateLoadStatusPage = () => {
         </div>
 
         {/* ── RIGHT: Documents ── */}
-        <div style={{
-          backgroundColor: "#fff", borderRadius: 12,
-          border: "1px solid #f3f4f6",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-          overflow: "hidden",
-        }}>
+        <div>
+          {/* What the office is waiting on, and anything they sent back. Above
+              the upload rows because the driver has to read the reason in the
+              office's own words before they re-upload — see
+              PaperworkReviewCard. Renders nothing until the load is delivered. */}
+          <PaperworkReviewCard load={load} isStaff={false} refresh={fetchLoad} />
+
+          <div style={{
+            backgroundColor: "#fff", borderRadius: 12,
+            border: "1px solid #f3f4f6",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+            overflow: "hidden",
+          }}>
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "14px 20px", borderBottom: "1px solid #f3f4f6",
@@ -539,8 +550,10 @@ const UpdateLoadStatusPage = () => {
               loadId={loadId}
               transportStatus={load.transportStatus}
               documents={load.documents || []}
+              locked={isPaperworkLocked(load)}
               refresh={fetchLoad}
             />
+          </div>
           </div>
         </div>
 

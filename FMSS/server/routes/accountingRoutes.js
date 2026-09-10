@@ -5,6 +5,7 @@ const {
   getLoadAccounting,
   saveReceivables,
   savePayables,
+  payDriver,
   savePayroll,
   previewPayroll,
   settlePayroll,
@@ -96,6 +97,16 @@ router.put(
   ...office,
   requirePermission("loads.edit"),
   savePayables,
+);
+
+// Settling one driver's pay on a load. `loads.edit` rather than a permission of
+// its own: it moves money on the load's ledger, exactly as saving the payables
+// does.
+router.put(
+  "/loads/:loadId/payables/drivers/:driverId/pay",
+  ...office,
+  requirePermission("loads.edit"),
+  payDriver,
 );
 
 router.post(

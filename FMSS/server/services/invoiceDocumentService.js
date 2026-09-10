@@ -242,6 +242,20 @@ const drawLetterhead = (doc, invoice) => {
     color: BRAND,
   });
 
+  // The number, beside the word, in the same weight as the word. It is the one
+  // thing a recipient quotes back — on a remittance, in an email, over the
+  // phone — and until now it appeared only in the details block halfway down,
+  // where somebody reading a printed copy across a desk has to go looking for
+  // it. It stays in that block as well: this is the headline, that is the
+  // record.
+  say(doc, `#${invoice.invoiceNumber}`, {
+    x: LEFT + doc.widthOfString(titleFor(invoice)) + 10,
+    y: 55,
+    size: 16,
+    bold: true,
+    color: BRAND,
+  });
+
   say(doc, issuer.name || "S Line Brokerage Inc.", {
     x: LEFT,
     y: 71,

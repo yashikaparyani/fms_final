@@ -8,6 +8,9 @@ const { drainQueue } = require("../services/whatsappService");
 const { expireStaleOffers } = require("../services/instantDispatchService");
 // Nightly chaser on unpaid customer invoices — see services/reminderService.js.
 const { sendDueReminders } = require("../services/reminderService");
+// Nudges the office about delivered loads nobody has moved on to paperwork —
+// see services/paperworkService.js.
+const { remindDeliveredLoads } = require("../services/paperworkService");
 
 const startCronJobs = () => {
   // Run every minute.
@@ -162,8 +165,32 @@ const startCronJobs = () => {
     }
   });
 
+  // ── Paperwork nudges ──────────────────────────────────────────────────────
+  // Hourly. A delivered load that nobody moves on to Paperwork Pending is never
+  // chased for its documents and never invoiced, and nothing about that looks
+  // like a fault until the month-end numbers come up short.
+  //
+  // Hourly rather than daily so the reminder lands in the same working day the
+  // load became overdue, and hourly rather than on the minute sweep because the
+  // thing it measures is counted in hours. Sending the same reminder twice is
+  // guarded inside remindDeliveredLoads, which opens its own unscoped context —
+  // an un-invoiced load spans every branch.
+  cron.schedule("0 * * * *", async () => {
+    try {
+      const result = await remindDeliveredLoads();
+      if (result.sent || result.failed) {
+        console.log(
+          `Paperwork reminders: ${result.sent} sent, ${result.failed} failed, ` +
+            `${result.skipped} already chased (of ${result.considered} delivered loads).`,
+        );
+      }
+    } catch (error) {
+      console.error("Paperwork reminder sweep failed:", error.message);
+    }
+  });
+
   console.log(
-    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue, payment reminders).",
+    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue, payment reminders, paperwork reminders).",
   );
 };
 

@@ -12,10 +12,16 @@ import { carrierIdOnLoad, carrierNameOnLoad } from "../../utils/loadCarrier";
 import { isAssignedToCarrier, STATUS_LOCKED_REASON } from "../../utils/loadAssignment";
 import { STATUS_BADGE_COLORS, STATUS_ROW_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
+import { missingPaperwork } from "../../utils/paperwork";
+import { toast } from "react-toastify";
+import Swal from "sweetalert2";
 import {
   dropDateOf,
+  dropWindowOf,
   pickupDateOf,
+  pickupWindowOf,
   sortByDeliveryDate,
+  withWindow,
 } from "../../utils/loadUrgency";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
@@ -48,8 +54,16 @@ const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 // is the same, the driver who dropped it has gone home.
 const AWAITING_A_DRIVER = ["DROP_IN_WAREHOUSE", "LOADED_IN_YARD", "EMPTY_IN_YARD"];
 
+// A load whose driving is done and whose documents are not. The one place in
+// this tab where "Transfer to Invoiceable" means anything.
+const isPaperworkPending = (row) => row?.transportStatus === "PAPERWORK_PENDING";
+
 const SUB_TABS = [
   "DELIVERED",
+  // The paperwork queue. Not an ended journey — the documents are still owed —
+  // but there is nothing left for dispatch to arrange, so it reads here rather
+  // than in All Transit. See PAPERWORK_TRANSPORT_STATUSES on the server.
+  "PAPERWORK_PENDING",
   "TERMINATED",
   "STREET_TURN",
   "EMPTY_IN_YARD",
@@ -86,6 +100,8 @@ const OverLoadsTable = () => {
   const [openRow, setOpenRow] = useState(null); // reassign picker open on this load
   const [statusModal, setStatusModal] = useState(null);
   const [driverModal, setDriverModal] = useState(null);
+  // Load id currently being transferred, so its own button says so.
+  const [transferring, setTransferring] = useState(null);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
@@ -117,7 +133,7 @@ const OverLoadsTable = () => {
   // Hold the refresh while a picker or the status modal is open, so a row
   // cannot shift or vanish mid-action.
   useAutoRefresh(() => fetchLoads({ silent: true }), {
-    enabled: !openRow && !saving && !statusModal && !driverModal,
+    enabled: !openRow && !saving && !statusModal && !driverModal && !transferring,
   });
 
   // Same delivery-date order as the other three tabs, so a load does not change
@@ -143,6 +159,61 @@ const OverLoadsTable = () => {
     if (done) setOpenRow(null);
   };
 
+  // ── Transfer to Invoiceable ────────────────────────────────────────────────
+  // The paperwork review, from the list. It posts the same approval the load's
+  // Documents tab does rather than setting the status directly — approving IS
+  // the move, and the server refuses Invoiceable from the status route outright
+  // (see USE_PAPERWORK_APPROVAL). One rule, enforced in one place, reachable
+  // from wherever the person happens to be standing.
+  //
+  // The missing-document check below is a courtesy so the confirmation can say
+  // what is wrong before anybody clicks through it. The server checks again on
+  // arrival — this list is as old as its last refresh.
+  const transferToInvoiceable = async (row) => {
+    const missing = missingPaperwork(row);
+
+    if (missing.length) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Paperwork is not complete",
+        text: `${row.loadId} is still missing: ${missing.join(", ")}. Chase the driver for it, or open the load to review what is there.`,
+        confirmButtonColor: "#4338ca",
+      });
+      return;
+    }
+
+    const { isConfirmed, value } = await Swal.fire({
+      title: `Transfer ${row.loadId} to Invoiceable?`,
+      html:
+        '<p style="font-size:13px;color:#4b5563;text-align:left;margin:0 0 10px">' +
+        "This approves the load's paperwork. It leaves the Over tab for " +
+        "Accounting, and its documents are locked — the driver will not be able " +
+        "to change them.</p>",
+      input: "textarea",
+      inputPlaceholder: "Optional note for the record…",
+      inputAttributes: { rows: 3 },
+      showCancelButton: true,
+      confirmButtonText: "Transfer",
+      confirmButtonColor: "#16a34a",
+    });
+
+    if (!isConfirmed) return;
+
+    setTransferring(row.loadId);
+    try {
+      const res = await api.post(`/loads/${row.loadId}/paperwork/review`, {
+        decision: "APPROVE",
+        note: value || "",
+      });
+      toast.success(res.data?.message || "Transferred to Invoiceable");
+      await fetchLoads();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Transfer failed");
+    } finally {
+      setTransferring(null);
+    }
+  };
+
   // Opening a finished load is how its paperwork is read. The desktop table
   // gets this from LoadIdCell; the mobile card has to say it itself.
   const openLoad = (row) =>
@@ -153,8 +224,8 @@ const OverLoadsTable = () => {
     { key: "customer",     header: "Customer",      width: "150px", render: (row) => <CustomerCell load={row} /> },
     { key: "origin",       header: "Origin",                        render: (row) => <AddressCell data={row.pickup} /> },
     { key: "destination",  header: "Destination",                   render: (row) => <AddressCell data={row.drop} /> },
-    { key: "pickupDate",   header: "Pickup Date",   width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} /> },
-    { key: "deliveryDate", header: "Delivery Date", width: "110px", render: (row) => <DateCell value={dropDateOf(row)} /> },
+    { key: "pickupDate",   header: "Pickup Date",   width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} time={pickupWindowOf(row)} /> },
+    { key: "deliveryDate", header: "Delivery Date", width: "110px", render: (row) => <DateCell value={dropDateOf(row)} time={dropWindowOf(row)} /> },
     {
       key: "carrier",
       header: "Carrier",
@@ -207,6 +278,19 @@ const OverLoadsTable = () => {
           </button>
         )}
 
+        {/* Only on the loads that are actually waiting to be billed. On a
+            delivered or street-turned load there is no paperwork review open,
+            so there is nothing to approve. */}
+        {isPaperworkPending(row) && (
+          <button
+            onClick={() => transferToInvoiceable(row)}
+            disabled={saving || !!transferring}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {transferring === row.loadId ? "Transferring…" : "Transfer to Invoiceable"}
+          </button>
+        )}
+
         {/* Locked until a carrier has the load, exactly as on All Transit — a
             status is a statement about a carrier. */}
         <button
@@ -234,8 +318,9 @@ const OverLoadsTable = () => {
       <div className="mb-4">
         <h2 className="text-lg font-bold text-gray-900">Over</h2>
         <p className="text-sm text-gray-500">
-          Finished loads — delivered, terminated, street-turned, in the yard or
-          dropped at a warehouse, earliest delivery date first
+          Finished loads — delivered, waiting on paperwork, terminated,
+          street-turned, in the yard or dropped at a warehouse, earliest
+          delivery date first
         </p>
       </div>
 
@@ -310,8 +395,8 @@ const OverLoadsTable = () => {
                   {[
                     ["Origin", [row.pickup?.city, row.pickup?.state].filter(Boolean).join(", ")],
                     ["Destination", [row.drop?.city, row.drop?.state].filter(Boolean).join(", ")],
-                    ["Pickup Date", fmtDate(pickupDateOf(row))],
-                    ["Delivery Date", fmtDate(dropDateOf(row))],
+                    ["Pickup Date", withWindow(fmtDate(pickupDateOf(row)), pickupWindowOf(row))],
+                    ["Delivery Date", withWindow(fmtDate(dropDateOf(row)), dropWindowOf(row))],
                     ["Container #", row.containerNo],
                     ["Carrier", carrierNameOnLoad(row, fleetOwners)],
                   ].map(([label, value]) => (
@@ -333,7 +418,7 @@ const OverLoadsTable = () => {
                         saving={saving}
                       />
                     ) : (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => setOpenRow(row.loadId)}
                           disabled={saving}
@@ -349,6 +434,17 @@ const OverLoadsTable = () => {
                         >
                           Update Status
                         </button>
+                        {isPaperworkPending(row) && (
+                          <button
+                            onClick={() => transferToInvoiceable(row)}
+                            disabled={saving || !!transferring}
+                            className="w-full py-1.5 text-xs font-semibold rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition disabled:opacity-50"
+                          >
+                            {transferring === row.loadId
+                              ? "Transferring…"
+                              : "Transfer to Invoiceable"}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

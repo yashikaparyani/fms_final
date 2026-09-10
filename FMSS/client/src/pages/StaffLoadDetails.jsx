@@ -5,6 +5,7 @@ import { Chip } from "@mui/material";
 import api from "../api";
 import { toast } from "react-toastify";
 import DocumentUpload from "../components/DocumentUpload";
+import { isPaperworkLocked } from "../utils/paperwork";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import {
@@ -699,6 +700,7 @@ const StaffLoadDetails = () => {
         loadId={loadId}
         transportStatus={load.transportStatus}
         documents={load.documents}
+        locked={isPaperworkLocked(load)}
         refresh={fetchLoad}
       />
 

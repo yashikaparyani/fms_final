@@ -20,6 +20,97 @@ const money = (v) =>
     ? "—"
     : `$${Number(v).toLocaleString()}`;
 
+// A stop as two lines: who it is, then where. Drivers' own legs carry no
+// company name — a handover happens at a yard — so those fall back to the
+// street line as the title and read the same as a real stop.
+const place = (stop) => {
+  if (!stop) return null;
+  const where = [stop.city, stop.state, stop.zip].filter(Boolean).join(", ");
+  const title = stop.company || stop.address;
+  if (!title && !where) return null;
+  if (!title) return { title: where, sub: "" };
+
+  return {
+    title,
+    sub: [stop.company && stop.address, where].filter(Boolean).join(" · "),
+  };
+};
+
+// One row per person being paid to move this load.
+//
+// A load can be split between carriers, and each carrier names its own drivers,
+// so "who is being paid" has two shapes at once: named drivers, and carrier legs
+// nobody has been put on yet. Both are listed — a leg with no driver named is
+// still money going out, and leaving it off makes the table disagree with the
+// payables.
+//
+// Only the driver on `accounting.payroll` has a figure: payroll is one driver
+// per load (see accountingController.js), so the rest show no amount rather
+// than borrowing their carrier's leg rate — that rate is what the carrier is
+// owed, not what the driver is paid, and printing it in a Driver Amount column
+// once per driver would say the load costs several times what it does.
+const driverPaymentRows = (load) => {
+  const legs = load.assignments || [];
+  const drivers = load.driverAssignments || [];
+  const payroll = load.accounting?.payroll;
+  const payablesPaid = Boolean(load.accounting?.payables?.paidAt);
+
+  const legFor = (fleetOwnerId) =>
+    legs.find((leg) => String(leg.fleetOwnerId || "") === String(fleetOwnerId || ""));
+
+  const rows = drivers.map((assignment) => {
+    const leg = legFor(assignment.fleetOwnerId);
+    // `driver` is an id here — getLoadById does not populate it — so the name
+    // comes from the copy the assignment kept when it was made.
+    const isPaidDriver =
+      payroll?.driver && String(payroll.driver) === String(assignment.driver);
+
+    return {
+      name: assignment.driverName || assignment.driverCode || "—",
+      via: leg?.fleetOwnerName || load.assignedFleetOwner?.fleetOwnerName || "",
+      pickup: place(assignment.pickup) || place(leg?.origin) || place(load.pickup),
+      destination: place(assignment.drop) || place(leg?.destination) || place(load.drop),
+      amount: isPaidDriver ? payroll.amount : undefined,
+      paid: isPaidDriver ? Boolean(payroll.settledAt) : false,
+    };
+  });
+
+  const carriersWithDrivers = new Set(
+    drivers.map((assignment) => String(assignment.fleetOwnerId || "")),
+  );
+
+  legs
+    .filter((leg) => !carriersWithDrivers.has(String(leg.fleetOwnerId || "")))
+    .forEach((leg) => {
+      rows.push({
+        name: leg.fleetOwnerName || "—",
+        via: "Carrier — no driver named yet",
+        pickup: place(leg.origin) || place(load.pickup),
+        destination: place(leg.destination) || place(load.drop),
+        amount: leg.carrierRate,
+        paid: payablesPaid,
+      });
+    });
+
+  if (rows.length) return rows;
+
+  // Neither drivers nor legs: the ordinary single-carrier load. Still worth a
+  // row — the payroll figure and the carrier are what there is to show.
+  const carrier = load.assignedFleetOwner?.fleetOwnerName;
+  if (!payroll?.driverName && !carrier) return [];
+
+  return [
+    {
+      name: payroll?.driverName || carrier || "—",
+      via: payroll?.driverName ? carrier || "" : "Carrier — no driver named yet",
+      pickup: place(load.pickup),
+      destination: place(load.drop),
+      amount: payroll?.driverName ? payroll.amount : load.vendorRate,
+      paid: payroll?.driverName ? Boolean(payroll.settledAt) : payablesPaid,
+    },
+  ];
+};
+
 // Operational flags staff/admin may toggle straight from this page, in the two
 // columns the Order Status card lays them out in. Clients keep the read-only
 // view. Saved through the normal load update endpoint.
@@ -86,7 +177,7 @@ const CheckboxEditor = ({ label, checked, disabled, onChange }) => (
   </label>
 );
 
-const DetailedLoadInfo = ({ load, canEditFlags = false, onSaveFlags }) => {
+const DetailedLoadInfo = ({ load, canEditFlags = false, showDriverPayments = false, onSaveFlags }) => {
   const [flags, setFlags] = useState(() => readFlags(load));
   const [saving, setSaving] = useState(false);
 
@@ -127,6 +218,7 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, onSaveFlags }) => {
   // Prefer the multi-stop arrays; fall back to the legacy single pickup/drop.
   const pickups = load.pickups?.length ? load.pickups : load.pickup ? [load.pickup] : [];
   const drops = load.drops?.length ? load.drops : load.drop ? [load.drop] : [];
+  const paymentRows = showDriverPayments ? driverPaymentRows(load) : [];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -351,6 +443,68 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, onSaveFlags }) => {
             </div>
           </div>
         </Card>
+
+        {/* Who is being paid to move this load, and whether they have been.
+            Office only: the load's drivers are deliberately kept off customer
+            screens (getLoadById strips driverAssignments for clients), and what
+            a driver is paid is not the carrier's business either. */}
+        {showDriverPayments && (
+          <Card>
+            <SectionHeader label="Driver Payments" accent="#0d9488" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-teal-50/50 text-teal-800 border-b border-teal-100">
+                    <th className="px-4 py-3 text-left font-bold">Driver Name</th>
+                    <th className="px-4 py-3 text-left font-bold">Pickup Location</th>
+                    <th className="px-4 py-3 text-left font-bold">Destination</th>
+                    <th className="px-4 py-3 text-left font-bold w-32">Driver Amount</th>
+                    <th className="px-4 py-3 text-left font-bold w-36">Payment Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paymentRows.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="px-4 py-8 text-center text-gray-400 italic">
+                        Nobody assigned to this load yet
+                      </td>
+                    </tr>
+                  )}
+                  {paymentRows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-teal-50/20 transition-colors">
+                      <td className="px-4 py-4">
+                        <p className="font-bold text-gray-800">{row.name}</p>
+                        {row.via && <p className="text-xs text-gray-500">{row.via}</p>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-gray-800">{row.pickup?.title || "—"}</p>
+                        {row.pickup?.sub && <p className="text-xs text-gray-600">{row.pickup.sub}</p>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-gray-800">{row.destination?.title || "—"}</p>
+                        {row.destination?.sub && (
+                          <p className="text-xs text-gray-600">{row.destination.sub}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 font-bold text-gray-800">{money(row.amount)}</td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${
+                            row.paid
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {row.paid ? "Paid" : "Unpaid"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
         {/* Origin Table */}
         <Card>

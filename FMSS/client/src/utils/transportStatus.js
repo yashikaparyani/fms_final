@@ -42,6 +42,24 @@ export const transportStatusLabel = (value) =>
   LABELS[value] || (value || "—").replace(/_/g, " ");
 
 /**
+ * Statuses that are the *result* of an action, never a choice from a list.
+ *
+ * Invoiceable is one: a load becomes invoiceable because somebody approved its
+ * paperwork, and approving is what moves it — see "Transfer to Invoiceable" in
+ * OverLoadsTable and reviewPaperwork on the server. Offering it in the status
+ * dropdown alongside "Picked Up" invited somebody to mark a load billable
+ * without anybody having read the documents it would be billed against, which
+ * is the one thing the paperwork review exists to prevent. The server refuses
+ * it from this route too, so this is the readable half of a rule that is
+ * actually enforced.
+ *
+ * Still labelled and coloured everywhere a load genuinely sits in one, and the
+ * Load Management screen keeps its Invoiced tab — reading them is fine, setting
+ * one by hand is not.
+ */
+export const ACTION_ONLY_TRANSPORT_STATUSES = new Set(["INVOICED"]);
+
+/**
  * The statuses a person may actually choose.
  *
  * Load Planner and New Load are excluded. They are not decisions anybody makes
@@ -52,10 +70,12 @@ export const transportStatusLabel = (value) =>
  * neither could be a legitimate choice anyway.
  *
  * Both remain valid on the model and still colour and label correctly wherever
- * a load is genuinely sitting in one.
+ * a load is genuinely sitting in one. Invoiceable is excluded too, for a
+ * different reason — see ACTION_ONLY_TRANSPORT_STATUSES below.
  */
 export const SELECTABLE_TRANSPORT_STATUSES = TRANSPORT_STATUSES.filter(
-  (status) => !PRE_DISPATCH.has(status),
+  (status) =>
+    !PRE_DISPATCH.has(status) && !ACTION_ONLY_TRANSPORT_STATUSES.has(status),
 );
 
 /** `{ value, label }` pairs, for AppSelect and the filter dropdowns. */

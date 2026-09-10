@@ -28,6 +28,8 @@ import RatingSection from "../components/track-load/RatingSection";
 import DriverPictures from "../components/track-load/DriverPictures";
 import DetailedLoadInfo from "../components/track-load/DetailedLoadInfo";
 import StreetTurnAgreementCard from "../components/track-load/StreetTurnAgreementCard";
+import PaperworkReviewCard from "../components/track-load/PaperworkReviewCard";
+import { isPaperworkLocked } from "../utils/paperwork";
 import LoadAuditTrail from "../components/audit/LoadAuditTrail";
 import ScheduleBidding from "./ScheduleBidding";
 import Swal from "sweetalert2";
@@ -317,7 +319,12 @@ const TrackingTab = ({ load, tracking, userRole, onLoadChanged }) => {
 const DetailsTab = ({ load, userRole, isStaff, ratingScore, setRatingScore, ratingRemark, setRatingRemark, savingRating, onSave, onSaveFlags }) => (
   <div className="space-y-8 pb-10">
     {/* Staff/admin toggle the operational flags in place; clients read them. */}
-    <DetailedLoadInfo load={load} canEditFlags={isStaff} onSaveFlags={onSaveFlags} />
+    <DetailedLoadInfo
+      load={load}
+      canEditFlags={isStaff}
+      showDriverPayments={isStaff}
+      onSaveFlags={onSaveFlags}
+    />
 
     {/* The executed transfer agreement, on street turned loads only. Office
         only — it names both carriers and carries the transferee's signature.
@@ -340,19 +347,32 @@ const DetailsTab = ({ load, userRole, isStaff, ratingScore, setRatingScore, rati
 );
 
 // ─── Tab: Documents ───────────────────────────────────────────────────────────
-const DocumentsTab = ({ load, fetchLoad }) => (
-  <Card>
-    <SectionHeader label="Documents" accent="#4f46e5" />
-    <div className="p-5">
-      <DocumentUpload
-        loadId={load.loadId}
-        transportStatus={load.transportStatus}
-        documents={load.documents || []}
-        refresh={() => fetchLoad(load.loadId)}
-      />
-      <DriverPictures load={load} />
-    </div>
-  </Card>
+const DocumentsTab = ({ load, fetchLoad, isStaff }) => (
+  <>
+    {/* Above the documents rather than below them: on a delivered load the
+        first question is "what is still outstanding and what did the office
+        say about it", and the answer has to be readable without scrolling past
+        eleven upload rows to find it. */}
+    <PaperworkReviewCard
+      load={load}
+      isStaff={isStaff}
+      refresh={() => fetchLoad(load.loadId)}
+    />
+
+    <Card>
+      <SectionHeader label="Documents" accent="#4f46e5" />
+      <div className="p-5">
+        <DocumentUpload
+          loadId={load.loadId}
+          transportStatus={load.transportStatus}
+          documents={load.documents || []}
+          locked={isPaperworkLocked(load)}
+          refresh={() => fetchLoad(load.loadId)}
+        />
+        <DriverPictures load={load} />
+      </div>
+    </Card>
+  </>
 );
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
@@ -668,7 +688,9 @@ const TrackLoadPage = () => {
           />
         );
       case "documents":
-        return <DocumentsTab load={load} fetchLoad={fetchLoad} />;
+        return (
+          <DocumentsTab load={load} fetchLoad={fetchLoad} isStaff={isStaff} />
+        );
       case "audit":
         return <LoadAuditTrail loadId={load.loadId} />;
       default:

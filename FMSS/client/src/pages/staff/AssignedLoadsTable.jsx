@@ -20,9 +20,12 @@ import {
   URGENCY_COLORS,
   URGENCY_LABEL,
   dropDateOf,
+  dropWindowOf,
   isLfdAlarming,
   pickupDateOf,
+  pickupWindowOf,
   sortByDeliveryDate,
+  withWindow,
 } from "../../utils/loadUrgency";
 import {
   isAssignedToCarrier,
@@ -86,9 +89,9 @@ const AssignedLoadsTable = () => {
     { key: "load",         header: "Load",                 width: "130px", render: (row) => <LoadIdCell load={row} /> },
     { key: "customer",     header: "Customer",             width: "150px", render: (row) => <CustomerCell load={row} /> },
     { key: "origin",       header: "Origin",                               render: (row) => <AddressCell data={row.pickup} /> },
-    { key: "pickupDate",   header: "Pickup Date",          width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
+    { key: "pickupDate",   header: "Pickup Date",          width: "110px", render: (row) => <DateCell value={pickupDateOf(row)} time={pickupWindowOf(row)} showExpiry /> },
     { key: "destination",  header: "Destination",                          render: (row) => <AddressCell data={row.drop} /> },
-    { key: "deliveryDate", header: "Delivery Date",        width: "110px", render: (row) => <DateCell value={dropDateOf(row)} /> },
+    { key: "deliveryDate", header: "Delivery Date",        width: "110px", render: (row) => <DateCell value={dropDateOf(row)} time={dropWindowOf(row)} /> },
     { key: "lfd",          header: "Last Free Date",       width: "120px", render: (row) => <LfdCell row={row} /> },
     // No Bid Status column. By the time a load reaches this tab the bidding is
     // settled — the answer is "Closed" on nearly every row, and the column that
@@ -198,8 +201,8 @@ const AssignedLoadsTable = () => {
                   { label: "Destination", data: row.drop },
                 ]}
                 fields={[
-                  { label: "Pickup Date",   value: fmtDate(pickupDateOf(row)) },
-                  { label: "Delivery Date", value: fmtDate(dropDateOf(row)) },
+                  { label: "Pickup Date",   value: withWindow(fmtDate(pickupDateOf(row)), pickupWindowOf(row)) },
+                  { label: "Delivery Date", value: withWindow(fmtDate(dropDateOf(row)), dropWindowOf(row)) },
                   {
                     label: "Last Free Date",
                     value: row.lastFreeDate

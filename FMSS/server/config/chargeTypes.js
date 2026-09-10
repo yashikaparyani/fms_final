@@ -66,7 +66,13 @@ const CHARGE_TYPES = [
     label: "Dry Run Charges",
     help: "The trip was made but no freight moved — bad appointment, container not ready.",
   },
+  // Quoted both ways in the real world: a flat $85, or "18% of linehaul". Both
+  // are stored as a cash `amount` so every total downstream is unchanged — the
+  // percentage is kept alongside it as the working, and the amount is
+  // recomputed from it on every save so a linehaul correction cannot leave the
+  // surcharge quoting a stale figure. See applyPercentageLines.
   {
+    percentOf: "linehaul",
     key: "fuelSurcharge",
     kind: "accessorial",
     sides: BOTH,
@@ -169,6 +175,22 @@ const CHARGE_TYPES = [
     label: "Trans Load Charges",
     help: "Freight moved from one trailer or container to another.",
   },
+  // ── Paying the people who drove it ────────────────────────────────────────
+  // Payable only, and repeatable: a load handed over part way has two drivers
+  // and each is owed their own figure, so each gets a line naming them.
+  //
+  // An accessorial rather than a linehaul, which is limited to one per side and
+  // is already the carrier's base rate. A driver's pay sits on top of it, and on
+  // a load run by the house fleet it may be the only cost there is.
+  {
+    key: "driverPay",
+    kind: "accessorial",
+    sides: ["payable"],
+    group: "Base",
+    label: "Driver Pay",
+    help: "What one driver is owed for their part of this load.",
+    repeatable: true,
+  },
   {
     key: "other",
     kind: "accessorial",
@@ -210,6 +232,9 @@ const chargesFor = (side) =>
     help: helpFor(c.key, side),
     repeatable: !!c.repeatable,
     requiresNote: !!c.requiresNote,
+    // What a percentage on this line would be a percentage OF, or null when the
+    // charge is cash-only. The editor shows the % toggle only where this is set.
+    percentOf: c.percentOf || null,
   }));
 
 /**

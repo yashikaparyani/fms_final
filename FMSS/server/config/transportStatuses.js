@@ -37,6 +37,25 @@ const COMPLETED_TRANSPORT_STATUSES = [
   "DROP_IN_WAREHOUSE",
 ];
 
+// The driving is done and the documents are not. A paperwork-pending load has
+// nothing left for dispatch to arrange, so it leaves All Transit — but it is not
+// an ended journey either, so it does not belong in the same bucket as delivered
+// and terminated. It gets its own sub-tab under Over, which is where the person
+// chasing the driver for a Bill of Lading is looking.
+//
+// Deliberately NOT added to COMPLETED_TRANSPORT_STATUSES: that list also decides
+// what a carrier has finished with, and a carrier whose load vanishes into
+// "Completed" the moment it needs paperwork is a carrier who never uploads it.
+// See CARRIER_FINISHED_STATUSES below.
+const PAPERWORK_TRANSPORT_STATUSES = ["PAPERWORK_PENDING"];
+
+// Everything the Over tab lists: the journeys that ended, plus the ones waiting
+// on documents.
+const OVER_TAB_TRANSPORT_STATUSES = [
+  ...COMPLETED_TRANSPORT_STATUSES,
+  ...PAPERWORK_TRANSPORT_STATUSES,
+];
+
 // Handed to the back office. An invoiceable load is finished as far as dispatch
 // is concerned — nothing about it will move again — but it is not finished as a
 // piece of work: somebody still has to bill it. So it leaves All Transit without
@@ -50,7 +69,7 @@ const ACCOUNTING_TRANSPORT_STATUSES = ["INVOICED"];
 
 // Everything that has left dispatch's hands, by one route or the other.
 const OFF_TRANSIT_TRANSPORT_STATUSES = [
-  ...COMPLETED_TRANSPORT_STATUSES,
+  ...OVER_TAB_TRANSPORT_STATUSES,
   ...ACCOUNTING_TRANSPORT_STATUSES,
 ];
 
@@ -58,7 +77,14 @@ const OFF_TRANSIT_TRANSPORT_STATUSES = [
 // by one: a delivered load that the office has since invoiced is still done from
 // where the carrier is standing, and dropping off their list entirely when we
 // raise the invoice would be inexplicable to them.
-const CARRIER_FINISHED_STATUSES = [...OFF_TRANSIT_TRANSPORT_STATUSES];
+//
+// Narrower than OFF_TRANSIT_TRANSPORT_STATUSES by one, and that is the point:
+// PAPERWORK_PENDING has left the office's transit board but has NOT left the
+// driver's. Uploading the documents is the work, and it is theirs.
+const CARRIER_FINISHED_STATUSES = [
+  ...COMPLETED_TRANSPORT_STATUSES,
+  ...ACCOUNTING_TRANSPORT_STATUSES,
+];
 
 /**
  * Is this load still the carrier's to move?
@@ -73,6 +99,8 @@ const isCarrierActive = (transportStatus) =>
 module.exports = {
   MAIN_PROGRESSION,
   COMPLETED_TRANSPORT_STATUSES,
+  PAPERWORK_TRANSPORT_STATUSES,
+  OVER_TAB_TRANSPORT_STATUSES,
   ACCOUNTING_TRANSPORT_STATUSES,
   OFF_TRANSIT_TRANSPORT_STATUSES,
   CARRIER_FINISHED_STATUSES,

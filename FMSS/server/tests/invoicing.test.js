@@ -139,6 +139,92 @@ describe("Raising invoices from a load", () => {
     expect(res.body.customerInvoice.balance).toBe(1667.5);
   });
 
+  it("combines loads with the same customer reference into one invoice", async () => {
+    load.refNo = "PO-4421";
+    await withTenant({ locationId: String(ny._id) }, () => load.save());
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 1000 }]);
+
+    const firstLoad = load;
+    const secondLoad = await newLoad({ refNo: "po-4421" });
+    load = secondLoad;
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 500 }]);
+
+    load = firstLoad;
+    const first = await generate({ sides: ["AR"] });
+    expect(first.status).toBe(200);
+    expect(first.body.customerInvoice.total).toBe(1500);
+    expect(first.body.customerInvoice.referenceNumber).toBe("PO-4421");
+    expect(first.body.customerInvoice.loadIds).toEqual(
+      expect.arrayContaining([firstLoad.loadId, secondLoad.loadId]),
+    );
+    expect(first.body.customerInvoice.lines).toHaveLength(2);
+
+    load = secondLoad;
+    const second = await generate({ sides: ["AR"] });
+    expect(second.body.customerInvoice._id).toBe(first.body.customerInvoice._id);
+    expect(
+      await withTenant({ locationId: String(ny._id) }, () =>
+        Invoice.countDocuments({ direction: "AR", referenceNumber: "PO-4421" }),
+      ),
+    ).toBe(1);
+  });
+
+  // Reference numbers are matched with a case-insensitive regex, so anything in
+  // them that a regex treats as syntax has to be escaped first. Real references
+  // are full of such characters, and getting it wrong fails both ways at once:
+  // the ones below group nothing, and the ones in the next test group too much.
+  it("groups a reference number that contains regex characters", async () => {
+    load.refNo = "PO(2026)";
+    await withTenant({ locationId: String(ny._id) }, () => load.save());
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 1000 }]);
+
+    const firstLoad = load;
+    const secondLoad = await newLoad({ refNo: "po(2026)" });
+    load = secondLoad;
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 500 }]);
+
+    load = firstLoad;
+    const res = await generate({ sides: ["AR"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.customerInvoice.total).toBe(1500);
+    expect(res.body.customerInvoice.loadIds).toEqual(
+      expect.arrayContaining([firstLoad.loadId, secondLoad.loadId]),
+    );
+  });
+
+  it("does not group two references that only a wildcard would match", async () => {
+    load.refNo = "A.B";
+    await withTenant({ locationId: String(ny._id) }, () => load.save());
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 1000 }]);
+
+    const firstLoad = load;
+    // Unescaped, the "." in "A.B" matches any character, so this load — a
+    // different job for the same customer — was billed on the first one's
+    // invoice.
+    const otherLoad = await newLoad({ refNo: "AXB" });
+    load = otherLoad;
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 500 }]);
+
+    load = firstLoad;
+    const res = await generate({ sides: ["AR"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.customerInvoice.total).toBe(1000);
+    expect(res.body.customerInvoice.loadIds || []).not.toContain(otherLoad.loadId);
+  });
+
+  it("bills a reference an unbalanced bracket would have made an invalid pattern", async () => {
+    load.refNo = "AB(";
+    await withTenant({ locationId: String(ny._id) }, () => load.save());
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 1000 }]);
+
+    const res = await generate({ sides: ["AR"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.customerInvoice.total).toBe(1000);
+  });
+
   it("refuses to bill a load with nothing on its receivables", async () => {
     const res = await generate({ sides: ["AR"] });
 

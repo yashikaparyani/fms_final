@@ -73,6 +73,320 @@ const getMethods = async (_req, res) => {
 // @desc    Record a payment against an invoice
 // @route   POST /api/payments
 // @access  Private (staff, admin)
+// ─── Receiving one payment against several loads ──────────────────────────────
+// A customer settles six loads with one transfer. That is one movement of money
+// and six invoices, so it produces six Payment rows sharing a batch id — the
+// invoice is what a payment settles, and there are six of them.
+//
+// ── Why not one row for the lot ──────────────────────────────────────────────
+// Because every figure downstream is per invoice: the balance on each, the
+// aging bucket each falls into, the load each belongs to. A single row for
+// $12,000 against "the customer" would leave all six invoices still reading as
+// outstanding, which is the exact problem this is meant to fix.
+//
+// ── How the money is split ───────────────────────────────────────────────────
+//   OLDEST_FIRST (default)  fill each invoice to its balance in due-date order
+//                           until the money runs out. This is what actually
+//                           CLEARS loads — the thing the office needs — because
+//                           it leaves whole invoices settled and at most one
+//                           part-paid, rather than every invoice short by a bit.
+//   PROPORTIONAL            each takes its share of the total by size. Asked for
+//                           where a customer has paid "something off everything"
+//                           and says so.
+//
+// Either can be overridden outright by sending explicit per-invoice amounts,
+// because the office sometimes knows what the customer intended and the
+// remittance advice says so.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Spread `amount` over invoices, filling each in turn. */
+const allocateOldestFirst = (invoices, amount) => {
+  let left = money(amount);
+
+  return invoices.map((invoice) => {
+    const take = money(Math.min(left, money(invoice.balance)));
+    left = money(left - take);
+    return { invoice, amount: take };
+  });
+};
+
+/** Spread `amount` over invoices by their share of the outstanding total. */
+const allocateProportionally = (invoices, amount) => {
+  const outstanding = money(
+    invoices.reduce((sum, invoice) => sum + money(invoice.balance), 0),
+  );
+
+  if (outstanding <= 0) return invoices.map((invoice) => ({ invoice, amount: 0 }));
+
+  const rows = invoices.map((invoice) => ({
+    invoice,
+    amount: money((money(amount) * money(invoice.balance)) / outstanding),
+  }));
+
+  // Rounding to cents leaves a few cents unallocated or over-allocated. It goes
+  // on the largest row, where it cannot exceed that invoice's balance and
+  // cannot turn a settled invoice into a one-cent debt.
+  const allocated = money(rows.reduce((sum, row) => sum + row.amount, 0));
+  const drift = money(money(amount) - allocated);
+
+  if (drift !== 0 && rows.length) {
+    const biggest = rows.reduce((a, b) => (b.amount > a.amount ? b : a));
+    biggest.amount = money(
+      Math.min(money(biggest.amount + drift), money(biggest.invoice.balance)),
+    );
+  }
+
+  return rows;
+};
+
+const receivePayment = async (req, res) => {
+  try {
+    const submitted = Array.isArray(req.body.invoices) ? req.body.invoices : [];
+
+    if (!submitted.length) {
+      return res.status(400).json({
+        message: "Choose at least one load for this payment to settle.",
+      });
+    }
+
+    // Accepts either plain ids or `{ invoice, amount }` rows, so the same
+    // endpoint serves "here is a cheque, clear what it covers" and "here is
+    // exactly what to put where".
+    const submittedRows = submitted.map((entry) =>
+      typeof entry === "string" ? { invoice: entry, amount: null } : entry,
+    );
+
+    // The same load named twice is still one load, and the duplicate is not
+    // harmless. Each row is checked against that invoice's full balance
+    // independently, so two $500 rows against a $500 invoice both pass and it
+    // ends up $500 in credit with two receipts against it. On the no-amount
+    // path the duplicate instead inflates `outstanding`, which is the ceiling
+    // the whole payment is checked against, so an overpayment gets through the
+    // one check meant to catch it.
+    //
+    // Explicit amounts are added together rather than refused: a remittance
+    // that splits one invoice across two lines is a real thing, and their sum
+    // is what the sender meant. The merged figure is then checked against the
+    // balance like any other, so an over-application is still caught below.
+    const merged = new Map();
+    for (const row of submittedRows) {
+      const id = trimmed(row.invoice);
+      const amount = toNumberOrNull(row.amount);
+      const seen = merged.get(id);
+      if (!seen) {
+        merged.set(id, { invoice: id, amount });
+      } else if (amount !== null) {
+        seen.amount = money((seen.amount ?? 0) + amount);
+      }
+    }
+
+    const wanted = [...merged.values()];
+    const ids = wanted.map((row) => row.invoice);
+    if (ids.some((id) => !mongoose.isValidObjectId(id))) {
+      return res.status(400).json({ message: "One of the chosen loads is not valid." });
+    }
+
+    const found = await Invoice.find({ _id: { $in: ids }, direction: "AR" });
+    const byId = new Map(found.map((invoice) => [String(invoice._id), invoice]));
+
+    const missing = ids.filter((id) => !byId.has(id));
+    if (missing.length) {
+      return res.status(404).json({
+        message: "One of the chosen invoices no longer exists. Refresh and try again.",
+      });
+    }
+
+    const voided = found.filter((invoice) => invoice.status === "VOID");
+    if (voided.length) {
+      return res.status(400).json({
+        message: `${voided.map((i) => i.invoiceNumber).join(", ")} ${voided.length === 1 ? "is" : "are"} void. Reopen or deselect before receiving against ${voided.length === 1 ? "it" : "them"}.`,
+      });
+    }
+
+    const settled = found.filter((invoice) => money(invoice.balance) <= 0);
+    if (settled.length) {
+      return res.status(400).json({
+        message: `${settled.map((i) => i.invoiceNumber).join(", ")} ${settled.length === 1 ? "has" : "have"} nothing outstanding. Deselect ${settled.length === 1 ? "it" : "them"} and try again.`,
+      });
+    }
+
+    // One payment settles one customer. Two customers' money arriving as one
+    // row is not a payment, it is two — and the ledger for each would be wrong.
+    const parties = new Set(found.map((invoice) => String(invoice.party?.id || "")));
+    if (parties.size > 1) {
+      return res.status(400).json({
+        message:
+          "Those loads belong to different customers. Record one payment per customer.",
+      });
+    }
+
+    const method = trimmed(req.body.method).toUpperCase();
+    const problem = validatePaymentReference({
+      method,
+      documentNumber: req.body.documentNumber,
+    });
+    if (problem) return res.status(400).json({ message: problem });
+
+    // Due date first: the oldest debt is the one a payment clears unless
+    // somebody says otherwise.
+    const ordered = ids
+      .map((id) => byId.get(id))
+      .sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+
+    const outstanding = money(
+      ordered.reduce((sum, invoice) => sum + money(invoice.balance), 0),
+    );
+
+    const explicit = wanted.some((row) => toNumberOrNull(row.amount) !== null);
+
+    let allocations;
+
+    if (explicit) {
+      allocations = wanted.map((row) => ({
+        invoice: byId.get(trimmed(row.invoice)),
+        amount: money(toNumberOrNull(row.amount) ?? 0),
+      }));
+    } else {
+      const amount = toNumberOrNull(req.body.amount);
+      if (amount === null || amount <= 0) {
+        return res.status(400).json({ message: "Enter the amount that was received." });
+      }
+
+      if (amount > outstanding + 0.005) {
+        return res.status(400).json({
+          message: `That is more than the $${outstanding.toLocaleString("en-US")} outstanding on the loads chosen. Check the amount, or choose more loads.`,
+        });
+      }
+
+      allocations =
+        trimmed(req.body.strategy).toUpperCase() === "PROPORTIONAL"
+          ? allocateProportionally(ordered, amount)
+          : allocateOldestFirst(ordered, amount);
+    }
+
+    // Nothing is written until every row is known to be good — a batch that
+    // half-applies is worse than one that is refused, because the customer's
+    // balance is then wrong in a way nobody can see.
+    for (const row of allocations) {
+      if (row.amount < 0) {
+        return res.status(400).json({ message: "An amount cannot be negative." });
+      }
+      if (row.amount > money(row.invoice.balance) + 0.005) {
+        return res.status(400).json({
+          message: `$${row.amount.toLocaleString("en-US")} is more than the $${money(row.invoice.balance).toLocaleString("en-US")} outstanding on ${row.invoice.invoiceNumber}.`,
+        });
+      }
+    }
+
+    const applying = allocations.filter((row) => row.amount > 0);
+    if (!applying.length) {
+      return res.status(400).json({
+        message: "Nothing would be applied. Enter an amount, or choose a load with a balance.",
+      });
+    }
+
+    const batchId = new mongoose.Types.ObjectId().toString();
+    const total = money(applying.reduce((sum, row) => sum + row.amount, 0));
+    const paidOn = calendarDate(req.body.paidOn) || calendarDate(new Date());
+    const recordedByName =
+      [req.user?.firstName, req.user?.lastName].filter(Boolean).join(" ") || "";
+
+    const results = [];
+
+    for (const row of applying) {
+      const invoice = row.invoice;
+      const before = money(invoice.balance);
+
+      const payment = new Payment({
+        paymentNumber: await nextSequence("receipt", req.locationId),
+        direction: "RECEIVED",
+        invoice: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        load: invoice.load,
+        loadId: invoice.loadId,
+        party: {
+          kind: invoice.party?.kind,
+          id: invoice.party?.id,
+          name: invoice.party?.name,
+        },
+        amount: row.amount,
+        currency: invoice.currency || "USD",
+        paidOn,
+        method,
+        documentNumber: trimmed(req.body.documentNumber),
+        bankName: trimmed(req.body.bankName),
+        note: trimmed(req.body.note),
+        batch: { id: batchId, total, count: applying.length },
+        recordedBy: req.user?._id,
+        recordedByName,
+      });
+
+      await payment.save();
+
+      // Re-added from the collection, never incremented. See the note at the
+      // top of this file.
+      await syncInvoicePayments(invoice);
+
+      const load = invoice.load ? await Load.findById(invoice.load) : null;
+      if (load) {
+        const spec = METHOD_BY_KEY.get(method);
+        await audit
+          .recordFinancial({
+            load,
+            action: "payment.received",
+            summary:
+              `$${payment.amount.toLocaleString("en-US")} received from ${payment.party?.name || "\u2014"} ` +
+              `against ${invoice.invoiceNumber} by ${spec?.label || method}` +
+              `${payment.documentNumber ? ` (${spec?.documentLabel || "ref"} ${payment.documentNumber})` : ""}` +
+              `${applying.length > 1 ? `, part of a $${total.toLocaleString("en-US")} payment covering ${applying.length} loads` : ""}`,
+            changes: [
+              {
+                field: `invoice.${invoice.invoiceNumber}.balance`,
+                label: "Outstanding",
+                from: `$${before.toLocaleString("en-US")}`,
+                to: `$${money(invoice.balance).toLocaleString("en-US")}`,
+              },
+            ],
+            user: req.user,
+            req,
+          })
+          .catch((error) =>
+            console.error(`Payment audit failed for ${load.loadId}:`, error.message),
+          );
+      }
+
+      results.push({
+        invoiceId: String(invoice._id),
+        invoiceNumber: invoice.invoiceNumber,
+        loadId: invoice.loadId || "",
+        applied: payment.amount,
+        balance: money(invoice.balance),
+        cleared: money(invoice.balance) <= 0,
+        paymentNumber: payment.paymentNumber,
+      });
+    }
+
+    const cleared = results.filter((row) => row.cleared).length;
+    const stillOwing = money(
+      results.reduce((sum, row) => sum + row.balance, 0),
+    );
+
+    res.status(201).json({
+      message:
+        `$${total.toLocaleString("en-US")} received against ${results.length} load${results.length === 1 ? "" : "s"}. ` +
+        (cleared === results.length
+          ? "All settled in full."
+          : `${cleared} cleared, $${stillOwing.toLocaleString("en-US")} still outstanding on the rest.`),
+      batchId,
+      total,
+      cleared,
+      rows: results,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const recordPayment = async (req, res) => {
   try {
     const invoiceId = trimmed(req.body.invoice);
@@ -380,6 +694,7 @@ const sendReceipt = async (req, res) => {
 };
 
 module.exports = {
+  receivePayment,
   getMethods,
   recordPayment,
   listPayments,

@@ -24,17 +24,42 @@ const money = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
+/**
+ * What a line comes to in cash.
+ *
+ * A percentage line carries its percentage in `rate` and is worked out against
+ * the side's linehaul — the same sum applyPercentageLines does on the server,
+ * repeated here only so the figure updates as the user types. The server's
+ * answer is the one that gets stored.
+ */
+export const amountOf = (line, linehaulBase) =>
+  line?.basis === "PERCENT"
+    ? Math.round(((Number(linehaulBase) || 0) * (Number(line.rate) || 0)) / 100 * 100) / 100
+    : Number(line?.amount) || 0;
+
+/** The base a percentage is taken of: the side's linehaul, never its total. */
+export const linehaulOf = (lines, catalogBySide) =>
+  lines.reduce(
+    (sum, line) =>
+      catalogBySide.get(line.chargeType)?.kind === "linehaul"
+        ? sum + (Number(line.amount) || 0)
+        : sum,
+    0,
+  );
+
 /** Mirrors totalsFor() on the server. Kept in step by the shared line `kind`. */
 export const computeTotals = (lines, catalogBySide) => {
   let linehaul = 0;
   let accessorials = 0;
   let settled = 0;
 
+  const base = linehaulOf(lines, catalogBySide);
+
   for (const line of lines) {
     const spec = catalogBySide.get(line.chargeType);
     if (!spec) continue;
 
-    const amount = Number(line.amount) || 0;
+    const amount = amountOf(line, base);
 
     if (spec.kind === "linehaul") linehaul += amount;
     else if (spec.kind === "settlement") settled += amount;
@@ -60,9 +85,18 @@ const ChargeEditor = ({
   onChange,
   disabled,
   compact = false,
+  // The drivers who ran this load, for the payable side only. Given, a Driver
+  // Pay line can name which of them it settles — two drivers on one load are
+  // owed two different amounts, and a single figure cannot say who gets what.
+  // See driverPayables on the server.
+  drivers = [],
 }) => {
   const bySide = useMemo(() => new Map(charges.map((c) => [c.key, c])), [charges]);
   const totals = useMemo(() => computeTotals(lines, bySide), [lines, bySide]);
+
+  // What a percentage line is a percentage of. Recomputed as the linehaul is
+  // typed, so the cash figure under a "18%" surcharge moves with it.
+  const linehaulBase = useMemo(() => linehaulOf(lines, bySide), [lines, bySide]);
 
   const setLine = (index, patch) =>
     onChange(lines.map((line, i) => (i === index ? { ...line, ...patch } : line)));
@@ -73,6 +107,26 @@ const ChargeEditor = ({
     if (!chargeType) return;
     onChange([...lines, { chargeType, amount: "", note: "" }]);
   };
+
+  // Whether this line names a person. Only Driver Pay does — putting a driver
+  // picker on a fuel surcharge would invite somebody to book the fuel against a
+  // driver and then wonder why their settlement was wrong.
+  const namesADriver = (line) =>
+    side === "payable" && line.chargeType === "driverPay" && drivers.length > 0;
+
+  const showDriverColumn = lines.some(namesADriver);
+
+  // Paid lines are frozen. The pay button on the panel above is what settles a
+  // driver, and letting the amount stay editable afterwards would mean the
+  // figure on screen and the figure that actually went out could differ with
+  // nothing recording that they had.
+  const isSettledDriverLine = (line) => Boolean(line.paidAt);
+
+  const columns = compact
+    ? "1fr 110px 32px"
+    : showDriverColumn
+      ? "1fr 150px 140px 1fr 32px"
+      : "1fr 140px 1fr 32px";
 
   // A non-repeatable charge already on the ledger is dropped from the picker
   // rather than offered and then rejected on save — the server refuses a second
@@ -112,9 +166,10 @@ const ChargeEditor = ({
           {!compact && (
             <div
               className="hidden md:grid gap-2 px-2.5 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400"
-              style={{ gridTemplateColumns: "1fr 140px 1fr 32px" }}
+              style={{ gridTemplateColumns: columns }}
             >
               <span>Charge</span>
+              {showDriverColumn && <span>Driver</span>}
               <span className="text-right">Amount</span>
               <span>Note</span>
               <span />
@@ -124,22 +179,21 @@ const ChargeEditor = ({
           {lines.map((line, index) => {
             const spec = bySide.get(line.chargeType);
             const isSettlement = spec?.kind === "settlement";
+            const settled = isSettledDriverLine(line);
 
             return (
               <div
                 key={`${line.chargeType}-${index}`}
                 className={`grid gap-2 items-start border rounded-lg px-2.5 py-2 ${
-                  isSettlement
-                    ? "border-blue-200 bg-blue-50/40"
-                    : spec?.kind === "linehaul"
-                      ? "border-indigo-200 bg-indigo-50/40"
-                      : "border-gray-200"
+                  settled
+                    ? "border-green-200 bg-green-50/50"
+                    : isSettlement
+                      ? "border-blue-200 bg-blue-50/40"
+                      : spec?.kind === "linehaul"
+                        ? "border-indigo-200 bg-indigo-50/40"
+                        : "border-gray-200"
                 }`}
-                style={{
-                  gridTemplateColumns: compact
-                    ? "1fr 110px 32px"
-                    : "1fr 140px 1fr 32px",
-                }}
+                style={{ gridTemplateColumns: columns }}
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">
@@ -153,7 +207,40 @@ const ChargeEditor = ({
                       Comes off the balance — not added to the total
                     </p>
                   )}
+                  {settled && (
+                    <p className="text-[11px] font-medium text-green-700">
+                      Paid — put the payment back to edit this
+                    </p>
+                  )}
                 </div>
+
+                {showDriverColumn &&
+                  (namesADriver(line) ? (
+                    <select
+                      className={`${uiStyles.select} text-sm`}
+                      value={line.driverId || ""}
+                      disabled={disabled || settled}
+                      onChange={(e) => {
+                        const driver = drivers.find((d) => d.driverId === e.target.value);
+                        setLine(index, {
+                          driverId: e.target.value,
+                          // Copied onto the line so a settlement still names the
+                          // person after they come off the load's roster.
+                          driverName: driver?.driverName || "",
+                        });
+                      }}
+                    >
+                      <option value="">Choose a driver…</option>
+                      {drivers.map((d) => (
+                        <option key={d.driverId} value={d.driverId}>
+                          {d.driverName || "Unnamed driver"}
+                          {d.driverCode ? ` · ${d.driverCode}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span />
+                  ))}
 
                 {/* Quantity and rate used to be collected here and were never
                     used: nothing multiplies them, and `amount` is the only
@@ -161,22 +248,82 @@ const ChargeEditor = ({
                     the reader to type 2 and 75 and expect 150. The fields stay
                     on the schema so lines captured before this still render;
                     where the working is worth recording, it goes in the note. */}
-                <input
-                  type="number"
-                  step="0.01"
-                  className={`${uiStyles.input} text-sm font-semibold text-right`}
-                  placeholder="0.00"
-                  value={line.amount ?? ""}
-                  disabled={disabled}
-                  onChange={(e) => setLine(index, { amount: e.target.value })}
-                />
+                {/* Quoted either way. A percentage line stores the
+                    percentage and shows what it comes to underneath — the cash
+                    figure is what every total reads, and a surcharge whose
+                    working is invisible is one nobody can check. */}
+                <div>
+                  <div className="flex items-stretch gap-1">
+                    {spec?.percentOf && (
+                      <div className="flex overflow-hidden rounded-md border border-gray-300">
+                        {["AMOUNT", "PERCENT"].map((option) => {
+                          const on = (line.basis || "AMOUNT") === option;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              disabled={disabled || settled}
+                              onClick={() =>
+                                setLine(index, {
+                                  basis: option,
+                                  // The two mean different things, so the old
+                                  // number is cleared rather than reinterpreted
+                                  // — 18 as dollars is not 18 as a percentage.
+                                  amount: "",
+                                  rate: "",
+                                })
+                              }
+                              className={`px-2 text-xs font-bold transition-colors ${
+                                on
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-white text-gray-500 hover:bg-gray-50"
+                              }`}
+                            >
+                              {option === "AMOUNT" ? "$" : "%"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {line.basis === "PERCENT" ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={`${uiStyles.input} min-w-0 flex-1 text-sm font-semibold text-right`}
+                        placeholder="0.00"
+                        value={line.rate ?? ""}
+                        disabled={disabled || settled}
+                        onChange={(e) => setLine(index, { rate: e.target.value })}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={`${uiStyles.input} min-w-0 flex-1 text-sm font-semibold text-right`}
+                        placeholder="0.00"
+                        value={line.amount ?? ""}
+                        disabled={disabled || settled}
+                        onChange={(e) => setLine(index, { amount: e.target.value })}
+                      />
+                    )}
+                  </div>
+
+                  {line.basis === "PERCENT" && (
+                    <p className="mt-0.5 text-right text-[11px] text-gray-500">
+                      {linehaulBase > 0
+                        ? `${money(amountOf(line, linehaulBase))} of ${money(linehaulBase)}`
+                        : "Add the base charge first"}
+                    </p>
+                  )}
+                </div>
 
                 {!compact && (
                   <input
                     className={`${uiStyles.input} text-sm`}
                     placeholder={spec?.requiresNote ? "What is this for? *" : "Note"}
                     value={line.note ?? ""}
-                    disabled={disabled}
+                    disabled={disabled || settled}
                     onChange={(e) => setLine(index, { note: e.target.value })}
                   />
                 )}
@@ -184,8 +331,8 @@ const ChargeEditor = ({
                 <button
                   type="button"
                   onClick={() => removeLine(index)}
-                  disabled={disabled}
-                  title="Remove"
+                  disabled={disabled || settled}
+                  title={settled ? "Already paid — put the payment back first" : "Remove"}
                   className="p-1 text-gray-400 hover:text-red-600 mt-1"
                 >
                   <DeleteOutlineIcon style={{ fontSize: 18 }} />

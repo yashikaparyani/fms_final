@@ -575,13 +575,30 @@ const loginUser = async (req, res) => {
         });
       }
 
-      return res.status(401).json({ message: "Invalid credentials" });
+      // ── Named, rather than folded into "invalid credentials" ──────────────
+      // This does tell an anonymous caller whether an address has an account,
+      // which is worth stating plainly: it makes the sign-in form usable for
+      // enumerating our users' email addresses. It is a deliberate trade for
+      // the far more common case — a driver or a customer typing the wrong one
+      // of their two addresses, being told their password is wrong, and trying
+      // that same password four more times before ringing the office.
+      //
+      // The password is still the only thing that gets anybody in, and the
+      // branches below deliberately stay uniform so a wrong guess cannot be
+      // used to find out which accounts exist and have been disabled.
+      return res.status(401).json({
+        message: "No account exists with this email address.",
+        code: "NO_ACCOUNT",
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({
+        message: "Incorrect password. Please try again.",
+        code: "INVALID_PASSWORD",
+      });
     }
 
     // Checked after the password so a wrong guess cannot be used to find out

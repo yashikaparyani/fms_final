@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
-import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
-import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import { money } from "../../components/accounting/ChargeEditor";
@@ -10,20 +7,25 @@ import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/dates";
 
-// ─── Financial summary ────────────────────────────────────────────────────────
-// Revenue against expense across loads, and what each driver is owed.
+// ─── The invoicing queue ──────────────────────────────────────────────────────
+// The loads waiting to be billed, and the period's headline figures above them.
 //
-// Three tabs rather than three screens, because they answer the same question
-// from three directions — "what still has to be billed", "did this period make
-// money" and "who do we still have to pay" — and an accountant closing a month
-// looks at all of them.
+// One list, not a set of tabs. It used to carry two more — a per-load breakdown
+// and a payroll run — and both have gone rather than been hidden:
 //
-// The first of those is the queue. A load marked invoiceable leaves dispatch's
-// All Transit tab and arrives here (see ACCOUNTING_TRANSPORT_STATUSES in
-// server/controllers/loadController.js) and leaves again once an invoice is
-// raised against it; it is the only tab that ignores the date range, because a
-// load that has been waiting to be billed since last month is precisely the one
-// that must not fall off the screen.
+//   Per load  is the Load Ledger, which does the same job with filters and an
+//             export. Two screens answering one question means two screens to
+//             keep in step, and the one nobody maintains is the one somebody
+//             quotes a figure from.
+//   Payroll   read a driver-pay ledger that no longer exists. A driver is now
+//             paid out of a load's payables alongside the carrier — see
+//             LoadAccounting — so there is nothing here for it to total.
+//
+// What is left is the queue. A load marked invoiceable leaves dispatch's All
+// Transit tab and arrives here (see ACCOUNTING_TRANSPORT_STATUSES on the
+// server), and leaves again once an invoice is raised against it. It ignores
+// the date range on purpose: a load that has been waiting to be billed since
+// last month is precisely the one that must not fall off the screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // From utils/dates.js rather than built here: `new Date().toISOString()` returns
@@ -33,35 +35,32 @@ import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/
 const AccountingSummary = () => {
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState("invoiceable");
   const [range, setRange] = useState({ from: startOfMonth(), to: today() });
   const [summary, setSummary] = useState(null);
   const [invoiceable, setInvoiceable] = useState(null);
-  const [payroll, setPayroll] = useState(null);
-  const [unsettledOnly, setUnsettledOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [summaryRes, invoiceableRes, payrollRes] = await Promise.all([
+      const [summaryRes, invoiceableRes] = await Promise.all([
+        // Still fetched: the headline figures above the list are the period's,
+        // even though the list itself is not.
         api.get("/accounting/summary", { params: range }),
         // Deliberately unranged — see the note at the top of the file.
         // `awaitingInvoice` rather than a transport status: the server drops the
         // ones already billed, which it can only know by reading the invoice
         // register. See server/services/billingState.js.
         api.get("/accounting/summary", { params: { awaitingInvoice: true } }),
-        api.get("/accounting/payroll", { params: { ...range, unsettledOnly } }),
       ]);
       setSummary(summaryRes.data);
       setInvoiceable(invoiceableRes.data);
-      setPayroll(payrollRes.data);
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not load the figures");
     } finally {
       setLoading(false);
     }
-  }, [range, unsettledOnly]);
+  }, [range]);
 
   useEffect(() => {
     load();
@@ -71,6 +70,7 @@ const AccountingSummary = () => {
     {
       key: "load",
       header: "Load",
+      width: "120px",
       render: (row) => (
         <button
           onClick={() => navigate(`/admin/accounting/${row.loadId}`)}
@@ -79,8 +79,19 @@ const AccountingSummary = () => {
           <p className="font-bold text-indigo-700 text-sm hover:underline">
             {row.loadId}
           </p>
-          <p className="text-xs text-gray-500">{row.customerName || "—"}</p>
         </button>
+      ),
+    },
+    // Its own column rather than a second line under the load id. This list is
+    // read by customer at least as often as by load — "what is outstanding on
+    // Hub Intermodal" — and a value tucked under another one cannot be scanned
+    // down, or sorted on, or lined up against the row above it.
+    {
+      key: "customer",
+      header: "Customer",
+      width: "180px",
+      render: (row) => (
+        <span className="text-sm text-gray-800">{row.customerName || "—"}</span>
       ),
     },
     {
@@ -131,14 +142,6 @@ const AccountingSummary = () => {
       ),
     },
     {
-      key: "driverPay",
-      header: "Driver pay",
-      width: "100px",
-      render: (row) => (
-        <span className="text-sm tabular-nums text-gray-700">{money(row.driverPay)}</span>
-      ),
-    },
-    {
       key: "status",
       header: "Invoice",
       width: "100px",
@@ -164,9 +167,9 @@ const AccountingSummary = () => {
     <div className={uiStyles.page}>
       <div className={`${uiStyles.cardHeader} flex-col md:flex-row gap-3`}>
         <div>
-          <h1 className="page-title">Accounting</h1>
+          <h1 className="page-title">Invoiced Loads</h1>
           <p className="page-subtitle">
-            Revenue against expense per load, and what each driver is owed.
+            The loads waiting to be invoiced, and how the period has run.
           </p>
         </div>
 
@@ -198,7 +201,7 @@ const AccountingSummary = () => {
 
       {/* Headline figures */}
       {totals && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Revenue" value={totals.revenue} tone="indigo" />
           <Stat label="Expense" value={totals.expense} tone="slate" />
           <Stat
@@ -213,162 +216,21 @@ const AccountingSummary = () => {
             tone="amber"
             suffix={`${totals.billedLoads} of ${totals.loads} billed`}
           />
-          <Stat
-            label="Driver pay"
-            value={totals.driverPay}
-            tone="slate"
-            suffix={payroll ? `${money(payroll.totals.unsettled)} unsettled` : ""}
-          />
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        {[
-          {
-            key: "invoiceable",
-            label: "Awaiting invoice",
-            icon: ReceiptLongOutlinedIcon,
-            count: invoiceable?.rows?.length || 0,
-          },
-          { key: "loads", label: "Per load", icon: AssessmentOutlinedIcon },
-          { key: "payroll", label: "Payroll", icon: BadgeOutlinedIcon },
-        ].map(({ key, label, icon: Icon, count }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === key
-                ? "border-indigo-600 text-indigo-700"
-                : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            <Icon fontSize="small" /> {label}
-            {count > 0 && (
-              <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                {count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {tab === "invoiceable" ? (
-        <>
-          <p className="text-sm text-gray-500">
-            Loads dispatch has marked invoiceable. They have left All Transit and
-            are waiting to be billed — the date range above does not apply here.
-          </p>
-          <LoadTable
-            loads={invoiceable?.rows || []}
-            columns={columns}
-            loading={loading}
-            colorBy="__none"
-            pageSize={20}
-            emptyMessage="Nothing waiting to be invoiced."
-          />
-        </>
-      ) : tab === "loads" ? (
-        <LoadTable
-          loads={summary?.rows || []}
-          columns={columns}
-          loading={loading}
-          colorBy="__none"
-          pageSize={20}
-          emptyMessage="No loads in this period."
-        />
-      ) : (
-        <>
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-indigo-600"
-              checked={unsettledOnly}
-              onChange={(e) => setUnsettledOnly(e.target.checked)}
-            />
-            Only show pay that has not been settled
-          </label>
-
-          {loading ? (
-            <p className="text-center text-gray-400 py-16 text-sm">Loading…</p>
-          ) : payroll?.drivers?.length ? (
-            <div className="space-y-3">
-              {payroll.drivers.map((driver) => (
-                <div key={driver.driverName} className={uiStyles.card}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900">
-                        {driver.driverName}
-                      </h3>
-                      <p className="text-xs text-gray-500">
-                        {driver.loads.length} load
-                        {driver.loads.length === 1 ? "" : "s"} in this period
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-gray-900 tabular-nums">
-                        {money(driver.total)}
-                      </p>
-                      {driver.unsettled > 0 && (
-                        <p className="text-xs text-amber-700 font-medium">
-                          {money(driver.unsettled)} unsettled
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    {driver.loads.map((row) => (
-                      <div
-                        key={row.loadId}
-                        className="flex flex-wrap items-center justify-between gap-2 text-xs border border-gray-200 rounded px-2.5 py-1.5"
-                      >
-                        <button
-                          onClick={() => navigate(`/admin/accounting/${row.loadId}`)}
-                          className="font-semibold text-indigo-700 hover:underline"
-                        >
-                          {row.loadId}
-                        </button>
-                        <span className="text-gray-500 flex-1 min-w-[8rem]">
-                          {row.customerName}
-                        </span>
-                        <span className="text-gray-600">
-                          {row.payType === "PERCENTAGE"
-                            ? `${row.rate}%`
-                            : row.payType === "PER_MILE"
-                              ? `${row.miles} mi × $${row.rate}`
-                              : row.payType === "HOURLY"
-                                ? `${row.hours} h × $${row.rate}`
-                                : "Flat"}
-                        </span>
-                        <span className="font-semibold tabular-nums">
-                          {money(row.amount)}
-                        </span>
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            row.settledAt
-                              ? "bg-green-100 text-green-700"
-                              : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          {row.settledAt ? "SETTLED" : "DUE"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className={uiStyles.card}>
-              <p className="text-sm text-gray-600">
-                No driver pay recorded in this period. Set it from a load's
-                accounting screen.
-              </p>
-            </div>
-          )}
-        </>
-      )}
+      <p className="text-sm text-gray-500">
+        Loads dispatch has marked invoiceable. They have left All Transit and are
+        waiting to be billed — the date range above does not apply here.
+      </p>
+      <LoadTable
+        loads={invoiceable?.rows || []}
+        columns={columns}
+        loading={loading}
+        colorBy="__none"
+        pageSize={20}
+        emptyMessage="Nothing waiting to be invoiced."
+      />
     </div>
   );
 };

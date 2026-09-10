@@ -11,10 +11,18 @@ import ChargeEditor, { money } from "../../components/accounting/ChargeEditor";
 import LoadBillingPanel from "../../components/accounting/LoadBillingPanel";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
+import Swal from "sweetalert2";
 
 // ─── A load's books ───────────────────────────────────────────────────────────
-// Receivables against payables, with the margin between them and the driver's
-// pay for the run.
+// Receivables against payables, and the margin between them.
+//
+// Invoice numbers and dates are NOT here. Whether a load has been billed is
+// answered by the invoice register — see services/billingState.js for why the
+// date fields on the load and the register disagreed, and which one won. Typing
+// an invoice number into the load was the losing half of that.
+//
+// Nor is driver pay: a driver is paid out of the payables below, alongside the
+// carrier and the vendors, rather than from a fourth ledger of its own.
 //
 // Back-office only, and deliberately not reachable by a customer or a carrier:
 // the margin between what was billed and what was paid is the brokerage's
@@ -22,16 +30,13 @@ import { notify } from "../../utils/swal";
 // this endpoint for other roles, only no endpoint at all.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PAY_TYPES = [
-  { value: "PERCENTAGE", label: "Percentage of revenue", unit: "%" },
-  { value: "FLAT", label: "Flat rate per load", unit: "$" },
-  { value: "PER_MILE", label: "Per mile", unit: "$/mi" },
-  { value: "HOURLY", label: "Hourly", unit: "$/hr" },
-];
-
 const LoadAccounting = () => {
   const { loadId } = useParams();
   const navigate = useNavigate();
+  // Every role that can open this screen has its own /track-load route, so the
+  // link is built under whoever is looking at it. Same derivation as
+  // InvoiceDetail's.
+  const role = JSON.parse(localStorage.getItem("user") || "{}")?.role || "admin";
 
   const [catalog, setCatalog] = useState(null);
   const [data, setData] = useState(null);
@@ -40,18 +45,6 @@ const LoadAccounting = () => {
 
   const [receivables, setReceivables] = useState([]);
   const [payables, setPayables] = useState([]);
-  const [invoice, setInvoice] = useState({ invoiceNumber: "", invoicedAt: "", dueDate: "", paidAt: "" });
-
-  const [drivers, setDrivers] = useState([]);
-  const [payroll, setPayroll] = useState({
-    driver: "",
-    payType: "",
-    rate: "",
-    miles: "",
-    hours: "",
-    note: "",
-  });
-  const [preview, setPreview] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -64,23 +57,6 @@ const LoadAccounting = () => {
       setData(dataRes.data);
       setReceivables(dataRes.data.receivables.lines);
       setPayables(dataRes.data.payables.lines);
-      setInvoice({
-        invoiceNumber: dataRes.data.receivables.invoiceNumber || "",
-        invoicedAt: dataRes.data.receivables.invoicedAt?.slice(0, 10) || "",
-        dueDate: dataRes.data.receivables.dueDate?.slice(0, 10) || "",
-        paidAt: dataRes.data.receivables.paidAt?.slice(0, 10) || "",
-      });
-
-      if (dataRes.data.payroll) {
-        setPayroll({
-          driver: dataRes.data.payroll.driver || "",
-          payType: dataRes.data.payroll.payType || "",
-          rate: dataRes.data.payroll.rate ?? "",
-          miles: dataRes.data.payroll.miles ?? "",
-          hours: dataRes.data.payroll.hours ?? "",
-          note: dataRes.data.payroll.note || "",
-        });
-      }
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not load the accounting");
     } finally {
@@ -92,15 +68,6 @@ const LoadAccounting = () => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    api
-      .get("/drivers")
-      .then(({ data: rows }) => setDrivers(rows))
-      .catch(() => {
-        /* the driver picker is a convenience — the pay can still be typed in */
-      });
-  }, []);
-
   const saveSide = async (side) => {
     const lines = side === "receivable" ? receivables : payables;
 
@@ -108,7 +75,7 @@ const LoadAccounting = () => {
       setSaving(true);
       const { data: saved } = await api.put(
         `/accounting/loads/${loadId}/${side === "receivable" ? "receivables" : "payables"}`,
-        side === "receivable" ? { lines, ...invoice } : { lines },
+        { lines },
       );
       setData(saved.accounting);
       notify.success(saved.message);
@@ -119,49 +86,50 @@ const LoadAccounting = () => {
     }
   };
 
-  // Previewed before it is committed: a percentage driver's pay moves whenever
-  // the receivables move, and showing the figure first is what stops somebody
-  // saving a number they have not looked at.
-  const runPreview = async () => {
-    try {
-      const { data: result } = await api.post(
-        `/accounting/loads/${loadId}/payroll/preview`,
-        payroll,
-      );
-      setPreview(result);
-    } catch (err) {
-      notify.error(err.response?.data?.message || "Could not work that out");
+  // Settling one driver, not the whole ledger. Two drivers on the same load are
+  // paid on their own days — see payDriver on the server, which moves every line
+  // owed to that driver together so nobody is ever half-paid.
+  const togglePaid = async (row) => {
+    if (row.paid) {
+      const { isConfirmed } = await Swal.fire({
+        title: `Put ${row.driverName || "this driver"}'s pay back?`,
+        text: "It goes back to outstanding and their lines become editable again.",
+        showCancelButton: true,
+        confirmButtonText: "Put it back",
+        confirmButtonColor: "#b45309",
+      });
+      if (!isConfirmed) return;
     }
-  };
 
-  const savePayroll = async () => {
+    setSaving(true);
     try {
-      setSaving(true);
       const { data: saved } = await api.put(
-        `/accounting/loads/${loadId}/payroll`,
-        payroll,
+        `/accounting/loads/${loadId}/payables/drivers/${row.driverId}/pay`,
+        { paid: !row.paid },
       );
       setData(saved.accounting);
-      setPreview(null);
+      setPayables(saved.accounting.payables.lines);
       notify.success(saved.message);
     } catch (err) {
-      notify.error(err.response?.data?.message || "Could not save the driver pay");
+      notify.error(err.response?.data?.message || "Could not update the payment");
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleSettled = async () => {
-    try {
-      const { data: saved } = await api.put(
-        `/accounting/loads/${loadId}/payroll/settle`,
-        { settledAt: data.payroll?.settledAt ? null : new Date().toISOString() },
-      );
-      setData(saved.accounting);
-      notify.success(saved.message);
-    } catch (err) {
-      notify.error(err.response?.data?.message || "Could not update");
-    }
+  // Start a driver off with a line of their own, already naming them, so the
+  // office types an amount rather than picking a charge and then a person.
+  const addDriverLine = (row) => {
+    setPayables((lines) => [
+      ...lines,
+      {
+        chargeType: "driverPay",
+        amount: "",
+        note: "",
+        driverId: row.driverId,
+        driverName: row.driverName || "",
+      },
+    ]);
   };
 
   if (loading) {
@@ -176,7 +144,6 @@ const LoadAccounting = () => {
     );
   }
 
-  const selectedPayType = PAY_TYPES.find((p) => p.value === payroll.payType);
   const profitable = data.profit.margin >= 0;
 
   return (
@@ -189,7 +156,23 @@ const LoadAccounting = () => {
           >
             <ArrowBackIcon style={{ fontSize: 14 }} /> Back
           </button>
-          <h1 className="page-title">Accounting · {data.loadId}</h1>
+          {/* The load number opens the load. Everything on this screen is money
+              about a job whose details — the container, the route, the dates,
+              the documents — live somewhere else entirely, and reading the id
+              off the header to go and search for it was the step everybody was
+              doing by hand. Same link as the one on the invoice, so the load is
+              one click away from both places its figures are read. */}
+          <h1 className="page-title">
+            Accounting ·{" "}
+            <button
+              type="button"
+              onClick={() => navigate(`/${role}/track-load/${data.loadId}`)}
+              className="text-accent-700 hover:underline"
+              title="Open this load's details"
+            >
+              {data.loadId}
+            </button>
+          </h1>
           <p className="page-subtitle">
             {[data.customerName, data.carrierName].filter(Boolean).join(" → ") || "—"}
           </p>
@@ -197,7 +180,10 @@ const LoadAccounting = () => {
       </div>
 
       {/* ── The answer, first ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Three, not four: driver pay used to sit here and is now one of the
+          payables below, so a tile of its own would either double-count it or
+          sit permanently at zero. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Stat label="Revenue" value={data.profit.revenue.total} tone="indigo" />
         <Stat label="Expense" value={data.profit.expense.total} tone="slate" />
         <Stat
@@ -207,7 +193,6 @@ const LoadAccounting = () => {
           icon={profitable ? TrendingUpIcon : TrendingDownIcon}
           suffix={`${data.profit.marginPercent}%`}
         />
-        <Stat label="Driver pay" value={data.payroll?.amount || 0} tone="amber" />
       </div>
 
       {/* ── Billing ────────────────────────────────────────────────────── */}
@@ -248,27 +233,6 @@ const LoadAccounting = () => {
           onChange={setReceivables}
           disabled={saving}
         />
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 pt-4 border-t border-gray-200">
-          {[
-            { key: "invoiceNumber", label: "Invoice #", type: "text" },
-            { key: "invoicedAt", label: "Invoiced", type: "date" },
-            { key: "dueDate", label: "Due", type: "date" },
-            { key: "paidAt", label: "Paid", type: "date" },
-          ].map((f) => (
-            <div key={f.key}>
-              <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-                {f.label}
-              </label>
-              <input
-                type={f.type}
-                className={uiStyles.input}
-                value={invoice[f.key]}
-                onChange={(e) => setInvoice((s) => ({ ...s, [f.key]: e.target.value }))}
-              />
-            </div>
-          ))}
-        </div>
 
         <div className="flex justify-end mt-4">
           <button
@@ -360,12 +324,107 @@ const LoadAccounting = () => {
           </div>
         )}
 
+        {/* ── Who drove it, and who has been paid ──────────────────────────
+            A driver assigned to the load appears here whether or not anybody
+            has costed them yet, so an uncosted driver reads as a gap to fill
+            rather than as an absence nobody notices. Each is settled on their
+            own — see payDriver on the server. */}
+        {data.driverPayables?.length > 0 && (
+          <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2">
+              <BadgeOutlinedIcon className="text-amber-600" style={{ fontSize: 15 }} />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                Drivers on this load
+              </span>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {data.driverPayables.map((row) => (
+                <div
+                  key={row.driverId}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {row.driverName || "Unnamed driver"}
+                      {row.driverCode ? (
+                        <span className="text-xs font-normal text-gray-500">
+                          {" "}
+                          · {row.driverCode}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-[11px] text-gray-500">
+                      {row.uncosted
+                        ? "Nothing booked against them yet"
+                        : `${row.lineCount} line${row.lineCount === 1 ? "" : "s"}`}
+                      {/* A driver costed but no longer on the load. The money is
+                          real, so the row stays and says why it looks odd. */}
+                      {!row.onLoad && " · no longer assigned to this load"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-bold tabular-nums text-gray-900">
+                        {money(row.amount)}
+                      </p>
+                      {!row.uncosted && (
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            row.paid
+                              ? "bg-green-100 text-green-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {row.paid ? "PAID" : "DUE"}
+                        </span>
+                      )}
+                    </div>
+
+                    {row.uncosted ? (
+                      <button
+                        type="button"
+                        onClick={() => addDriverLine(row)}
+                        disabled={saving}
+                        className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-50 whitespace-nowrap"
+                      >
+                        Add their pay
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => togglePaid(row)}
+                        disabled={saving}
+                        className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 whitespace-nowrap ${
+                          row.paid
+                            ? "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                            : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                        }`}
+                      >
+                        {row.paid ? "Mark unpaid" : "Pay"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="border-t border-gray-100 bg-gray-50/60 px-3 py-2 text-[11px] text-gray-500">
+              Amounts come from the Driver Pay lines below. Save the payables
+              first — a driver can only be paid once their figure is on the
+              ledger.
+            </p>
+          </div>
+        )}
+
         <ChargeEditor
           side="payable"
           charges={catalog.payable}
           lines={payables}
           onChange={setPayables}
           disabled={saving}
+          drivers={data.driverPayables || []}
         />
 
         <div className="flex justify-end mt-4">
@@ -379,170 +438,6 @@ const LoadAccounting = () => {
         </div>
       </div>
 
-      {/* ── Payroll ────────────────────────────────────────────────────── */}
-      <div className={uiStyles.card}>
-        <div className="flex items-center gap-2 mb-1">
-          <BadgeOutlinedIcon className="text-amber-600" fontSize="small" />
-          <h2 className="text-base font-semibold text-gray-900">Driver pay</h2>
-        </div>
-        <p className="text-xs text-gray-500 mb-4">
-          Worked out from the driver's own rate. The figure is stored on the load,
-          so changing a driver's rate later never rewrites what they were already
-          paid.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-              Driver
-            </label>
-            <select
-              className={uiStyles.select}
-              value={payroll.driver}
-              onChange={(e) => {
-                const driver = drivers.find((d) => d._id === e.target.value);
-                setPayroll((s) => ({
-                  ...s,
-                  driver: e.target.value,
-                  // Their standing rate fills in, and stays editable — a one-off
-                  // arrangement on one load should not mean editing their record.
-                  payType: driver?.payType || s.payType,
-                  rate: driver?.payRate ?? s.rate,
-                }));
-                setPreview(null);
-              }}
-            >
-              <option value="">Choose a driver…</option>
-              {drivers.map((d) => (
-                <option key={d._id} value={d._id}>
-                  {d.name}
-                  {d.driverCode ? ` · ${d.driverCode}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-              Pay type
-            </label>
-            <select
-              className={uiStyles.select}
-              value={payroll.payType}
-              onChange={(e) => {
-                setPayroll((s) => ({ ...s, payType: e.target.value }));
-                setPreview(null);
-              }}
-            >
-              <option value="">Choose…</option>
-              {PAY_TYPES.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-              Rate {selectedPayType ? `(${selectedPayType.unit})` : ""}
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              className={uiStyles.input}
-              value={payroll.rate}
-              onChange={(e) => {
-                setPayroll((s) => ({ ...s, rate: e.target.value }));
-                setPreview(null);
-              }}
-            />
-          </div>
-
-          {payroll.payType === "PER_MILE" && (
-            <div>
-              <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-                Miles
-              </label>
-              <input
-                type="number"
-                className={uiStyles.input}
-                value={payroll.miles}
-                onChange={(e) => {
-                  setPayroll((s) => ({ ...s, miles: e.target.value }));
-                  setPreview(null);
-                }}
-              />
-            </div>
-          )}
-
-          {payroll.payType === "HOURLY" && (
-            <div>
-              <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-                Hours
-              </label>
-              <input
-                type="number"
-                step="0.25"
-                className={uiStyles.input}
-                value={payroll.hours}
-                onChange={(e) => {
-                  setPayroll((s) => ({ ...s, hours: e.target.value }));
-                  setPreview(null);
-                }}
-              />
-            </div>
-          )}
-
-          <div className="md:col-span-2">
-            <label className="text-[11px] font-semibold text-gray-600 block mb-1">
-              Note
-            </label>
-            <input
-              className={uiStyles.input}
-              value={payroll.note}
-              onChange={(e) => setPayroll((s) => ({ ...s, note: e.target.value }))}
-            />
-          </div>
-        </div>
-
-        {preview && (
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-sm text-amber-900">
-              {preview.payType === "PERCENTAGE"
-                ? `${preview.rate}% of ${money(preview.revenueTotal)} revenue`
-                : selectedPayType?.label}{" "}
-              = <span className="font-bold">{money(preview.amount)}</span>
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
-          <div>
-            {data.payroll?.amount ? (
-              <p className="text-xs text-gray-600">
-                Currently {money(data.payroll.amount)} for{" "}
-                {data.payroll.driverName || "the driver"}
-                {data.payroll.settledAt ? " · settled" : " · not settled"}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {data.payroll?.amount > 0 && (
-              <button onClick={toggleSettled} className="btn-secondary">
-                {data.payroll.settledAt ? "Reopen" : "Mark settled"}
-              </button>
-            )}
-            <button onClick={runPreview} className="btn-secondary">
-              Work it out
-            </button>
-            <button onClick={savePayroll} disabled={saving} className="btn-primary">
-              {saving ? "Saving…" : "Save driver pay"}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

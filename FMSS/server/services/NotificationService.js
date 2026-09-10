@@ -212,6 +212,9 @@ const notifyLoadStatusChanged = async ({ load, status, changesNote }) => {
 };
 
 module.exports = {
+  createNotification,
+  createBulkNotifications,
+  getStaffAndAdminIds,
   notifyLoadCreated,
   notifyBiddingScheduled,
   notifyBiddingClosed,
