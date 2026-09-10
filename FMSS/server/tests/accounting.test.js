@@ -596,3 +596,62 @@ describe("Who may see the books", () => {
     expect(single.statusCode).toBe(200);
   });
 });
+
+// The load's accounting heading used to read "customer -> carrier", which looks
+// like a route and is not one. It now shows the actual route, with the parties
+// named beside it as labelled chips — so the screen needs both.
+describe("What the heading is built from", () => {
+  const booksFor = (loadId) =>
+    call("get", `/api/accounting/loads/${loadId}`, staff, ny);
+
+  it("reports the route the freight travelled", async () => {
+    const withStops = await newLoad({
+      pickup: { city: "Newark", state: "NJ" },
+      drop: { city: "Chicago", state: "IL" },
+    });
+
+    const res = await booksFor(withStops.loadId);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.route).toEqual({ from: "Newark, NJ", to: "Chicago, IL" });
+  });
+
+  it("prefers the multi-stop form's own stops", async () => {
+    const multi = await newLoad({
+      pickup: { city: "Newark", state: "NJ" },
+      drop: { city: "Chicago", state: "IL" },
+      pickups: [{ city: "Elizabeth", state: "NJ" }],
+      drops: [{ city: "Joliet", state: "IL" }],
+    });
+
+    const res = await booksFor(multi.loadId);
+
+    expect(res.body.route).toEqual({ from: "Elizabeth, NJ", to: "Joliet, IL" });
+  });
+
+  it("still names the parties beside it", async () => {
+    const named = await newLoad({ customerName: "Acme Imports" });
+
+    const res = await booksFor(named.loadId);
+
+    expect(res.body.customerName).toBe("Acme Imports");
+    expect(res.body).toHaveProperty("carrierName");
+  });
+
+  it("answers with blanks rather than nothing when no stop was set", async () => {
+    const bare = await newLoad();
+
+    const res = await booksFor(bare.loadId);
+
+    // The screen reads route.from without guarding, so the keys must exist.
+    expect(res.body.route).toEqual({ from: "", to: "" });
+  });
+
+  it("gives one end when only one is known", async () => {
+    const half = await newLoad({ pickup: { city: "Newark", state: "NJ" } });
+
+    const res = await booksFor(half.loadId);
+
+    expect(res.body.route).toEqual({ from: "Newark, NJ", to: "" });
+  });
+});

@@ -19,6 +19,7 @@ const { nextSequence } = require("../utils/sequence");
 // See services/ledgerFallback.js — without this, raising an invoice for one of
 // them produces a document for $0.
 const ledger = require("./ledgerFallback");
+const { routeOf } = require("../utils/loadRoute");
 
 // ─── Turning a load's ledger into documents ───────────────────────────────────
 // The load carries working figures — receivables and payables, edited as the job
@@ -394,6 +395,10 @@ const buildCustomerInvoice = async ({ load, loads, user, terms, issueDate, memo 
   invoice.party = party;
   invoice.issuer = issuer;
   invoice.shipTo = shipToFor(load);
+  // The route staff recognise the job by. Taken from the load the invoice was
+  // raised against — on a reference-grouped invoice that is the first of them,
+  // which is the move the customer is most likely to name.
+  invoice.route = routeOf(load);
   invoice.references = referencesFor(load);
   invoice.lines = receivableLines;
   invoice.loads = groupedLoads.map((groupedLoad) => groupedLoad._id);
@@ -537,6 +542,7 @@ const buildCarrierBills = async ({ load, user, terms }) => {
     invoice.party = await carrierPartyFor(group.fleetOwnerId, group.name);
     invoice.issuer = issuer;
     invoice.shipTo = shipToFor(load);
+    invoice.route = routeOf(load);
     invoice.references = referencesFor(load);
     invoice.lines = lines;
     invoice.currency = load.accounting?.payables?.currency || "USD";

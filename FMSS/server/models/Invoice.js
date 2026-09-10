@@ -178,6 +178,19 @@ const invoiceSchema = new mongoose.Schema(
     // the warehouse. Snapshotted for the same reason as `party`.
     shipTo: shipToSchema,
 
+    // Where the move actually went, as two city/state ends. Snapshotted like
+    // everything else on here: a load whose stops are corrected next month has
+    // not changed the journey this bill was raised for.
+    //
+    // Held separately from `shipTo` because they answer different questions —
+    // shipTo is one address the bill is filed against, this is the route staff
+    // recognise the job by when a customer rings describing it rather than
+    // quoting a number.
+    route: {
+      from: { type: String, trim: true, default: "" },
+      to: { type: String, trim: true, default: "" },
+    },
+
     // "TRAILER # : TCKU6245871", "Ref # : SSFOSE26255224" — the numbers the
     // customer files this bill under. Held as label/value pairs rather than
     // named columns because which of them matters differs per customer, and a

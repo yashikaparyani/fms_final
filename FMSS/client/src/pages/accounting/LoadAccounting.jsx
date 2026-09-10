@@ -173,9 +173,41 @@ const LoadAccounting = () => {
               {data.loadId}
             </button>
           </h1>
+          {/* The route, not the parties. This line used to read
+              "customer → carrier", which looks exactly like a route and is not
+              one — an arrow between two company names invites it to be read as
+              a move from the first to the second. The move is what somebody
+              recognises the job by, so that is what the arrow now describes.
+
+              The customer and the carrier are still here, as labelled chips.
+              Naming them is the point: a chip that says who is being billed
+              cannot be mistaken for a place the freight went. */}
           <p className="page-subtitle">
-            {[data.customerName, data.carrierName].filter(Boolean).join(" → ") || "—"}
+            {data.route?.from || data.route?.to ? (
+              <span className="font-semibold text-ink-700">
+                {data.route.from || "—"}
+                <span className="mx-1.5 text-ink-400">→</span>
+                {data.route.to || "—"}
+              </span>
+            ) : (
+              <span className="text-ink-400">Route not set</span>
+            )}
           </p>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {data.customerName && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent-700">
+                <span className="font-normal opacity-70">Customer</span>
+                {data.customerName}
+              </span>
+            )}
+            {data.carrierName && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-0.5 text-[11px] font-semibold text-ink-700">
+                <span className="font-normal opacity-70">Carrier</span>
+                {data.carrierName}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

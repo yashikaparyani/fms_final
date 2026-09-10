@@ -169,6 +169,35 @@ describe("Raising invoices from a load", () => {
     ).toBe(1);
   });
 
+  // The invoice screen has always had From and To rows on it. Nothing ever put
+  // a route on the invoice for them to read, so they silently rendered as
+  // nothing on every invoice ever raised.
+  it("snapshots the route the freight actually travelled", async () => {
+    load.pickup = { city: "Newark", state: "NJ" };
+    load.drop = { city: "Chicago", state: "IL" };
+    await withTenant({ locationId: String(ny._id) }, () => load.save());
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 1000 }]);
+
+    const res = await generate({ sides: ["AR"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.customerInvoice.route).toEqual({
+      from: "Newark, NJ",
+      to: "Chicago, IL",
+    });
+  });
+
+  it("bills a load whose stops were never filled in", async () => {
+    await setLedger("receivables", [{ chargeType: "linehaul", amount: 1000 }]);
+
+    const res = await generate({ sides: ["AR"] });
+
+    expect(res.status).toBe(200);
+    // Blank, not absent and not "undefined, undefined" — the screen reads
+    // `route.from` without guarding.
+    expect(res.body.customerInvoice.route).toEqual({ from: "", to: "" });
+  });
+
   // Reference numbers are matched with a case-insensitive regex, so anything in
   // them that a regex treats as syntax has to be escaped first. Real references
   // are full of such characters, and getting it wrong fails both ways at once:

@@ -23,6 +23,7 @@ const billingState = require("../services/billingState");
 // the placeholder that used to be written into both name fields. `realName`
 // treats it as absent, so the column reads empty rather than wrong.
 const { realName } = require("../utils/displayName");
+const { routeOf } = require("../utils/loadRoute");
 // createdAt and calculatedAt are instants, so their windows are bounded by the
 // business day rather than the UTC day — see utils/dates.js.
 const { instantRange } = require("../utils/dates");
@@ -349,6 +350,11 @@ const presentAccounting = (load) => {
     _id: load._id,
     customerName: realName(load.customerName),
     carrierName: load.assignedFleetOwner?.fleetOwnerName || "",
+    // Where the job went. The heading on this screen used to read
+    // "customer → carrier", which looks like a route and is not one — the arrow
+    // between two company names invited it to be read as a move from one to the
+    // other. See utils/loadRoute.js.
+    route: routeOf(load),
     transportStatus: load.transportStatus,
     amount: load.amount,
 
