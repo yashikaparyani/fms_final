@@ -196,6 +196,28 @@ describe("Approving the paperwork", () => {
     expect(load.paperwork.state).toBe("AWAITING_DOCUMENTS");
   });
 
+  // The office decides whether a load can be billed. What the refusal above
+  // buys is that somebody has to have been shown the list and said yes to it —
+  // not that the load is stuck until a document that may not exist turns up.
+  it("lets the office approve without it once they have said so", async () => {
+    await makeLoad();
+
+    const res = await request(app)
+      .post("/api/loads/LD 0001/paperwork/review")
+      .send({ decision: "APPROVE", override: true, note: "Customer kept the BOL." });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/without Bill Of Lading/);
+
+    const load = await reload();
+    expect(load.transportStatus).toBe("INVOICED");
+    expect(load.paperwork.state).toBe("APPROVED");
+    // What was waived is on the load, not only in somebody's memory.
+    expect(load.paperwork.approvedWithMissing).toEqual(["Bill Of Lading"]);
+    expect(load.paperwork.approvalNote).toMatch(/Approved without: Bill Of Lading/);
+    expect(load.transportStatusHistory.at(-1).note).toMatch(/Bill Of Lading/);
+  });
+
   it("moves the load to Invoiceable and locks it once everything is there", async () => {
     await makeLoad({ documents: [POD, BOL], paperwork: { state: "IN_REVIEW" } });
 
@@ -227,12 +249,49 @@ describe("Approving the paperwork", () => {
     expect(over.body).toHaveLength(0);
   });
 
-  it("will not approve a load that is not in the queue", async () => {
-    await makeLoad({ transportStatus: "DELIVERED", documents: [POD, BOL] });
+  // A delivered load carries the same documents it would carry a minute later
+  // in the queue, so the office does not have to move it there first purely to
+  // be allowed to do the thing they were already doing.
+  it("approves a delivered load, opening and closing its review on the way", async () => {
+    await makeLoad({
+      transportStatus: "DELIVERED",
+      documents: [POD, BOL],
+      paperwork: {},
+    });
 
     const res = await request(app)
       .post("/api/loads/LD 0001/paperwork/review")
       .send({ decision: "APPROVE" });
+
+    expect(res.status).toBe(200);
+
+    const load = await reload();
+    expect(load.transportStatus).toBe("INVOICED");
+    expect(load.paperwork.state).toBe("APPROVED");
+    // Opened as well as closed — a signed-off load with a blank start on it is
+    // a review nobody can account for afterwards.
+    expect(load.paperwork.startedAt).toBeTruthy();
+  });
+
+  it("will not approve a load that has not been delivered", async () => {
+    await makeLoad({ transportStatus: "IN_TRANSIT", documents: [POD, BOL] });
+
+    const res = await request(app)
+      .post("/api/loads/LD 0001/paperwork/review")
+      .send({ decision: "APPROVE" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("NOT_IN_PAPERWORK");
+  });
+
+  // Sending documents back is a conversation about a review that is open, so it
+  // still needs the load in the queue.
+  it("will not send a delivered load's documents back before it is in the queue", async () => {
+    await makeLoad({ transportStatus: "DELIVERED", documents: [POD], paperwork: {} });
+
+    const res = await request(app)
+      .post("/api/loads/LD 0001/paperwork/review")
+      .send({ decision: "REQUEST_CHANGES", note: "Send the BOL." });
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("NOT_IN_PAPERWORK");
@@ -397,6 +456,66 @@ describe("Invoicing waits for the review", () => {
       documents: [POD, BOL],
       paperwork: { state: "APPROVED" },
     });
+
+    const res = await request(app)
+      .put("/api/loads/LD 0001/transport-status")
+      .send({ transportStatus: "DELIVERED" });
+
+    expect(res.status).toBe(400);
+    expect((await reload()).transportStatus).toBe("INVOICED");
+  });
+});
+
+// An admin is the person who fixes the load somebody else got wrong, and the
+// only way to fix one is to put it back where it should be. The rules above
+// stop a load drifting out of step with reality on its way forward; for an
+// admin putting it back in step they are the thing in the way.
+describe("An admin correcting the record", () => {
+  it("may set a load to Invoiceable from the status update", async () => {
+    await makeLoad({ documents: [POD, BOL], paperwork: { state: "IN_REVIEW" } });
+
+    const res = await request(app)
+      .put("/api/loads/LD 0001/transport-status")
+      .set("role", "admin")
+      .send({ transportStatus: "INVOICED", note: "Billed by hand." });
+
+    expect(res.status).toBe(200);
+
+    // Recorded as the approval it is, so accounting does not end up holding a
+    // load whose review reads as never started and whose documents are still
+    // open to being replaced underneath the invoice.
+    const load = await reload();
+    expect(load.transportStatus).toBe("INVOICED");
+    expect(load.paperwork.state).toBe("APPROVED");
+    expect(load.paperwork.approvedAt).toBeTruthy();
+    expect(load.paperwork.approvalNote).toBe("Billed by hand.");
+  });
+
+  it("may pull one back out, which reopens the review it was approved on", async () => {
+    await makeLoad({
+      transportStatus: "INVOICED",
+      documents: [POD, BOL],
+      paperwork: { state: "APPROVED", approvedAt: new Date() },
+    });
+
+    const res = await request(app)
+      .put("/api/loads/LD 0001/transport-status")
+      .set("role", "admin")
+      .send({ transportStatus: "DELIVERED", note: "Approved against the wrong BOL." });
+
+    expect(res.status).toBe(200);
+
+    const load = await reload();
+    expect(load.transportStatus).toBe("DELIVERED");
+    // Unlocked, or the driver could not replace the document the load went back
+    // for — see isPaperworkLocked.
+    expect(load.paperwork.state).toBe("IN_REVIEW");
+    // ...and the move is on the load's own history like any other.
+    expect(load.transportStatusHistory.at(-1).status).toBe("DELIVERED");
+  });
+
+  it("leaves staff where they were", async () => {
+    await makeLoad({ transportStatus: "INVOICED", paperwork: { state: "APPROVED" } });
 
     const res = await request(app)
       .put("/api/loads/LD 0001/transport-status")

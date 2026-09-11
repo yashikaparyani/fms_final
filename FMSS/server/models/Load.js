@@ -759,6 +759,13 @@ const loadSchema = new mongoose.Schema(
       approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       approvalNote: String,
 
+      // Which required documents were still missing when the office signed it
+      // off anyway. The office is allowed to approve without them — a load
+      // does not stop being billable because a driver lost a scale ticket —
+      // but the approval has to say so, or a load invoiced against a Bill of
+      // Lading that was never on file looks identical to one that was.
+      approvedWithMissing: [String],
+
       // Every chase sent to the carrier side, whether or not it landed. A run
       // of failures against one carrier is what tells somebody their driver has
       // no working login — if only successes were recorded, that carrier would

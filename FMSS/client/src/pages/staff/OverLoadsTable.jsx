@@ -54,9 +54,16 @@ const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 // is the same, the driver who dropped it has gone home.
 const AWAITING_A_DRIVER = ["DROP_IN_WAREHOUSE", "LOADED_IN_YARD", "EMPTY_IN_YARD"];
 
-// A load whose driving is done and whose documents are not. The one place in
+// A load whose driving is done and whose documents are not. The only rows in
 // this tab where "Transfer to Invoiceable" means anything.
-const isPaperworkPending = (row) => row?.transportStatus === "PAPERWORK_PENDING";
+//
+// Delivered is on the list as well as the queue itself: a delivered load nobody
+// has moved on yet carries exactly the documents it would carry a minute later
+// in Paperwork Pending, and the approval opens its review on the way past (see
+// reviewPaperwork). Leaving it off meant the office had to move the load to the
+// queue first purely to be allowed to do the thing they were already doing.
+const canTransferToInvoiceable = (row) =>
+  ["DELIVERED", "PAPERWORK_PENDING"].includes(row?.transportStatus);
 
 const SUB_TABS = [
   "DELIVERED",
@@ -166,25 +173,30 @@ const OverLoadsTable = () => {
   // (see USE_PAPERWORK_APPROVAL). One rule, enforced in one place, reachable
   // from wherever the person happens to be standing.
   //
-  // The missing-document check below is a courtesy so the confirmation can say
-  // what is wrong before anybody clicks through it. The server checks again on
-  // arrival — this list is as old as its last refresh.
+  // A missing document names itself in the confirmation rather than stopping
+  // it. The office decides whether a load can be billed; holding one out of
+  // accounting over a document the customer kept is money nobody is chasing.
+  // What they are waiving is said out loud, and the server records it against
+  // the approval — see reviewPaperwork.
+  //
+  // This list is as old as the last refresh, so the server works out what is
+  // missing again on arrival and refuses a short load unless `override` says
+  // somebody was shown the list and said yes.
   const transferToInvoiceable = async (row) => {
     const missing = missingPaperwork(row);
-
-    if (missing.length) {
-      await Swal.fire({
-        icon: "warning",
-        title: "Paperwork is not complete",
-        text: `${row.loadId} is still missing: ${missing.join(", ")}. Chase the driver for it, or open the load to review what is there.`,
-        confirmButtonColor: "#4338ca",
-      });
-      return;
-    }
+    const short = missing.length > 0;
 
     const { isConfirmed, value } = await Swal.fire({
-      title: `Transfer ${row.loadId} to Invoiceable?`,
+      title: short
+        ? `Transfer ${row.loadId} without every document?`
+        : `Transfer ${row.loadId} to Invoiceable?`,
+      icon: short ? "warning" : undefined,
       html:
+        (short
+          ? '<p style="font-size:13px;color:#b91c1c;text-align:left;margin:0 0 10px">' +
+            `Still missing: <b>${missing.join(", ")}</b>. Approving anyway is ` +
+            "recorded against the load.</p>"
+          : "") +
         '<p style="font-size:13px;color:#4b5563;text-align:left;margin:0 0 10px">' +
         "This approves the load's paperwork. It leaves the Over tab for " +
         "Accounting, and its documents are locked — the driver will not be able " +
@@ -193,8 +205,8 @@ const OverLoadsTable = () => {
       inputPlaceholder: "Optional note for the record…",
       inputAttributes: { rows: 3 },
       showCancelButton: true,
-      confirmButtonText: "Transfer",
-      confirmButtonColor: "#16a34a",
+      confirmButtonText: short ? "Transfer anyway" : "Transfer",
+      confirmButtonColor: short ? "#d97706" : "#16a34a",
     });
 
     if (!isConfirmed) return;
@@ -204,6 +216,7 @@ const OverLoadsTable = () => {
       const res = await api.post(`/loads/${row.loadId}/paperwork/review`, {
         decision: "APPROVE",
         note: value || "",
+        override: short,
       });
       toast.success(res.data?.message || "Transferred to Invoiceable");
       await fetchLoads();
@@ -279,9 +292,8 @@ const OverLoadsTable = () => {
         )}
 
         {/* Only on the loads that are actually waiting to be billed. On a
-            delivered or street-turned load there is no paperwork review open,
-            so there is nothing to approve. */}
-        {isPaperworkPending(row) && (
+            terminated or street-turned load there is nothing to approve. */}
+        {canTransferToInvoiceable(row) && (
           <button
             onClick={() => transferToInvoiceable(row)}
             disabled={saving || !!transferring}
@@ -434,7 +446,7 @@ const OverLoadsTable = () => {
                         >
                           Update Status
                         </button>
-                        {isPaperworkPending(row) && (
+                        {canTransferToInvoiceable(row) && (
                           <button
                             onClick={() => transferToInvoiceable(row)}
                             disabled={saving || !!transferring}

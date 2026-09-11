@@ -1024,12 +1024,17 @@ const getLoads = async (req, res) => {
           // Answered on the list as well as on the single load, so the Over
           // tab's Transfer to Invoiceable can say what is missing before
           // somebody clicks it rather than after — see config/paperwork.js for
-          // why the required list is only ever computed server-side. Only
-          // present where a review has actually started.
-          ...(load.paperwork?.state
+          // why the required list is only ever computed server-side.
+          //
+          // Present on a delivered load whose review has not opened yet, as
+          // well as on one that has: the Over tab offers the transfer there
+          // too, and a confirmation that cannot name what is missing would be
+          // asking somebody to waive a document without saying which.
+          ...(load.paperwork?.state ||
+          ["DELIVERED", "PAPERWORK_PENDING"].includes(load.transportStatus)
             ? {
                 paperwork: {
-                  ...load.paperwork,
+                  ...(load.paperwork || {}),
                   missingDocuments: missingRequiredDocuments(load),
                   locked: isPaperworkLocked(load),
                 },
@@ -1581,6 +1586,16 @@ const updateTransportStatus = async (req, res) => {
     const { transportStatus, note, latitude, longitude, signatureData } = req.body;
     const role = req.user.role;
 
+    // An admin is the person who fixes the load somebody else got wrong —
+    // marked delivered on the wrong day, approved against the wrong Bill of
+    // Lading, moved on by a driver who tapped the wrong row. The rules below
+    // are there to stop a load drifting out of step with reality on its way
+    // forward; for an admin putting it back in step they are the thing in the
+    // way. So they yield to an admin, and the move is written into the status
+    // history and the audit trail like every other one, which is what makes it
+    // an authority rather than a hole — "who moved this back" stays answerable.
+    const isAdmin = role === "admin";
+
     const load = await Load.findOne({
       loadId: req.params.loadId,
     });
@@ -1789,12 +1804,14 @@ const updateTransportStatus = async (req, res) => {
 
     const currentIdx = STATUS_ORDER.indexOf(currentStatus);
     const nextIdx = STATUS_ORDER.indexOf(transportStatus);
-    if (
+    const movingBackwards =
       currentIdx !== -1 &&
       nextIdx !== -1 &&
       nextIdx < currentIdx &&
-      !isExtraOriginPickup
-    ) {
+      !isExtraOriginPickup;
+
+    // Everybody else moves a load forward only. See the note on `isAdmin`.
+    if (movingBackwards && !isAdmin) {
       return res.status(400).json({
         success: false,
         message: `Cannot move status back to "${transportStatus.replace(
@@ -1820,7 +1837,14 @@ const updateTransportStatus = async (req, res) => {
     // So the route is closed rather than conditioned. A conditional — "allowed
     // once approved" — would leave two ways to do the same thing, and the
     // second one would quietly become the one people used.
-    if (transportStatus === "INVOICED") {
+    // An admin is the exception, for the same reason as everywhere else in this
+    // handler: they are the one correcting a load, and the approval they would
+    // otherwise have to go and click is one they are entitled to give. Doing it
+    // from here IS that approval, so it is recorded as one further down rather
+    // than leaving a load in accounting whose paperwork says nobody ever read
+    // it — which would also leave its documents open to being replaced
+    // underneath the invoice.
+    if (transportStatus === "INVOICED" && !isAdmin) {
       return res.status(409).json({
         success: false,
         code: "USE_PAPERWORK_APPROVAL",
@@ -1999,6 +2023,44 @@ const updateTransportStatus = async (req, res) => {
         startedAt: new Date(),
         startedBy: req.user._id,
       };
+    }
+
+    // ─── An admin setting Invoiceable by hand ───────────────────────────────
+    // Approving the paperwork is what normally lands a load here, so a load
+    // that arrives by the other door is given the same stamp: the review is
+    // closed, the documents lock, and accounting sees an approved load rather
+    // than one whose review reads as never started. What was missing at the
+    // time goes on the record with it, exactly as reviewPaperwork does.
+    if (transportStatus === "INVOICED" && load.paperwork?.state !== "APPROVED") {
+      load.paperwork = {
+        ...(load.paperwork?.toObject?.() || load.paperwork || {}),
+        state: "APPROVED",
+        startedAt: load.paperwork?.startedAt || new Date(),
+        startedBy: load.paperwork?.startedBy || req.user._id,
+        approvedAt: new Date(),
+        approvedBy: req.user._id,
+        approvalNote: note || "Set to Invoiceable from the status update.",
+        approvedWithMissing: missingRequiredDocuments(load),
+      };
+    }
+
+    // ─── ...and an admin pulling one back out ───────────────────────────────
+    // An approval is only worth undoing when it was wrong, so it comes undone
+    // with the move: the review reopens where it would have been and the
+    // documents unlock. A load left at Delivered still stamped APPROVED would
+    // leave the driver unable to replace the very document the load was sent
+    // back for, and the office looking at a card that says the work is done.
+    // The approval stays on the audit trail either way.
+    if (
+      movingBackwards &&
+      previousTransportStatus === "INVOICED" &&
+      load.paperwork?.state === "APPROVED"
+    ) {
+      load.paperwork.state = missingRequiredDocuments(load).length
+        ? "AWAITING_DOCUMENTS"
+        : "IN_REVIEW";
+      load.paperwork.approvedAt = undefined;
+      load.paperwork.approvedBy = undefined;
     }
 
     // ─────────────────────────────────────────────
@@ -2414,12 +2476,27 @@ const reviewPaperwork = async (req, res) => {
       return res.status(404).json({ success: false, message: "Load not found" });
     }
 
-    if (load.transportStatus !== "PAPERWORK_PENDING") {
+    // ── Where the load has to be ───────────────────────────────────────────
+    // Sending documents back is a conversation about a review that is already
+    // open, so it still needs the load in the queue.
+    //
+    // Approving does not. A delivered load carries exactly the documents it
+    // would carry a second later in Paperwork Pending, and refusing to approve
+    // it there only ever turned one click into two — with the load sitting at
+    // Delivered, invisible to accounting, in between. So approving from
+    // Delivered is allowed and opens the review on its way past.
+    const approving = decision === "APPROVE";
+    const reviewableFrom = approving
+      ? ["DELIVERED", "PAPERWORK_PENDING"]
+      : ["PAPERWORK_PENDING"];
+
+    if (!reviewableFrom.includes(load.transportStatus)) {
       return res.status(409).json({
         success: false,
         code: "NOT_IN_PAPERWORK",
-        message:
-          "This load is not in Paperwork Pending, so there is nothing to review. Move it to Paperwork Pending first.",
+        message: approving
+          ? "Only a delivered load that is still waiting on its paperwork can be approved."
+          : "This load is not in Paperwork Pending, so there is nothing to review. Move it to Paperwork Pending first.",
       });
     }
 
@@ -2483,11 +2560,23 @@ const reviewPaperwork = async (req, res) => {
     }
 
     // ── Approved ────────────────────────────────────────────────────────────
-    // Checked here rather than trusted from the screen: the browser's list of
-    // what is missing is as old as its last refresh, and approving a load whose
-    // Bill of Lading was deleted a minute ago would seal it in that state.
+    // Worked out here rather than trusted from the screen: the browser's list
+    // of what is missing is as old as its last refresh.
+    //
+    // A missing document is a warning, not a wall. The office is the authority
+    // on whether a load can be billed — a Bill of Lading that only ever
+    // existed on paper at the customer's desk is a real thing, and a load held
+    // out of accounting over one is money nobody is chasing. So `override` lets
+    // them go ahead, and what was missing is written onto the approval rather
+    // than quietly forgotten: a load billed against documents that were never
+    // on file must not look identical to one that had them all.
+    //
+    // Without the flag the refusal stands, so nothing approves a short load by
+    // accident — somebody has to have been told what is missing and said yes.
     const missing = missingRequiredDocuments(load);
-    if (missing.length) {
+    const override = req.body.override === true || req.body.override === "true";
+
+    if (missing.length && !override) {
       return res.status(400).json({
         success: false,
         code: "DOCUMENTS_MISSING",
@@ -2497,19 +2586,34 @@ const reviewPaperwork = async (req, res) => {
     }
 
     const previousTransportStatus = load.transportStatus;
+    const shortNote = missing.length
+      ? `Approved without: ${missing.join(", ")}.`
+      : "";
+
+    // Approved straight from Delivered: the review never got its chance to
+    // open, so it opens and closes in the same breath rather than leaving a
+    // signed-off load with a blank start on it.
+    if (!load.paperwork.state) {
+      load.paperwork.startedAt = new Date();
+      load.paperwork.startedBy = req.user._id;
+    }
 
     load.paperwork.state = "APPROVED";
     load.paperwork.approvedAt = new Date();
     load.paperwork.approvedBy = req.user._id;
-    load.paperwork.approvalNote = note;
+    load.paperwork.approvalNote = [note, shortNote].filter(Boolean).join(" ");
+    load.paperwork.approvedWithMissing = missing;
 
     // Approving is the move. See the note at the top of this section.
+    const approvalNote =
+      [note, shortNote].filter(Boolean).join(" ") || "Paperwork approved";
+
     load.transportStatus = "INVOICED";
     load.transportStatusHistory.push({
       status: "INVOICED",
       changedAt: new Date(),
       changedBy: req.user._id,
-      note: note || "Paperwork approved",
+      note: approvalNote,
     });
 
     await load.save();
@@ -2520,7 +2624,7 @@ const reviewPaperwork = async (req, res) => {
         field: "transportStatus",
         from: previousTransportStatus,
         to: "INVOICED",
-        note: note || "Paperwork approved",
+        note: approvalNote,
         user: req.user,
         req,
       })
@@ -2544,7 +2648,9 @@ const reviewPaperwork = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Paperwork approved. The load is now invoiceable.",
+      message: missing.length
+        ? `Paperwork approved without ${missing.join(", ")}. The load is now invoiceable.`
+        : "Paperwork approved. The load is now invoiceable.",
       data: load,
       paperwork: paperworkView(load),
       notified: delivery,

@@ -21,10 +21,12 @@ import { isPaperworkLocked, missingPaperwork } from "../../utils/paperwork";
 // goes round the loop four times over a photo nobody explained.
 //
 // The office's controls (Approve, Request Changes, Send Reminder) are the only
-// part that is staff-only, and Approve is deliberately disabled rather than
-// hidden while a required document is missing: hiding it would leave somebody
-// hunting for a button, where a disabled one with the missing list beside it
-// says what to do about it.
+// part that is staff-only. Approve stays live while a required document is
+// missing: the office is the authority on whether a load can be billed, and a
+// load held out of accounting over a Bill of Lading the customer kept is money
+// nobody is chasing. What the missing list buys is the warning — the
+// confirmation names what is not there and makes somebody say yes to it, and
+// the approval carries that on the record afterwards.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_STYLE = {
@@ -86,6 +88,14 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
 
   const inQueue = load.transportStatus === "PAPERWORK_PENDING";
 
+  // Approving is reachable from Delivered too, not only from the queue: the
+  // documents on the load are the same either way, and the server opens the
+  // review on its way past (see reviewPaperwork). Sending documents back still
+  // needs the queue — it is a conversation about a review that is open.
+  const canApprove = ["DELIVERED", "PAPERWORK_PENDING"].includes(
+    load.transportStatus,
+  );
+
   const post = async (path, body, label) => {
     setBusy(label);
     try {
@@ -103,22 +113,47 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
   };
 
   const approve = async () => {
+    // Approving a load that is short of a document is allowed, and it is the
+    // one place the wording changes: the dialog names what is not there, so
+    // nobody waives a Bill of Lading without having been told that is what they
+    // are doing. The server writes the same list onto the approval — see
+    // reviewPaperwork.
+    const short = missing.length > 0;
+
     const { isConfirmed, value } = await Swal.fire({
-      title: "Approve this paperwork?",
+      title: short ? "Approve without every document?" : "Approve this paperwork?",
+      icon: short ? "warning" : undefined,
       html:
+        (short
+          ? `<p style="font-size:13px;color:#b91c1c;text-align:left;margin:0 0 10px">` +
+            `Still missing: <b>${missing.join(", ")}</b>. Approving anyway is ` +
+            `recorded against the load.</p>`
+          : "") +
         `<p style="font-size:13px;color:#4b5563;text-align:left;margin:0 0 10px">` +
         `The load moves to <b>Invoiceable</b> and its documents are locked — the ` +
-        `driver will not be able to change or replace them.</p>`,
+        `driver will not be able to change or replace them.</p>` +
+        (inQueue
+          ? ""
+          : `<p style="font-size:13px;color:#4b5563;text-align:left;margin:0 0 10px">` +
+            `It has not been moved to Paperwork Pending, so approving it now is ` +
+            `what opens and closes its review.</p>`),
       input: "textarea",
       inputPlaceholder: "Optional note for the record…",
       inputAttributes: { rows: 3 },
       showCancelButton: true,
-      confirmButtonText: "Approve",
-      confirmButtonColor: "#16a34a",
+      confirmButtonText: short ? "Approve anyway" : "Approve",
+      confirmButtonColor: short ? "#d97706" : "#16a34a",
     });
 
     if (isConfirmed) {
-      await post("paperwork/review", { decision: "APPROVE", note: value || "" }, "Approve");
+      await post(
+        "paperwork/review",
+        // `override` is the office saying yes to the list above. The server
+        // refuses a short load without it, so a screen that has not refreshed
+        // cannot approve one by accident.
+        { decision: "APPROVE", note: value || "", override: short },
+        "Approve",
+      );
     }
   };
 
@@ -193,7 +228,8 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
           <p className="text-sm text-gray-600">
             This load has been delivered but has not been moved to Paperwork
             Pending yet. Move it there to start collecting and checking its
-            documents.
+            documents — or approve it straight from here if there is nothing
+            left to wait for.
           </p>
         )}
 
@@ -282,13 +318,11 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
             <button
               type="button"
               onClick={approve}
-              disabled={!!busy || !inQueue || missing.length > 0}
+              disabled={!!busy || !canApprove}
               title={
-                !inQueue
-                  ? "Move the load to Paperwork Pending first."
-                  : missing.length
-                    ? `Still missing: ${missing.join(", ")}`
-                    : undefined
+                missing.length
+                  ? `Still missing: ${missing.join(", ")} — approving anyway is recorded on the load.`
+                  : undefined
               }
               className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
