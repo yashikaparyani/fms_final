@@ -85,6 +85,88 @@ beforeAll(async () => await connect());
 afterEach(async () => await clearDatabase());
 afterAll(async () => await closeDatabase());
 
+// Each payee's own lines are validated in their own bucket, and the screen
+// groups them the same way — see payeeKey on the server and payeeKeyOf in the
+// payables editor.
+describe("Each payee is costed on their own", () => {
+  it("lets two drivers each carry the same charge", async () => {
+    await makeLoad();
+
+    // A lumper line is not repeatable. Two drivers who each paid one at their
+    // own dock are still two people owed it, and refusing the second as a
+    // duplicate of the first calls a real charge an editing mistake.
+    const res = await request(app)
+      .put("/api/accounting/loads/LD 0001/payables")
+      .send({
+        lines: [
+          ...driverLines(),
+          {
+            chargeType: "lumper",
+            amount: 75,
+            driverId: String(DRIVER_A),
+            driverName: "Ana Ruiz",
+          },
+          {
+            chargeType: "lumper",
+            amount: 40,
+            driverId: String(DRIVER_B),
+            driverName: "Bo Chen",
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(rowFor(res.body.accounting, DRIVER_A).amount).toBe(375);
+    expect(rowFor(res.body.accounting, DRIVER_B).amount).toBe(290);
+  });
+
+  it("still refuses the same charge twice for one driver", async () => {
+    await makeLoad();
+
+    const res = await request(app)
+      .put("/api/accounting/loads/LD 0001/payables")
+      .send({
+        lines: [
+          { chargeType: "lumper", amount: 75, driverId: String(DRIVER_A), driverName: "Ana Ruiz" },
+          { chargeType: "lumper", amount: 40, driverId: String(DRIVER_A), driverName: "Ana Ruiz" },
+        ],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  // The name says who is owed; the leg says what for. On a load handed over
+  // part way, it is the only thing that tells two rows of money apart.
+  it("says which stretch each driver ran", async () => {
+    await makeLoad({
+      pickup: { city: "Newark", state: "NJ" },
+      drop: { city: "Chicago", state: "IL" },
+      driverAssignments: [
+        {
+          driver: DRIVER_A,
+          driverName: "Ana Ruiz",
+          pickup: { city: "Newark", state: "NJ" },
+          drop: { city: "Harrisburg", state: "PA" },
+        },
+        // No leg of their own: a handover agreed on the phone and never typed
+        // in reads as the load's own route rather than as a blank.
+        { driver: DRIVER_B, driverName: "Bo Chen" },
+      ],
+    });
+
+    const res = await books();
+
+    expect(rowFor(res.body, DRIVER_A)).toMatchObject({
+      from: "Newark, NJ",
+      to: "Harrisburg, PA",
+    });
+    expect(rowFor(res.body, DRIVER_B)).toMatchObject({
+      from: "Newark, NJ",
+      to: "Chicago, IL",
+    });
+  });
+});
+
 describe("Every driver on the load shows in the payables", () => {
   it("lists them before anybody has costed them", async () => {
     await makeLoad();

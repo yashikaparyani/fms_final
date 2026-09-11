@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import PaymentsIcon from "@mui/icons-material/Payments";
@@ -131,6 +131,58 @@ const LoadAccounting = () => {
       },
     ]);
   };
+
+  // ── Who this load's payables are owed to ────────────────────────────────
+  // The carriers first, because the base rate is theirs, then the drivers who
+  // ran it. The editor groups its lines under these, so a load with two
+  // carriers and three drivers reads as five short bills rather than one pile
+  // of rows that all say "Charge" — see ChargeEditor.
+  //
+  // A load with one carrier has no legs to list, so its single carrier is named
+  // from the load itself. Drivers are carried through whether or not anybody
+  // has costed them: an empty group with an add button is how an uncosted
+  // driver asks to be paid.
+  const payees = useMemo(() => {
+    if (!data) return [];
+
+    const carriers = data.carrierPayables?.length
+      ? data.carrierPayables.map((leg) => ({
+          key: `carrier:${leg.fleetOwnerId}`,
+          kind: "carrier",
+          id: leg.fleetOwnerId,
+          name: leg.fleetOwnerName || "Carrier",
+          code: leg.fleetOwnerCode || "",
+          from: leg.from || "",
+          to: leg.to || "",
+          agreed: leg.agreed,
+        }))
+      : data.carrierId
+        ? [
+            {
+              key: `carrier:${data.carrierId}`,
+              kind: "carrier",
+              id: data.carrierId,
+              name: data.carrierName || "Carrier",
+              from: data.route?.from || "",
+              to: data.route?.to || "",
+            },
+          ]
+        : [];
+
+    const drivers = (data.driverPayables || []).map((row) => ({
+      key: `driver:${row.driverId}`,
+      kind: "driver",
+      id: row.driverId,
+      name: row.driverName || "Unnamed driver",
+      code: row.driverCode || "",
+      from: row.from || "",
+      to: row.to || "",
+      fleetOwnerId: row.fleetOwnerId || undefined,
+      hint: row.onLoad ? "" : "no longer assigned to this load",
+    }));
+
+    return [...carriers, ...drivers];
+  }, [data]);
 
   if (loading) {
     return <p className="text-center text-gray-400 py-20 text-sm">Loading…</p>;
@@ -303,13 +355,13 @@ const LoadAccounting = () => {
             owed two different amounts, and one payable total cannot say who
             gets what. `agreed` is what the leg was assigned at, `booked` is
             what has actually been put on the ledger against that carrier. */}
-        {data.payables.carrierPayables?.length > 0 && (
+        {data.carrierPayables?.length > 0 && (
           <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
             <div className="bg-gray-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
               Owed per carrier
             </div>
             <div className="divide-y divide-gray-100">
-              {data.payables.carrierPayables.map((row) => {
+              {data.carrierPayables.map((row) => {
                 const short =
                   row.agreed != null && row.booked !== row.agreed;
 
@@ -457,6 +509,7 @@ const LoadAccounting = () => {
           onChange={setPayables}
           disabled={saving}
           drivers={data.driverPayables || []}
+          payees={payees}
         />
 
         <div className="flex justify-end mt-4">

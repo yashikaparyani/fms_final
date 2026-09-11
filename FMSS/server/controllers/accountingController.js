@@ -23,7 +23,7 @@ const billingState = require("../services/billingState");
 // the placeholder that used to be written into both name fields. `realName`
 // treats it as absent, so the column reads empty rather than wrong.
 const { realName } = require("../utils/displayName");
-const { routeOf } = require("../utils/loadRoute");
+const { routeOf, placeOf } = require("../utils/loadRoute");
 // createdAt and calculatedAt are instants, so their windows are bounded by the
 // business day rather than the UTC day — see utils/dates.js.
 const { instantRange } = require("../utils/dates");
@@ -129,11 +129,21 @@ const applyPercentageLines = (lines) => {
 /**
  * Who a line is owed to, as a grouping key.
  *
- * Only ever meaningful on the payables of a split load. Everything else — the
- * whole receivable side, and a payable side with one carrier — falls into a
- * single bucket, which is the same thing as not grouping at all.
+ * Only ever meaningful on payables. The whole receivable side is one bill to
+ * one customer, so every line falls into a single bucket, which is the same
+ * thing as not grouping at all.
+ *
+ * The driver wins over the carrier where a line names one. Two drivers on the
+ * same leg are two people, each owed their own pay and each capable of running
+ * up their own detention — bucketing them together refused the second driver's
+ * line as a duplicate of the first's, which is a real charge being called an
+ * editing mistake. Matches payeeKeyOf in the payables editor, so what the
+ * screen groups under a name is what is validated under it.
  */
-const payeeKey = (line) => String(line.fleetOwnerId || "");
+const payeeKey = (line) =>
+  line.driverId
+    ? `driver:${String(line.driverId)}`
+    : `carrier:${String(line.fleetOwnerId || "")}`;
 
 /**
  * Validate a set of lines before they are stored.
@@ -171,7 +181,7 @@ const validateLines = (lines, side) => {
     );
     if (linehauls.length > 1) {
       problems.push(
-        `Only one ${labelFor("linehaul", side)} line is allowed per carrier — combine them or move the extra onto an accessorial.`,
+        `Only one ${labelFor("linehaul", side)} line is allowed for the same carrier or driver — combine them or move the extra onto an accessorial.`,
       );
     }
 
@@ -228,6 +238,26 @@ const presentLines = (lines = [], side) =>
   }));
 
 /**
+ * The stretch one leg of the load covers, as two ends.
+ *
+ * A payee on a split load is paid for their part of the move, not for the load,
+ * and "Newark, NJ → Harrisburg, PA" is how the office recognises whose part it
+ * was — two carriers on one load are otherwise two identical rows of money.
+ *
+ * Falls back to the load's own route where a leg has no ends of its own: a
+ * handover is often agreed on the phone and never typed in, and the load's
+ * route is the honest answer to "where did this go" when nothing narrower was
+ * recorded. City and state only, exactly as everywhere else — see loadRoute.js.
+ */
+const legRoute = (from, to, load) => {
+  const whole = routeOf(load);
+  return {
+    from: placeOf(from) || whole.from,
+    to: placeOf(to) || whole.to,
+  };
+};
+
+/**
  * What each carrier on a split load is owed.
  *
  * Built from the legs rather than from the ledger, so a carrier who has been
@@ -251,6 +281,9 @@ const carrierPayables = (load) => {
       fleetOwnerId: String(leg.fleetOwnerId),
       fleetOwnerName: leg.fleetOwnerName || "",
       fleetOwnerCode: leg.fleetOwnerCode || "",
+      // Which stretch they ran, so the money reads as payment for a move
+      // rather than as a name with a number beside it.
+      ...legRoute(leg.origin, leg.destination, load),
       agreed: leg.carrierRate ?? null,
       booked: totalsFor(own).total,
       lineCount: own.length,
@@ -289,6 +322,10 @@ const driverPayables = (load) => {
       driverName: assignment.driverName || "",
       driverCode: assignment.driverCode || "",
       fleetOwnerId: assignment.fleetOwnerId ? String(assignment.fleetOwnerId) : null,
+      // The driver's own leg — where they took the box from and where they put
+      // it down. Two drivers on one load ran two different stretches for two
+      // different amounts, and the stretch is what tells them apart.
+      ...legRoute(assignment.pickup, assignment.drop, load),
       amount: 0,
       lineCount: 0,
       paidLineCount: 0,
@@ -306,6 +343,9 @@ const driverPayables = (load) => {
         driverName: line.driverName || "",
         driverCode: "",
         fleetOwnerId: null,
+        // Off the load, so there is no leg of their own left to read.
+        from: "",
+        to: "",
         amount: 0,
         lineCount: 0,
         paidLineCount: 0,
@@ -350,6 +390,12 @@ const presentAccounting = (load) => {
     _id: load._id,
     customerName: realName(load.customerName),
     carrierName: load.assignedFleetOwner?.fleetOwnerName || "",
+    // The carrier itself, so a load with no legs to list can still have its
+    // payables grouped under the one carrier they are owed to. `carrierPayables`
+    // below is per leg and is empty on a load that was never split.
+    carrierId: load.assignedFleetOwner?.fleetOwnerId
+      ? String(load.assignedFleetOwner.fleetOwnerId)
+      : null,
     // Where the job went. The heading on this screen used to read
     // "customer → carrier", which looks like a route and is not one — the arrow
     // between two company names invited it to be read as a move from one to the
