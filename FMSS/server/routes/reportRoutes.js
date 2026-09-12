@@ -6,6 +6,7 @@ const {
   exportReport,
   payDriver,
   sendDriverStatement,
+  sendCarrierStatement,
 } = require("../controllers/reportController");
 const { protect, authorizeRoles } = require("../middleware/auth");
 const { requirePermission } = require("../middleware/permissions");
@@ -38,6 +39,13 @@ router.post(
   ...office,
   requirePermission("reports.view"),
   sendDriverStatement,
+);
+
+router.post(
+  "/payables/statement",
+  ...office,
+  requirePermission("reports.view"),
+  sendCarrierStatement,
 );
 
 router.get("/:key/export", ...office, requirePermission("reports.export"), exportReport);

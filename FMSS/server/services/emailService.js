@@ -152,6 +152,12 @@ const sendDriverAccountStatement = ({ to, driverName, rows, totals, period }) =>
     template: templates.driverAccountStatement({ driverName, rows, totals, period }),
   });
 
+const sendCarrierAccountStatement = ({ to, carrierName, rows, totals, period }) =>
+  sendTemplate({
+    to,
+    template: templates.carrierAccountStatement({ carrierName, rows, totals, period }),
+  });
+
 const sendLoadRequiresChanges = ({ load, client, changesNote }) =>
   sendTemplate({
     to: client.email,
@@ -300,6 +306,7 @@ module.exports = {
   sendDriverCredentials,
   sendDriverPaymentStatement,
   sendDriverAccountStatement,
+  sendCarrierAccountStatement,
   sendFleetOwnerCredentials,
   sendInsuranceFiled,
   sendInsuranceRequest,

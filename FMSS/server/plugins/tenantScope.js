@@ -123,24 +123,27 @@ module.exports = function tenantScope(schema, { modelName = "query" } = {}) {
     this.locationId = context.locationId;
   });
 
-  schema.pre("insertMany", function stampManyLocations(next, docs) {
+  // Mongoose 9 calls document middleware with the documents only — there is no
+  // `next` any more, and an error is raised by throwing. This hook was still
+  // written the old way, so its "next" was the docs array and every bulk insert
+  // of a scoped model failed with "next is not a function".
+  //
+  // Rows that already carry a location are left alone and need no context,
+  // matching stampLocation above: a caller that knows where a record belongs
+  // (a notification about a load, filed under that load's location) can write
+  // it even while the user is viewing all locations.
+  schema.pre("insertMany", function stampManyLocations(docs) {
+    const unstamped = (docs || []).filter((doc) => !doc.locationId);
+    if (!unstamped.length) return;
+
     const context = getTenantContext();
-    if (context?.unscoped) return next();
+    if (context?.unscoped) return;
 
-    if (context?.noLocations) {
-      return next(noLocationsYet(`insert ${modelName}`));
-    }
+    if (context?.noLocations) throw noLocationsYet(`insert ${modelName}`);
+    if (context?.allLocations) throw allLocationsIsReadOnly(`insert ${modelName}`);
+    if (!context?.locationId) throw missingContext(`inserting ${modelName}`);
 
-    if (context?.allLocations) {
-      return next(allLocationsIsReadOnly(`insert ${modelName}`));
-    }
-
-    if (!context?.locationId) return next(missingContext(`inserting ${modelName}`));
-
-    for (const doc of docs || []) {
-      if (!doc.locationId) doc.locationId = context.locationId;
-    }
-    next();
+    for (const doc of unstamped) doc.locationId = context.locationId;
   });
 
   // ── Reads / updates / deletes: constrain to the active location ────────────

@@ -9,8 +9,15 @@ import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import Swal from "sweetalert2";
 import { usePermissions } from "../../hooks/usePermissions";
-import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/dates";
-import { formatDateNumeric, formatDateTime, formatTime } from "../../utils/dates";
+import {
+  todayKey as today,
+  startOfMonthKey as startOfMonth,
+} from "../../utils/dates";
+import {
+  formatDateNumeric,
+  formatDateTime,
+  formatTime,
+} from "../../utils/dates";
 
 // ─── Report centre ────────────────────────────────────────────────────────────
 // One screen for every report, driven entirely by the catalog the server serves.
@@ -21,8 +28,6 @@ import { formatDateNumeric, formatDateTime, formatTime } from "../../utils/dates
 // and behave identically — and a report added on the server appears here with no
 // frontend change at all.
 // ─────────────────────────────────────────────────────────────────────────────
-
-
 
 // From utils/dates.js — see the note there on why toISOString() is the wrong way
 // to fill a date input.
@@ -87,7 +92,9 @@ const ReportCentre = () => {
         setActive(data.reports[0]?.key || null);
       })
       .catch((err) =>
-        notify.error(err.response?.data?.message || "Could not load the reports"),
+        notify.error(
+          err.response?.data?.message || "Could not load the reports",
+        ),
       );
 
     Promise.allSettled([
@@ -130,7 +137,15 @@ const ReportCentre = () => {
       if (filters.from) params.from = filters.from;
       if (filters.to) params.to = filters.to;
     }
-    ["customer", "carrier", "driver", "shippingLine", "status", "invoiceState", "settledState"]
+    [
+      "customer",
+      "carrier",
+      "driver",
+      "shippingLine",
+      "status",
+      "invoiceState",
+      "settledState",
+    ]
       .filter((key) => accepted.includes(key) && filters[key])
       .forEach((key) => {
         params[key] = filters[key];
@@ -144,7 +159,9 @@ const ReportCentre = () => {
 
     try {
       setLoading(true);
-      const { data } = await api.get(`/reports/${active}`, { params: queryFor() });
+      const { data } = await api.get(`/reports/${active}`, {
+        params: queryFor(),
+      });
       setReport(data);
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not run that report");
@@ -221,7 +238,9 @@ const ReportCentre = () => {
       notify.success(data.message);
       run();
     } catch (err) {
-      notify.error(err.response?.data?.message || "Could not record the payment");
+      notify.error(
+        err.response?.data?.message || "Could not record the payment",
+      );
     }
   };
 
@@ -243,7 +262,10 @@ const ReportCentre = () => {
         `their accounts email.</p>`,
       input: "email",
       inputValue:
-        customer?.emails?.accChargesEmail || customer?.contact?.email || customer?.email || "",
+        customer?.emails?.accChargesEmail ||
+        customer?.contact?.email ||
+        customer?.email ||
+        "",
       inputPlaceholder: "accounts@customer.com",
       showCancelButton: true,
       confirmButtonText: "Send statement",
@@ -260,7 +282,9 @@ const ReportCentre = () => {
       );
       notify.success(data.message);
     } catch (err) {
-      notify.error(err.response?.data?.message || "Could not send the statement");
+      notify.error(
+        err.response?.data?.message || "Could not send the statement",
+      );
     }
   };
 
@@ -269,11 +293,14 @@ const ReportCentre = () => {
   // driver who rings asking what they are owed, which is most of them, and who
   // should not have to wait for payday to find out.
   const sendStatement = async (group) => {
-    const driverRow = group.rows.find((r) => r.driver);
+    const forCarrier = report?.key === "payables";
+    const payeeRow = group.rows.find((r) =>
+      forCarrier ? r.carrier : r.driver,
+    );
 
-    if (!driverRow?.driver) {
+    if (!payeeRow) {
       notify.warning(
-        "These loads are not linked to a driver record, so no statement can be sent.",
+        `These loads are not linked to a ${forCarrier ? "carrier" : "driver"} record, so no statement can be sent.`,
       );
       return;
     }
@@ -295,14 +322,23 @@ const ReportCentre = () => {
     try {
       // The same query the sheet on screen was run with — dates, timezone and
       // the paid/unpaid filter — so the email matches what was looked at.
-      const { data } = await api.post("/reports/driver-payable/statement", {
-        ...queryFor(),
-        driver: driverRow.driver,
-        loadIds: group.rows.map((r) => r.loadId),
-      });
+      const { data } = await api.post(
+        forCarrier
+          ? "/reports/payables/statement"
+          : "/reports/driver-payable/statement",
+        {
+          ...queryFor(),
+          ...(forCarrier
+            ? { carrier: payeeRow.carrier }
+            : { driver: payeeRow.driver }),
+          loadIds: group.rows.map((r) => r.loadId),
+        },
+      );
       notify.success(data.message);
     } catch (err) {
-      notify.error(err.response?.data?.message || "Could not send the statement");
+      notify.error(
+        err.response?.data?.message || "Could not send the statement",
+      );
     }
   };
 
@@ -376,7 +412,9 @@ const ReportCentre = () => {
                       type="date"
                       className={uiStyles.input}
                       value={filters.to}
-                      onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, to: e.target.value }))
+                      }
                     />
                   </Field>
                 </>
@@ -445,7 +483,10 @@ const ReportCentre = () => {
                     className={uiStyles.select}
                     value={filters.shippingLine}
                     onChange={(e) =>
-                      setFilters((f) => ({ ...f, shippingLine: e.target.value }))
+                      setFilters((f) => ({
+                        ...f,
+                        shippingLine: e.target.value,
+                      }))
                     }
                   >
                     <option value="">All lines</option>
@@ -469,9 +510,16 @@ const ReportCentre = () => {
                   >
                     <option value="">Any status</option>
                     {[
-                      "NEW_LOAD", "ASSIGNED", "READY_TO_PICKUP", "PICKED_UP",
-                      "IN_TRANSIT", "LOADED_IN_YARD", "EMPTY_IN_YARD",
-                      "REACHED_DESTINATION", "DELIVERED", "PAPERWORK_PENDING",
+                      "NEW_LOAD",
+                      "ASSIGNED",
+                      "READY_TO_PICKUP",
+                      "PICKED_UP",
+                      "IN_TRANSIT",
+                      "LOADED_IN_YARD",
+                      "EMPTY_IN_YARD",
+                      "REACHED_DESTINATION",
+                      "DELIVERED",
+                      "PAPERWORK_PENDING",
                       "INVOICED",
                     ].map((s) => (
                       <option key={s} value={s}>
@@ -488,7 +536,10 @@ const ReportCentre = () => {
                     className={uiStyles.select}
                     value={filters.invoiceState}
                     onChange={(e) =>
-                      setFilters((f) => ({ ...f, invoiceState: e.target.value }))
+                      setFilters((f) => ({
+                        ...f,
+                        invoiceState: e.target.value,
+                      }))
                     }
                   >
                     <option value="">All</option>
@@ -504,7 +555,10 @@ const ReportCentre = () => {
                     className={uiStyles.select}
                     value={filters.settledState}
                     onChange={(e) =>
-                      setFilters((f) => ({ ...f, settledState: e.target.value }))
+                      setFilters((f) => ({
+                        ...f,
+                        settledState: e.target.value,
+                      }))
                     }
                   >
                     <option value="">All</option>
@@ -522,8 +576,13 @@ const ReportCentre = () => {
                   : ""}
               </p>
               <div className="flex items-center gap-2">
-                <button onClick={run} className="btn-secondary" disabled={loading}>
-                  <RefreshIcon fontSize="small" /> {loading ? "Running…" : "Refresh"}
+                <button
+                  onClick={run}
+                  className="btn-secondary"
+                  disabled={loading}
+                >
+                  <RefreshIcon fontSize="small" />{" "}
+                  {loading ? "Running…" : "Refresh"}
                 </button>
                 {/* Needs one customer: a statement is one account, and "all
                     customers" has nobody to send it to. */}
@@ -572,14 +631,16 @@ const ReportCentre = () => {
                         {group.count} load{group.count === 1 ? "" : "s"}
                         {Object.entries(group.totals).map(([key, value]) => {
                           const col = report.columns.find((c) => c.key === key);
-                          return col ? ` · ${col.label} ${fmt(value, col.type)}` : "";
+                          return col
+                            ? ` · ${col.label} ${fmt(value, col.type)}`
+                            : "";
                         })}
                       </p>
                     </div>
 
                     {/* Paying is only offered on the driver report, where it is
                         the action the report exists to lead to. */}
-                    {report.key === "driverPayable" && (
+                    {SHEET_REPORTS.has(report.key) && (
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => sendStatement(group)}
@@ -587,23 +648,29 @@ const ReportCentre = () => {
                         >
                           <MailOutlineIcon fontSize="small" /> Send statement
                         </button>
-                        {group.rows.some((r) => !r.settledAt) && (
-                          <button
-                            onClick={() => payDriver(group)}
-                            className="btn-primary whitespace-nowrap"
-                          >
-                            <PaidIcon fontSize="small" /> Mark paid &amp; email
-                          </button>
-                        )}
+                        {report.key === "driverPayable" &&
+                          group.rows.some((r) => !r.settledAt) && (
+                            <button
+                              onClick={() => payDriver(group)}
+                              className="btn-primary whitespace-nowrap"
+                            >
+                              <PaidIcon fontSize="small" /> Mark paid &amp;
+                              email
+                            </button>
+                          )}
                       </div>
                     )}
                   </div>
 
-                  <Table report={report} rows={group.rows} navigate={navigate} />
+                  <Table
+                    report={report}
+                    rows={group.rows}
+                    navigate={navigate}
+                  />
 
                   {/* The three figures a settlement sheet ends on, where the
                       eye lands after the last row rather than up in the header. */}
-                  {report.key === "driverPayable" && (
+                  {SHEET_REPORTS.has(report.key) && (
                     <div className="mt-3 flex justify-end">
                       <dl className="min-w-[220px] space-y-0.5 text-sm tabular-nums">
                         <div className="flex justify-between gap-6">
@@ -619,10 +686,14 @@ const ReportCentre = () => {
                           </dd>
                         </div>
                         <div className="flex justify-between gap-6 border-t border-gray-200 pt-0.5">
-                          <dt className="font-semibold text-gray-800">Open balance</dt>
+                          <dt className="font-semibold text-gray-800">
+                            Open balance
+                          </dt>
                           <dd
                             className={`font-bold ${
-                              group.totals.openBalance > 0 ? "text-red-600" : "text-gray-900"
+                              group.totals.openBalance > 0
+                                ? "text-red-600"
+                                : "text-gray-900"
                             }`}
                           >
                             {fmt(group.totals.openBalance, "money")}
@@ -650,6 +721,10 @@ const ReportCentre = () => {
   );
 };
 
+// Reports that read as settlement sheets: a charge breakdown per row, a
+// Total / Paid / Open footer per payee, and a statement that can be emailed.
+const SHEET_REPORTS = new Set(["driverPayable", "payables"]);
+
 const Field = ({ label, children }) => (
   <div>
     <label className="text-[11px] font-semibold text-gray-600 block mb-1">
@@ -674,7 +749,9 @@ const DriverPayableCell = ({ col, row }) => {
         <div className="min-w-[160px]">
           <p className="font-medium text-gray-900">{row.driverName}</p>
           {row.payDate && (
-            <p className="text-xs text-gray-500">({fmt(row.payDate, "date")})</p>
+            <p className="text-xs text-gray-500">
+              ({fmt(row.payDate, "date")})
+            </p>
           )}
         </div>
       );
@@ -686,9 +763,13 @@ const DriverPayableCell = ({ col, row }) => {
             <p key={index} className="flex justify-between gap-3">
               <span>
                 {charge.label}
-                {charge.note ? <span className="text-gray-400"> · {charge.note}</span> : null}
+                {charge.note ? (
+                  <span className="text-gray-400"> · {charge.note}</span>
+                ) : null}
               </span>
-              <span className="tabular-nums">{fmt(charge.amount, "money")}</span>
+              <span className="tabular-nums">
+                {fmt(charge.amount, "money")}
+              </span>
             </p>
           ))}
           <p className="flex justify-between gap-3">
@@ -728,7 +809,9 @@ const DriverPayableCell = ({ col, row }) => {
           >
             {row.payState}
           </p>
-          {row.settledAt && <p className="text-gray-500">{fmt(row.settledAt, "date")}</p>}
+          {row.settledAt && (
+            <p className="text-gray-500">{fmt(row.settledAt, "date")}</p>
+          )}
         </div>
       );
 
@@ -766,7 +849,7 @@ const Table = ({ report, rows, navigate, showTotals }) => (
               <td
                 key={col.key}
                 className={`px-3 py-2 align-top ${
-                  report.key === "driverPayable" ? "" : "whitespace-nowrap"
+                  SHEET_REPORTS.has(report.key) ? "" : "whitespace-nowrap"
                 } ${
                   ["money", "number", "percent"].includes(col.type)
                     ? "text-right tabular-nums"
@@ -774,7 +857,8 @@ const Table = ({ report, rows, navigate, showTotals }) => (
                 } ${
                   // A negative margin or an overdue LFD is the row somebody
                   // opened the report to find.
-                  ["margin", "lfdDaysLeft"].includes(col.key) && Number(row[col.key]) < 0
+                  ["margin", "lfdDaysLeft"].includes(col.key) &&
+                  Number(row[col.key]) < 0
                     ? "text-red-600 font-semibold"
                     : ""
                 }`}
@@ -786,7 +870,7 @@ const Table = ({ report, rows, navigate, showTotals }) => (
                   >
                     {row.loadId}
                   </button>
-                ) : report.key === "driverPayable" ? (
+                ) : SHEET_REPORTS.has(report.key) ? (
                   <DriverPayableCell col={col} row={row} />
                 ) : (
                   fmt(row[col.key], col.type)

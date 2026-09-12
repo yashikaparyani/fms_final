@@ -152,7 +152,12 @@ const Invoices = ({ direction: fixedDirection }) => {
   // Memoised because the selection below derives from it: a fresh [] on every
   // render would rebuild the selection on every render too.
   const rows = useMemo(() => data?.rows || [], [data]);
-  const showSheets = direction === "AP" && payee === "kind:DRIVER";
+  // "All drivers" or "All carriers" — both read as one settlement sheet per payee.
+  const sheetKind =
+    direction === "AP" && (payee === "kind:DRIVER" || payee === "kind:CARRIER")
+      ? payee.split(":")[1]
+      : null;
+  const showSheets = !!sheetKind;
   const totals = data?.totals;
   const incoming = direction === "AR";
 
@@ -382,7 +387,7 @@ const Invoices = ({ direction: fixedDirection }) => {
           <SettlementSheets
             from={range.from}
             to={range.to}
-            partyKind="DRIVER"
+            partyKind={sheetKind}
           />
         ) : (
           <>

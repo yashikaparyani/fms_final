@@ -83,6 +83,50 @@ notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 
 
+// ── A notification about a load lives where the load lives ─────────────────
+// Registered before the tenant plugin so these run first. Without them the
+// location came from whatever the acting user had selected in the header, which
+// was wrong twice over: an admin viewing "All locations" could not change a
+// load's status without the notification being refused, and one viewing
+// Los Angeles while acting on a New York load would file the alert under
+// Los Angeles, where New York's staff never see it.
+//
+// Looked up with skipTenantScope because the load is identified by id and the
+// acting user's own location is exactly what must not decide the answer.
+const loadLocations = async (loadIds) => {
+  const ids = [...new Set(loadIds.filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+
+  const loads = await mongoose
+    .model("Load")
+    .find({ _id: { $in: ids } })
+    .select("locationId")
+    .setOptions({ skipTenantScope: true })
+    .lean();
+
+  return new Map(
+    loads.filter((l) => l.locationId).map((l) => [String(l._id), l.locationId]),
+  );
+};
+
+notificationSchema.pre("validate", async function locateByLoad() {
+  if (this.locationId || !this.load) return;
+  const found = await loadLocations([this.load]);
+  const locationId = found.get(String(this.load));
+  if (locationId) this.locationId = locationId;
+});
+
+notificationSchema.pre("insertMany", async function locateManyByLoad(docs) {
+  const pending = (docs || []).filter((doc) => !doc.locationId && doc.load);
+  if (!pending.length) return;
+
+  const found = await loadLocations(pending.map((doc) => doc.load));
+  for (const doc of pending) {
+    const locationId = found.get(String(doc.load));
+    if (locationId) doc.locationId = locationId;
+  }
+});
+
 // Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
 notificationSchema.plugin(tenantScope, { modelName: "Notification" });
 

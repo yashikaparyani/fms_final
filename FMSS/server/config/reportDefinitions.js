@@ -1,4 +1,4 @@
-const { totalsFor, profitFor, labelFor } = require("./chargeTypes");
+const { totalsFor, profitFor, labelFor, CHARGE_BY_KEY } = require("./chargeTypes");
 const { resolveTimeZone, utcFromLocal } = require("../utils/timezone");
 // "Has this been billed" is a question about the invoice register, not about a
 // field on the load. See services/billingState.js.
@@ -63,6 +63,159 @@ const COL = {
   lfd: { key: "lastFreeDate", label: "LFD", type: "date" },
   created: { key: "createdAt", label: "Entered", type: "date" },
   amount: { key: "amount", label: "Amount", type: "money" },
+};
+
+/**
+ * A stop as the lines a settlement sheet stacks in one cell: who, street, city.
+ * Load stops call the first `company`; older records used `name`.
+ */
+const stopLines = (stop) =>
+  [stop?.company || stop?.name, stop?.address, [stop?.city, stop?.state].filter(Boolean).join(", ")]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join("\n");
+
+/**
+ * Total, paid and open for a payee's charges.
+ *
+ * Shared by the driver and carrier sheets so "paid" means the same on both. An
+ * advance is money already out, so it counts as paid — capped at the total,
+ * because an advance larger than the run is a recovery to chase, not a negative
+ * balance to print.
+ */
+const settle = (charges, advances = 0) => {
+  const total = money(charges.reduce((sum, c) => sum + c.amount, 0));
+  const paid = money(
+    Math.min(
+      total,
+      charges.filter((c) => c.paid).reduce((sum, c) => sum + c.amount, 0) + advances,
+    ),
+  );
+  return { total, paid, openBalance: money(total - paid) };
+};
+
+const payState = (paid, openBalance) =>
+  openBalance <= 0 ? "Paid" : paid > 0 ? "Part paid" : "Pending";
+
+const kindOf = (line) => CHARGE_BY_KEY.get(line.chargeType)?.kind || "accessorial";
+
+/**
+ * Everything owed to the payroll driver on one load, charge by charge, counted
+ * once.
+ *
+ * ── Why this has to decide between two records ───────────────────────────────
+ * A driver's pay can be recorded two ways. The older one is the load's
+ * `accounting.payroll` figure. The newer one is lines on the payables ledger
+ * stamped with the driver — which the Load model names as the authority, so a
+ * split load can pay each driver their own amount. Offices use both, and adding
+ * the two together reports a $262.50 run as $525 the moment somebody enters the
+ * pay in both places.
+ *
+ * So the ledger's charge kinds decide:
+ *   - A linehaul line for the driver IS their pay. The payroll figure is then
+ *     the same money recorded twice, and is left out.
+ *   - No linehaul line means the payroll figure is the pay, and any lines are
+ *     extras on top of it — a detention, a lumper — which is how a load paid
+ *     through payroll picks up an accessorial afterwards.
+ *   - A settlement line is an advance: money that has already gone to the
+ *     driver. It is never a charge; it counts as paid. Same rule as
+ *     config/chargeTypes.js applies to every other ledger.
+ */
+const driverChargesFor = (load) => {
+  const payroll = load.accounting?.payroll || {};
+  const driverId = payroll.driver ? String(payroll.driver) : null;
+
+  const lines = driverId
+    ? (load.accounting?.payables?.lines || []).filter(
+        (line) => line.driverId && String(line.driverId) === driverId,
+      )
+    : [];
+
+  const payIsOnLedger = lines.some((line) => kindOf(line) === "linehaul");
+
+  const charges = [];
+
+  if (!payIsOnLedger && money(payroll.amount) > 0) {
+    charges.push({
+      label: "Driver pay",
+      amount: money(payroll.amount),
+      paid: !!payroll.settledAt,
+    });
+  }
+
+  lines
+    .filter((line) => kindOf(line) !== "settlement")
+    .forEach((line) => {
+      charges.push({
+        label: labelFor(line.chargeType) || line.chargeType,
+        amount: money(line.amount),
+        note: line.note || "",
+        paid: !!line.paidAt,
+      });
+    });
+
+  const advances = money(
+    lines
+      .filter((line) => kindOf(line) === "settlement")
+      .reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
+  );
+
+  return { charges, advances, ...settle(charges, advances) };
+};
+
+/**
+ * What each carrier on one load is owed, one entry per carrier.
+ *
+ * The payables ledger holds both carriers and drivers. Lines stamped with a
+ * driver are driver pay and belong on the driver sheet, so they are left out
+ * here — counting them on both would be the same double count driverChargesFor
+ * exists to prevent. On a split load each line names its carrier; on an ordinary
+ * load the lines carry no carrier and all belong to the one assigned.
+ *
+ * A charge is paid when its own line is, or when the whole payables side was
+ * marked paid — the older, load-level way of settling a carrier.
+ */
+const carrierChargesFor = (load) => {
+  const ledgerPaid = !!load.accounting?.payables?.paidAt;
+  const assigned = load.assignedFleetOwner || {};
+  const legs = load.assignments || [];
+
+  const byCarrier = new Map();
+  const entryFor = (fleetOwnerId) => {
+    const key = String(fleetOwnerId || assigned.fleetOwnerId || "unassigned");
+    if (!byCarrier.has(key)) {
+      const leg = legs.find((l) => String(l.fleetOwnerId || "") === key);
+      byCarrier.set(key, {
+        fleetOwnerId: key === "unassigned" ? null : key,
+        carrierName: leg?.fleetOwnerName || assigned.fleetOwnerName || "Unassigned",
+        leg,
+        charges: [],
+        advances: 0,
+      });
+    }
+    return byCarrier.get(key);
+  };
+
+  (load.accounting?.payables?.lines || [])
+    .filter((line) => !line.driverId)
+    .forEach((line) => {
+      const entry = entryFor(line.fleetOwnerId);
+      if (kindOf(line) === "settlement") {
+        entry.advances = money(entry.advances + (Number(line.amount) || 0));
+        return;
+      }
+      entry.charges.push({
+        label: labelFor(line.chargeType) || line.chargeType,
+        amount: money(line.amount),
+        note: line.note || "",
+        paid: !!(line.paidAt || ledgerPaid),
+      });
+    });
+
+  return [...byCarrier.values()].map((entry) => ({
+    ...entry,
+    ...settle(entry.charges, entry.advances),
+  }));
 };
 
 /** The row shape every operational report starts from. */
@@ -221,19 +374,21 @@ const REPORTS = [
     label: "Payable Report",
     group: "Financial",
     description:
-      "Every payable line incurred in the period — what carriers and vendors are owed.",
+      "What each carrier is owed for the period, charge by charge, with what has been paid and what is still open.",
     filters: ["dateRange", "carrier"],
     dateField: "createdAt",
     dateLabel: "Load entered",
+    // The same sheet as the driver payable report, per carrier: the job, every
+    // charge on it, where the box went, and whether the carrier has had it.
     columns: [
       COL.loadId,
-      COL.customer,
+      COL.container,
       COL.carrier,
-      { key: "linehaul", label: "Charge", type: "money" },
-      { key: "accessorials", label: "Accessorials", type: "money" },
       { key: "total", label: "Total", type: "money" },
-      { key: "settled", label: "Advance Paid", type: "money" },
-      { key: "balance", label: "Balance Payable", type: "money" },
+      { key: "chargeSummary", label: "Total Report" },
+      { key: "from", label: "From" },
+      { key: "to", label: "To" },
+      { key: "payState", label: "Status" },
     ],
     filter: (params) => {
       const query = {
@@ -241,15 +396,99 @@ const REPORTS = [
         ...dateRange("createdAt", params),
       };
       if (params.carrier) {
-        query["assignedFleetOwner.fleetOwnerId"] = params.carrier;
+        // Either the carrier the load was given to, or one leg of a split load.
+        query.$or = [
+          { "assignedFleetOwner.fleetOwnerId": params.carrier },
+          { "assignments.fleetOwnerId": params.carrier },
+        ];
       }
       return query;
     },
-    row: (load) => ({
-      ...baseRow(load),
-      ...totalsFor(load.accounting?.payables?.lines || []),
-    }),
-    totals: ["linehaul", "accessorials", "total", "settled", "balance"],
+    // One row per carrier per load. A split load owes two carriers two amounts
+    // on two stretches, and a single row could only show one of them.
+    row: (load) =>
+      carrierChargesFor(load)
+        .filter((entry) => entry.charges.length || entry.advances)
+        .map((entry) => {
+          const note = String(load.accounting?.payables?.notes || "").trim();
+          const reference = String(load.accounting?.payables?.reference || "").trim();
+
+          return {
+            ...baseRow(load),
+            carrier: entry.fleetOwnerId,
+            carrierName: entry.carrierName,
+            charges: entry.charges,
+            advances: entry.advances,
+            checkNumber: reference,
+            reason: note,
+            total: entry.total,
+            paid: entry.paid,
+            openBalance: entry.openBalance,
+            chargeSummary:
+              entry.charges.map((c) => `${c.label}: ${c.amount.toFixed(2)}`).join("; ") +
+              ` | Check #: ${reference || "—"} | Reason: ${note || "—"} | Total: ${entry.total.toFixed(2)}`,
+            from: stopLines(entry.leg?.origin || load.pickup),
+            to: stopLines(entry.leg?.destination || load.drop),
+            settledAt: load.accounting?.payables?.paidAt || null,
+            payState: payState(entry.paid, entry.openBalance),
+          };
+        }),
+    // The cheque number a carrier was paid by lives on the payments against
+    // their bill, not on the ledger, so it is read from the register here — one
+    // query for all rows. Reversed payments are left out: a bounced cheque did
+    // not pay anybody.
+    enrich: async (rows) => {
+      const loadIds = [...new Set(rows.map((row) => row.loadId).filter(Boolean))];
+      if (!loadIds.length) return rows;
+
+      const Invoice = require("../models/Invoice");
+      const Payment = require("../models/Payment");
+
+      const bills = await Invoice.find({
+        direction: "AP",
+        "party.kind": "CARRIER",
+        loadId: { $in: loadIds },
+        status: { $ne: "VOID" },
+      })
+        .select("loadId party.id")
+        .lean();
+      if (!bills.length) return rows;
+
+      const payments = await Payment.find({
+        invoice: { $in: bills.map((bill) => bill._id) },
+        reversedAt: { $exists: false },
+      })
+        .select("invoice documentNumber")
+        .lean();
+
+      const billKey = new Map(
+        bills.map((bill) => [String(bill._id), `${bill.loadId}|${bill.party?.id || ""}`]),
+      );
+      const refs = new Map();
+      payments.forEach((payment) => {
+        const key = billKey.get(String(payment.invoice));
+        const ref = String(payment.documentNumber || "").trim();
+        if (!key || !ref) return;
+        if (!refs.has(key)) refs.set(key, new Set());
+        refs.get(key).add(ref);
+      });
+
+      return rows.map((row) => {
+        const found = refs.get(`${row.loadId}|${row.carrier || ""}`);
+        if (!found) return row;
+        const checkNumber = [...found].join(", ");
+        return {
+          ...row,
+          checkNumber,
+          chargeSummary: row.chargeSummary.replace(/Check #: [^|]*\|/, `Check #: ${checkNumber} |`),
+        };
+      });
+    },
+    // A carrier picked in the filter narrows the loads; on a split load the
+    // other carrier's row would still come back, so it is removed here.
+    postFilter: (row, params) => !params.carrier || String(row.carrier) === String(params.carrier),
+    totals: ["total", "paid", "openBalance"],
+    groupBy: "carrierName",
   },
 
   {
@@ -294,34 +533,8 @@ const REPORTS = [
       const payroll = load.accounting?.payroll || {};
       const driverId = payroll.driver ? String(payroll.driver) : null;
 
-      // ── Every charge owed to this driver on this load ────────────────────
-      // The pay itself, then anything booked against them on the payables
-      // ledger — a detention, a wait, a lumper they paid out of pocket. Those
-      // extras are the lines a driver checks a statement for, so they are
-      // listed by name rather than folded into one number they cannot verify.
-      const extras = driverId
-        ? (load.accounting?.payables?.lines || []).filter(
-            (line) => line.driverId && String(line.driverId) === driverId,
-          )
-        : [];
-
-      const charges = [
-        {
-          label: "Driver pay",
-          amount: money(payroll.amount),
-          paid: !!payroll.settledAt,
-        },
-        ...extras.map((line) => ({
-          label: labelFor(line.chargeType) || line.chargeType,
-          amount: money(line.amount),
-          note: line.note || "",
-          paid: !!line.paidAt,
-        })),
-      ];
-
-      const total = money(charges.reduce((sum, c) => sum + c.amount, 0));
-      const paid = money(charges.filter((c) => c.paid).reduce((sum, c) => sum + c.amount, 0));
-      const openBalance = money(total - paid);
+      // Counted once, whichever way the pay was recorded — see driverChargesFor.
+      const { charges, advances, total, paid, openBalance } = driverChargesFor(load);
 
       // The reference used to be appended to the note as "Paid: …" before it
       // had a field of its own. Both are read, and the suffix is kept out of the
@@ -334,12 +547,6 @@ const REPORTS = [
         .filter((part) => part && !/^Paid:/.test(part))
         .join(" · ");
 
-      const stop = (s) =>
-        [s?.name, s?.address, [s?.city, s?.state].filter(Boolean).join(", ")]
-          .map((part) => String(part || "").trim())
-          .filter(Boolean)
-          .join("\n");
-
       return {
         ...baseRow(load),
         driver: payroll.driver || null,
@@ -351,6 +558,7 @@ const REPORTS = [
         hours: payroll.hours ?? null,
         payAmount: money(payroll.amount),
         charges,
+        advances,
         checkNumber,
         reason,
         total,
@@ -359,10 +567,10 @@ const REPORTS = [
         chargeSummary:
           charges.map((c) => `${c.label}: ${c.amount.toFixed(2)}`).join("; ") +
           ` | Check #: ${checkNumber || "—"} | Reason: ${reason || "—"} | Total: ${total.toFixed(2)}`,
-        from: stop(load.pickup),
-        to: stop(load.drop),
+        from: stopLines(load.pickup),
+        to: stopLines(load.drop),
         settledAt: payroll.settledAt || null,
-        payState: openBalance <= 0 ? "Paid" : paid > 0 ? "Part paid" : "Pending",
+        payState: payState(paid, openBalance),
       };
     },
     // Per driver these are the three figures the sheet ends on.
@@ -908,6 +1116,8 @@ const catalog = () => ({
 });
 
 module.exports = {
+  driverChargesFor,
+  carrierChargesFor,
   REPORTS,
   REPORT_BY_KEY,
   NOT_YET_PICKED_UP,

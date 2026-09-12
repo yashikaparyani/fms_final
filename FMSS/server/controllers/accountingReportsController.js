@@ -532,7 +532,7 @@ const settlementSheets = async (req, res) => {
 
     const invoices = await Invoice.find(filter)
       .select(
-        "party loadId load invoiceNumber referenceNumber total amountPaid balance status issueDate dueDate",
+        "party loadId load invoiceNumber referenceNumber lines memo notes total amountPaid balance status issueDate dueDate",
       )
       .sort({ loadId: 1 })
       .lean();
@@ -548,6 +548,26 @@ const settlementSheets = async (req, res) => {
           .lean()
       : [];
     const loadById = new Map(loads.map((load) => [load.loadId, load]));
+
+    // The cheque or transfer each bill was paid by, for the Check Number line of
+    // the breakdown. Reversed payments are left out — a bounced cheque did not
+    // pay anybody, and printing its number would say it had.
+    const payments = invoices.length
+      ? await Payment.find({
+          invoice: { $in: invoices.map((i) => i._id) },
+          reversedAt: { $exists: false },
+        })
+          .select("invoice documentNumber")
+          .lean()
+      : [];
+    const refsByInvoice = new Map();
+    payments.forEach((payment) => {
+      const key = String(payment.invoice);
+      const ref = trimmed(payment.documentNumber);
+      if (!ref) return;
+      if (!refsByInvoice.has(key)) refsByInvoice.set(key, new Set());
+      refsByInvoice.get(key).add(ref);
+    });
 
     // Name, street, then city — the three lines the printed sheet stacks in one
     // cell, kept as lines rather than one comma-joined string so the sheet can
@@ -595,8 +615,19 @@ const settlementSheets = async (req, res) => {
         payeeCode: trimmed(party.code),
         issueDate: invoice.issueDate,
         total: money(invoice.total || 0),
-        // "Total Report" on the printed sheet: what has actually been paid
-        // against this load so far, so the gap to `total` is what is pending.
+        // "Total Report": the same breakdown the Driver Payable Report prints —
+        // every charge on the bill, the cheque it was paid by, the reason, the
+        // total. Taken from the bill's own frozen lines, so it always adds up to
+        // the Total column beside it.
+        charges: (invoice.lines || [])
+          .filter((line) => line.kind !== "settlement")
+          .map((line) => ({
+            label: line.label || "Charge",
+            amount: money(line.amount || 0),
+            note: trimmed(line.description),
+          })),
+        checkNumber: [...(refsByInvoice.get(String(invoice._id)) || [])].join(", "),
+        reason: [trimmed(invoice.memo), trimmed(invoice.notes)].filter(Boolean).join(" · "),
         paid: money(invoice.amountPaid || 0),
         pending: money(invoice.balance || 0),
         from: place(load?.pickup),

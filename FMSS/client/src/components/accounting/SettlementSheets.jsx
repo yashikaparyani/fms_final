@@ -73,7 +73,7 @@ const Sheet = ({ sheet, period, editable, onSaved }) => {
       <p className="mt-1 text-xs font-semibold text-brand-600">
         From Date : {period.from ? formatDate(period.from) : "—"}
         <span className="mx-3">To Date : {period.to ? formatDate(period.to) : "—"}</span>
-        Driver name : {heading}
+        {sheet.party.kind === "CARRIER" ? "Carrier name" : "Driver name"} : {heading}
       </p>
 
       <div className="mt-2 overflow-x-auto">
@@ -116,8 +116,29 @@ const Sheet = ({ sheet, period, editable, onSaved }) => {
                 <td className="border border-hairline px-2 py-1.5 text-right tabular-nums text-bad-600">
                   {money(row.total)}
                 </td>
-                <td className="border border-hairline px-2 py-1.5 text-right tabular-nums">
-                  {row.paid ? money(row.paid) : ""}
+                {/* Same breakdown as the Driver Payable Report, so the sheet
+                    and the report never disagree about what a cell means. */}
+                <td className="border border-hairline px-2 py-1.5">
+                  <div className="min-w-[170px] leading-5 text-ink-700">
+                    {(row.charges || []).map((charge, index) => (
+                      <p key={index} className="flex justify-between gap-3">
+                        <span>{charge.label}</span>
+                        <span className="tabular-nums">{money(charge.amount)}</span>
+                      </p>
+                    ))}
+                    <p className="flex justify-between gap-3">
+                      <span>Check number</span>
+                      <span>{row.checkNumber || "—"}</span>
+                    </p>
+                    <p className="flex justify-between gap-3">
+                      <span>Reason</span>
+                      <span className="text-right">{row.reason || "—"}</span>
+                    </p>
+                    <p className="mt-0.5 flex justify-between gap-3 border-t border-hairline pt-0.5 font-bold text-ink-900">
+                      <span>Total</span>
+                      <span className="tabular-nums">{money(row.total)}</span>
+                    </p>
+                  </div>
                 </td>
                 <td className="whitespace-pre-line border border-hairline px-2 py-1.5">
                   {(row.from || []).join("\n")}
@@ -226,7 +247,7 @@ const SettlementSheets = ({ from, to, partyKind = "DRIVER" }) => {
   if (!data?.sheets?.length) {
     return (
       <p className="py-10 text-center text-ink-400">
-        No driver bills in this period.
+        No {partyKind === "CARRIER" ? "carrier" : "driver"} bills in this period.
       </p>
     );
   }
@@ -235,7 +256,7 @@ const SettlementSheets = ({ from, to, partyKind = "DRIVER" }) => {
     <div className="space-y-4">
       <div className="print:hidden flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ink-500">
-          {data.totals.sheets} driver{data.totals.sheets === 1 ? "" : "s"} · {data.totals.loads}{" "}
+          {data.totals.sheets} {partyKind === "CARRIER" ? "carrier" : "driver"}{data.totals.sheets === 1 ? "" : "s"} · {data.totals.loads}{" "}
           load{data.totals.loads === 1 ? "" : "s"} · {money(data.totals.total)} total ·{" "}
           {money(data.totals.pending)} pending
         </p>

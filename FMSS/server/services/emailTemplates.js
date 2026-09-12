@@ -378,6 +378,13 @@ const driverAccountStatement = ({ driverName, rows = [], totals, period }) => {
   };
 };
 
+/**
+ * A carrier's statement of account. Same sheet as the driver's — every load,
+ * every charge, paid against open — only addressed to the carrier.
+ */
+const carrierAccountStatement = ({ carrierName, rows = [], totals, period }) =>
+  driverAccountStatement({ driverName: carrierName, rows, totals, period });
+
 const loadRequiresChanges = ({ load, client, changesNote }) => ({
   subject: `Updates Required for Load ${load.loadId}`,
   text: `Hello ${client.firstName || "Customer"}, your load ${load.loadId} requires changes: ${changesNote}. Please log in and update your load.`,
@@ -793,6 +800,7 @@ module.exports = {
   bidWon,
   customerCredentials,
   driverCredentials,
+  carrierAccountStatement,
   driverAccountStatement,
   driverPaymentStatement,
   fleetOwnerCredentials,

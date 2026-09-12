@@ -1,5 +1,7 @@
 const Load = require("../models/Load");
 const Driver = require("../models/Driver");
+const FleetOwner = require("../models/FleetOwner");
+const User = require("../models/User");
 const {
   REPORT_BY_KEY,
   catalog,
@@ -8,6 +10,7 @@ const {
 const {
   sendDriverPaymentStatement,
   sendDriverAccountStatement,
+  sendCarrierAccountStatement,
 } = require("../services/emailService");
 const audit = require("../services/auditService");
 
@@ -66,12 +69,17 @@ const runReport = async (key, params) => {
     .select(
       "loadId customerName customer refNo bookingNo containerNo shippingLine " +
         "transportStatus status amount lastFreeDate createdAt updatedAt completedAt " +
-        "pickup drop assignedFleetOwner accounting documents transportStatusHistory",
+        "pickup drop assignedFleetOwner assignments accounting documents transportStatusHistory",
     )
     .sort({ createdAt: -1 })
     .lean();
 
-  let rows = loads.map(report.row);
+  // A report may return several rows for one load — the payable report gives
+  // each carrier on a split load their own.
+  let rows = loads.flatMap((load) => {
+    const out = report.row(load);
+    return Array.isArray(out) ? out : [out];
+  });
 
   // Reports that need something the Load collection does not hold — whether an
   // invoice has been raised, which lives in the register. Given the rows and the
@@ -447,7 +455,84 @@ const sendDriverStatement = async (req, res) => {
   }
 };
 
+// @desc    Email a carrier their statement of account, without paying anything
+// @route   POST /api/reports/payables/statement
+// @access  Private (staff, admin)
+//
+// The carrier twin of sendDriverStatement: the Payable Report's own rows for
+// this carrier and these filters, emailed, so the statement matches the screen.
+const sendCarrierStatement = async (req, res) => {
+  try {
+    const carrierId = trimmed(req.body.carrier);
+    if (!carrierId) {
+      return res.status(400).json({ message: "Name the carrier to send the statement to." });
+    }
+
+    const carrier = await FleetOwner.findById(carrierId).lean();
+    if (!carrier) {
+      return res.status(404).json({ message: "Carrier not found at this location." });
+    }
+
+    const params = paramsFrom({ ...req.body, carrier: carrierId });
+    const result = await runReport("payables", params);
+
+    const loadIds = Array.isArray(req.body.loadIds) ? req.body.loadIds.map(String) : [];
+    const rows = loadIds.length
+      ? result.rows.filter((row) => loadIds.includes(row.loadId))
+      : result.rows;
+
+    const name = carrier.carrierName || "Carrier";
+
+    if (!rows.length) {
+      return res.status(400).json({ message: `${name} has nothing on this statement to send.` });
+    }
+
+    // Where a carrier's paperwork goes: the primary contact if they named one,
+    // otherwise the login the carrier signs in with.
+    const primary =
+      (carrier.contactPersons || []).find((c) => c.isPrimary && c.email) ||
+      (carrier.contactPersons || []).find((c) => c.email);
+    const user = carrier.userId ? await User.findById(carrier.userId).select("email").lean() : null;
+    const to = trimmed(req.body.to) || primary?.email || user?.email || "";
+
+    if (!to) {
+      return res.status(400).json({
+        message: `${name} has no email address on file, so the statement cannot be sent.`,
+      });
+    }
+
+    const sum = (field) => money(rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0));
+    const totals = { total: sum("total"), paid: sum("paid"), openBalance: sum("openBalance") };
+
+    const emailStatus = await sendCarrierAccountStatement({
+      to,
+      carrierName: name,
+      rows,
+      totals,
+      period: { from: params.from || "", to: params.to || "" },
+    });
+
+    if (!emailStatus?.sent) {
+      return res.status(502).json({
+        message: emailStatus?.message || "The statement could not be emailed.",
+        emailStatus,
+      });
+    }
+
+    res.json({
+      message: `Statement sent to ${name} (${to}) — ${rows.length} load${
+        rows.length === 1 ? "" : "s"
+      }, $${totals.openBalance.toLocaleString("en-US")} open.`,
+      totals,
+      emailStatus,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
+  sendCarrierStatement,
   sendDriverStatement,
   getCatalog,
   getReport,
