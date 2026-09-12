@@ -5,6 +5,7 @@ const {
   getReport,
   exportReport,
   payDriver,
+  sendDriverStatement,
 } = require("../controllers/reportController");
 const { protect, authorizeRoles } = require("../middleware/auth");
 const { requirePermission } = require("../middleware/permissions");
@@ -29,6 +30,14 @@ router.post(
   ...office,
   requirePermission("reports.view", "loads.edit"),
   payDriver,
+);
+
+// Sends, settles nothing — reports.view is enough.
+router.post(
+  "/driver-payable/statement",
+  ...office,
+  requirePermission("reports.view"),
+  sendDriverStatement,
 );
 
 router.get("/:key/export", ...office, requirePermission("reports.export"), exportReport);

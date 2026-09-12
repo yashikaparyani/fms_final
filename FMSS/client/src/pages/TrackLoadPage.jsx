@@ -706,7 +706,10 @@ const TrackLoadPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-4 px-0 md:p-6 lg:p-8 font-['Inter']">
+    // No font class here: the page inherits Poppins from the body like every
+    // other screen. It used to set font-['Inter'], a font the app never loads
+    // and with no fallback, so the whole page dropped to the browser's serif.
+    <div className="min-h-screen bg-slate-50 py-4 px-0 md:p-6 lg:p-8">
 
       {/* ── Page Header ── */}
       <div className="mb-6 flex items-center gap-3">

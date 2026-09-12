@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DownloadIcon from "@mui/icons-material/Download";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PaidIcon from "@mui/icons-material/Paid";
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
@@ -221,6 +222,87 @@ const ReportCentre = () => {
       run();
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not record the payment");
+    }
+  };
+
+  // ── Emailing a customer their statement ────────────────────────────────────
+  // Offered on the receivable report once one customer is chosen — the moment
+  // somebody is looking at exactly what that customer owes. It sends the same
+  // statement as Customer Accounts: every open invoice with its age.
+  const emailCustomerStatement = async () => {
+    const customer = options.customers.find(
+      (c) => String(c.user || c._id) === String(filters.customer),
+    );
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: `Email ${customer?.customerName || "this customer"} a statement?`,
+      html:
+        `<p style="font-size:13px;color:#6b7280;text-align:left;">` +
+        `Lists every open invoice with its age and the total outstanding, with the ` +
+        `same list attached as an Excel file. Leave the address as it is to use ` +
+        `their accounts email.</p>`,
+      input: "email",
+      inputValue:
+        customer?.emails?.accChargesEmail || customer?.contact?.email || customer?.email || "",
+      inputPlaceholder: "accounts@customer.com",
+      showCancelButton: true,
+      confirmButtonText: "Send statement",
+      confirmButtonColor: "#4f46e5",
+      inputValidator: (v) => (!v ? "An email address is needed." : undefined),
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const { data } = await api.post(
+        `/accounting/reports/customers/${filters.customer}/statement`,
+        { to: value },
+      );
+      notify.success(data.message);
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not send the statement");
+    }
+  };
+
+  // ── Sending a driver their statement ───────────────────────────────────────
+  // Changes nothing — the same figures as the sheet on screen, emailed. For the
+  // driver who rings asking what they are owed, which is most of them, and who
+  // should not have to wait for payday to find out.
+  const sendStatement = async (group) => {
+    const driverRow = group.rows.find((r) => r.driver);
+
+    if (!driverRow?.driver) {
+      notify.warning(
+        "These loads are not linked to a driver record, so no statement can be sent.",
+      );
+      return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+      title: `Send ${group.name} their statement?`,
+      html:
+        `<p style="font-size:14px">${group.count} load(s) · total <strong>$${group.totals.total.toLocaleString("en-US")}</strong>` +
+        ` · paid $${group.totals.paid.toLocaleString("en-US")}` +
+        ` · open <strong>$${group.totals.openBalance.toLocaleString("en-US")}</strong></p>` +
+        `<p style="font-size:12px;color:#6b7280">Nothing is marked paid — this only emails the sheet.</p>`,
+      showCancelButton: true,
+      confirmButtonText: "Send statement",
+      confirmButtonColor: "#4f46e5",
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      // The same query the sheet on screen was run with — dates, timezone and
+      // the paid/unpaid filter — so the email matches what was looked at.
+      const { data } = await api.post("/reports/driver-payable/statement", {
+        ...queryFor(),
+        driver: driverRow.driver,
+        loadIds: group.rows.map((r) => r.loadId),
+      });
+      notify.success(data.message);
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not send the statement");
     }
   };
 
@@ -443,6 +525,18 @@ const ReportCentre = () => {
                 <button onClick={run} className="btn-secondary" disabled={loading}>
                   <RefreshIcon fontSize="small" /> {loading ? "Running…" : "Refresh"}
                 </button>
+                {/* Needs one customer: a statement is one account, and "all
+                    customers" has nobody to send it to. */}
+                {report?.key === "receivables" && (
+                  <button
+                    onClick={emailCustomerStatement}
+                    className="btn-secondary"
+                    disabled={!filters.customer || !report?.rows?.length}
+                    title={filters.customer ? "" : "Choose a customer first"}
+                  >
+                    <MailOutlineIcon fontSize="small" /> Email statement
+                  </button>
+                )}
                 {canExport && (
                   <button
                     onClick={exportCsv}
@@ -485,18 +579,58 @@ const ReportCentre = () => {
 
                     {/* Paying is only offered on the driver report, where it is
                         the action the report exists to lead to. */}
-                    {report.key === "driverPayable" &&
-                      group.rows.some((r) => !r.settledAt) && (
+                    {report.key === "driverPayable" && (
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
-                          onClick={() => payDriver(group)}
-                          className="btn-primary whitespace-nowrap"
+                          onClick={() => sendStatement(group)}
+                          className="btn-secondary whitespace-nowrap"
                         >
-                          <PaidIcon fontSize="small" /> Mark paid &amp; email
+                          <MailOutlineIcon fontSize="small" /> Send statement
                         </button>
-                      )}
+                        {group.rows.some((r) => !r.settledAt) && (
+                          <button
+                            onClick={() => payDriver(group)}
+                            className="btn-primary whitespace-nowrap"
+                          >
+                            <PaidIcon fontSize="small" /> Mark paid &amp; email
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <Table report={report} rows={group.rows} navigate={navigate} />
+
+                  {/* The three figures a settlement sheet ends on, where the
+                      eye lands after the last row rather than up in the header. */}
+                  {report.key === "driverPayable" && (
+                    <div className="mt-3 flex justify-end">
+                      <dl className="min-w-[220px] space-y-0.5 text-sm tabular-nums">
+                        <div className="flex justify-between gap-6">
+                          <dt className="text-gray-600">Total</dt>
+                          <dd className="font-semibold text-gray-900">
+                            {fmt(group.totals.total, "money")}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-6">
+                          <dt className="text-gray-600">Paid</dt>
+                          <dd className="font-semibold text-green-700">
+                            {fmt(group.totals.paid, "money")}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-6 border-t border-gray-200 pt-0.5">
+                          <dt className="font-semibold text-gray-800">Open balance</dt>
+                          <dd
+                            className={`font-bold ${
+                              group.totals.openBalance > 0 ? "text-red-600" : "text-gray-900"
+                            }`}
+                          >
+                            {fmt(group.totals.openBalance, "money")}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -524,6 +658,84 @@ const Field = ({ label, children }) => (
     {children}
   </div>
 );
+
+/**
+ * One cell of the driver payable sheet.
+ *
+ * Laid out the way the printed settlement sheet is, because that is what the
+ * office checks it against: the driver with the day their pay was worked out,
+ * every charge by name with the cheque and the reason beneath, and a status
+ * that carries the date it was paid.
+ */
+const DriverPayableCell = ({ col, row }) => {
+  switch (col.key) {
+    case "driverName":
+      return (
+        <div className="min-w-[160px]">
+          <p className="font-medium text-gray-900">{row.driverName}</p>
+          {row.payDate && (
+            <p className="text-xs text-gray-500">({fmt(row.payDate, "date")})</p>
+          )}
+        </div>
+      );
+
+    case "chargeSummary":
+      return (
+        <div className="min-w-[170px] text-xs leading-5 text-gray-700">
+          {(row.charges || []).map((charge, index) => (
+            <p key={index} className="flex justify-between gap-3">
+              <span>
+                {charge.label}
+                {charge.note ? <span className="text-gray-400"> · {charge.note}</span> : null}
+              </span>
+              <span className="tabular-nums">{fmt(charge.amount, "money")}</span>
+            </p>
+          ))}
+          <p className="flex justify-between gap-3">
+            <span>Check number</span>
+            <span>{row.checkNumber || "—"}</span>
+          </p>
+          <p className="flex justify-between gap-3">
+            <span>Reason</span>
+            <span className="text-right">{row.reason || "—"}</span>
+          </p>
+          <p className="mt-0.5 flex justify-between gap-3 border-t border-gray-200 pt-0.5 font-bold text-gray-900">
+            <span>Total</span>
+            <span className="tabular-nums">{fmt(row.total, "money")}</span>
+          </p>
+        </div>
+      );
+
+    case "from":
+    case "to":
+      return (
+        <p className="min-w-[150px] whitespace-pre-line text-xs text-gray-700">
+          {row[col.key] || "—"}
+        </p>
+      );
+
+    case "payState":
+      return (
+        <div className="whitespace-nowrap text-xs">
+          <p
+            className={`font-semibold ${
+              row.payState === "Paid"
+                ? "text-green-700"
+                : row.payState === "Part paid"
+                  ? "text-amber-700"
+                  : "text-red-600"
+            }`}
+          >
+            {row.payState}
+          </p>
+          {row.settledAt && <p className="text-gray-500">{fmt(row.settledAt, "date")}</p>}
+        </div>
+      );
+
+    default:
+      return fmt(row[col.key], col.type);
+  }
+};
 
 const Table = ({ report, rows, navigate, showTotals }) => (
   <div className="overflow-x-auto border border-gray-200 rounded-lg">
@@ -553,7 +765,9 @@ const Table = ({ report, rows, navigate, showTotals }) => (
             {report.columns.map((col) => (
               <td
                 key={col.key}
-                className={`px-3 py-2 whitespace-nowrap ${
+                className={`px-3 py-2 align-top ${
+                  report.key === "driverPayable" ? "" : "whitespace-nowrap"
+                } ${
                   ["money", "number", "percent"].includes(col.type)
                     ? "text-right tabular-nums"
                     : ""
@@ -572,6 +786,8 @@ const Table = ({ report, rows, navigate, showTotals }) => (
                   >
                     {row.loadId}
                   </button>
+                ) : report.key === "driverPayable" ? (
+                  <DriverPayableCell col={col} row={row} />
                 ) : (
                   fmt(row[col.key], col.type)
                 )}

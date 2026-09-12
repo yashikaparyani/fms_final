@@ -254,7 +254,7 @@ const receivePayment = async (req, res) => {
 
       if (amount > outstanding + 0.005) {
         return res.status(400).json({
-          message: `That is more than the $${outstanding.toLocaleString("en-US")} outstanding on the loads chosen. Check the amount, or choose more loads.`,
+          message: `That is more than the $${outstanding.toLocaleString("en-US")} outstanding on the loads chosen. Check the amount, choose more loads, or set the amounts per load if the customer overpaid.`,
         });
       }
 
@@ -264,16 +264,27 @@ const receivePayment = async (req, res) => {
           : allocateOldestFirst(ordered, amount);
     }
 
-    // Nothing is written until every row is known to be good — a batch that
-    // half-applies is worse than one that is refused, because the customer's
-    // balance is then wrong in a way nobody can see.
+    // ── Overpayment ─────────────────────────────────────────────────────────
+    // Paying more than a load owes is refused unless the caller says, in the
+    // request, that it meant to. Most of the time an over-application is a typo
+    // or money landing on the wrong load, and absorbing it silently leaves a
+    // customer in credit that nobody knows about until they ask for it back.
+    //
+    // But it does genuinely happen — a customer rounds up, or pays an old
+    // balance twice — and refusing outright just means the clerk enters a
+    // figure that is not the figure that arrived. So the excess is recordable,
+    // as an explicit act: the form asks whether they really overpaid on this
+    // load, and only then sends this flag. The surplus lands on the invoice as
+    // `overpaid`, which is credit held for that customer.
+    const allowOverpayment = String(req.body.allowOverpayment) === "true";
+
     for (const row of allocations) {
       if (row.amount < 0) {
         return res.status(400).json({ message: "An amount cannot be negative." });
       }
-      if (row.amount > money(row.invoice.balance) + 0.005) {
+      if (!allowOverpayment && row.amount > money(row.invoice.balance) + 0.005) {
         return res.status(400).json({
-          message: `$${row.amount.toLocaleString("en-US")} is more than the $${money(row.invoice.balance).toLocaleString("en-US")} outstanding on ${row.invoice.invoiceNumber}.`,
+          message: `$${row.amount.toLocaleString("en-US")} is more than the $${money(row.invoice.balance).toLocaleString("en-US")} outstanding on ${row.invoice.invoiceNumber}. Confirm the overpayment if that is what arrived.`,
         });
       }
     }
@@ -338,7 +349,8 @@ const receivePayment = async (req, res) => {
               `$${payment.amount.toLocaleString("en-US")} received from ${payment.party?.name || "\u2014"} ` +
               `against ${invoice.invoiceNumber} by ${spec?.label || method}` +
               `${payment.documentNumber ? ` (${spec?.documentLabel || "ref"} ${payment.documentNumber})` : ""}` +
-              `${applying.length > 1 ? `, part of a $${total.toLocaleString("en-US")} payment covering ${applying.length} loads` : ""}`,
+              `${applying.length > 1 ? `, part of a $${total.toLocaleString("en-US")} payment covering ${applying.length} loads` : ""}` +
+              `${money(invoice.overpaid || 0) > 0 ? `. $${money(invoice.overpaid).toLocaleString("en-US")} of it is over the amount billed and is held as advance` : ""}`,
             changes: [
               {
                 field: `invoice.${invoice.invoiceNumber}.balance`,
@@ -361,6 +373,7 @@ const receivePayment = async (req, res) => {
         loadId: invoice.loadId || "",
         applied: payment.amount,
         balance: money(invoice.balance),
+        overpaid: money(invoice.overpaid || 0),
         cleared: money(invoice.balance) <= 0,
         paymentNumber: payment.paymentNumber,
       });
@@ -370,16 +383,196 @@ const receivePayment = async (req, res) => {
     const stillOwing = money(
       results.reduce((sum, row) => sum + row.balance, 0),
     );
+    const credit = money(results.reduce((sum, row) => sum + row.overpaid, 0));
 
     res.status(201).json({
       message:
         `$${total.toLocaleString("en-US")} received against ${results.length} load${results.length === 1 ? "" : "s"}. ` +
         (cleared === results.length
           ? "All settled in full."
-          : `${cleared} cleared, $${stillOwing.toLocaleString("en-US")} still outstanding on the rest.`),
+          : `${cleared} cleared, $${stillOwing.toLocaleString("en-US")} still outstanding on the rest.`) +
+        // Said out loud, because a credit nobody is told about is a credit
+        // nobody applies to the customer's next load.
+        (credit > 0
+          ? ` $${credit.toLocaleString("en-US")} more than owed — held as advance for ${found[0]?.party?.name || "this customer"}.`
+          : ""),
       batchId,
       total,
       cleared,
+      credit,
+      rows: results,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Settle several payables in one go
+// @route   POST /api/payments/settle
+// @access  Private (staff, admin)
+//
+// ── Why this is not receivePayment with a flag ───────────────────────────────
+// Receivables and payables look symmetrical and are not. Money IN arrives as one
+// lump that has to be divided across loads, which is the whole difficulty of
+// receivePayment — the split, the strategies, the preview. Money OUT is decided
+// per bill before it leaves: the office is not dividing a cheque, it is working
+// down a list of carriers and settling each in full.
+//
+// So this takes no amount and no strategy. Every bill ticked is paid to its
+// outstanding balance. A carrier being paid part of what they are owed is a
+// deliberate act and belongs in the single-invoice form, where somebody has to
+// type the figure.
+const settleBills = async (req, res) => {
+  try {
+    const submitted = Array.isArray(req.body.invoices) ? req.body.invoices : [];
+    if (!submitted.length) {
+      return res.status(400).json({ message: "Choose at least one bill to settle." });
+    }
+
+    // The same bill ticked twice is one bill. Left in, it would be paid twice.
+    const ids = [...new Set(submitted.map((entry) => trimmed(entry.invoice ?? entry)))];
+
+    if (ids.some((id) => !mongoose.isValidObjectId(id))) {
+      return res.status(400).json({ message: "One of the chosen bills is not valid." });
+    }
+
+    const found = await Invoice.find({ _id: { $in: ids }, direction: "AP" });
+    if (found.length !== ids.length) {
+      return res.status(404).json({
+        message:
+          "One of the chosen bills no longer exists, or is not a payable. Refresh and try again.",
+      });
+    }
+
+    const voided = found.filter((invoice) => invoice.status === "VOID");
+    if (voided.length) {
+      return res.status(400).json({
+        message: `${voided.map((i) => i.invoiceNumber).join(", ")} ${voided.length === 1 ? "is" : "are"} void. Deselect ${voided.length === 1 ? "it" : "them"} and try again.`,
+      });
+    }
+
+    const settled = found.filter((invoice) => money(invoice.balance) <= 0);
+    if (settled.length) {
+      return res.status(400).json({
+        message: `${settled.map((i) => i.invoiceNumber).join(", ")} ${settled.length === 1 ? "has" : "have"} already been paid. Deselect ${settled.length === 1 ? "it" : "them"} and try again.`,
+      });
+    }
+
+    const method = trimmed(req.body.method).toUpperCase();
+    const documentNumber = trimmed(req.body.documentNumber);
+    const spec = METHOD_BY_KEY.get(method);
+
+    // ── One instrument, one payee ───────────────────────────────────────────
+    // A run is happy to span carriers — an afternoon's payables work is exactly
+    // that. What it cannot do is give them a shared cheque number: the number
+    // identifies one physical instrument, and copying it onto four payments to
+    // four carriers makes the register say something that is not true, which is
+    // discovered months later by whoever is reconciling the bank statement.
+    //
+    // Checked before the method's own rule, so somebody settling five carriers
+    // by cheque is told what is actually wrong rather than being asked for a
+    // number they could not correctly supply anyway.
+    const payees = new Set(
+      found.map((invoice) => String(invoice.party?.id || invoice.party?.name || "")),
+    );
+    if (payees.size > 1 && (spec?.documentRequired || documentNumber)) {
+      return res.status(400).json({
+        message: `Those bills are for ${payees.size} different payees, so they cannot share one ${(spec?.documentLabel || "reference").toLowerCase()}. Settle one payee at a time, or use a method that does not carry one.`,
+      });
+    }
+
+    const problem = validatePaymentReference({ method, documentNumber });
+    if (problem) return res.status(400).json({ message: problem });
+
+    const batchId = new mongoose.Types.ObjectId().toString();
+    const total = money(found.reduce((sum, invoice) => sum + money(invoice.balance), 0));
+    const paidOn = calendarDate(req.body.paidOn) || calendarDate(new Date());
+    const recordedByName =
+      [req.user?.firstName, req.user?.lastName].filter(Boolean).join(" ") || "";
+
+    // Oldest first, so the payment numbers run in the order the debts did.
+    const ordered = found.sort(
+      (a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0),
+    );
+
+    const results = [];
+
+    for (const invoice of ordered) {
+      const before = money(invoice.balance);
+
+      const payment = new Payment({
+        paymentNumber: await nextSequence("payment", req.locationId),
+        direction: "PAID",
+        invoice: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        load: invoice.load,
+        loadId: invoice.loadId,
+        party: {
+          kind: invoice.party?.kind,
+          id: invoice.party?.id,
+          name: invoice.party?.name,
+        },
+        amount: before,
+        currency: invoice.currency || "USD",
+        paidOn,
+        method,
+        documentNumber,
+        bankName: trimmed(req.body.bankName),
+        note: trimmed(req.body.note),
+        batch: { id: batchId, total, count: ordered.length },
+        recordedBy: req.user?._id,
+        recordedByName,
+      });
+
+      await payment.save();
+
+      // Re-added from the collection, never incremented. See the note at the
+      // top of this file.
+      await syncInvoicePayments(invoice);
+
+      const load = invoice.load ? await Load.findById(invoice.load) : null;
+      if (load) {
+        await audit
+          .recordFinancial({
+            load,
+            action: "payment.paid",
+            summary:
+              `$${payment.amount.toLocaleString("en-US")} paid to ${payment.party?.name || "—"} ` +
+              `against ${invoice.invoiceNumber} by ${spec?.label || method}` +
+              `${documentNumber ? ` (${spec?.documentLabel || "ref"} ${documentNumber})` : ""}` +
+              `${ordered.length > 1 ? `, part of a $${total.toLocaleString("en-US")} payment run covering ${ordered.length} bills` : ""}`,
+            changes: [
+              {
+                field: `invoice.${invoice.invoiceNumber}.balance`,
+                label: "Outstanding",
+                from: `$${before.toLocaleString("en-US")}`,
+                to: `$${money(invoice.balance).toLocaleString("en-US")}`,
+              },
+            ],
+            user: req.user,
+            req,
+          })
+          .catch((error) =>
+            console.error(`Payment audit failed for ${load.loadId}:`, error.message),
+          );
+      }
+
+      results.push({
+        invoiceId: String(invoice._id),
+        invoiceNumber: invoice.invoiceNumber,
+        loadId: invoice.loadId || "",
+        payee: invoice.party?.name || "",
+        applied: payment.amount,
+        balance: money(invoice.balance),
+        status: invoice.status,
+        paymentNumber: payment.paymentNumber,
+      });
+    }
+
+    res.status(201).json({
+      message: `$${total.toLocaleString("en-US")} paid across ${results.length} bill${results.length === 1 ? "" : "s"}. Marked as paid in full.`,
+      batchId,
+      total,
       rows: results,
     });
   } catch (error) {
@@ -695,6 +888,7 @@ const sendReceipt = async (req, res) => {
 
 module.exports = {
   receivePayment,
+  settleBills,
   getMethods,
   recordPayment,
   listPayments,

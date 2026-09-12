@@ -19,6 +19,8 @@ const {
   emailCustomerStatement,
   agingReport,
   payeeReport,
+  settlementSheets,
+  saveSettlementSheet,
 } = require("../controllers/accountingReportsController");
 const { protect, authorizeRoles } = require("../middleware/auth");
 const { requirePermission } = require("../middleware/permissions");
@@ -77,6 +79,21 @@ router.post(
 );
 router.get("/reports/aging", ...office, requirePermission("reports.view"), agingReport);
 router.get("/reports/payees", ...office, requirePermission("reports.view"), payeeReport);
+// One sheet per driver or carrier for a period. Reading needs reports.view;
+// recording the deduction and cheque number changes a stored figure, so it
+// needs loads.edit on top — same split as receiving a payment.
+router.get(
+  "/reports/settlements",
+  ...office,
+  requirePermission("reports.view"),
+  settlementSheets,
+);
+router.put(
+  "/reports/settlements",
+  ...office,
+  requirePermission("reports.view", "loads.edit"),
+  saveSettlementSheet,
+);
 
 router.get(
   "/loads/:loadId",

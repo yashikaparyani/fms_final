@@ -297,13 +297,25 @@ export const navItems = [
         permission: "reports.view",
         description: "Receivables, payables, margin and driver payroll",
       },
+      // AR and AP are two rows rather than one row with a tab inside it. They
+      // are different jobs — chasing customers, paying carriers — and often
+      // different people; a payables clerk should not have to open receivables
+      // to find their own screen.
       {
         label: "AR",
         path: "accounting/invoices",
         icon: ReceiptLongOutlinedIcon,
         visible: ["staff", "admin"],
         permission: "reports.view",
-        description: "Customer invoices, carrier bills and the payments against them",
+        description: "Customer invoices and the payments received against them",
+      },
+      {
+        label: "AP",
+        path: "accounting/payables",
+        icon: PaymentsOutlinedIcon,
+        visible: ["staff", "admin"],
+        permission: "reports.view",
+        description: "Carrier bills and driver settlements, and what has been paid",
       },
       {
         label: "Customer Accounts",

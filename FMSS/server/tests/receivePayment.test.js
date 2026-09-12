@@ -169,6 +169,86 @@ describe("Splitting one payment across loads", () => {
   });
 });
 
+describe("Overpayment", () => {
+  // Refused by default and recordable on request — the clerk is asked, load by
+  // load, whether the customer really sent more than it was billed for. See the
+  // note in receivePayment.
+  beforeEach(async () => {
+    await makeInvoice({ number: "LD 0001", loadId: "LD 0001", total: 500, dueInDays: -20 });
+    await makeInvoice({ number: "LD 0002", loadId: "LD 0002", total: 300, dueInDays: -10 });
+  });
+
+  const ids = async () => {
+    const rows = await seed(() => Invoice.find({}).sort({ dueDate: 1 }).lean());
+    return rows.map((row) => String(row._id));
+  };
+
+  it("records the excess as credit once it is acknowledged", async () => {
+    const [a] = await ids();
+
+    const res = await receive({
+      ...base,
+      allowOverpayment: true,
+      invoices: [{ invoice: a, amount: 620 }],
+    });
+
+    expect(res.status).toBe(201);
+
+    const invoice = await reload("LD 0001");
+    expect(invoice.amountPaid).toBe(620);
+    // The surplus never shows up as a negative balance — every report reads
+    // `balance` and only some of them would remember to special-case one.
+    expect(invoice.balance).toBe(0);
+    expect(invoice.overpaid).toBe(120);
+    expect(invoice.status).toBe("PAID");
+  });
+
+  it("says how much is being held, so nobody has to notice it themselves", async () => {
+    const [a] = await ids();
+
+    const res = await receive({
+      ...base,
+      allowOverpayment: true,
+      invoices: [{ invoice: a, amount: 620 }],
+    });
+
+    expect(res.body.credit).toBe(120);
+    expect(res.body.message).toMatch(/advance/i);
+  });
+
+  it("still records the whole payment, not just the part that fitted", async () => {
+    const [a] = await ids();
+
+    await receive({
+      ...base,
+      allowOverpayment: true,
+      invoices: [{ invoice: a, amount: 620 }],
+    });
+
+    const payments = await seed(() => Payment.find({}).lean());
+    expect(payments).toHaveLength(1);
+    // The bank statement says 620. Recording 500 would make the two disagree.
+    expect(payments[0].amount).toBe(620);
+  });
+
+  it("leaves a load that was not overpaid alone", async () => {
+    const [a, b] = await ids();
+
+    await receive({
+      ...base,
+      allowOverpayment: true,
+      invoices: [
+        { invoice: a, amount: 620 },
+        { invoice: b, amount: 100 },
+      ],
+    });
+
+    const second = await reload("LD 0002");
+    expect(second.balance).toBe(200);
+    expect(second.overpaid).toBe(0);
+  });
+});
+
 describe("What it refuses", () => {
   beforeEach(async () => {
     await makeInvoice({ number: "LD 0001", loadId: "LD 0001", total: 500, dueInDays: -20 });

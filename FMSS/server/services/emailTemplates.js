@@ -291,6 +291,93 @@ const driverPaymentStatement = ({
   };
 };
 
+/**
+ * A driver's statement of account: every load on it, every charge on each, and
+ * what has been paid against what is still open.
+ *
+ * Distinct from driverPaymentStatement, which is a receipt sent at the moment
+ * of payment. This one is sent whenever the office is asked "what am I owed"
+ * and changes nothing — so it says "open balance", never "you have been paid".
+ */
+const driverAccountStatement = ({ driverName, rows = [], totals, period }) => {
+  const asMoney = (value) =>
+    `$${Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const window =
+    period?.from || period?.to
+      ? ` for ${period.from || "the start"} to ${period.to || "today"}`
+      : "";
+
+  return {
+    subject: `Statement of account${window} — ${asMoney(totals.openBalance)} open`,
+    text:
+      `Hello ${driverName}, here is your statement${window}. ` +
+      `Total ${asMoney(totals.total)}, paid ${asMoney(totals.paid)}, open ${asMoney(totals.openBalance)}. ` +
+      rows
+        .map(
+          (row) =>
+            `${row.loadId}${row.containerNo ? ` (${row.containerNo})` : ""}: ` +
+            row.charges.map((c) => `${c.label} ${asMoney(c.amount)}`).join(", ") +
+            ` = ${asMoney(row.total)} — ${row.payState}`,
+        )
+        .join("; "),
+    html: `
+    <p>Hello ${escapeHtml(driverName)},</p>
+    <p>Here is your statement${escapeHtml(window)}.</p>
+
+    <table cellpadding="6" cellspacing="0" border="1"
+           style="border-collapse:collapse;font-size:13px;margin-top:12px">
+      <tr style="background:#f3f4f6">
+        <th align="left">Load</th>
+        <th align="left">Container</th>
+        <th align="left">Charges</th>
+        <th align="right">Total</th>
+        <th align="left">Status</th>
+      </tr>
+      ${rows
+        .map(
+          (row) => `
+        <tr>
+          <td>${escapeHtml(row.loadId)}</td>
+          <td>${escapeHtml(row.containerNo || "—")}</td>
+          <td>${row.charges
+            .map((c) => `${escapeHtml(c.label)}: ${escapeHtml(asMoney(c.amount))}`)
+            .join("<br/>")}${
+            row.checkNumber ? `<br/>Check #: ${escapeHtml(row.checkNumber)}` : ""
+          }${row.reason ? `<br/>Reason: ${escapeHtml(row.reason)}` : ""}</td>
+          <td align="right">${escapeHtml(asMoney(row.total))}</td>
+          <td>${escapeHtml(row.payState)}</td>
+        </tr>`,
+        )
+        .join("")}
+      <tr style="background:#f9fafb;font-weight:bold">
+        <td colspan="3" align="right">Total</td>
+        <td align="right">${escapeHtml(asMoney(totals.total))}</td>
+        <td></td>
+      </tr>
+      <tr style="background:#f9fafb">
+        <td colspan="3" align="right">Paid</td>
+        <td align="right">${escapeHtml(asMoney(totals.paid))}</td>
+        <td></td>
+      </tr>
+      <tr style="background:#f9fafb;font-weight:bold">
+        <td colspan="3" align="right">Open balance</td>
+        <td align="right">${escapeHtml(asMoney(totals.openBalance))}</td>
+        <td></td>
+      </tr>
+    </table>
+
+    <p style="font-size:12px;color:#6b7280;margin-top:14px">
+      If anything here does not look right, contact the office and quote the load
+      numbers above.
+    </p>
+  `,
+  };
+};
+
 const loadRequiresChanges = ({ load, client, changesNote }) => ({
   subject: `Updates Required for Load ${load.loadId}`,
   text: `Hello ${client.firstName || "Customer"}, your load ${load.loadId} requires changes: ${changesNote}. Please log in and update your load.`,
@@ -706,6 +793,7 @@ module.exports = {
   bidWon,
   customerCredentials,
   driverCredentials,
+  driverAccountStatement,
   driverPaymentStatement,
   fleetOwnerCredentials,
   insuranceFiled,

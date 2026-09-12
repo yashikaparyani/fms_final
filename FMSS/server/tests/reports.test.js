@@ -560,7 +560,9 @@ describe("Paying a driver", () => {
       staff,
       ny,
     );
-    expect(stillOwed.body.totals.payAmount).toBe(200);
+    // What is still open for the driver — the report now totals every charge
+    // owed to them rather than the base pay alone.
+    expect(stillOwed.body.totals.openBalance).toBe(200);
   });
 });
 

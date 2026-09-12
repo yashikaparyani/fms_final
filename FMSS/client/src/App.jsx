@@ -256,7 +256,10 @@ function App() {
           <Route path="report-centre" element={<PermissionGate permission="reports.view"><ReportCentre /></PermissionGate>} />
           {/* Mounted before "accounting/:loadId", or every one of these paths
               is read as a load id and resolves to a load that does not exist. */}
-          <Route path="accounting/invoices" element={<PermissionGate permission="reports.view"><Invoices /></PermissionGate>} />
+          {/* AR and AP are the same register read from opposite ends, so they
+              are one component mounted twice rather than a tab inside AR. */}
+          <Route path="accounting/invoices" element={<PermissionGate permission="reports.view"><Invoices direction="AR" /></PermissionGate>} />
+          <Route path="accounting/payables" element={<PermissionGate permission="reports.view"><Invoices direction="AP" /></PermissionGate>} />
           <Route path="accounting/invoices/new" element={<PermissionGate permission="loads.edit"><ManualInvoice /></PermissionGate>} />
           <Route path="accounting/invoices/:id" element={<PermissionGate permission="reports.view"><InvoiceDetail /></PermissionGate>} />
           <Route path="accounting/customers" element={<PermissionGate permission="reports.view"><CustomerLedger /></PermissionGate>} />
@@ -353,7 +356,10 @@ function App() {
           <Route path="report-centre" element={<PermissionGate permission="reports.view"><ReportCentre /></PermissionGate>} />
           {/* Mounted before "accounting/:loadId", or every one of these paths
               is read as a load id and resolves to a load that does not exist. */}
-          <Route path="accounting/invoices" element={<PermissionGate permission="reports.view"><Invoices /></PermissionGate>} />
+          {/* AR and AP are the same register read from opposite ends, so they
+              are one component mounted twice rather than a tab inside AR. */}
+          <Route path="accounting/invoices" element={<PermissionGate permission="reports.view"><Invoices direction="AR" /></PermissionGate>} />
+          <Route path="accounting/payables" element={<PermissionGate permission="reports.view"><Invoices direction="AP" /></PermissionGate>} />
           <Route path="accounting/invoices/new" element={<PermissionGate permission="loads.edit"><ManualInvoice /></PermissionGate>} />
           <Route path="accounting/invoices/:id" element={<PermissionGate permission="reports.view"><InvoiceDetail /></PermissionGate>} />
           <Route path="accounting/customers" element={<PermissionGate permission="reports.view"><CustomerLedger /></PermissionGate>} />

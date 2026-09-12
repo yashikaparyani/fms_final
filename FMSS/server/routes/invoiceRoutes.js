@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   getTerms,
+  listPayees,
   listInvoices,
   getInvoice,
   downloadInvoicePdf,
@@ -36,6 +37,8 @@ const canWrite = requirePermission("loads.edit");
 
 // Static paths first, so none of them is read as an invoice id.
 router.get("/terms", ...office, getTerms);
+// Before "/:id", or "payees" is read as an invoice id.
+router.get("/payees", ...office, canRead, listPayees);
 
 router.get("/loads/:loadId", ...office, canRead, getLoadInvoices);
 router.post("/loads/:loadId/generate", ...office, canWrite, generateForLoad);

@@ -4,6 +4,7 @@ const {
   getMethods,
   recordPayment,
   receivePayment,
+  settleBills,
   listPayments,
   reversePayment,
   sendReceipt,
@@ -34,6 +35,9 @@ router.post("/", ...office, canWrite, recordPayment);
 // One payment, several loads. See receivePayment for why it writes a row per
 // invoice rather than a single row against the customer.
 router.post("/receive", ...office, canWrite, receivePayment);
+// The other direction, in bulk: a payment run that settles several bills in
+// full. Takes no amount — see settleBills for why money out is not a split.
+router.post("/settle", ...office, canWrite, settleBills);
 
 router.put("/:id/reverse", ...office, canWrite, reversePayment);
 router.post("/:id/receipt", ...office, canWrite, sendReceipt);

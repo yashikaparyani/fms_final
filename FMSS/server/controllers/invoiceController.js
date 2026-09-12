@@ -200,6 +200,57 @@ const listInvoices = async (req, res) => {
   }
 };
 
+// @desc    Who appears as a party on one side of the register
+// @route   GET /api/invoices/payees
+// @access  Private (staff, admin)
+//
+// Built from the invoices themselves rather than from the driver and carrier
+// masters, because those hold everybody ever onboarded and this has to fill a
+// dropdown somebody scrolls. A driver with no bills is not an option worth
+// offering — picking them can only produce an empty sheet.
+const listPayees = async (req, res) => {
+  try {
+    const filter = {
+      direction: req.query.direction === "AR" ? "AR" : "AP",
+      status: { $ne: "VOID" },
+    };
+    if (req.query.partyKind) filter["party.kind"] = req.query.partyKind;
+
+    const rows = await Invoice.find(filter)
+      .select("party")
+      .lean();
+
+    // Keyed by id where there is one and by name where there is not, so a bill
+    // raised to somebody not on the master still appears.
+    const byKey = new Map();
+    rows.forEach((row) => {
+      const party = row.party || {};
+      const name = trimmed(party.name);
+      if (!name && !party.id) return;
+
+      const key = party.id ? String(party.id) : `name:${name.toLowerCase()}`;
+      if (byKey.has(key)) {
+        byKey.get(key).count += 1;
+        return;
+      }
+
+      byKey.set(key, {
+        id: party.id ? String(party.id) : null,
+        kind: party.kind || "",
+        name: name || "Unnamed",
+        code: trimmed(party.code),
+        count: 1,
+      });
+    });
+
+    res.json({
+      payees: [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    One invoice with the payments recorded against it
 // @route   GET /api/invoices/:id
 // @access  Private (staff, admin)
@@ -755,6 +806,7 @@ const unvoidInvoice = async (req, res) => {
 };
 
 module.exports = {
+  listPayees,
   getTerms,
   listInvoices,
   getInvoice,

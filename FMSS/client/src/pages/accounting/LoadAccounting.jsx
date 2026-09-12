@@ -9,6 +9,11 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import api from "../../api";
 import ChargeEditor, { money } from "../../components/accounting/ChargeEditor";
 import LoadBillingPanel from "../../components/accounting/LoadBillingPanel";
+import {
+  DriverPaymentsTable,
+  OriginsTable,
+  DestinationsTable,
+} from "../../components/track-load/LoadStopTables";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import Swal from "sweetalert2";
@@ -43,6 +48,11 @@ const LoadAccounting = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // The load itself, for who drove it and where it stopped. Fetched on its own
+  // rather than folded into the accounting response: it is the same record the
+  // track page reads, and a failure here should cost the tables, not the books.
+  const [loadDoc, setLoadDoc] = useState(null);
+
   const [receivables, setReceivables] = useState([]);
   const [payables, setPayables] = useState([]);
 
@@ -67,6 +77,13 @@ const LoadAccounting = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    api
+      .get(`/loads/${loadId}`)
+      .then(({ data: res }) => setLoadDoc(res))
+      .catch(() => setLoadDoc(null));
+  }, [loadId]);
 
   const saveSide = async (side) => {
     const lines = side === "receivable" ? receivables : payables;
@@ -286,6 +303,19 @@ const LoadAccounting = () => {
           has the carrier been paid. `refresh` re-reads the ledgers too, because
           raising an invoice can change what the load's own accounting says. */}
       <LoadBillingPanel loadId={loadId} onChanged={load} />
+
+      {/* ── Who moved it, and where ────────────────────────────────────── */}
+      {/* The same three tables as the load's Details tab, so a driver's pay
+          and the stops they ran can be checked against the ledgers below
+          without leaving the page. This screen is back office only, so the
+          driver payments table is always shown. */}
+      {loadDoc && (
+        <div className="space-y-6">
+          <DriverPaymentsTable load={loadDoc} />
+          <OriginsTable load={loadDoc} />
+          <DestinationsTable load={loadDoc} />
+        </div>
+      )}
 
       {/* ── Receivables ────────────────────────────────────────────────── */}
       <div className={uiStyles.card}>

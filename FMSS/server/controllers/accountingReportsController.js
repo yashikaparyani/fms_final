@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Invoice = require("../models/Invoice");
 const Payment = require("../models/Payment");
 const Load = require("../models/Load");
+const SettlementSheet = require("../models/SettlementSheet");
 const Customer = require("../models/Customer");
 const User = require("../models/User");
 const mail = require("../services/accountingMailService");
@@ -14,6 +15,7 @@ const ledger = require("../services/ledgerFallback");
 // Calendar dates and instants are filtered differently — see utils/dates.js.
 const {
   calendarRange,
+  calendarDate,
   instantRange,
   daysBetween,
   todayKey,
@@ -140,7 +142,7 @@ const loadWiseReport = async (req, res) => {
     const invoices = await Invoice.find({
       $or: [{ loadId: { $in: loadIds } }, { loadIds: { $in: loadIds } }],
     })
-      .select("loadId direction status total amountPaid advanceApplied balance dueDate invoiceNumber party")
+      .select("loadId direction status total amountPaid advanceApplied balance overpaid dueDate invoiceNumber party")
       .lean();
 
     const byLoad = new Map();
@@ -284,7 +286,7 @@ const customerWiseReport = async (req, res) => {
     if (range) filter.issueDate = range;
 
     const invoices = await Invoice.find(filter)
-      .select("party loadId invoiceNumber total amountPaid advanceApplied balance status issueDate dueDate")
+      .select("party loadId invoiceNumber total amountPaid advanceApplied balance overpaid status issueDate dueDate")
       .lean();
 
     // Grouped by the party id where there is one, and by name where there is
@@ -309,6 +311,12 @@ const customerWiseReport = async (req, res) => {
           billed: 0,
           received: 0,
           outstanding: 0,
+          // Money of theirs we are holding: paid past what a load was billed
+          // for. Kept apart from `outstanding` rather than netted off it —
+          // a customer owing $900 on one load and $100 in credit on another is
+          // not the same as one owing $800, and the clerk chasing them needs to
+          // see both figures.
+          credit: 0,
           oldestDueDate: null,
           maxDaysOverdue: 0,
           aging: emptyAging(),
@@ -324,6 +332,7 @@ const customerWiseReport = async (req, res) => {
       row.received = money(
         row.received + (invoice.amountPaid || 0) + (invoice.advanceApplied || 0),
       );
+      row.credit = money(row.credit + (invoice.overpaid || 0));
 
       if (OPEN_STATUSES.includes(invoice.status) && (invoice.balance || 0) > 0) {
         row.openCount += 1;
@@ -379,6 +388,7 @@ const customerWiseReport = async (req, res) => {
         billed: sum("billed"),
         received: sum("received"),
         outstanding: sum("outstanding"),
+        credit: sum("credit"),
         overdueCustomers: rows.filter((row) => row.overdueCount > 0).length,
       },
       aging,
@@ -451,6 +461,10 @@ const customerLedger = async (req, res) => {
         billed: sum(live, "total"),
         received: money(sum(live, "amountPaid") + sum(live, "advanceApplied")),
         outstanding: sum(open, "balance"),
+        // Their money sitting with us — overpaid on a load, not yet applied to
+        // anything. Never netted off `outstanding`; see the note on the
+        // customer rollup above.
+        credit: sum(live, "overpaid"),
         openCount: open.length,
         overdueCount: open.filter((i) => daysOverdueOf(i) > 0).length,
       },
@@ -461,6 +475,261 @@ const customerLedger = async (req, res) => {
         daysOverdue: daysOverdueOf(invoice),
       })),
       payments,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ─── Settlement sheets ────────────────────────────────────────────────────────
+// What a driver or carrier is owed for a period, laid out as the sheet that gets
+// printed and handed over with the cheque.
+//
+// ── Why this is not the payables register with a filter ──────────────────────
+// The register answers "what do we owe, across everybody" — one flat list sorted
+// by what is most urgent. A settlement sheet answers a different question, asked
+// by a different person: this driver, these two weeks, here is every load you
+// ran and here is your cheque. That is one sheet PER payee, each with its own
+// total and its own footer, and a flat list cannot be read that way however it
+// is sorted.
+//
+// ── What is derived and what is stored ───────────────────────────────────────
+// Everything on the sheet is derived from the bills and the loads behind them,
+// except the two figures that exist nowhere else: the deduction taken off the
+// run and the cheque it was paid by. Those are a document — see
+// models/SettlementSheet.js — because a driver asking in March what was taken
+// off in January cannot be answered with "whatever the report recomputes today".
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The one-word state the sheet prints for a bill. */
+const settlementState = (invoice) => {
+  if (invoice.status === "VOID") return "Void";
+  if (money(invoice.balance || 0) <= 0 && (invoice.amountPaid || 0) > 0) return "Paid";
+  if ((invoice.amountPaid || 0) > 0) return "Part paid";
+  return "Pending";
+};
+
+// @desc    Settlement sheets for a period, one per payee
+// @route   GET /api/accounting/reports/settlements
+// @access  Private (staff, admin) — reports.view
+const settlementSheets = async (req, res) => {
+  try {
+    const partyKind =
+      trimmed(req.query.partyKind).toUpperCase() === "CARRIER" ? "CARRIER" : "DRIVER";
+
+    const filter = {
+      direction: "AP",
+      "party.kind": partyKind,
+      status: { $ne: "VOID" },
+    };
+
+    const range = calendarRange(req.query.from, req.query.to);
+    if (range) filter.issueDate = range;
+
+    if (req.query.partyId && mongoose.isValidObjectId(req.query.partyId)) {
+      filter["party.id"] = req.query.partyId;
+    }
+
+    const invoices = await Invoice.find(filter)
+      .select(
+        "party loadId load invoiceNumber referenceNumber total amountPaid balance status issueDate dueDate",
+      )
+      .sort({ loadId: 1 })
+      .lean();
+
+    // The container and the two ends of the journey live on the load, not on the
+    // bill — a driver recognises the job by the container number long before
+    // they recognise it by an invoice number. Fetched in one query rather than
+    // one per row.
+    const loadIds = [...new Set(invoices.map((i) => i.loadId).filter(Boolean))];
+    const loads = loadIds.length
+      ? await Load.find({ loadId: { $in: loadIds } })
+          .select("loadId containerNo containerNo2 pickup drop")
+          .lean()
+      : [];
+    const loadById = new Map(loads.map((load) => [load.loadId, load]));
+
+    // Name, street, then city — the three lines the printed sheet stacks in one
+    // cell, kept as lines rather than one comma-joined string so the sheet can
+    // break them the way the paper one does.
+    const place = (stop) =>
+      [stop?.name, stop?.address, [stop?.city, stop?.state].filter(Boolean).join(", ")]
+        .map((part) => trimmed(part))
+        .filter(Boolean);
+
+    // Grouped by party id where there is one, by name where there is not — a
+    // bill raised to somebody not on the driver master still belongs on a sheet.
+    const bySheet = new Map();
+
+    invoices.forEach((invoice) => {
+      const party = invoice.party || {};
+      const key = party.id ? String(party.id) : `name:${trimmed(party.name).toLowerCase()}`;
+
+      if (!bySheet.has(key)) {
+        bySheet.set(key, {
+          key,
+          party: {
+            kind: party.kind || partyKind,
+            id: party.id ? String(party.id) : null,
+            name: party.name || "Unnamed",
+            code: trimmed(party.code),
+          },
+          rows: [],
+          totals: { total: 0, paid: 0, pending: 0, loads: 0 },
+          deduction: 0,
+          deductionNote: "",
+          checkNumber: "",
+        });
+      }
+
+      const sheet = bySheet.get(key);
+      const load = loadById.get(invoice.loadId) || null;
+
+      sheet.rows.push({
+        invoiceId: String(invoice._id),
+        loadId: invoice.loadId || "",
+        container: [load?.containerNo, load?.containerNo2].filter(Boolean).join(" / "),
+        invoiceNumber: invoice.invoiceNumber,
+        reference: trimmed(invoice.referenceNumber),
+        payeeName: party.name || "",
+        payeeCode: trimmed(party.code),
+        issueDate: invoice.issueDate,
+        total: money(invoice.total || 0),
+        // "Total Report" on the printed sheet: what has actually been paid
+        // against this load so far, so the gap to `total` is what is pending.
+        paid: money(invoice.amountPaid || 0),
+        pending: money(invoice.balance || 0),
+        from: place(load?.pickup),
+        to: place(load?.drop),
+        status: settlementState(invoice),
+      });
+
+      sheet.totals.total = money(sheet.totals.total + (invoice.total || 0));
+      sheet.totals.paid = money(sheet.totals.paid + (invoice.amountPaid || 0));
+      sheet.totals.pending = money(sheet.totals.pending + (invoice.balance || 0));
+      sheet.totals.loads = sheet.rows.length;
+    });
+
+    // The typed figures, attached to the runs they belong to. Only a sheet with
+    // a real party id can carry them — a stored sheet is found by its party, and
+    // a name is not one.
+    const from = calendarDate(req.query.from);
+    const to = calendarDate(req.query.to);
+
+    if (from && to) {
+      const partyIds = [...bySheet.values()].map((sheet) => sheet.party.id).filter(Boolean);
+
+      const stored = partyIds.length
+        ? await SettlementSheet.find({
+            "party.id": { $in: partyIds },
+            fromDate: from,
+            toDate: to,
+          }).lean()
+        : [];
+
+      stored.forEach((doc) => {
+        const sheet = bySheet.get(String(doc.party?.id));
+        if (!sheet) return;
+        sheet.deduction = money(doc.deduction || 0);
+        sheet.deductionNote = doc.deductionNote || "";
+        sheet.checkNumber = doc.checkNumber || "";
+      });
+    }
+
+    const sheets = [...bySheet.values()]
+      .map((sheet) => ({
+        ...sheet,
+        totals: {
+          ...sheet.totals,
+          // What actually leaves the bank for this run.
+          net: money(sheet.totals.total - sheet.deduction),
+        },
+      }))
+      .sort((a, b) => a.party.name.localeCompare(b.party.name));
+
+    res.json({
+      // Echoed back so a printed sheet says which window it is a picture of.
+      period: { from: trimmed(req.query.from), to: trimmed(req.query.to) },
+      partyKind,
+      // Whether the typed figures can be saved at all: without both dates there
+      // is no run for them to be true of.
+      editable: !!(from && to),
+      totals: {
+        sheets: sheets.length,
+        loads: sheets.reduce((sum, sheet) => sum + sheet.totals.loads, 0),
+        total: money(sheets.reduce((sum, sheet) => sum + sheet.totals.total, 0)),
+        paid: money(sheets.reduce((sum, sheet) => sum + sheet.totals.paid, 0)),
+        pending: money(sheets.reduce((sum, sheet) => sum + sheet.totals.pending, 0)),
+      },
+      sheets,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Record the deduction and cheque number on one settlement sheet
+// @route   PUT /api/accounting/reports/settlements
+// @access  Private (staff, admin) — loads.edit
+const saveSettlementSheet = async (req, res) => {
+  try {
+    const partyId = trimmed(req.body.partyId);
+    if (!mongoose.isValidObjectId(partyId)) {
+      return res.status(400).json({ message: "Choose whose sheet this is." });
+    }
+
+    const fromDate = calendarDate(req.body.from);
+    const toDate = calendarDate(req.body.to);
+    if (!fromDate || !toDate) {
+      // Without a window the figures have nothing to be true of, and the same
+      // driver's next run would reprint January's deduction.
+      return res.status(400).json({
+        message: "Set both dates before recording a deduction or cheque number.",
+      });
+    }
+    if (fromDate > toDate) {
+      return res.status(400).json({ message: "The period ends before it starts." });
+    }
+
+    const deduction = Number(req.body.deduction) || 0;
+    if (deduction < 0) {
+      return res.status(400).json({
+        message: "A deduction is an amount taken off, so it cannot be negative.",
+      });
+    }
+
+    const partyKind =
+      trimmed(req.body.partyKind).toUpperCase() === "CARRIER" ? "CARRIER" : "DRIVER";
+
+    const sheet = await SettlementSheet.findOneAndUpdate(
+      { "party.id": partyId, fromDate, toDate },
+      {
+        $set: {
+          party: {
+            kind: partyKind,
+            id: partyId,
+            name: trimmed(req.body.partyName),
+            code: trimmed(req.body.partyCode),
+          },
+          fromDate,
+          toDate,
+          deduction: money(deduction),
+          deductionNote: trimmed(req.body.deductionNote),
+          checkNumber: trimmed(req.body.checkNumber),
+          updatedBy: req.user?._id,
+        },
+      },
+      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
+    );
+
+    res.json({
+      message: "Sheet updated.",
+      sheet: {
+        partyId: String(sheet.party?.id || ""),
+        deduction: money(sheet.deduction || 0),
+        deductionNote: sheet.deductionNote || "",
+        checkNumber: sheet.checkNumber || "",
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -644,7 +913,7 @@ const payeeReport = async (req, res) => {
     if (req.query.partyKind) filter["party.kind"] = req.query.partyKind;
 
     const invoices = await Invoice.find(filter)
-      .select("party loadId invoiceNumber total amountPaid advanceApplied balance status dueDate")
+      .select("party loadId invoiceNumber total amountPaid advanceApplied balance overpaid status dueDate")
       .lean();
 
     const byPayee = new Map();
@@ -707,6 +976,8 @@ const payeeReport = async (req, res) => {
 };
 
 module.exports = {
+  settlementSheets,
+  saveSettlementSheet,
   loadWiseReport,
   customerWiseReport,
   customerLedger,

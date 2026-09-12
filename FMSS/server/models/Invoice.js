@@ -223,6 +223,13 @@ const invoiceSchema = new mongoose.Schema(
     total: { type: Number, default: 0 },
     amountPaid: { type: Number, default: 0 },
     balance: { type: Number, default: 0 },
+    // Money received beyond what this invoice billed. Held as its own field
+    // rather than as a negative `balance`, because a negative balance is a
+    // number every report has to remember to special-case — and the ones that
+    // forget quietly subtract a customer's overpayment from what another
+    // customer owes. `balance` is therefore never below zero, and the excess
+    // sits here where a credit has to be looked at deliberately.
+    overpaid: { type: Number, default: 0 },
 
     // DRAFT   — raised, not yet sent. Still freely re-generated from the ledger.
     // SENT    — the other side has it. Frozen.
@@ -273,7 +280,13 @@ invoiceSchema.pre("save", function recomputeTotals() {
   this.subtotal = totals.total;
   this.advanceApplied = totals.settled;
   this.total = totals.total;
-  this.balance = money(this.total - this.advanceApplied - (this.amountPaid || 0));
+
+  // What is left once everything received is taken off. Below zero it is not a
+  // debt of ours in any useful sense — it is the customer's money sitting with
+  // us — so it is split out rather than carried as a negative balance.
+  const net = money(this.total - this.advanceApplied - (this.amountPaid || 0));
+  this.balance = net > 0 ? net : 0;
+  this.overpaid = net < 0 ? money(-net) : 0;
 
   // VOID is a decision, not a consequence of the numbers, so it is never
   // overwritten here — a voided invoice with a balance is still void.

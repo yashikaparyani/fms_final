@@ -170,10 +170,15 @@ const REPORTS = [
     filters: ["dateRange", "customer", "invoiceState"],
     dateField: "createdAt",
     dateLabel: "Load entered",
+    // Led by who and which invoice, because that is how a receivable is chased —
+    // a customer quotes their invoice, their own reference or the box, never our
+    // load number, so the load id is left off and the two numbers they do quote
+    // sit right beside the invoice.
     columns: [
-      COL.loadId,
       COL.customer,
       { key: "invoiceNumber", label: "Invoice #" },
+      COL.ref,
+      COL.container,
       { key: "invoicedAt", label: "Invoiced", type: "date" },
       { key: "linehaul", label: "Gross", type: "money" },
       { key: "accessorials", label: "Accessorials", type: "money" },
@@ -252,18 +257,24 @@ const REPORTS = [
     label: "Driver Payable Report",
     group: "Financial",
     description:
-      "What each driver is owed for the period. Marking a driver paid emails them their statement.",
+      "What each driver is owed for the period, charge by charge, with what has been paid and what is still open.",
     filters: ["dateRange", "driver", "settledState"],
     dateField: "accounting.payroll.calculatedAt",
     dateLabel: "Pay calculated",
+    // Laid out as the settlement sheet the office already prints: the load and
+    // its container to identify the job, every charge on it rather than one
+    // bare figure, then where the box went and whether the driver has had it.
     columns: [
       COL.loadId,
-      COL.customer,
+      COL.container,
       { key: "driverName", label: "Driver" },
-      { key: "payType", label: "Basis" },
-      { key: "rate", label: "Rate" },
-      { key: "payAmount", label: "Pay", type: "money" },
-      { key: "settledAt", label: "Paid", type: "date" },
+      { key: "total", label: "Total", type: "money" },
+      // Rendered as the charge breakdown on screen; `chargeSummary` is the same
+      // thing flattened for the CSV, which has no cell that can hold a list.
+      { key: "chargeSummary", label: "Total Report" },
+      { key: "from", label: "From" },
+      { key: "to", label: "To" },
+      { key: "payState", label: "Status" },
     ],
     filter: (params) => {
       const query = {
@@ -279,18 +290,83 @@ const REPORTS = [
       }
       return query;
     },
-    row: (load) => ({
-      ...baseRow(load),
-      driver: load.accounting?.payroll?.driver || null,
-      driverName: load.accounting?.payroll?.driverName || "Unassigned",
-      payType: load.accounting?.payroll?.payType || "",
-      rate: load.accounting?.payroll?.rate ?? "",
-      miles: load.accounting?.payroll?.miles ?? null,
-      hours: load.accounting?.payroll?.hours ?? null,
-      payAmount: money(load.accounting?.payroll?.amount),
-      settledAt: load.accounting?.payroll?.settledAt || null,
-    }),
-    totals: ["payAmount"],
+    row: (load) => {
+      const payroll = load.accounting?.payroll || {};
+      const driverId = payroll.driver ? String(payroll.driver) : null;
+
+      // ── Every charge owed to this driver on this load ────────────────────
+      // The pay itself, then anything booked against them on the payables
+      // ledger — a detention, a wait, a lumper they paid out of pocket. Those
+      // extras are the lines a driver checks a statement for, so they are
+      // listed by name rather than folded into one number they cannot verify.
+      const extras = driverId
+        ? (load.accounting?.payables?.lines || []).filter(
+            (line) => line.driverId && String(line.driverId) === driverId,
+          )
+        : [];
+
+      const charges = [
+        {
+          label: "Driver pay",
+          amount: money(payroll.amount),
+          paid: !!payroll.settledAt,
+        },
+        ...extras.map((line) => ({
+          label: labelFor(line.chargeType) || line.chargeType,
+          amount: money(line.amount),
+          note: line.note || "",
+          paid: !!line.paidAt,
+        })),
+      ];
+
+      const total = money(charges.reduce((sum, c) => sum + c.amount, 0));
+      const paid = money(charges.filter((c) => c.paid).reduce((sum, c) => sum + c.amount, 0));
+      const openBalance = money(total - paid);
+
+      // The reference used to be appended to the note as "Paid: …" before it
+      // had a field of its own. Both are read, and the suffix is kept out of the
+      // reason so it does not print twice.
+      const legacyRef = /Paid:\s*([^·]+)/.exec(payroll.note || "");
+      const checkNumber = payroll.reference || (legacyRef ? legacyRef[1].trim() : "");
+      const reason = String(payroll.note || "")
+        .split("·")
+        .map((part) => part.trim())
+        .filter((part) => part && !/^Paid:/.test(part))
+        .join(" · ");
+
+      const stop = (s) =>
+        [s?.name, s?.address, [s?.city, s?.state].filter(Boolean).join(", ")]
+          .map((part) => String(part || "").trim())
+          .filter(Boolean)
+          .join("\n");
+
+      return {
+        ...baseRow(load),
+        driver: payroll.driver || null,
+        driverName: payroll.driverName || "Unassigned",
+        payDate: payroll.calculatedAt || null,
+        payType: payroll.payType || "",
+        rate: payroll.rate ?? "",
+        miles: payroll.miles ?? null,
+        hours: payroll.hours ?? null,
+        payAmount: money(payroll.amount),
+        charges,
+        checkNumber,
+        reason,
+        total,
+        paid,
+        openBalance,
+        chargeSummary:
+          charges.map((c) => `${c.label}: ${c.amount.toFixed(2)}`).join("; ") +
+          ` | Check #: ${checkNumber || "—"} | Reason: ${reason || "—"} | Total: ${total.toFixed(2)}`,
+        from: stop(load.pickup),
+        to: stop(load.drop),
+        settledAt: payroll.settledAt || null,
+        payState: openBalance <= 0 ? "Paid" : paid > 0 ? "Part paid" : "Pending",
+      };
+    },
+    // Per driver these are the three figures the sheet ends on.
+    totals: ["total", "paid", "openBalance"],
     groupBy: "driverName",
   },
 

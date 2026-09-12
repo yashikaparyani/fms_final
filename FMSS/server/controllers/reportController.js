@@ -5,7 +5,10 @@ const {
   catalog,
   money,
 } = require("../config/reportDefinitions");
-const { sendDriverPaymentStatement } = require("../services/emailService");
+const {
+  sendDriverPaymentStatement,
+  sendDriverAccountStatement,
+} = require("../services/emailService");
 const audit = require("../services/auditService");
 
 // ─── Report generation ────────────────────────────────────────────────────────
@@ -301,6 +304,7 @@ const payDriver = async (req, res) => {
     for (const load of loads) {
       load.accounting.payroll.settledAt = paidAt;
       if (reference) {
+        load.accounting.payroll.reference = reference;
         load.accounting.payroll.note = [load.accounting.payroll.note, `Paid: ${reference}`]
           .filter(Boolean)
           .join(" · ");
@@ -372,7 +376,79 @@ const payDriver = async (req, res) => {
   }
 };
 
+// @desc    Email a driver their statement of account, without paying anything
+// @route   POST /api/reports/driver-payable/statement
+// @access  Private (staff, admin)
+//
+// The same figures the report shows for this driver and these filters — built
+// by running the report rather than by a second query, so the email cannot say
+// something different from the screen the office was looking at when they
+// pressed send.
+const sendDriverStatement = async (req, res) => {
+  try {
+    const driverId = trimmed(req.body.driver);
+    if (!driverId) {
+      return res.status(400).json({ message: "Name the driver to send the statement to." });
+    }
+
+    const driver = await Driver.findById(driverId);
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found at this location." });
+    }
+
+    const params = paramsFrom({ ...req.body, driver: driverId });
+    const result = await runReport("driverPayable", params);
+
+    // A subset, when the office is sending the loads on one sheet only.
+    const loadIds = Array.isArray(req.body.loadIds) ? req.body.loadIds.map(String) : [];
+    const rows = loadIds.length
+      ? result.rows.filter((row) => loadIds.includes(row.loadId))
+      : result.rows;
+
+    if (!rows.length) {
+      return res
+        .status(400)
+        .json({ message: `${driver.name} has nothing on this statement to send.` });
+    }
+
+    const sum = (field) => money(rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0));
+    const totals = { total: sum("total"), paid: sum("paid"), openBalance: sum("openBalance") };
+
+    if (!driver.email) {
+      return res.status(400).json({
+        message: `${driver.name} has no email address on file, so the statement cannot be sent.`,
+      });
+    }
+
+    const emailStatus = await sendDriverAccountStatement({
+      to: driver.email,
+      driverName: driver.name,
+      rows,
+      totals,
+      period: { from: params.from || "", to: params.to || "" },
+    });
+
+    if (!emailStatus?.sent) {
+      return res.status(502).json({
+        message: emailStatus?.message || "The statement could not be emailed.",
+        emailStatus,
+      });
+    }
+
+    res.json({
+      message: `Statement sent to ${driver.name} (${driver.email}) — ${rows.length} load${
+        rows.length === 1 ? "" : "s"
+      }, $${totals.openBalance.toLocaleString("en-US")} open.`,
+      totals,
+      emailStatus,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
+  sendDriverStatement,
   getCatalog,
   getReport,
   exportReport,

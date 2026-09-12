@@ -3,7 +3,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
-import { notify } from "../../utils/swal";
+import Swal, { notify } from "../../utils/swal";
 import { money, today, formatDate, errorFrom } from "./invoiceUi";
 
 // ─── Receiving one payment against several loads ──────────────────────────────
@@ -107,20 +107,23 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
 
   useEffect(() => {
     if (!open) return;
-    // Everything ticked, because a customer paying usually pays what they owe.
-    setPicked(Object.fromEntries(openRows.map((row) => [row.id, true])));
+    // Nothing ticked, and no amount assumed. The dialog used to open with every
+    // load selected and the full outstanding balance filled in, which meant the
+    // common case — a customer paying one or two of seven loads — started by
+    // undoing five ticks, and any row left ticked by mistake quietly took a
+    // share of the money. Opening empty makes allocating the payment a decision
+    // somebody made rather than one they failed to notice. "Select all" is one
+    // click away in the header for a customer who really has paid everything.
+    setPicked({});
     setManual({});
     set({
-      amount: String(round(openRows.reduce((sum, row) => sum + row.balance, 0))),
+      amount: "",
       paidOn: today(),
       documentNumber: "",
       bankName: "",
       note: "",
       strategy: "OLDEST_FIRST",
     });
-    // openRows is derived from the invoices prop; re-seeding on every identity
-    // change would fight the user as they type.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -141,6 +144,10 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
 
   const selectedOutstanding = round(
     selected.reduce((sum, row) => sum + row.balance, 0),
+  );
+
+  const totalOutstanding = round(
+    openRows.reduce((sum, row) => sum + row.balance, 0),
   );
 
   const usingManual = Object.keys(manual).some(
@@ -171,17 +178,64 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
     selected.reduce((sum, row) => sum + (allocation[row.id] || 0), 0),
   );
 
-  const overAllocated = selected.some(
-    (row) => (allocation[row.id] || 0) > row.balance + 0.005,
-  );
+  // ── More than the load owes ────────────────────────────────────────────────
+  // This used to be a hard error. It is not one: a customer rounds a payment up,
+  // or pays an old balance twice, and the money really did arrive. Refusing it
+  // only means somebody records a figure that is not the figure on the bank
+  // statement, which is worse than a credit nobody expected.
+  //
+  // So an over-application is allowed, but never silently — it is confirmed load
+  // by load on the way out, and the excess is held as advance for the customer
+  // rather than disappearing into the balance.
+  const overpayments = selected
+    .map((row) => ({ row, excess: round((allocation[row.id] || 0) - row.balance) }))
+    .filter((entry) => entry.excess > 0.005);
+
+  const advance = round(overpayments.reduce((sum, entry) => sum + entry.excess, 0));
 
   if (!open) return null;
 
   const submit = async () => {
     if (!selected.length) return notify.error("Choose at least one load.");
     if (applying <= 0) return notify.error("Enter the amount that was received.");
-    if (overAllocated) {
-      return notify.error("One load is being paid more than it owes. Adjust the amounts.");
+
+    // Named load by load, with the figure, because "confirm overpayment" on its
+    // own is a question nobody can answer. The clerk is being asked whether a
+    // specific customer really sent more than a specific load was billed for —
+    // which is answerable, and is usually how a typo gets caught.
+    if (overpayments.length) {
+      const lines = overpayments
+        .map(
+          (entry) =>
+            `<li><strong>${entry.row.loadId}</strong> — billed ${money(
+              entry.row.balance,
+            )} open, receiving ${money(allocation[entry.row.id] || 0)} ` +
+            `(<strong>${money(entry.excess)}</strong> over)</li>`,
+        )
+        .join("");
+
+      const { isConfirmed } = await Swal.fire({
+        title: `Did ${customerName || "this customer"} overpay?`,
+        html: `
+          <div style="font-size:13px;color:#374151;text-align:left;">
+            <p style="margin:0 0 8px;">
+              This is more than ${overpayments.length === 1 ? "that load was" : "those loads were"} billed for:
+            </p>
+            <ul style="margin:0 0 8px;padding-left:18px;">${lines}</ul>
+            <p style="margin:0;">
+              Recording it keeps <strong>${money(advance)}</strong> as advance for this
+              customer, to set against their next load. If the amount is wrong, cancel
+              and correct it instead.
+            </p>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Yes, they overpaid",
+        cancelButtonText: "Let me fix it",
+        confirmButtonColor: "#1d4ed8",
+      });
+
+      if (!isConfirmed) return;
     }
 
     try {
@@ -198,6 +252,8 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
         documentNumber: form.documentNumber,
         bankName: form.bankName,
         note: form.note,
+        // The server refuses an over-application unless this says it was meant.
+        allowOverpayment: overpayments.length > 0,
       });
       notify.success(data.message);
       onRecorded?.(data);
@@ -298,7 +354,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                 <div>
                   <label className={uiStyles.label}>
                     {spec?.documentLabel || "Reference"}
-                    {spec?.requiresDocument ? " *" : ""}
+                    {spec?.documentRequired ? " *" : ""}
                   </label>
                   <input
                     className={uiStyles.input}
@@ -334,8 +390,13 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                         )
                       }
                     />
-                    {selected.length} of {openRows.length} loads ·{" "}
-                    {money(selectedOutstanding)} outstanding
+                    {selected.length
+                      ? `${selected.length} of ${openRows.length} loads · ${money(
+                          selectedOutstanding,
+                        )} selected`
+                      : `Select loads · ${openRows.length} open · ${money(
+                          totalOutstanding,
+                        )} outstanding`}
                   </label>
                   {usingManual && (
                     <button
@@ -414,19 +475,25 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                                 }
                                 className={`w-24 rounded border px-2 py-1 text-right text-sm tabular-nums ${
                                   applied > row.balance + 0.005
-                                    ? "border-bad-400 bg-bad-50"
+                                    ? "border-warn-500 bg-warn-50"
                                     : "border-ink-300"
                                 }`}
                               />
                             </td>
                             <td
                               className={`py-1.5 pr-3 text-right tabular-nums ${
-                                on && left <= 0
-                                  ? "font-semibold text-good-600"
-                                  : "text-ink-600"
+                                on && left < -0.005
+                                  ? "font-semibold text-warn-700"
+                                  : on && left <= 0
+                                    ? "font-semibold text-good-600"
+                                    : "text-ink-600"
                               }`}
                             >
-                              {on && left <= 0 ? "Cleared" : money(left)}
+                              {on && left < -0.005
+                                ? `${money(-left)} over`
+                                : on && left <= 0
+                                  ? "Cleared"
+                                  : money(left)}
                             </td>
                           </tr>
                         );
@@ -445,10 +512,11 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                 />
               </div>
 
-              {overAllocated && (
-                <p className="rounded-lg border border-bad-200 bg-bad-50 px-3 py-2 text-sm font-semibold text-bad-700">
-                  One load is being paid more than it owes. A genuine overpayment
-                  is a credit, which is a different document.
+              {overpayments.length > 0 && (
+                <p className="rounded-lg border border-warn-100 bg-warn-50 px-3 py-2 text-sm font-semibold text-warn-700">
+                  {money(advance)} more than {overpayments.length === 1 ? "that load owes" : "those loads owe"} —
+                  held as advance for {customerName || "this customer"} and set against
+                  their next load. You will be asked to confirm it.
                 </p>
               )}
             </>
@@ -472,7 +540,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
               </button>
               <button
                 onClick={submit}
-                disabled={saving || overAllocated || applying <= 0}
+                disabled={saving || applying <= 0}
                 className="btn-primary disabled:opacity-50"
               >
                 {saving ? "Recording…" : `Receive ${money(applying)}`}

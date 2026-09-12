@@ -1044,6 +1044,10 @@ const loadSchema = new mongoose.Schema(
         calculatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         note: String,
         settledAt: Date,
+        // The cheque or transfer it was paid by. Its own field rather than
+        // appended to `note`, so the settlement report can print it in the
+        // Check Number slot without parsing free text.
+        reference: String,
       },
     },
   },

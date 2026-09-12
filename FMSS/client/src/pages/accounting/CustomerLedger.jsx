@@ -6,6 +6,7 @@ import PaymentsIcon from "@mui/icons-material/Payments";
 import api from "../../api";
 import Swal, { notify } from "../../utils/swal";
 import ReceivePaymentDialog from "../../components/accounting/ReceivePaymentDialog";
+import PaymentHistory from "../../components/accounting/PaymentHistory";
 import { uiStyles } from "../../style/uiStyles";
 import {
   money,
@@ -96,6 +97,9 @@ const CustomerLedger = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [receiving, setReceiving] = useState(false);
+  // Bumped when money is recorded, so a search already on screen re-runs and
+  // the payment somebody just entered is in it.
+  const [paymentsKey, setPaymentsKey] = useState(0);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -227,6 +231,15 @@ const CustomerLedger = () => {
                 label="Received"
                 value={moneyShort(ledger.totals.received)}
                 tone="text-good-600"
+                // Credit is never netted off what they owe — see the note in
+                // accountingReportsController. It is said here, next to the
+                // money it came in with, because an advance nobody knows about
+                // is an advance that never gets applied to their next load.
+                hint={
+                  ledger.totals.credit > 0
+                    ? `${money(ledger.totals.credit)} held as advance`
+                    : undefined
+                }
               />
               <Tile
                 label="Outstanding"
@@ -317,6 +330,10 @@ const CustomerLedger = () => {
                               the column scans as "what is still owed". */}
                           {Number(invoice.balance) ? (
                             money(invoice.balance)
+                          ) : Number(invoice.overpaid) ? (
+                            <span className="font-semibold text-accent-700">
+                              {money(invoice.overpaid)} advance
+                            </span>
                           ) : (
                             <span className="font-normal text-ink-300">Paid</span>
                           )}
@@ -344,38 +361,10 @@ const CustomerLedger = () => {
               </div>
             </div>
 
-            <div className={uiStyles.card}>
-              <p className={`${uiStyles.title} mb-3`}>Payments received</p>
-              {!ledger.payments.length && (
-                <p className="py-6 text-center text-ink-400">Nothing recorded yet.</p>
-              )}
-              <div className="space-y-2">
-                {ledger.payments.map((payment) => (
-                  <div
-                    key={payment._id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline p-3 text-sm"
-                  >
-                    <div>
-                      <p className="font-bold tabular-nums text-good-700">
-                        {money(payment.amount)}
-                      </p>
-                      <p className="text-xs text-ink-500">
-                        {payment.paymentNumber} · against {payment.invoiceNumber}
-                      </p>
-                    </div>
-                    <div className="text-right text-xs text-ink-500">
-                      <p className="font-semibold text-ink-700">
-                        {formatDate(payment.paidOn)}
-                      </p>
-                      <p>
-                        {payment.method}
-                        {payment.documentNumber ? ` · ${payment.documentNumber}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PaymentHistory
+              partyId={selected.customerId}
+              refreshKey={paymentsKey}
+            />
           </>
         )}
 
@@ -385,6 +374,7 @@ const CustomerLedger = () => {
           invoices={ledger?.invoices || []}
           onClose={() => setReceiving(false)}
           onRecorded={async () => {
+            setPaymentsKey((n) => n + 1);
             // Both views move: the account's own totals, and this customer's row
             // on the aging summary behind it.
             await openCustomer(selected);

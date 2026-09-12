@@ -40,7 +40,13 @@ export {
 // stored value; "Awaiting payment" is what it means to somebody looking at a
 // list of things they are waiting on.
 export const STATUS = {
-  DRAFT: { label: "Draft", chip: "bg-gray-100 text-gray-700 border-gray-200" },
+  // "DRAFT" is the stored value, but it does not mean what the word means to a
+  // clerk. An invoice is DRAFT until somebody emails it from the detail screen —
+  // so a bill that was raised, totalled and is sitting in the register waiting
+  // to be chased reads as if it were still being typed. It is a real, numbered
+  // document, so it is called one. Whether it has actually been emailed is a
+  // separate question, answered by the "Not sent" filter and by the detail page.
+  DRAFT: { label: "Invoiced", chip: "bg-gray-100 text-gray-700 border-gray-200" },
   SENT: { label: "Awaiting payment", chip: "bg-blue-50 text-blue-700 border-blue-200" },
   PARTIAL: { label: "Part paid", chip: "bg-amber-50 text-amber-800 border-amber-200" },
   PAID: { label: "Paid", chip: "bg-green-50 text-green-700 border-green-200" },
@@ -62,7 +68,15 @@ export const statusOf = (invoice) => {
       chip: "bg-red-50 text-red-700 border-red-200",
     };
   }
-  return STATUS[invoice.status] || STATUS.DRAFT;
+  const status = STATUS[invoice.status] || STATUS.DRAFT;
+
+  // On the payables side we have not invoiced anybody — somebody has invoiced
+  // us. Same state, the other end of it, so it borrows the wording the AP tiles
+  // already use.
+  if (status === STATUS.DRAFT && invoice.direction === "AP") {
+    return { ...status, label: "Billed" };
+  }
+  return status;
 };
 
 /** The aging buckets, in the order finance reads them. */
