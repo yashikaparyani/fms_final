@@ -241,6 +241,8 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                   <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Fleet Owner Amount ($)</label>
                   <input
                     type="number"
+                    step="0.01"
+                    min="0"
                     name="fleetOwnerAmount"
                     value={formData.fleetOwnerAmount}
                     onChange={handleChange}

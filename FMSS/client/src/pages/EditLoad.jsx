@@ -853,7 +853,7 @@ const EditLoad = () => {
 
                 {/* Amount */}
                 <div className="relative">
-                  <input type="number" className={cx("amount")} placeholder="0.00" {...register("amount")} disabled={submitting} />
+                  <input type="number" step="0.01" min="0" inputMode="decimal" className={cx("amount")} placeholder="0.00" {...register("amount")} disabled={submitting} />
                   <label className="input-label">Base Amount <span className="text-red-400">*</span></label>
                   {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount.message}</p>}
                 </div>

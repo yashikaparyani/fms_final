@@ -1053,7 +1053,7 @@ const LoadForm = () => {
                 </div>
 
                 <div className="relative">
-                  <input type="number" className={errors.amount ? inputErrorClass : uiStyles.input} placeholder="0.00" {...register("amount")} disabled={loading} />
+                  <input type="number" step="0.01" min="0" inputMode="decimal" className={errors.amount ? inputErrorClass : uiStyles.input} placeholder="0.00" {...register("amount")} disabled={loading} />
                   <label className="input-label">Base Amount <span className="text-red-400">*</span></label>
                   {/* The breakdown is what the base amount is *made of*, so it
                       hangs off this field rather than living on its own screen.
