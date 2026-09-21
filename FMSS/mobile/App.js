@@ -752,6 +752,195 @@ function LoadCard({ load, children, onPress, live }) {
   );
 }
 
+// ─── The bid board card ───────────────────────────────────────────────────────
+// Its own design rather than the shared LoadCard: this is the one screen a
+// carrier opens to make money, so the rate, the lane and the clock lead, and the
+// action — bid, or answer an offer — sits in its own panel under them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** "2h 14m left", "Opens in 35m", "Closed" — refreshed every 30 seconds. */
+function useBidClock(load) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const start = load.bidStartTime ? new Date(load.bidStartTime).getTime() : null;
+  const end = load.bidEndTime ? new Date(load.bidEndTime).getTime() : null;
+  const span = (ms) => {
+    const mins = Math.max(0, Math.round(ms / 60000));
+    const d = Math.floor(mins / 1440);
+    const h = Math.floor((mins % 1440) / 60);
+    const m = mins % 60;
+    if (d) return `${d}d ${h}h`;
+    if (h) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  if (start && start > now) return { text: `Opens in ${span(start - now)}`, urgent: false };
+  if (end && end <= now) return { text: "Bidding closed", urgent: true };
+  if (end) return { text: `${span(end - now)} left to bid`, urgent: end - now < 3600000 };
+  return { text: "Open for bids", urgent: false };
+}
+
+function RouteLine({ origin, destination, pickupDate }) {
+  return (
+    <View style={styles.routeWrap}>
+      <View style={styles.routeRail}>
+        <View style={[styles.routeDot, { backgroundColor: colors.success }]} />
+        <View style={styles.routeDash} />
+        <View style={[styles.routeDot, { backgroundColor: colors.danger }]} />
+      </View>
+      <View style={{ flex: 1, gap: 14 }}>
+        <View>
+          <Text style={styles.routeTag}>PICKUP</Text>
+          <Text style={styles.routeCity} numberOfLines={1}>{stopLabel(origin)}</Text>
+          {pickupDate ? <Text style={styles.routeSub}>{fmtDate(pickupDate)}</Text> : null}
+        </View>
+        <View>
+          <Text style={styles.routeTag}>DROP</Text>
+          <Text style={styles.routeCity} numberOfLines={1}>{stopLabel(destination)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function InfoChip({ label, value }) {
+  if (!value) return null;
+  return (
+    <View style={styles.infoChip}>
+      <Text style={styles.infoChipLabel}>{label}</Text>
+      <Text style={styles.infoChipValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onBid, onRespond }) {
+  const origin = load.pickup || load.pickups?.[0];
+  const destination = load.drop || load.drops?.[0];
+  const clock = useBidClock(load);
+  const rate =
+    load.carrierPayout != null ? load.carrierPayout : load.winningBid?.amount ?? load.vendorRate;
+  const quick = rate ? [rate, Math.round(rate * 0.97), Math.round(rate * 0.95)] : [];
+
+  return (
+    <View style={[styles.bbCard, live && styles.bbCardLive]}>
+      {live ? <LivePulse color={colors.danger} /> : null}
+
+      {/* Header: id, live state and the rate, on the brand gradient. */}
+      <GradientHeader from="#1D4ED8" to="#4F46E5" style={styles.bbHeader}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={styles.bbLoadId}>{load.loadId}</Text>
+            {live ? <LiveBadge light color={colors.danger} /> : null}
+          </View>
+          <Text style={styles.bbType}>{load.truckType || "Load"}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={styles.bbRateLabel}>RATE</Text>
+          <Text style={styles.bbRate}>{money(rate)}</Text>
+        </View>
+      </GradientHeader>
+
+      <View style={styles.bbBody}>
+        {/* The clock: how long is left to act. */}
+        <View style={[styles.bbClock, clock.urgent && styles.bbClockUrgent]}>
+          <Icon name="clock" size={16} color={clock.urgent ? colors.danger : "#4338CA"} />
+          <Text style={[styles.bbClockText, clock.urgent && { color: colors.danger }]}>
+            {clock.text}
+          </Text>
+        </View>
+
+        <RouteLine origin={origin} destination={destination} pickupDate={origin?.pickupDate} />
+
+        <View style={styles.chipRow}>
+          <InfoChip label="Container" value={load.containerNo} />
+          <InfoChip label="Chassis" value={load.chassisNo} />
+          <InfoChip label="Pickup #" value={load.pickupNo} />
+          <InfoChip label="Dest #" value={destination?.poNumber} />
+        </View>
+
+        {offer ? (
+          // A counter-offer is a yes-or-no on one number, so it replaces the
+          // bid box entirely.
+          <GradientHeader from="#EEF2FF" to="#F5F3FF" style={styles.bbOffer}>
+            <Text style={styles.bbOfferTag}>🤝  OFFICE COUNTER-OFFER</Text>
+            <Text style={styles.bbOfferAmount}>{money(offer.amount)}</Text>
+            {offer.previousAmount ? (
+              <Text style={styles.bbOfferNote}>
+                Your bid was {money(offer.previousAmount)} · accepting awards you this load
+              </Text>
+            ) : (
+              <Text style={styles.bbOfferNote}>Accepting awards you this load</Text>
+            )}
+            <View style={styles.bbActions}>
+              <Pressable
+                onPress={() => onRespond(false)}
+                disabled={saving}
+                style={({ pressed }) => [styles.bbDecline, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.bbDeclineText}>Decline</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onRespond(true)}
+                disabled={saving}
+                style={({ pressed }) => [styles.bbAccept, pressed && { opacity: 0.85 }]}
+              >
+                <Icon name="check" size={18} color="#fff" />
+                <Text style={styles.bbAcceptText}>{saving ? "Sending…" : "Accept"}</Text>
+              </Pressable>
+            </View>
+          </GradientHeader>
+        ) : (
+          <View style={styles.bbBidBox}>
+            <Text style={styles.bbBidTag}>YOUR BID</Text>
+            <View style={styles.bbBidRow}>
+              <View style={styles.bbInputWrap}>
+                <Text style={styles.bbDollar}>$</Text>
+                <TextInput
+                  value={amount}
+                  onChangeText={onAmount}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#98a2b3"
+                  style={styles.bbInput}
+                />
+              </View>
+              <Pressable
+                onPress={onBid}
+                style={({ pressed }) => [styles.bbBidBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Icon name="bid" size={18} color="#fff" />
+                <Text style={styles.bbBidBtnText}>Place bid</Text>
+              </Pressable>
+            </View>
+            {quick.length ? (
+              <View style={styles.bbQuickRow}>
+                {quick.map((value, i) => (
+                  <Pressable
+                    key={i}
+                    onPress={() => onAmount(String(value))}
+                    style={({ pressed }) => [styles.bbQuick, pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={styles.bbQuickText}>{money(value)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        )}
+
+        <Pressable onPress={onOpen} style={styles.bbDetails}>
+          <Text style={styles.bbDetailsText}>View full details</Text>
+          <Icon name="chevron" size={16} color="#4338CA" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
   const [loads, setLoads] = useState([]);
   const [amountByLoad, setAmountByLoad] = useState({});
@@ -861,56 +1050,19 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
               : "No open bids right now."}
         </Text>
       }
-      renderItem={({ item }) => {
-        const offer = item.negotiation;
-        const isSaving = savingId === item.loadId;
-
-        return (
-          <LoadCard load={item} live={isLiveBid(item)} onPress={() => onOpenDetail(item)}>
-            {offer ? (
-              // An offer is a specific number waiting on a yes or no — not
-              // another load to bid on — so it replaces the bid box entirely.
-              <View style={styles.offerBox}>
-                <Text style={styles.offerTitle}>Negotiated amount</Text>
-                <Text style={styles.offerAmount}>{money(offer.amount)}</Text>
-                <Text style={styles.muted}>
-                  {offer.previousAmount
-                    ? `Against your bid of ${money(offer.previousAmount)}. `
-                    : ""}
-                  Accepting awards this load to you at {money(offer.amount)}.
-                </Text>
-                <View style={styles.bidRow}>
-                  <SecondaryButton
-                    title="Decline"
-                    onPress={() => respondToOffer(item, false)}
-                    disabled={isSaving}
-                  />
-                  <PrimaryButton
-                    title={isSaving ? "Sending..." : "Accept"}
-                    onPress={() => respondToOffer(item, true)}
-                    disabled={isSaving}
-                  />
-                </View>
-              </View>
-            ) : (
-              <View style={styles.bidRow}>
-                <TextInput
-                  value={amountByLoad[item.loadId] || ""}
-                  onChangeText={(text) =>
-                    setAmountByLoad((prev) => ({ ...prev, [item.loadId]: text }))
-                  }
-                  keyboardType="numeric"
-                  placeholder="Your bid"
-                  style={[styles.input, styles.bidInput]}
-                  placeholderTextColor="#98a2b3"
-                />
-                <PrimaryButton title="Bid" onPress={() => placeBid(item.loadId)} />
-              </View>
-            )}
-            <SecondaryButton title="View assigned loads" onPress={onOpenAssigned} />
-          </LoadCard>
-        );
-      }}
+      renderItem={({ item }) => (
+        <BidBoardCard
+          load={item}
+          live={isLiveBid(item)}
+          offer={item.negotiation}
+          saving={savingId === item.loadId}
+          amount={amountByLoad[item.loadId] || ""}
+          onAmount={(text) => setAmountByLoad((prev) => ({ ...prev, [item.loadId]: text }))}
+          onBid={() => placeBid(item.loadId)}
+          onRespond={(accept) => respondToOffer(item, accept)}
+          onOpen={() => onOpenDetail(item)}
+        />
+      )}
       contentContainerStyle={styles.listContent}
     />
   );
@@ -5170,6 +5322,164 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  bbCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    marginBottom: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E4E7F2",
+    shadowColor: "#1E3A8A",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  bbCardLive: { borderColor: "#FCA5A5" },
+  bbHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    // GradientHeader is built for the top of a screen: it adds the status-bar
+    // inset and rounds only its bottom corners. Neither belongs on a card.
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 18,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  bbLoadId: { color: "#fff", fontSize: 22, fontWeight: "900", letterSpacing: 0.3 },
+  bbType: { color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: "600", marginTop: 2 },
+  bbRateLabel: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+  bbRate: { color: "#fff", fontSize: 28, fontWeight: "900" },
+  bbBody: { padding: 18, gap: 16 },
+  bbClock: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  bbClockUrgent: { backgroundColor: "#FEF2F2" },
+  bbClockText: { color: "#4338CA", fontSize: 14, fontWeight: "800" },
+  routeWrap: { flexDirection: "row", gap: 12 },
+  routeRail: { alignItems: "center", paddingTop: 4, width: 14 },
+  routeDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: "#fff", elevation: 2 },
+  routeDash: {
+    flex: 1,
+    width: 0,
+    borderLeftWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#CBD5E1",
+    marginVertical: 3,
+  },
+  routeTag: { color: "#94A3B8", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  routeCity: { color: "#0F172A", fontSize: 19, fontWeight: "800" },
+  routeSub: { color: "#64748B", fontSize: 13, fontWeight: "600", marginTop: 1 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  infoChip: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxWidth: "48%",
+  },
+  infoChipLabel: { color: "#94A3B8", fontSize: 10, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase" },
+  infoChipValue: { color: "#1E293B", fontSize: 14, fontWeight: "700" },
+  bbOffer: {
+    borderRadius: 16,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    overflow: "hidden",
+  },
+  bbOfferTag: { color: "#4338CA", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  bbOfferAmount: { color: "#312E81", fontSize: 34, fontWeight: "900", marginTop: 4 },
+  bbOfferNote: { color: "#475569", fontSize: 14, fontWeight: "600", marginTop: 2 },
+  bbActions: { flexDirection: "row", gap: 10, marginTop: 14 },
+  bbDecline: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#FCA5A5",
+  },
+  bbDeclineText: { color: "#DC2626", fontSize: 16, fontWeight: "800" },
+  bbAccept: {
+    flex: 2,
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: "#16A34A",
+    shadowColor: "#16A34A",
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  bbAcceptText: { color: "#fff", fontSize: 17, fontWeight: "900" },
+  bbBidBox: { backgroundColor: "#F8FAFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E0E7FF" },
+  bbBidTag: { color: "#4338CA", fontSize: 12, fontWeight: "900", letterSpacing: 1, marginBottom: 8 },
+  bbBidRow: { flexDirection: "row", gap: 10 },
+  bbInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#C7D2FE",
+    paddingHorizontal: 12,
+  },
+  bbDollar: { color: "#4338CA", fontSize: 20, fontWeight: "900", marginRight: 4 },
+  bbInput: { flex: 1, fontSize: 20, fontWeight: "800", color: "#0F172A", paddingVertical: 10 },
+  bbBidBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    shadowColor: "#2563EB",
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  bbBidBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  bbQuickRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+  bbQuick: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: 10,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E0E7FF",
+  },
+  bbQuickText: { color: "#4338CA", fontSize: 14, fontWeight: "800" },
+  bbDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingTop: 4,
+  },
+  bbDetailsText: { color: "#4338CA", fontSize: 15, fontWeight: "800" },
   amountBadge: {
     alignItems: "flex-end",
     backgroundColor: "#ECFDF3",
