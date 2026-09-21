@@ -16,7 +16,8 @@ import api from "../../api";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import BulkEntryTable from "../../components/BulkEntryTable";
-import FieldRenderer from "../../components/onboarding/FieldRenderer";
+import FieldRenderer, { FillHint } from "../../components/onboarding/FieldRenderer";
+import { focusField } from "../../utils/focusField";
 import SignaturePad from "../../components/onboarding/SignaturePad";
 import { usePermissions } from "../../hooks/usePermissions";
 import { formatDateNumeric } from "../../utils/dates";
@@ -61,6 +62,8 @@ const DRIVER_BLANK = {
   licenseExpiry: "",
 };
 
+const trimmedOf = (value) => String(value ?? "").trim();
+
 const money = (value) =>
   value === null || value === undefined || value === ""
     ? "—"
@@ -68,6 +71,37 @@ const money = (value) =>
 
 const fmtDate = (value) =>
   value ? formatDateNumeric(value) : "—";
+
+/** Profile fields that default to another one ("notice name" ← legal name). */
+const copyPairs = (catalog) =>
+  (catalog?.sharedProfile || [])
+    .flatMap((section) => section.fields)
+    .filter((field) => field.copyFrom)
+    .map((field) => ({ key: field.key, from: field.copyFrom }));
+
+/** Blank copy-from fields filled from their source, so nothing is typed twice. */
+const withCopies = (profile, catalog) => {
+  const next = { ...profile };
+  copyPairs(catalog).forEach(({ key, from }) => {
+    if (!String(next[key] ?? "").trim() && next[from]) next[key] = next[from];
+  });
+  return next;
+};
+
+/** Required company-detail fields still empty, in the order they appear. */
+const profileGapsOf = (profile, catalog) =>
+  (catalog?.sharedProfile || [])
+    .flatMap((section) => section.fields)
+    .filter((field) => field.required && !String(profile[field.key] ?? "").trim())
+    .map((field) => field.key);
+
+const initialsFrom = (name) =>
+  String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => word[0].toUpperCase())
+    .join("");
 
 const Onboarding = () => {
   const { role } = usePermissions();
@@ -107,6 +141,11 @@ const Onboarding = () => {
 
   const [signing, setSigning] = useState(null); // agreement key being signed
   const [signState, setSignState] = useState({});
+  // Per-field problems on the open signing panel, keyed like `errors`.
+  const [signErrors, setSignErrors] = useState({});
+  // Which agreement fields were filled in for the carrier from answers they had
+  // already given, so the form can say so.
+  const [autoFilled, setAutoFilled] = useState({});
 
   const licenceInput = useRef({});
 
@@ -122,7 +161,7 @@ const Onboarding = () => {
 
       setCatalog(catalogRes.data);
       setData(dataRes.data);
-      setProfile(dataRes.data.profile || {});
+      setProfile(withCopies(dataRes.data.profile || {}, catalogRes.data));
       setStep(dataRes.data.currentStep || "agreements");
 
       if (dataRes.data.equipment?.length) {
@@ -147,7 +186,17 @@ const Onboarding = () => {
   }, [load]);
 
   const setField = (key, value) => {
-    setProfile((current) => ({ ...current, [key]: value }));
+    setProfile((current) => {
+      const next = { ...current, [key]: value };
+      // Carry the change into any field that copies this one, unless the
+      // carrier has already typed something different there.
+      copyPairs(catalog).forEach(({ key: target, from }) => {
+        if (from !== key) return;
+        const was = String(current[target] ?? "").trim();
+        if (!was || was === String(current[key] ?? "").trim()) next[target] = value;
+      });
+      return next;
+    });
     setErrors((current) => {
       if (!current[key]) return current;
       const next = { ...current };
@@ -226,11 +275,64 @@ const Onboarding = () => {
   };
 
   // ── Sign ───────────────────────────────────────────────────────────────────
+  /** Mark fields as needing filling and take the carrier to the first one. */
+  const sendToFields = (keys, setter) => {
+    if (!keys.length) return;
+    setter((current) => ({
+      ...current,
+      ...Object.fromEntries(keys.map((k) => [k, "Please fill this field"])),
+    }));
+    focusField(keys[0]);
+  };
+
+  const clearSignError = (key) =>
+    setSignErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+
   const beginSigning = (agreement) => {
+    // Company details come first — both agreements print them. Rather than a
+    // popup listing what is missing, go to the first empty field.
+    const gaps = profileGapsOf(profile, catalog);
+    if (gaps.length) {
+      setSigning(null);
+      sendToFields(gaps, setErrors);
+      return;
+    }
+
     const existing = data.agreements.find((a) => a.key === agreement.key);
 
+    // Anything already answered — on another agreement, or on the company
+    // details — is filled in here rather than asked again. It stays editable.
+    const answered = (data.agreements || []).reduce(
+      (all, a) => ({ ...all, ...(a.values || {}) }),
+      {},
+    );
+    const derived = {
+      einNumber: profile.taxIdType === "EIN" ? profile.taxId : "",
+      einLegalName: profile.legalName,
+    };
+    const values = { ...(existing?.values || {}) };
+    const filled = {};
+    (agreement.fields || []).forEach((field) => {
+      if (String(values[field.key] ?? "").trim()) return;
+      const guess =
+        answered[field.key] ||
+        derived[field.key] ||
+        (field.type === "initials" ? initialsFrom(profile.signerName) : "");
+      if (guess) {
+        values[field.key] = guess;
+        filled[field.key] = true;
+      }
+    });
+    setAutoFilled(filled);
+    setSignErrors({});
+
     setSignState({
-      values: existing?.values || {},
+      values,
       acknowledgements: [],
       signedName: profile.signerName || "",
       signedTitle: profile.signerTitle || "",
@@ -240,24 +342,35 @@ const Onboarding = () => {
   };
 
   const submitSignature = async (agreement) => {
-    const missing = (agreement.fields || [])
-      .filter((f) => f.required && !String(signState.values?.[f.key] || "").trim())
-      .map((f) => f.label);
-
-    if (missing.length) {
-      notify.warning(`Still needed: ${missing.join(", ")}`);
+    const gaps = profileGapsOf(profile, catalog);
+    if (gaps.length) {
+      setSigning(null);
+      sendToFields(gaps, setErrors);
       return;
     }
 
+    // Everything missing on the panel, in the order it appears on screen. The
+    // carrier is taken to the first one rather than shown a popup.
+    const problems = {};
+    (agreement.fields || []).forEach((f) => {
+      if (f.required && !String(signState.values?.[f.key] || "").trim()) {
+        problems[f.key] = "Please fill this field";
+      }
+    });
     if (signState.acknowledgements.length !== agreement.acknowledgements.length) {
-      notify.warning("Confirm every acknowledgement before signing.");
-      return;
+      problems[`acks-${agreement.key}`] = "Tick every box below to confirm";
     }
+    if (!trimmedOf(signState.signedName)) problems.signedName = "Please fill this field";
+    if (!trimmedOf(signState.signedTitle)) problems.signedTitle = "Please fill this field";
+    if (!signState.signatureData) problems[`sig-${agreement.key}`] = "Draw your signature here";
 
-    if (!signState.signatureData) {
-      notify.warning("Draw your signature before submitting.");
+    const first = Object.keys(problems)[0];
+    if (first) {
+      setSignErrors(problems);
+      focusField(first);
       return;
     }
+    setSignErrors({});
 
     try {
       setSaving(true);
@@ -281,11 +394,12 @@ const Onboarding = () => {
       const payload = err.response?.data;
       if (payload?.gaps?.length) {
         // Server-side gaps are company details, which live on the step behind
-        // this dialog — send them back rather than showing an error they cannot
-        // act on from here.
-        notify.error(payload.message);
+        // this dialog — take them to the first empty one.
         setSigning(null);
         setStep("agreements");
+        const gaps = profileGapsOf(profile, catalog);
+        if (gaps.length) sendToFields(gaps, setErrors);
+        else notify.error(payload.message);
       } else {
         notify.error(payload?.message || "Could not sign");
       }
@@ -637,6 +751,10 @@ const Onboarding = () => {
                       field={field}
                       value={profile[field.key]}
                       error={errors[field.key]}
+                      autoFilled={
+                        field.copyFrom &&
+                        trimmedOf(profile[field.key]) === trimmedOf(profile[field.copyFrom])
+                      }
                       onChange={setField}
                       disabled={data.status === "APPROVED" && !isOffice}
                     />
@@ -751,12 +869,15 @@ const Onboarding = () => {
                             key={field.key}
                             field={field}
                             value={signState.values?.[field.key]}
-                            onChange={(key, value) =>
+                            error={signErrors[field.key]}
+                            autoFilled={autoFilled[field.key]}
+                            onChange={(key, value) => {
                               setSignState((s) => ({
                                 ...s,
                                 values: { ...s.values, [key]: value },
-                              }))
-                            }
+                              }));
+                              clearSignError(key);
+                            }}
                           />
                         ))}
                       </div>
@@ -765,7 +886,18 @@ const Onboarding = () => {
                     <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
                       Confirm each of these
                     </h3>
-                    <div className="space-y-2 mb-5">
+                    {signErrors[`acks-${agreement.key}`] && (
+                      <FillHint>{signErrors[`acks-${agreement.key}`]}</FillHint>
+                    )}
+                    <div
+                      id={`f-acks-${agreement.key}`}
+                      tabIndex={-1}
+                      className={`space-y-2 mb-5 mt-2 rounded-lg outline-none ${
+                        signErrors[`acks-${agreement.key}`]
+                          ? "ring-2 ring-red-400/60 bg-red-50/40 p-3"
+                          : ""
+                      }`}
+                    >
                       {agreement.acknowledgements.map((ack) => {
                         const checked = signState.acknowledgements.includes(ack);
                         return (
@@ -777,14 +909,15 @@ const Onboarding = () => {
                               type="checkbox"
                               className="mt-0.5 h-4 w-4 accent-indigo-600"
                               checked={checked}
-                              onChange={() =>
+                              onChange={() => {
                                 setSignState((s) => ({
                                   ...s,
                                   acknowledgements: checked
                                     ? s.acknowledgements.filter((a) => a !== ack)
                                     : [...s.acknowledgements, ack],
-                                }))
-                              }
+                                }));
+                                clearSignError(`acks-${agreement.key}`);
+                              }}
                             />
                             <span>{ack}</span>
                           </label>
@@ -794,36 +927,70 @@ const Onboarding = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="text-xs font-semibold text-gray-600 block mb-1">
-                          Signer's full name <span className="text-red-500">*</span>
+                        <label
+                          htmlFor="f-signedName"
+                          className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-gray-700"
+                        >
+                          Signer's full name
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                            Required
+                          </span>
                         </label>
                         <input
-                          className={uiStyles.input}
+                          id="f-signedName"
+                          className={`${uiStyles.input} ${
+                            signErrors.signedName ? "border-red-500 ring-2 ring-red-400/60" : ""
+                          }`}
                           value={signState.signedName}
-                          onChange={(e) =>
-                            setSignState((s) => ({ ...s, signedName: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            setSignState((s) => ({ ...s, signedName: e.target.value }));
+                            clearSignError("signedName");
+                          }}
                         />
+                        {signErrors.signedName && <FillHint>{signErrors.signedName}</FillHint>}
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-gray-600 block mb-1">
-                          Title <span className="text-red-500">*</span>
+                        <label
+                          htmlFor="f-signedTitle"
+                          className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-gray-700"
+                        >
+                          Title
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                            Required
+                          </span>
                         </label>
                         <input
-                          className={uiStyles.input}
+                          id="f-signedTitle"
+                          className={`${uiStyles.input} ${
+                            signErrors.signedTitle ? "border-red-500 ring-2 ring-red-400/60" : ""
+                          }`}
                           value={signState.signedTitle}
-                          onChange={(e) =>
-                            setSignState((s) => ({ ...s, signedTitle: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            setSignState((s) => ({ ...s, signedTitle: e.target.value }));
+                            clearSignError("signedTitle");
+                          }}
                         />
+                        {signErrors.signedTitle && <FillHint>{signErrors.signedTitle}</FillHint>}
                       </div>
                     </div>
 
-                    <SignaturePad
-                      onChange={(signatureData) =>
-                        setSignState((s) => ({ ...s, signatureData }))
-                      }
-                    />
+                    <div
+                      id={`f-sig-${agreement.key}`}
+                      tabIndex={-1}
+                      className={`rounded-lg outline-none ${
+                        signErrors[`sig-${agreement.key}`] ? "ring-2 ring-red-400/60 p-2" : ""
+                      }`}
+                    >
+                      <SignaturePad
+                        onChange={(signatureData) => {
+                          setSignState((s) => ({ ...s, signatureData }));
+                          if (signatureData) clearSignError(`sig-${agreement.key}`);
+                        }}
+                      />
+                      {signErrors[`sig-${agreement.key}`] && (
+                        <FillHint>{signErrors[`sig-${agreement.key}`]}</FillHint>
+                      )}
+                    </div>
 
                     <div className="flex justify-end gap-2 mt-5">
                       <button

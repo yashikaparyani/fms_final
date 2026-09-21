@@ -8,6 +8,7 @@ const { runUnscoped } = require("../utils/tenantContext");
 
 const CarrierOnboarding = require("../models/CarrierOnboarding");
 const FleetOwner = require("../models/FleetOwner");
+const User = require("../models/User");
 const Driver = require("../models/Driver");
 const { findCarrierFor } = require("../utils/carrierAccount");
 const {
@@ -73,7 +74,7 @@ const isOffice = (user) => ["staff", "admin"].includes(user?.role);
  */
 const resolveCarrier = async (req, requestedId) => {
   if (["fleetOwner", "driver"].includes(req.user.role)) {
-    const carrier = await findCarrierFor(req.user, "_id carrierName fleetOwnerCode userId");
+    const carrier = await findCarrierFor(req.user, "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId");
     if (!carrier) {
       throw Object.assign(
         new Error(
@@ -97,7 +98,7 @@ const resolveCarrier = async (req, requestedId) => {
   }
 
   const carrier = await FleetOwner.findById(id).select(
-    "_id carrierName fleetOwnerCode userId",
+    "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId",
   );
   if (!carrier) {
     throw Object.assign(new Error("Carrier not found at this location."), { status: 404 });
@@ -119,10 +120,20 @@ const loadOrCreate = async (carrier, user) => {
   // not be retyping their own company name, email and phone three minutes after
   // somebody entered them — and a number retyped from memory is how the file
   // ends up with a different one from the account.
+  //
+  // The carrier lookups used to select only the name, so the email and phone
+  // here were always blank and the carrier typed them again. The email lives on
+  // the login account, not on the FleetOwner.
+  const account = carrier.userId
+    ? await User.findById(carrier.userId).select("email phone").lean()
+    : null;
   const fromAccount = {
     legalName: carrier.carrierName || "",
-    signerEmail: carrier.email || "",
-    signerPhone: carrier.phone || "",
+    mcNumber: carrier.mcLicense || "",
+    dotNumber: carrier.dotLicense || "",
+    taxId: carrier.taxId || "",
+    signerEmail: account?.email || "",
+    signerPhone: carrier.phone || account?.phone || "",
   };
 
   if (!onboarding) {
