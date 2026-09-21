@@ -29,6 +29,8 @@ const notificationSchema = new mongoose.Schema(
         "LOAD_STATUS_CHANGED",    
         "LOAD_REQUIRES_CHANGES",  
         "LOAD_VERIFIED",
+        // A load marked delivered — to the office and the customer.
+        "LOAD_DELIVERED",
         // Sent by the office from the announcements screen rather than raised
         // by something happening to a load, so it carries no load reference.
         "ANNOUNCEMENT",

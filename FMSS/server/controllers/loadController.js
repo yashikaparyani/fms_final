@@ -256,6 +256,7 @@ const notifyStreetTurn = async (load, streetTurn, actor) => {
   });
 };
 const { buildPodDocument } = require("../services/podDocumentService");
+const deliveryNotice = require("../services/deliveryNotice");
 const { publishTrackingUpdate } = require("../services/trackingBroadcaster");
 const {
   notifyLoadCreated,
@@ -2141,6 +2142,13 @@ const updateTransportStatus = async (req, res) => {
         whatsapp.onPickupConfirmed(load, req.user);
       } else if (transportStatus === "DELIVERED") {
         whatsapp.onDelivered(load, req.user);
+        // Congratulations by email and in the app, POD attached for the
+        // customer. Not awaited, and cannot throw — see deliveryNotice.js.
+        // Only on the way in: an admin pulling an invoiced load back to
+        // Delivered to correct it is not a second delivery to celebrate.
+        if (!["PAPERWORK_PENDING", "INVOICED"].includes(previousTransportStatus)) {
+          deliveryNotice.onDelivered(load, req.user, generatedPodDocument);
+        }
       } else if (transportStatus === "INVOICED") {
         whatsapp.onLoadCompleted(load, req.user);
       } else {

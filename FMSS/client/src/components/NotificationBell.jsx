@@ -16,6 +16,7 @@ const TYPE_STYLE = {
   BID_NOT_PLACED:         { dot: "#616161", pill: "bg-gray-100 text-gray-700" },
   LOAD_REQUIRES_CHANGES:  { dot: "#e65100", pill: "bg-orange-100 text-orange-800" },
   LOAD_VERIFIED:          { dot: "#00695c", pill: "bg-teal-100 text-teal-800" },
+  LOAD_DELIVERED:         { dot: "#16a34a", pill: "bg-green-100 text-green-800" },
   LOAD_STATUS_CHANGED:    { dot: "#1565c0", pill: "bg-blue-100 text-blue-800" },
   // Paperwork review. Amber for the two that are somebody's outstanding job,
   // red for a document sent back, green for signed off.

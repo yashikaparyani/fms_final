@@ -787,7 +787,55 @@ const instantDispatchOffer = ({
   };
 };
 
+/**
+ * A load delivered — the good-news email. The office copy is a short heads-up;
+ * the customer copy thanks them and carries the POD as an attachment.
+ */
+const loadDelivered = ({ load, audience = "office", customerName = "", hasPod = false }) => {
+  const when = formatDateTime(load.deliveredAt || new Date());
+  const receiver = load.receivedBy?.name ? ` · received by ${load.receivedBy.name}` : "";
+  const greeting = audience === "customer" && customerName ? `Hi ${customerName},` : "Hello,";
+  const lead =
+    audience === "customer"
+      ? `Great news — your load <strong>${escapeHtml(load.loadId)}</strong> has been delivered successfully. Thank you for shipping with S Line Transport.`
+      : `Congratulations to the team — load <strong>${escapeHtml(load.loadId)}</strong> has been delivered successfully.`;
+  const podLine =
+    audience === "customer"
+      ? hasPod
+        ? "The signed Proof of Delivery is attached to this email."
+        : "The Proof of Delivery will be available on the load shortly."
+      : "The Proof of Delivery is on the load, and the load is ready for paperwork.";
+
+  return {
+    subject: `🎉 Delivered: Load ${load.loadId} — ${load.drop?.city || "destination"}`,
+    text:
+      `${greeting} ${lead.replace(/<[^>]+>/g, "")} ` +
+      `Route: ${routeText(load)}. Delivered ${when}${receiver}. ${podLine}`,
+    html: `
+      <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#1e3a8a,#4f46e5);padding:28px 24px;color:#fff;text-align:center">
+          <div style="font-size:40px;line-height:1">🎉</div>
+          <h2 style="margin:10px 0 4px;font-size:24px">Delivered successfully!</h2>
+          <div style="opacity:.85;font-size:15px">Load ${escapeHtml(load.loadId)}</div>
+        </div>
+        <div style="padding:24px;color:#1f2937;font-size:15px;line-height:1.6">
+          <p style="margin-top:0">${escapeHtml(greeting)}</p>
+          <p>${lead}</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+            <tr><td style="padding:8px 0;color:#6b7280;width:130px">Route</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(routeText(load))}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280">Delivered</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(when)}</td></tr>
+            ${load.receivedBy?.name ? `<tr><td style="padding:8px 0;color:#6b7280">Received by</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(load.receivedBy.name)}</td></tr>` : ""}
+            ${load.containerNo ? `<tr><td style="padding:8px 0;color:#6b7280">Container</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(load.containerNo)}</td></tr>` : ""}
+          </table>
+          <p style="background:#ecfdf3;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;color:#166534;margin:0">${podLine}</p>
+        </div>
+      </div>
+    `,
+  };
+};
+
 module.exports = {
+  loadDelivered,
   biddingNowOpen,
   biddingScheduled,
   bidWon,
