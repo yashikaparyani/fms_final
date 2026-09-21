@@ -4,6 +4,7 @@ const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 
 const { AGREEMENT_BY_KEY, noticeAddressFor } = require("../config/carrierAgreements");
 const { OVERLAYS, SIZE } = require("../config/agreementOverlay");
+const { BUSINESS_TIME_ZONE, businessParts, formatDateNumeric, todayKey } = require("../utils/dates");
 
 // ─── Filling the real agreement ───────────────────────────────────────────────
 // The carrier downloads the counterparty's own fifteen-page document with its
@@ -55,6 +56,8 @@ const initialsFrom = (signed, profile) => {
 /** Everything a placement can ask for, assembled once per document. */
 const buildContext = ({ profile, signed }) => {
   const when = signed.signedAt ? new Date(signed.signedAt) : new Date();
+  // Read on the US business clock, not the server's (UTC) one.
+  const wall = businessParts(when);
   const notice = noticeAddressFor(profile) || {};
   const initials = initialsFrom(signed, profile);
 
@@ -92,19 +95,19 @@ const buildContext = ({ profile, signed }) => {
     signerName: str(signed.signedName) || str(profile.signerName),
     signerTitle: str(signed.signedTitle) || str(profile.signerTitle),
 
-    signedMonth: when.toLocaleDateString("en-US", { month: "long" }),
-    signedDay: String(when.getDate()),
-    signedDayNum: String(when.getDate()),
-    signedMonthNum: String(when.getMonth() + 1),
-    signedDayOrdinal: ORDINAL(when.getDate()),
-    signedYear2: String(when.getFullYear()).slice(-2),
+    signedMonth: when.toLocaleDateString("en-US", { month: "long", timeZone: BUSINESS_TIME_ZONE }),
+    signedDay: String(wall.day),
+    signedDayNum: String(wall.day),
+    signedMonthNum: String(wall.month),
+    signedDayOrdinal: ORDINAL(wall.day),
+    signedYear2: String(wall.year).slice(-2),
     // The contractor agreement prints the time as "____:____ (am/pm)", so the
     // hour and the minutes go either side of its own colon rather than as one
     // string across it.
-    signedHour: String(when.getHours() % 12 || 12),
+    signedHour: String(wall.hour % 12 || 12),
     signedMinute:
-      String(when.getMinutes()).padStart(2, "0") + (when.getHours() < 12 ? " AM" : " PM"),
-    signedDateShort: when.toLocaleDateString("en-US"),
+      String(wall.minute).padStart(2, "0") + (wall.hour < 12 ? " AM" : " PM"),
+    signedDateShort: formatDateNumeric(when),
   };
 };
 
@@ -241,7 +244,7 @@ const buildFilledAgreement = async ({
   pdf.setSubject("Executed carrier agreement");
   pdf.setProducer("FMS");
 
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = todayKey();
   const fileName = `${carrierCode}-${agreementKey}-agreement-${stamp}.pdf`;
   const filePath = path.join(AGREEMENT_DIR, fileName);
 

@@ -6,7 +6,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import api from "../../api";
-import { formatDateNumeric } from "../../utils/dates";
+import { formatDateNumeric, fromDateTimeInput } from "../../utils/dates";
 
 /**
  * Where the office writes to everybody.
@@ -90,7 +90,12 @@ const Announcements = () => {
 
     try {
       setSaving(true);
-      const { data } = await api.post("/announcements", form);
+      // The window is typed in US time; send the instant it means.
+      const { data } = await api.post("/announcements", {
+        ...form,
+        startsAt: form.startsAt ? fromDateTimeInput(form.startsAt)?.toISOString() : "",
+        endsAt: form.endsAt ? fromDateTimeInput(form.endsAt)?.toISOString() : "",
+      });
       notify.success(data?.message || "Posted");
       setForm(emptyForm);
       load();

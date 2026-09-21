@@ -1,4 +1,5 @@
 const LoadAudit = require("../models/LoadAudit");
+const { formatDateNumeric } = require("../utils/dates");
 const {
   TRACKED_SET,
   FLATTENED,
@@ -45,10 +46,7 @@ const present = (field, value) => {
   if (BOOLEAN_FIELDS.has(field)) return value ? "Yes" : "No";
 
   if (DATE_FIELDS.has(field)) {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime())
-      ? String(value)
-      : date.toLocaleDateString("en-US");
+    return formatDateNumeric(value, { fallback: String(value) });
   }
 
   if (typeof value === "object") return JSON.stringify(value);

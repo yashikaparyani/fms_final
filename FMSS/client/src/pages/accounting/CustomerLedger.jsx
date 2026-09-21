@@ -8,6 +8,7 @@ import Swal, { notify } from "../../utils/swal";
 import ReceivePaymentDialog from "../../components/accounting/ReceivePaymentDialog";
 import PaymentHistory from "../../components/accounting/PaymentHistory";
 import { uiStyles } from "../../style/uiStyles";
+import { formatDateTime } from "../../utils/dates";
 import {
   money,
   moneyShort,
@@ -490,7 +491,7 @@ const CustomerLedger = () => {
 
         {summary?.asOf && (
           <p className="border-t border-hairline pt-3 text-right text-[11px] text-ink-400">
-            {new Date(summary.asOf).toLocaleString()}
+            {formatDateTime(summary.asOf)}
           </p>
         )}
       </div>

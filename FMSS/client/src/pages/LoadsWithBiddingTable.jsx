@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
-import { format } from "date-fns";
+import { formatDateTime } from "../utils/dates";
 import LoadTable from "../components/LoadTable";
 import { useSelector } from "react-redux";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
@@ -46,7 +46,7 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
 
   useAutoRefresh(() => fetchLoads({ silent: true }));
 
-  const fmtDT = (v) => (v ? format(new Date(v), "MMM dd, yyyy HH:mm") : "—");
+  const fmtDT = (v) => formatDateTime(v);
 
   const getLowestBid = (bids) => {
     if (!bids || bids.length === 0) return "—";

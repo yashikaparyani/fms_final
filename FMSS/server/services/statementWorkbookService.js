@@ -1,4 +1,5 @@
 const XLSX = require("xlsx");
+const { toDateKey } = require("../utils/dates");
 
 // ─── The statement, as a spreadsheet ──────────────────────────────────────────
 // The same statement of account the email renders as a table, attached as a
@@ -170,7 +171,7 @@ const buildStatementWorkbook = ({
 /** A filename the customer can file without renaming it. */
 const statementFilename = (customerName, asOf = new Date()) => {
   const date = day(asOf) || new Date();
-  const stamp = date.toISOString().slice(0, 10);
+  const stamp = toDateKey(date);
   const who = String(customerName || "customer")
     .replace(/[^\w.-]+/g, "_")
     .replace(/^_+|_+$/g, "")

@@ -2,6 +2,7 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const FleetOwner = require("../models/FleetOwner");
 const Bid = require("../models/bidSchema");
+const { formatDateTime } = require("../utils/dates");
 
 // ─── Low-level: create a single notification ──────────────────────────────────
 const createNotification = async ({ recipient, recipientRole, type, title, message, load, loadId }) => {
@@ -85,8 +86,8 @@ const notifyBiddingScheduled = async ({ load, type = "BIDDING_SCHEDULED" }) => {
     recipientRole: "fleetOwner",
     title: isOpen ? "Bidding is now open!" : "Bidding scheduled for a load",
     message: isOpen
-      ? `Bidding on load ${load.loadId} is now live. Place your bid before ${new Date(load.bidEndTime).toLocaleString()}.`
-      : `Bidding on load ${load.loadId} has been scheduled from ${new Date(load.bidStartTime).toLocaleString()} to ${new Date(load.bidEndTime).toLocaleString()}.`,
+      ? `Bidding on load ${load.loadId} is now live. Place your bid before ${formatDateTime(load.bidEndTime)}.`
+      : `Bidding on load ${load.loadId} has been scheduled from ${formatDateTime(load.bidStartTime)} to ${formatDateTime(load.bidEndTime)}.`,
     load: load._id,
     loadId: load.loadId,
   };
@@ -97,7 +98,7 @@ const notifyBiddingScheduled = async ({ load, type = "BIDDING_SCHEDULED" }) => {
     title: isOpen ? "Bidding is live for your load" : "Bidding scheduled for your load",
     message: isOpen
       ? `Bidding is now open for your load ${load.loadId}. Fleet owners are placing bids.`
-      : `Bidding has been scheduled for your load ${load.loadId} from ${new Date(load.bidStartTime).toLocaleString()} to ${new Date(load.bidEndTime).toLocaleString()}.`,
+      : `Bidding has been scheduled for your load ${load.loadId} from ${formatDateTime(load.bidStartTime)} to ${formatDateTime(load.bidEndTime)}.`,
     load: load._id,
     loadId: load.loadId,
   };

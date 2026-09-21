@@ -10,6 +10,7 @@ import { notify } from "../../utils/swal";
 import Swal from "sweetalert2";
 import { usePermissions } from "../../hooks/usePermissions";
 import {
+  BUSINESS_TIME_ZONE,
   todayKey as today,
   startOfMonthKey as startOfMonth,
 } from "../../utils/dates";
@@ -126,11 +127,10 @@ const ReportCentre = () => {
 
   const queryFor = useCallback(() => {
     const accepted = definition?.filters || [];
-    // The dates on the pickers are calendar days in the reader's zone. Sent so
-    // the server resolves the boundaries the same way — without it a report run
-    // in Los Angeles would be cut on UTC midnight.
+    // The dates on the pickers are US business days. Sent so the server cuts
+    // the range on the same midnight whoever runs the report, wherever they are.
     const params = {
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      tz: BUSINESS_TIME_ZONE,
     };
 
     if (accepted.includes("dateRange")) {

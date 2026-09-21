@@ -4,6 +4,7 @@ const {
   GOVERNING_LAW_STATE,
   clausesFor,
 } = require("../config/streetTurnAgreement");
+const { formatDateLong } = require("../utils/dates");
 
 /**
  * Assembles the Street Turn Container and Chassis Transfer Agreement for one
@@ -24,12 +25,7 @@ const trimmed = (value) => String(value ?? "").trim();
 const placeText = (stop) =>
   [stop?.company, stop?.city, stop?.state].filter(Boolean).join(", ");
 
-const formatDate = (date) =>
-  new Date(date || Date.now()).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+const formatDate = (date) => formatDateLong(date || new Date());
 
 /**
  * A street turn moves an empty container, which is the point of the manoeuvre —

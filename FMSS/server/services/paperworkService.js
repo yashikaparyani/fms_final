@@ -6,6 +6,7 @@ const Notification = require("../models/Notification");
 const { sendPush } = require("./pushService");
 const { getStaffAndAdminIds } = require("./NotificationService");
 const { runUnscoped, withTenant } = require("../utils/tenantContext");
+const { formatDateNumeric } = require("../utils/dates");
 const {
   missingRequiredDocuments,
   hasDriverSubmittedPaperwork,
@@ -295,7 +296,7 @@ const remindDeliveredLoads = async ({ dryRun = false } = {}) =>
       }
 
       const delivered = load.deliveredAt
-        ? new Date(load.deliveredAt).toLocaleDateString("en-US")
+        ? formatDateNumeric(load.deliveredAt)
         : "recently";
 
       // Written inside the load's OWN location, not in the unscoped context the

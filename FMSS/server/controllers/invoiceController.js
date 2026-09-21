@@ -16,6 +16,7 @@ const {
   calendarDate,
   calendarRange,
   daysBetween,
+  formatDate,
   todayKey,
 } = require("../utils/dates");
 
@@ -647,7 +648,7 @@ const sendInvoice = async (req, res) => {
       await audit.recordCommunication({
         load,
         summary: `${invoice.direction === "AR" ? "Invoice" : "Settlement"} ${invoice.invoiceNumber} emailed to ${status.to}`,
-        body: `Amount due $${(invoice.balance || 0).toLocaleString("en-US")}, due ${invoice.dueDate?.toDateString?.() || ""}`,
+        body: `Amount due $${(invoice.balance || 0).toLocaleString("en-US")}, due ${invoice.dueDate ? formatDate(invoice.dueDate) : ""}`,
         user: req.user,
         req,
       });

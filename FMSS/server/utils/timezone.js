@@ -1,18 +1,23 @@
+const { BUSINESS_TIME_ZONE } = require("./dates");
+
 // Timezone helpers for date-bucketed stats.
+//
+// Everyone sees one clock — the US business zone in utils/dates.js — so the web
+// client always sends that zone, and a caller that sends none gets it too.
 //
 // "Today" has to be resolved in the viewer's timezone, not the server's and not
 // UTC: a load whose last free date is tonight in Los Angeles must not read as
 // tomorrow's problem just because the API happens to run in UTC. The client
 // sends its IANA zone (`?tz=`) and every day boundary below is derived from it.
 
-/** Fall back to UTC rather than throwing on a missing or bogus zone name. */
+/** Fall back to the business zone rather than throwing on a missing or bogus name. */
 const resolveTimeZone = (tz) => {
-  if (!tz) return "UTC";
+  if (!tz) return BUSINESS_TIME_ZONE;
   try {
     new Intl.DateTimeFormat("en-CA", { timeZone: tz });
     return tz;
   } catch {
-    return "UTC";
+    return BUSINESS_TIME_ZONE;
   }
 };
 

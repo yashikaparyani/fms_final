@@ -13,6 +13,7 @@ const {
   sendCarrierAccountStatement,
 } = require("../services/emailService");
 const audit = require("../services/auditService");
+const { BUSINESS_TIME_ZONE, formatDateNumeric, formatDateTime, todayKey } = require("../utils/dates");
 
 // ─── Report generation ────────────────────────────────────────────────────────
 // One runner for every report in config/reportDefinitions.js. The reports differ
@@ -38,7 +39,7 @@ const paramsFrom = (query) => ({
   // client sends its IANA zone the same way the dashboards do; UTC is the
   // fallback rather than server-local, so an unconfigured client is at least
   // predictable.
-  timeZone: trimmed(query.tz) || "UTC",
+  timeZone: trimmed(query.tz) || BUSINESS_TIME_ZONE,
   customer: trimmed(query.customer) || null,
   carrier: trimmed(query.carrier) || null,
   driver: trimmed(query.driver) || null,
@@ -174,13 +175,11 @@ const formatCell = (value, type) => {
   if (value === null || value === undefined || value === "") return "";
 
   if (type === "date") {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-US");
+    return formatDateNumeric(value, { fallback: String(value) });
   }
 
   if (type === "datetime") {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("en-US");
+    return formatDateTime(value, { fallback: String(value) });
   }
 
   // Money and percentages are written as bare numbers, not "$1,200.00":
@@ -248,7 +247,7 @@ const exportReport = async (req, res) => {
   try {
     const result = await runReport(req.params.key, paramsFrom(req.query));
 
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayKey();
     const fileName = `${result.key}-${stamp}.csv`;
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

@@ -15,6 +15,7 @@ const routeText = (load) =>
 // N/A!" in the first email they get from us is not a small thing, so a
 // placeholder is treated as no name at all.
 const { realName } = require("../utils/displayName");
+const { formatDateLong, formatDateTime } = require("../utils/dates");
 
 const customerCredentials = ({ customer, password, frontendUrl }) => {
   // `name` is what the caller resolved from the Customer profile; the user's own
@@ -140,11 +141,7 @@ const insuranceRequest = ({
     .join(" · ");
 
   const expiryText = expiresAt
-    ? new Date(expiresAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+    ? formatDateLong(expiresAt)
     : "";
 
   const subject = isReminder
@@ -229,11 +226,7 @@ const driverPaymentStatement = ({
   paidAt,
   reference,
 }) => {
-  const paidOn = new Date(paidAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const paidOn = formatDateLong(paidAt);
 
   const basis = (row) => {
     if (row.payType === "PERCENTAGE") return `${row.rate}% of load revenue`;
@@ -410,25 +403,25 @@ const loadRequiresChanges = ({ load, client, changesNote }) => ({
 
 const biddingNowOpen = ({ load }) => ({
   subject: `FMS - Bidding Now Open: Load ${load.loadId}`,
-  text: `Bidding has started for load ${load.loadId}. Route: ${routeText(load)}. Bidding ends: ${load.bidEndTime ? new Date(load.bidEndTime).toLocaleString() : "TBD"}.`,
+  text: `Bidding has started for load ${load.loadId}. Route: ${routeText(load)}. Bidding ends: ${load.bidEndTime ? formatDateTime(load.bidEndTime) : "TBD"}.`,
   html: `
     <h3>Bidding is Now Open!</h3>
     <p>Bidding has started for Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
     <p><strong>Route:</strong> ${escapeHtml(routeText(load))}</p>
-    <p><strong>Bidding Ends:</strong> ${load.bidEndTime ? escapeHtml(new Date(load.bidEndTime).toLocaleString()) : "TBD"}</p>
+    <p><strong>Bidding Ends:</strong> ${load.bidEndTime ? escapeHtml(formatDateTime(load.bidEndTime)) : "TBD"}</p>
     <p>Login to the FMS portal to place your bid now!</p>
   `,
 });
 
 const biddingScheduled = ({ load }) => ({
   subject: `FMS - Bidding Scheduled: Load ${load.loadId}`,
-  text: `Bidding has been scheduled for load ${load.loadId}. Route: ${routeText(load)}. Bidding opens: ${load.bidStartTime ? new Date(load.bidStartTime).toLocaleString() : "TBD"} and closes: ${load.bidEndTime ? new Date(load.bidEndTime).toLocaleString() : "TBD"}. Log in to place your bid when it opens.`,
+  text: `Bidding has been scheduled for load ${load.loadId}. Route: ${routeText(load)}. Bidding opens: ${load.bidStartTime ? formatDateTime(load.bidStartTime) : "TBD"} and closes: ${load.bidEndTime ? formatDateTime(load.bidEndTime) : "TBD"}. Log in to place your bid when it opens.`,
   html: `
     <h3>Bidding Scheduled</h3>
     <p>A load is scheduled for bidding. Load <strong>${escapeHtml(load.loadId)}</strong>.</p>
     <p><strong>Route:</strong> ${escapeHtml(routeText(load))}</p>
-    <p><strong>Bidding Opens:</strong> ${load.bidStartTime ? escapeHtml(new Date(load.bidStartTime).toLocaleString()) : "TBD"}</p>
-    <p><strong>Bidding Closes:</strong> ${load.bidEndTime ? escapeHtml(new Date(load.bidEndTime).toLocaleString()) : "TBD"}</p>
+    <p><strong>Bidding Opens:</strong> ${load.bidStartTime ? escapeHtml(formatDateTime(load.bidStartTime)) : "TBD"}</p>
+    <p><strong>Bidding Closes:</strong> ${load.bidEndTime ? escapeHtml(formatDateTime(load.bidEndTime)) : "TBD"}</p>
     <p>Log in to the FMS portal to place your bid once bidding opens.</p>
   `,
 });
@@ -767,7 +760,7 @@ const instantDispatchOffer = ({
 }) => {
   const lane = [load.pickup?.city, load.drop?.city].filter(Boolean).join(" → ") || "See details";
   const money = `$${Number(payout).toLocaleString("en-US")}`;
-  const deadline = new Date(expiresAt).toLocaleString("en-US");
+  const deadline = formatDateTime(expiresAt);
   const truck = driverName ? `${driverName} is` : "Your nearest truck is";
 
   return {

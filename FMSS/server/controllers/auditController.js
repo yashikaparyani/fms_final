@@ -4,6 +4,7 @@ const Load = require("../models/Load");
 const User = require("../models/User");
 const { record, actorFrom } = require("../services/auditService");
 const { findCarrierFor } = require("../utils/carrierAccount");
+const { startOfBusinessDay, endOfBusinessDay } = require("../utils/dates");
 
 // ─── Audit trail & notes ──────────────────────────────────────────────────────
 // Reading a load's history, and writing the notes that make up part of it.
@@ -278,12 +279,9 @@ const getUserAudit = async (req, res) => {
 
     if (req.query.from || req.query.to) {
       filter.createdAt = {};
-      if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
-      if (req.query.to) {
-        const to = new Date(req.query.to);
-        to.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = to;
-      }
+      // Whole days on the US business clock, not the server's UTC one.
+      if (req.query.from) filter.createdAt.$gte = startOfBusinessDay(req.query.from);
+      if (req.query.to) filter.createdAt.$lte = endOfBusinessDay(req.query.to);
     }
 
     if (req.query.kind) {

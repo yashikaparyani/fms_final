@@ -2,6 +2,20 @@ const Announcement = require("../models/Announcement");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { runUnscoped } = require("../utils/tenantContext");
+const { BUSINESS_TIME_ZONE } = require("../utils/dates");
+const { utcFromLocal } = require("../utils/timezone");
+
+// A <input type="datetime-local"> submits "2026-09-21T10:00" with no zone. Read
+// that as the US business clock — `new Date()` would read it in the server's
+// zone (UTC on EC2), putting the window four or five hours early.
+const WALL_CLOCK = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+const whenFrom = (value) => {
+  if (!value) return undefined;
+  if (typeof value === "string" && WALL_CLOCK.test(value)) {
+    return utcFromLocal(value.length === 16 ? `${value}:00` : value, BUSINESS_TIME_ZONE);
+  }
+  return value;
+};
 
 /**
  * Office announcements: the notification blast and the marquee.
@@ -99,8 +113,8 @@ const createAnnouncement = async (req, res) => {
       link: trimmed(req.body.link),
       linkLabel: trimmed(req.body.linkLabel),
       isActive: req.body.isActive !== false,
-      startsAt: req.body.startsAt || undefined,
-      endsAt: req.body.endsAt || undefined,
+      startsAt: whenFrom(req.body.startsAt),
+      endsAt: whenFrom(req.body.endsAt),
       createdBy: req.user._id,
     });
 
@@ -157,8 +171,8 @@ const updateAnnouncement = async (req, res) => {
     if (req.body.roles !== undefined) announcement.roles = cleanRoles(req.body.roles);
     if (req.body.isActive !== undefined) announcement.isActive = !!req.body.isActive;
     if (req.body.marquee !== undefined) announcement.marquee = !!req.body.marquee;
-    if (req.body.startsAt !== undefined) announcement.startsAt = req.body.startsAt || undefined;
-    if (req.body.endsAt !== undefined) announcement.endsAt = req.body.endsAt || undefined;
+    if (req.body.startsAt !== undefined) announcement.startsAt = whenFrom(req.body.startsAt);
+    if (req.body.endsAt !== undefined) announcement.endsAt = whenFrom(req.body.endsAt);
 
     if (!trimmed(announcement.message)) {
       return res.status(400).json({ message: "A message is required." });

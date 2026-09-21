@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
+const dates = require("../utils/dates");
 
 const PAGE_SIZE = { width: 674, height: 442 };
 
@@ -10,22 +11,9 @@ const ensurePodDir = () => {
   fs.mkdirSync(POD_DIR, { recursive: true });
 };
 
-const formatDate = (value) => {
-  if (!value) return "";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US");
-};
+const formatDate = (value) => dates.formatDateNumeric(value, { fallback: "" });
 
-const formatTime = (value) => {
-  if (!value) return "";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+const formatTime = (value) => dates.formatTime(value, { fallback: "" });
 
 const safeText = (value) => (value === undefined || value === null ? "" : String(value));
 

@@ -8,6 +8,7 @@ const { splitAmount } = require("./commissionService");
 const { findNearbyCarriers } = require("./nearbyDriversService");
 const { sendPush } = require("./pushService");
 const { sendInstantDispatchOffer } = require("./emailService");
+const { formatTime } = require("../utils/dates");
 
 // ─── Instant dispatch ─────────────────────────────────────────────────────────
 // The "find me a truck now" route. Instead of verifying the load, scheduling a
@@ -56,7 +57,7 @@ const notifyCarrier = async ({ load, carrier, driver, distanceMiles, payout, exp
     `${load.loadId}: ${load.pickup?.city || "pickup"} → ${load.drop?.city || "delivery"}. ` +
     `$${payout.toLocaleString("en-US")} to you. ` +
     `${driver?.name ? `${driver.name} is ` : "Your nearest truck is "}${distanceMiles} mi away. ` +
-    `Accept before ${expiresAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.`;
+    `Accept before ${formatTime(expiresAt)}.`;
 
   const channels = [];
 

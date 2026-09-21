@@ -7,7 +7,7 @@ import AppSelect from "../components/AppSelect";
 import { uiStyles } from "../style/uiStyles";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useDispatchActions } from "../hooks/useDispatchActions";
-import { formatDate } from "../utils/dates";
+import { BUSINESS_TIME_ZONE, formatDate, toDateKey } from "../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
@@ -36,7 +36,7 @@ const StaffLoadsPage = () => {
   const fetchLoads = async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const tz = BUSINESS_TIME_ZONE;
       // The LFD, pickup-day, accessorial and unassigned buckets carry their own
       // status scoping server-side, so each is requested on its own — mixing in
       // a transport-status tab would return a subset of the dashboard tile the
@@ -80,14 +80,8 @@ const StaffLoadsPage = () => {
     enabled: !dispatch.busy,
   });
 
-  // Local YYYY-MM-DD for a load's creation date.
-  const toLocalDate = (v) => {
-    if (!v) return null;
-    const d = new Date(v);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate(),
-    ).padStart(2, "0")}`;
-  };
+  // The US-time YYYY-MM-DD a load was created on.
+  const toLocalDate = (v) => (v ? toDateKey(v) : null);
 
   // Every transport status the dashboard tiles link to needs a tab here, or a
   // drill-down lands on a list with no tab of its own selected.

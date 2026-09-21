@@ -6,7 +6,7 @@ import api from "../../api";
 import { notify } from "../../utils/swal";
 import { STATUS_BADGE_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
-import { formatDateTime } from "../../utils/dates";
+import { formatDateTime, fromDateTimeInput, toDateTimeInput } from "../../utils/dates";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 // What happened to this load and when, in order.
@@ -39,18 +39,8 @@ const formatDuration = (ms) => {
   return `${mins}m`;
 };
 
-/**
- * A Date as `datetime-local` wants it: local wall-clock, no zone, no seconds.
- * `toISOString` would shift the value by the offset and show the wrong time.
- */
-const toLocalInput = (value) => {
-  const d = value ? new Date(value) : new Date();
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
-};
+/** A Date as `datetime-local` wants it, on the US business clock. */
+const toLocalInput = (value) => toDateTimeInput(value || new Date());
 
 const EntryEditor = ({ entry, onCancel, onSave, saving }) => {
   const [changedAt, setChangedAt] = useState(toLocalInput(entry.changedAt));
@@ -137,7 +127,7 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
       // server parse a zoneless string would file the correction in whatever
       // zone the server happens to run in.
       await api.patch(`/loads/${loadId}/status-history/${entry._id}`, {
-        changedAt: new Date(changedAt).toISOString(),
+        changedAt: fromDateTimeInput(changedAt).toISOString(),
         note,
       });
       notify.success("Timeline entry updated.");

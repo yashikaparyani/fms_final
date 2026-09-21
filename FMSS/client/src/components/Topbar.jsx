@@ -11,6 +11,7 @@ import ChangePasswordDialog from "./ChangePasswordDialog";
 import { visibleNavItems } from "./navItems";
 import NotificationBell from "./NotificationBell"; // 👈 import
 import LocationSwitcher from "./LocationSwitcher";
+import USClock from "./USClock";
 import { clearActiveLocation } from "../utils/activeLocation";
 import { displayName, initialsOf } from "../utils/displayName";
 
@@ -73,6 +74,9 @@ const Topbar = () => {
 
         {/* Right section */}
         <div className="flex justify-end px-4 md:px-8 h-full w-full items-center gap-4">
+
+          {/* 🕒 US time — the clock every date in the app is shown on */}
+          <USClock />
 
           {/* 📍 Active location — renders nothing for single-location users */}
           <LocationSwitcher />

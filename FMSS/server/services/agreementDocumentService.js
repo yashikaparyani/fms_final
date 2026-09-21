@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
+const { formatDateLong, formatDateNumeric, formatTime, todayKey } = require("../utils/dates");
 
 const {
   AGREEMENT_BY_KEY,
@@ -44,28 +45,10 @@ const safe = (value) =>
 
 const trimmed = (value) => String(value ?? "").trim();
 
-const formatDate = (value) => {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-};
+const formatDate = (value) => formatDateLong(value);
 
-const formatDateTime = (value) => {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : `${date.toLocaleDateString("en-US")} at ${date.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-};
+const formatDateTime = (value) =>
+  value ? `${formatDateNumeric(value)} at ${formatTime(value)}` : "—";
 
 /** A tax ID is masked in the generated copy — see maskTaxId's note. */
 const maskTaxId = (value) => {
@@ -356,7 +339,7 @@ const buildAgreementDocument = async ({
 
   ensureDir();
 
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = todayKey();
   const fileName = `${carrierCode}-${agreementKey}-agreement-${stamp}.pdf`;
   const filePath = path.join(AGREEMENT_DIR, fileName);
 

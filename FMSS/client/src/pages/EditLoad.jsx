@@ -9,6 +9,7 @@ import { uiStyles } from "../style/uiStyles";
 import api from "../api";
 import AppSelect from "../components/AppSelect";
 import AddressFields from "../components/AddressFields";
+import { toDateInput } from "../utils/dates";
 
 // ─── Add Company Modal ────────────────────────────────────────────────────────
 const COMPANY_TYPES = ["Shipper", "Consignee", "Warehouse", "Terminal", "Other"];
@@ -219,16 +220,8 @@ const emptyStop = {
   fromTime: "", toTime: "",
 };
 
-// An <input type="date"> needs a bare YYYY-MM-DD; the API hands back an ISO
-// timestamp. Read the local calendar parts rather than slicing the ISO string,
-// so the date shown here matches the one the tables render via toLocaleDateString.
-const toDateInput = (v) => {
-  if (!v) return "";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+// An <input type="date"> needs a bare YYYY-MM-DD — toDateInput (utils/dates)
+// keeps a stored calendar date on its own day and reads anything else in US time.
 
 // Keep only the editable stop fields (drops the server-generated _id).
 const normalizeStop = (s = {}) => ({

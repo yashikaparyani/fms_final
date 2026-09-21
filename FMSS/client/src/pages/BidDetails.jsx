@@ -2,7 +2,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api";
-import { format } from "date-fns";
 import Countdown from "react-countdown";
 import PlaceIcon from "@mui/icons-material/Place";
 import ArrowRightAltIcon from "@mui/icons-material/ArrowRightAlt";
@@ -350,7 +349,7 @@ const BidDetails = () => {
               <span className="text-gray-500 text-xs">Bidding Period</span>
               <p className="font-medium text-sm text-gray-800">
                 {load.bidStartTime && load.bidEndTime
-                  ? `${format(new Date(load.bidStartTime), "MMM dd, yyyy HH:mm")} → ${format(new Date(load.bidEndTime), "MMM dd, yyyy HH:mm")}`
+                  ? `${formatDateTime(load.bidStartTime)} → ${formatDateTime(load.bidEndTime)}`
                   : "—"}
               </p>
             </div>

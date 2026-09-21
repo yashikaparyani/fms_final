@@ -3,6 +3,7 @@ import api from "../api";
 import { notify } from "../utils/swal";
 import { uiStyles } from "../style/uiStyles";
 import { CircularProgress } from "@mui/material";
+import { fromDateTimeInput, toDateTimeInput } from "../utils/dates";
 
 const EMPTY_FORM = {
   bidStartTime: "",
@@ -13,20 +14,8 @@ const EMPTY_FORM = {
   fleetOwnerAmount: "",
 };
 
-const toLocalDateTimeInput = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const pad = (num) => String(num).padStart(2, "0");
-  const y = date.getFullYear();
-  const m = pad(date.getMonth() + 1);
-  const d = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const mm = pad(date.getMinutes());
-
-  return `${y}-${m}-${d}T${hh}:${mm}`;
-};
+// The bid window is typed and shown on the US business clock, whoever types it.
+const toLocalDateTimeInput = (value) => toDateTimeInput(value);
 
 const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
   const [loadDetails, setLoadDetails] = useState(null);
@@ -100,8 +89,8 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
       return;
     }
 
-    const startTime = new Date(formData.bidStartTime);
-    const endTime = new Date(formData.bidEndTime);
+    const startTime = fromDateTimeInput(formData.bidStartTime);
+    const endTime = fromDateTimeInput(formData.bidEndTime);
 
     if (endTime <= startTime) {
       notify.error("End time must be after start time");
@@ -137,7 +126,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
     }
 
     const now = new Date();
-    const endTime = new Date(formData.bidEndTime);
+    const endTime = fromDateTimeInput(formData.bidEndTime);
 
     if (endTime <= now) {
       notify.error("End time must be in the future");

@@ -82,6 +82,58 @@ export const calendarDate = (value) => {
   return key ? new Date(`${key}T00:00:00.000Z`) : null;
 };
 
+// ── Date-and-time inputs ──────────────────────────────────────────────────────
+// A <input type="datetime-local"> holds a bare wall-clock time, "2026-03-15T14:30",
+// and the browser reads it in the VIEWER's zone. Filled with getHours() and read
+// back with `new Date(value)`, a bid window typed in Pune lands 9½ hours away from
+// the one a dispatcher in Newark meant. Both directions go through the business
+// zone instead, so the box shows — and means — US time for everybody.
+
+const zoneParts = (date) =>
+  Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: BUSINESS_TIME_ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+
+/** An instant as a datetime-local value on the business clock: "2026-03-15T14:30". */
+export const toDateTimeInput = (value) => {
+  const date = toDate(value);
+  if (!date) return "";
+  const p = zoneParts(date);
+  return `${p.year}-${p.month}-${p.day}T${String(Number(p.hour) % 24).padStart(2, "0")}:${p.minute}`;
+};
+
+/**
+ * The instant a datetime-local value means on the business clock, or null.
+ * Two passes so a value either side of a DST change settles on the right offset.
+ */
+export const fromDateTimeInput = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value || "");
+  if (!match) return null;
+  const [, y, mo, d, h, mi] = match.map(Number);
+  const wall = Date.UTC(y, mo - 1, d, h, mi);
+
+  const offsetAt = (ms) => {
+    const p = zoneParts(new Date(ms));
+    return (
+      Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - ms
+    );
+  };
+
+  const first = wall - offsetAt(wall);
+  return new Date(wall - offsetAt(first));
+};
+
 /** Today in the business zone, as "YYYY-MM-DD". */
 export const todayKey = () => toDateKey(new Date());
 

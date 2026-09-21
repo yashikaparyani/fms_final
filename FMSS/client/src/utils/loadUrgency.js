@@ -7,6 +7,7 @@
 // asked all day is when a load lands, not when it left, so the table is read as
 // a calendar of what is due when.
 // Shared by the Pending, Dispatch Management, All Transit and Over tables.
+import { daysBetween, toDate, todayKey } from "./dates";
 
 export const URGENCY = {
   URGENT:  "URGENT",   // picks up in under 5 days
@@ -34,22 +35,14 @@ export const URGENCY_LABEL = {
   [URGENCY.NO_DATE]: { text: "No date",   className: "bg-gray-100 text-gray-500" },
 };
 
-const startOfToday = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
-
 /**
  * Whole calendar days from today until `value`. Negative once the date passes.
  * Comparing at midnight keeps "today" at 0 regardless of the time of day.
  */
 export const daysUntil = (value) => {
-  if (!value) return null;
-  const target = new Date(value);
-  if (Number.isNaN(target.getTime())) return null;
-  target.setHours(0, 0, 0, 0);
-  return Math.round((target - startOfToday()) / 86400000);
+  if (!toDate(value)) return null;
+  // "Today" is the US business day — see utils/dates.js.
+  return daysBetween(todayKey(), value);
 };
 
 // `pickup` is kept in sync with `pickups[0]` server-side, but a load edited

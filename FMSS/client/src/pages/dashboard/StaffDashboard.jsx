@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api";
+import { BUSINESS_TIME_ZONE } from "../../utils/dates";
 import {
   People,
   LocalShipping,
@@ -36,9 +37,9 @@ const StaffDashboard = () => {
 // spinner, so the background refresh is invisible.
 const fetchStats = async ({ silent = false } = {}) => {
   try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    // Both endpoints bucket by calendar day, so both need the viewer's zone —
-    // otherwise "today" is wherever the API happens to be running.
+    // Both endpoints bucket by calendar day, and "today" is the US business
+    // day for everybody — not wherever the API or the viewer happens to be.
+    const tz = BUSINESS_TIME_ZONE;
     const [statsRes, weeklyRes] = await Promise.all([
       api.get("/stats", { params: { tz } }),
       api.get("/stats/weekly", { params: { tz } }),

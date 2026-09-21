@@ -1,3 +1,4 @@
+const { formatDateNumeric } = require("../utils/dates");
 // ─── Carrier insurance requirements ───────────────────────────────────────────
 // What a carrier has to carry before they are allowed to haul, and what the
 // insurance agency has to tell us about each policy.
@@ -272,12 +273,7 @@ const formatMoney = (value) =>
     ? "not stated"
     : `$${Number(value).toLocaleString("en-US")}`;
 
-const formatDate = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? String(value)
-    : date.toLocaleDateString("en-US");
-};
+const formatDate = (value) => formatDateNumeric(value, { fallback: String(value) });
 
 /** The catalog in the shape the insurance form wants. */
 const catalog = () => ({

@@ -278,6 +278,53 @@ const formatDateNumeric = (value, { fallback = "—" } = {}) => {
   }).format(calendarDate(date));
 };
 
+/** "March 15, 2026" — the long form letters, agreements and emails print. */
+const formatDateLong = (value, { fallback = "—" } = {}) => {
+  const date = toDate(value);
+  if (!date) return fallback;
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(calendarDate(date));
+};
+
+/**
+ * The wall-clock pieces of an instant on the business clock, for documents that
+ * lay the date and time out field by field. `getHours()` and friends read the
+ * server's own zone, which on the EC2 box is UTC — four or five hours out.
+ */
+const businessParts = (value) => {
+  const date = toDate(value);
+  if (!date) return null;
+
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: BUSINESS_TIME_ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      weekday: "short",
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour) % 24,
+    minute: Number(parts.minute),
+    weekday: parts.weekday,
+  };
+};
+
 /**
  * An instant for a human, on the US business clock:
  * "Mar 15, 2026, 3:42 PM EDT".
@@ -331,6 +378,8 @@ module.exports = {
   endOfBusinessDay,
   formatDate,
   formatDateNumeric,
+  formatDateLong,
   formatDateTime,
   formatTime,
+  businessParts,
 };

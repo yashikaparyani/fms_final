@@ -3,6 +3,7 @@ const Customer = require("../models/Customer");
 const Driver = require("../models/Driver");
 const { enqueue } = require("./whatsappService");
 const { accountPersonFor } = require("../utils/carrierAccount");
+const { BUSINESS_TIME_ZONE } = require("../utils/dates");
 
 // ─── Operational WhatsApp alerts ──────────────────────────────────────────────
 // One function per event the business cares about. Each works out who should
@@ -24,10 +25,12 @@ const { accountPersonFor } = require("../utils/carrierAccount");
 const fmtDateTime = (value) =>
   value
     ? new Date(value).toLocaleString("en-US", {
+        timeZone: BUSINESS_TIME_ZONE,
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
+        timeZoneName: "short",
       })
     : "—";
 

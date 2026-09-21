@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { PRE_DISPATCH, STATUS_BADGE_COLORS } from "../utils/loadColorMode";
 import { transportStatusLabel } from "../utils/transportStatus";
-import { formatDate, formatDateTime } from "../utils/dates";
+import { formatDate, formatDateTime, toDateKey, todayKey } from "../utils/dates";
 // ── Status → row colour mapping ──────────────────────────────
 const statusRowColor = {
   // Transport status colours
@@ -57,13 +57,8 @@ const fmtDateTime = (v) => {
 // Compare calendar days, not instants: a date stored at midnight would
 // otherwise read as expired for the whole of the day it actually falls on.
 const isExpired = (v) => {
-  if (!v) return false;
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return false;
-  d.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return d < today;
+  const day = toDateKey(v);
+  return day !== "" && day < todayKey();
 };
 
 // ── Address Cell ─────────────────────────────────────────────
