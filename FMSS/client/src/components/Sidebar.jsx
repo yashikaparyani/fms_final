@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import MenuIcon from "@mui/icons-material/Menu";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -58,6 +57,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       <div className="mb-2 flex h-16 border-b border-white/10">
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
+          // No arrow beside the wordmark any more; the whole header still
+          // collapses the rail, and says so on hover.
+          title={isMenuOpen ? "Collapse menu" : "Expand menu"}
           className={`w-full flex items-center transition-colors hover:bg-white/5 ${
             isMenuOpen ? "justify-between px-4" : "justify-center"
           }`}
@@ -76,7 +78,6 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 S&nbsp;LINE
                 <span className="text-accent-500">TRANSPORT</span>
               </span>
-              <ChevronLeftIcon className="shrink-0 text-brand-100/70" />
             </>
           ) : (
             <MenuIcon className="text-brand-100/70" />

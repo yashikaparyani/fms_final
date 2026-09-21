@@ -60,12 +60,12 @@ const Section = ({ icon: Icon, title, subtitle, right, children }) => (
 );
 
 const Detail = ({ label, value, missing }) => (
-  <div>
-    <p className="text-[12px] font-bold uppercase tracking-wider text-gray-400">
+  <div className="min-w-0">
+    <p className="text-[13px] font-semibold uppercase tracking-wide text-gray-500">
       {label}
     </p>
     <p
-      className={`text-sm mt-0.5 break-words ${
+      className={`mt-1 text-lg font-semibold leading-snug break-words ${
         missing ? "text-amber-700 italic" : "text-gray-900"
       }`}
     >
@@ -325,11 +325,16 @@ const CarrierOnboardingReview = () => {
         subtitle="What was typed into the agreements. Check the legal name and MC/DOT against the FMCSA record before approving."
       >
         {profileSections.map((section) => (
-          <div key={section.section} className="mb-5 last:mb-0">
-            <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+          // Each group in its own panel with a header strip, so identity,
+          // addresses, signer and remittance read as separate blocks.
+          <div
+            key={section.section}
+            className="mb-4 last:mb-0 overflow-hidden rounded-xl border border-gray-200"
+          >
+            <h3 className="border-b border-gray-200 bg-gray-50 px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-indigo-700">
               {section.section}
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-5 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
               {section.fields.map((field) => {
                 const value = file.profile[field.key];
                 const empty = value === undefined || value === null || value === "";
