@@ -14,6 +14,7 @@ import BaseAmountDialog from "../accounting/BaseAmountDialog";
 // A pickup date is a calendar date. Filling the input via toISOString() shifts
 // it a day for anyone whose timezone is not UTC — see utils/dates.js.
 import { toDateInput } from "../../utils/dates";
+import { USTimeInput } from "../USTimeInput";
 
 
 // A Drop moves two containers — one dropped, one taken away — so it exposes a
@@ -583,14 +584,14 @@ const StopForm = ({ title, data, onChange, loading, allCompanies, setAllCompanie
                 </label>
               </div>
               <div className="relative">
-                <input type="time" className={uiStyles.input} value={data.fromTime || ''} onChange={(e) => set('fromTime', e.target.value)} disabled={loading} />
+                <USTimeInput className={uiStyles.input} value={data.fromTime || ''} onChange={(e) => set('fromTime', e.target.value)} disabled={loading} />
                 <label className="input-label">From Time</label>
               </div>
             </div>
 
             <div className={`${uiStyles.grid2} mt-3`}>
               <div className="relative">
-                <input type="time" className={uiStyles.input} value={data.toTime || ''} onChange={(e) => set('toTime', e.target.value)} disabled={loading} />
+                <USTimeInput className={uiStyles.input} value={data.toTime || ''} onChange={(e) => set('toTime', e.target.value)} disabled={loading} />
                 <label className="input-label">To Time</label>
               </div>
               <div className="relative">

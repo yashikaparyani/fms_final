@@ -17,6 +17,7 @@ import {
   transportStatusLabel,
 } from "../utils/transportStatus";
 import { formatDateNumeric, formatDateTime } from "../utils/dates";
+import { USDateTimeInput } from "../components/USTimeInput";
 
 const DOCUMENT_TYPES = [
   "Load Document",
@@ -612,8 +613,7 @@ const StaffLoadDetails = () => {
                 />
               </td>
               <td className="border p-2">
-                <input
-                  type="datetime-local"
+                <USDateTimeInput
                   className="w-full px-2 py-1 text-sm border rounded"
                 />
               </td>
@@ -684,9 +684,8 @@ const StaffLoadDetails = () => {
           </div>
           <div>
             <label className={labelClass}>Date/Time</label>
-            <input
+            <USDateTimeInput
               className={inputClass}
-              type="datetime-local"
               name="dateTime"
               value={extraData.dateTime}
               onChange={handleChange}
