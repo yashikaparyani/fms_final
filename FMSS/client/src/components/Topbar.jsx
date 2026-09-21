@@ -61,7 +61,7 @@ const Topbar = () => {
       <div className="w-full bg-surface h-16 border-b border-hairline shadow-card flex items-center" style={{ zIndex: 100 }}>
         {/* Left: Logo (mobile) */}
         <div className="flex items-center px-4 md:hidden">
-          <span className="flex items-center gap-1.5 text-lg font-extrabold text-brand-800">
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-[18px] font-extrabold text-brand-800">
             <span
               className="grid h-7 w-7 place-items-center rounded-md text-[13px] text-white"
               style={{ background: "var(--role-accent)" }}
