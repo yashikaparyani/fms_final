@@ -711,14 +711,18 @@ function LoadCard({ load, children, onPress, live }) {
             the offer while it is being negotiated, this carrier's own bid while
             it stands, and only then the rate the load was posted at. Worked out
             server-side so every screen agrees — see carrierPayoutFor. */}
-        <Text style={styles.metaText}>
-          {load.carrierPayout != null
-            ? money(load.carrierPayout)
-            : money(load.winningBid?.amount ?? load.vendorRate)}
-          {PAYOUT_LABEL[load.carrierPayoutSource]
-            ? ` (${PAYOUT_LABEL[load.carrierPayoutSource]})`
-            : ""}
-        </Text>
+        {/* The money is what a carrier scans a card for, so it is set as
+            large as the negotiated amount and on its own highlight. */}
+        <View style={styles.amountBadge}>
+          <Text style={styles.amountText}>
+            {load.carrierPayout != null
+              ? money(load.carrierPayout)
+              : money(load.winningBid?.amount ?? load.vendorRate)}
+          </Text>
+          {PAYOUT_LABEL[load.carrierPayoutSource] ? (
+            <Text style={styles.amountLabel}>{PAYOUT_LABEL[load.carrierPayoutSource]}</Text>
+          ) : null}
+        </View>
       </View>
     </>
   );
@@ -5165,6 +5169,25 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  amountBadge: {
+    alignItems: "flex-end",
+    backgroundColor: "#ECFDF3",
+    borderColor: "#BBF7D0",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  amountText: {
+    color: "#15803d",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  amountLabel: {
+    color: "#15803d",
+    fontSize: 12,
+    fontWeight: "700",
   },
   offerAmount: {
     color: "#312e81",
