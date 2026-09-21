@@ -4,6 +4,7 @@
     "slug": "bestloaders-fms",
     "version": "0.1.1",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "scheme": "fmssfleet",
     "ios": {
@@ -23,6 +24,10 @@
     },
     "android": {
       "package": "com.bestloaders.fmssfleet",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1A3C9A"
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
