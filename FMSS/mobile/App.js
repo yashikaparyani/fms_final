@@ -189,6 +189,8 @@ const BID_STATUS_COLOR = {
 const STATUS_FALLBACK = { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" };
 
 const uploadableDocumentTypes = [
+  // Beside the generated POD: a consignee's own stamped copy.
+  "Additional POD",
   "Bill Of Lading",
   "Scale Ticket",
   "Lumper Receipt",
@@ -246,6 +248,7 @@ const DocumentCard = ({
   // action that is going to come back as an error.
   locked = false,
   onUpload,
+  onCamera,
   onView,
 }) => {
   const uploaded = Boolean(document);
@@ -281,6 +284,15 @@ const DocumentCard = ({
             >
               {locked ? "Locked" : uploaded ? "Replace" : "Upload"}
             </Text>
+          </Pressable>
+        )}
+
+        {/* Paperwork is usually a sheet of paper in the cab — photographing it
+            is quicker than finding a file. */}
+        {!isPOD && onCamera && !locked && (
+          <Pressable onPress={onCamera} style={styles.documentCameraButton}>
+            <Icon name="camera" size={16} color="#fff" />
+            <Text style={styles.documentCameraText}>Camera</Text>
           </Pressable>
         )}
       </View>
@@ -2486,689 +2498,277 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
     }
   };
 
+  const origin = load.pickup || load.pickups?.[0];
+  const destination = load.drop || load.drops?.[0];
+  const statusTone = TRANSPORT_STATUS_COLOR[load.transportStatus] || STATUS_FALLBACK;
+  const needsProof = ["PICKED_UP", "DELIVERED"].includes(selectedStatus);
+  const needsSignature = selectedStatus === "DELIVERED";
+  const docsOnLoad = visibleToDriver(load.documents);
+  const docTypes = [POD_DOCUMENT_TYPE, ...uploadableDocumentTypes];
+  const docsDone = docTypes.filter((t) => getDocumentByType(t)).length;
+  const lastSync = tracking?.lastHeartbeatAt || tracking?.lastLocation?.recordedAt;
+
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.safeContent}>
-        <View style={styles.topBar}>
-          <SecondaryButton title="Back" onPress={onBack} />
-          {loading ? <ActivityIndicator color={colors.primary} /> : <View />}
-        </View>
-
-        {/* Header */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={{ flex: 1, paddingRight: 8 }}>
-              <Text style={styles.loadId}>{load.loadId}</Text>
-              <Text style={styles.muted}>
-                {load.pickup?.city || "-"} to {load.drop?.city || "-"}
-              </Text>
+      <StatusBar style="light" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* ── Hero: the load, its status and its lane ───────────────────── */}
+        <GradientHeader from="#1E3A8A" to="#4F46E5" style={styles.trHero}>
+          <View style={styles.trTopRow}>
+            <Pressable onPress={onBack} style={styles.trBack} hitSlop={10}>
+              <Icon name="back" size={20} color="#fff" />
+            </Pressable>
+            <View style={[styles.trGps, isTrackingActive ? styles.trGpsOn : styles.trGpsOff]}>
+              {isTrackingActive ? <LiveBadge light color={colors.success} label="LIVE GPS" /> : (
+                <Text style={styles.trGpsOffText}>GPS OFF</Text>
+              )}
             </View>
           </View>
-          <View style={styles.chipRow}>
-            <StatusChip value={load.transportStatus} />
-            {!!load.status && <StatusChip value={load.status} map={LOAD_STATUS_COLOR} />}
-            {!!load.bidStatus && (
-              <StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />
-            )}
+
+          <Text style={styles.trEyebrow}>{documentsOnly ? "PAPERWORK" : "TRIP"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Text style={styles.trLoadId}>{load.loadId}</Text>
+            {load.transportStatus ? (
+              <View style={[styles.trStatus, { backgroundColor: statusTone.bg }]}>
+                <Text style={[styles.trStatusText, { color: statusTone.color }]}>
+                  {labelize(load.transportStatus)}
+                </Text>
+              </View>
+            ) : null}
           </View>
-        </View>
 
-        <DetailSection title="Identification">
-          <DetailRow label="Load ID" value={load.loadId} />
-          <DetailRow
-            label="Assigned Fleet Owner"
-            value={load.assignedFleetOwner?.fleetOwnerName}
-          />
-          <DetailRow
-            label="Assigned On"
-            value={fmtDateTime(load.assignedFleetOwner?.assignedAt)}
-          />
-        </DetailSection>
+          <View style={styles.trRouteCard}>
+            <RouteLine origin={origin} destination={destination} pickupDate={origin?.pickupDate} />
+          </View>
+        </GradientHeader>
 
-        <DetailSection title="Container">
-          <DetailRow label="Container #" value={load.containerNo} />
-          <DetailRow label="Container Type" value={load.containerType} />
-          <DetailRow label="Chassis #" value={load.chassisNo} />
-          <DetailRow label="Chassis Company" value={load.chassisCompany} />
-        </DetailSection>
-
-        <DetailSection title={`Origin(s) — ${pickups.length}`}>
-          {pickups.length === 0 ? (
-            <Text style={styles.muted}>No origin added yet.</Text>
-          ) : (
-            pickups.map((p, i) => (
-              <StopBlock key={i} stop={p} index={i} kind="pickup" />
-            ))
-          )}
-        </DetailSection>
-
-        <DetailSection title={`Destination(s) — ${drops.length}`}>
-          {drops.length === 0 ? (
-            <Text style={styles.muted}>No destination added yet.</Text>
-          ) : (
-            drops.map((d, i) => (
-              <StopBlock key={i} stop={d} index={i} kind="drop" />
-            ))
-          )}
-        </DetailSection>
-
-        <DetailSection title={`Status Update — ${history.length}`}>
-          {history.length === 0 ? (
-            <Text style={styles.muted}>No status history available.</Text>
-          ) : (
-            history.map((entry, i) => (
-              <View key={i} style={styles.historyRow}>
-                <StatusChip value={entry.status || entry.transportStatus} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.historyTime}>
-                    {fmtDateTime(entry.changedAt || entry.timestamp || entry.updatedAt)}
-                  </Text>
-                  {!!(entry.note || entry.comment) && (
-                    <Text style={styles.muted}>{entry.note || entry.comment}</Text>
-                  )}
-                  {!!entry.location?.address && (
-                    <Text style={styles.muted}>{entry.location.address}</Text>
-                  )}
+        <View style={styles.trBody}>
+          {!documentsOnly && (
+            <>
+              {/* ── Progress through the trip ───────────────────────────── */}
+              <View style={styles.trCard}>
+                <Text style={styles.trCardTitle}>Trip progress</Text>
+                <View style={styles.trSteps}>
+                  {MAIN_ORDER.map((step, i) => {
+                    const done = currentStatusIdx >= i;
+                    const current = currentStatusIdx === i;
+                    return (
+                      <View key={step} style={styles.trStep}>
+                        <View
+                          style={[
+                            styles.trStepDot,
+                            done && styles.trStepDotDone,
+                            current && styles.trStepDotCurrent,
+                          ]}
+                        >
+                          {done ? <Icon name="check" size={12} color="#fff" /> : null}
+                        </View>
+                        {i < MAIN_ORDER.length - 1 ? (
+                          <View style={[styles.trStepLine, currentStatusIdx > i && styles.trStepLineDone]} />
+                        ) : null}
+                        <Text
+                          style={[styles.trStepLabel, current && { color: "#4338CA", fontWeight: "900" }]}
+                          numberOfLines={2}
+                        >
+                          {labelize(step)}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
-            ))
-          )}
-        </DetailSection>
 
-        <DetailSection title="Live Tracking">
-          <DetailRow
-            label="Status"
-            value={labelize(load.liveTracking?.status || "NOT_STARTED")}
-          />
-          <DetailRow
-            label="Last Location"
-            value={
-              lastLocation
-                ? `${Number(lastLocation.latitude).toFixed(5)}, ${Number(
-                    lastLocation.longitude,
-                  ).toFixed(5)}`
-                : "-"
-            }
-          />
-          <DetailRow
-            label="Last Update"
-            value={fmtDateTime(load.liveTracking?.lastHeartbeatAt)}
-          />
-        </DetailSection>
-
-        <DetailSection title="Financials">
-          <DetailRow
-            label="Your Payout"
-            value={
-              load.carrierPayout != null
-                ? `${money(load.carrierPayout)}${
-                    PAYOUT_LABEL[load.carrierPayoutSource]
-                      ? ` (${PAYOUT_LABEL[load.carrierPayoutSource]})`
-                      : ""
-                  }`
-                : money(load.vendorRate)
-            }
-          />
-          <DetailRow
-            label="Winning Bid"
-            value={load.winningBid?.amount != null ? money(load.winningBid.amount) : "-"}
-          />
-          <DetailRow label="Winning Fleet Owner" value={load.winningBid?.fleetOwnerName} />
-        </DetailSection>
-
-        <DetailSection title="Equipment & Cargo">
-          <DetailRow label="Load Type" value={load.truckType} />
-          <DetailRow label="Driver Requirement" value={load.driverRequirement} />
-          <DetailRow label="Material" value={load.material} />
-          <DetailRow label="Commodity" value={load.commodity} />
-          <DetailRow label="Seal #" value={load.sealNo} />
-          <DetailRow label="Booking #" value={load.bookingNo} />
-          <DetailRow label="Pickup #" value={load.pickupNo} />
-          <DetailRow label="Shipping Line" value={load.shippingLine} />
-          <DetailRow label="Last Free Date" value={fmtDate(load.lastFreeDate)} />
-        </DetailSection>
-
-        <DetailSection title="Routing">
-          <DetailRow label="Pier Termination" value={load.pierTermination} />
-          <DetailRow label="Empty Return" value={load.emptyReturn} />
-          {contactPersons.length === 0 ? (
-            <DetailRow label="Contact Person(s)" value="-" />
-          ) : (
-            contactPersons.map((c, i) => (
-              <View key={i} style={styles.stopBlock}>
-                <Text style={styles.stopCompany}>{c.name || "-"}</Text>
-                {!!c.phone && <Text style={styles.muted}>{c.phone}</Text>}
-                {!!c.email && <Text style={styles.muted}>{c.email}</Text>}
-              </View>
-            ))
-          )}
-        </DetailSection>
-
-        <DetailSection title="Bid & Assignment">
-          <DetailRow
-            label="Bid Status"
-            value={<StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />}
-          />
-          <DetailRow label="Bid Start" value={fmtDateTime(load.bidStartTime)} />
-          <DetailRow label="Bid End" value={fmtDateTime(load.bidEndTime)} />
-        </DetailSection>
-
-        <DetailSection title="Description & Remarks">
-          <Text style={styles.detailLabel}>Description</Text>
-          <Text style={styles.detailParagraph}>{load.description || "-"}</Text>
-          <Text style={[styles.detailLabel, { marginTop: 10 }]}>Remarks</Text>
-          <Text style={styles.detailParagraph}>{load.remarks || "-"}</Text>
-        </DetailSection>
-
-        <DetailSection title={`Documents — ${documents.length}`}>
-          {documents.length === 0 ? (
-            <Text style={styles.muted}>No documents on this load.</Text>
-          ) : (
-            documents.map((doc, i) => (
-              <Pressable
-                key={i}
-                onPress={() => openDocument(doc.filePath)}
-                style={({ pressed }) => [styles.docRow, { opacity: pressed ? 0.6 : 1 }]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.detailValue}>{doc.documentType}</Text>
-                  <Text style={styles.muted} numberOfLines={1}>
-                    {doc.fileName || "-"}
-                  </Text>
-                  <Text style={styles.muted}>{fmtDate(doc.dateReceived)}</Text>
+              {/* ── Live location ──────────────────────────────────────── */}
+              <View style={styles.trCard}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <View style={[styles.trIconBubble, { backgroundColor: isTrackingActive ? "#DCFCE7" : "#FEF3C7" }]}>
+                    <Icon name="pin" size={22} color={isTrackingActive ? colors.success : colors.warning} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.trCardTitle}>Live location</Text>
+                    <Text style={styles.trMuted}>
+                      {tracking?.lastLocation
+                        ? `${Number(tracking.lastLocation.latitude).toFixed(5)}, ${Number(
+                            tracking.lastLocation.longitude,
+                          ).toFixed(5)}`
+                        : "Not shared yet"}
+                    </Text>
+                    {lastSync ? <Text style={styles.trMuted}>Last sync {fmtDateTime(lastSync)}</Text> : null}
+                  </View>
                 </View>
-                <Text style={styles.docViewLink}>View ›</Text>
-              </Pressable>
-            ))
+                {isTrackingActive ? (
+                  <View style={styles.trTrackingOn}>
+                    <Icon name="check" size={18} color={colors.success} />
+                    <Text style={styles.trTrackingOnText}>Sharing your location with the office</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={startTracking}
+                    disabled={saving}
+                    style={({ pressed }) => [styles.trBigBtn, { backgroundColor: colors.success }, pressed && { opacity: 0.85 }]}
+                  >
+                    <Icon name="track" size={20} color="#fff" />
+                    <Text style={styles.trBigBtnText}>Start live tracking</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {/* ── Update status ──────────────────────────────────────── */}
+              <View style={styles.trCard}>
+                <Text style={styles.trCardTitle}>Update status</Text>
+
+                <Pressable
+                  onPress={() => setStatusPickerOpen(true)}
+                  disabled={saving}
+                  style={({ pressed }) => [
+                    styles.trPicker,
+                    selectedStatus && styles.trPickerChosen,
+                    pressed && { opacity: 0.75 },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.trPickerLabel}>NEXT STATUS</Text>
+                    <Text style={[styles.trPickerValue, !selectedStatus && { color: "#94A3B8" }]}>
+                      {selectedStatus ? labelize(selectedStatus) : "Tap to choose…"}
+                    </Text>
+                  </View>
+                  <Icon name="chevron" size={18} color="#4338CA" />
+                </Pressable>
+
+                {/* Proof photos — only for pickup and delivery. */}
+                {needsProof ? (
+                  <View style={styles.trPanel}>
+                    <Text style={styles.trPanelTitle}>
+                      📸  {selectedStatus === "PICKED_UP" ? "Pickup proof photos" : "Delivery proof photos"}
+                    </Text>
+                    <Text style={styles.trMuted}>
+                      {selectedStatus === "PICKED_UP"
+                        ? "At least one photo of the container at pickup."
+                        : "Photograph the container at the drop."}
+                    </Text>
+                    {proofImages.length ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                        {proofImages.map((asset, i) => (
+                          <View key={`${asset.uri}-${i}`} style={styles.trThumbWrap}>
+                            <Image source={{ uri: asset.uri }} style={styles.trThumb} />
+                            <Pressable onPress={() => removeProofImage(i)} style={styles.trThumbX} hitSlop={8}>
+                              <Text style={{ color: "#fff", fontWeight: "900" }}>×</Text>
+                            </Pressable>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                    <View style={styles.trBtnRow}>
+                      <Pressable
+                        onPress={() => pickProofImages(false)}
+                        style={({ pressed }) => [styles.trBtn, styles.trBtnPrimary, pressed && { opacity: 0.85 }]}
+                      >
+                        <Icon name="camera" size={18} color="#fff" />
+                        <Text style={styles.trBtnPrimaryText}>Take photo</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => pickProofImages(true)}
+                        style={({ pressed }) => [styles.trBtn, styles.trBtnGhost, pressed && { opacity: 0.7 }]}
+                      >
+                        <Text style={styles.trBtnGhostText}>Gallery</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* Signature — only at delivery. */}
+                {needsSignature ? (
+                  <View style={[styles.trPanel, signatureData && styles.trPanelDone]}>
+                    <Text style={styles.trPanelTitle}>✍️  Delivery signature</Text>
+                    <Text style={styles.trMuted}>
+                      {signatureData
+                        ? `Signed${receivedBy?.name ? ` by ${receivedBy.name}` : ""}`
+                        : "The receiver signs on your phone at the drop."}
+                    </Text>
+                    <Pressable
+                      onPress={() => setSignatureOpen(true)}
+                      style={({ pressed }) => [
+                        styles.trBtn,
+                        signatureData ? styles.trBtnGhost : styles.trBtnPrimary,
+                        { marginTop: 10 },
+                        pressed && { opacity: 0.85 },
+                      ]}
+                    >
+                      <Icon name="signature" size={18} color={signatureData ? "#4338CA" : "#fff"} />
+                      <Text style={signatureData ? styles.trBtnGhostText : styles.trBtnPrimaryText}>
+                        {signatureData ? "Sign again" : "Capture signature"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Add a note for the office (optional)"
+                  multiline
+                  style={styles.trNote}
+                  placeholderTextColor="#98a2b3"
+                />
+
+                <Pressable
+                  onPress={() => selectedStatus && updateStatus(selectedStatus)}
+                  disabled={!selectedStatus || saving}
+                  style={({ pressed }) => [
+                    styles.trBigBtn,
+                    { backgroundColor: selectedStatus ? "#4F46E5" : "#CBD5E1" },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Icon name="check" size={20} color="#fff" />
+                  <Text style={styles.trBigBtnText}>
+                    {selectedStatus ? `Confirm: ${labelize(selectedStatus)}` : "Choose a status first"}
+                  </Text>
+                </Pressable>
+              </View>
+            </>
           )}
-        </DetailSection>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
 
-function TrackingScreen({ load: initialLoad, onBack, documentsOnly = false }) {
-  const [load, setLoad] = useState(initialLoad);
-  const [tracking, setTracking] = useState(null);
-  const [position, setPosition] = useState(null);
-  const [note, setNote] = useState("");
-  const [proofImages, setProofImages] = useState([]);
-  const [signatureData, setSignatureData] = useState("");
-  // Held beside the signature, and for the same reason. Both are captured on
-  // the same sheet, so if only the signature survives a failed save the retry
-  // skips the sheet — the signature is already in hand — and is then rejected
-  // by the server for a name the driver has already typed.
-  const [receivedBy, setReceivedBy] = useState(null);
-  const [signatureOpen, setSignatureOpen] = useState(false);
-  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
-  const [streetTurnOpen, setStreetTurnOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const watcherRef = useRef(null);
-  const pendingDeliveryStatusRef = useRef(null);
+          {/* ── Documents ──────────────────────────────────────────────────── */}
+          <View style={styles.trCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={styles.trCardTitle}>Documents</Text>
+              <View style={styles.trDocCount}>
+                <Text style={styles.trDocCountText}>
+                  {docsDone}/{docTypes.length}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.trProgressTrack}>
+              <View style={[styles.trProgressFill, { width: `${Math.round((docsDone / docTypes.length) * 100)}%` }]} />
+            </View>
 
-  const isTrackingActive = tracking?.status === "ACTIVE";
+            <PaperworkBanner paperwork={load.paperwork} />
 
-  // ── One-way status progression + multi-origin pickup ─────────────────────
-  const originCount = load?.pickups?.length || 1;
-  const pickedUpCount = (load?.transportStatusHistory || []).filter(
-    (h) => h.status === "PICKED_UP",
-  ).length;
-  const canExtraPickup = originCount >= 2 && pickedUpCount < originCount;
-  const currentStatusIdx = MAIN_ORDER.indexOf(load?.transportStatus);
-  const isStatusLocked = (status) => {
-    const idx = MAIN_ORDER.indexOf(status);
-    if (idx === -1) return false; // side statuses always available
-    if (status === "PICKED_UP" && canExtraPickup) return false;
-    return idx <= currentStatusIdx;
-  };
+            <DocumentCard
+              title={POD_DOCUMENT_TYPE}
+              document={getDocumentByType(POD_DOCUMENT_TYPE)}
+              isPOD
+              isDelivered={load.transportStatus === "DELIVERED"}
+              onView={() => handleViewDocument(getDocumentByType(POD_DOCUMENT_TYPE)?.filePath)}
+            />
 
-  const fetchLoad = async () => {
-    const res = await api.get(`/loads/${initialLoad.loadId}`);
-    setLoad(res.data);
-  };
+            <View style={styles.uploadList}>
+              {uploadableDocumentTypes.map((type) => (
+                <DocumentCard
+                  key={type}
+                  title={type}
+                  document={getDocumentByType(type)}
+                  locked={load.paperwork?.state === "APPROVED"}
+                  onView={() => handleViewDocument(getDocumentByType(type)?.filePath)}
+                  onUpload={() => uploadDocument(type)}
+                  onCamera={() => uploadDocument(type, true)}
+                />
+              ))}
+            </View>
 
-  const fetchTracking = async () => {
-    const res = await api.get(`/tracking/${initialLoad.loadId}`);
-    setTracking(res.data);
-  };
-
-  useEffect(() => {
-    fetchLoad().catch(() => null);
-    fetchTracking().catch(() => null);
-
-    return () => {
-      watcherRef.current?.remove?.();
-    };
-  }, [initialLoad.loadId]);
-
-  const requestCurrentPosition = async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (permission.status !== "granted") {
-      throw new Error("Location permission is compulsory to pick up and track this load.");
-    }
-
-    const current = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Highest,
-    });
-    setPosition(current);
-    return current;
-  };
-
-  const syncPosition = async (current) => {
-    const payload = toLocationPayload(current);
-    await api.post(`/tracking/${load.loadId}/location`, payload);
-    setTracking((prev) => ({
-      ...(prev || {}),
-      status: "ACTIVE",
-      lastLocation: payload,
-      lastHeartbeatAt: payload.recordedAt,
-      recentLocations: [...(prev?.recentLocations || []), payload].slice(-100),
-    }));
-  };
-
-  const startBackgroundTracking = async () => {
-    const backgroundPermission = await Location.requestBackgroundPermissionsAsync();
-    if (backgroundPermission.status !== "granted") {
-      Alert.alert(
-        "Background tracking not enabled",
-        "Live tracking will continue while the app is open. Enable background location in settings for locked-screen tracking.",
-      );
-      return;
-    }
-
-    await AsyncStorage.setItem(ACTIVE_TRACKING_LOAD_KEY, load.loadId);
-    const alreadyRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK);
-    if (!alreadyRunning) {
-      await Location.startLocationUpdatesAsync(LOCATION_TASK, {
-        accuracy: Location.Accuracy.Highest,
-        timeInterval: LOCATION_UPDATE_INTERVAL_MS,
-        distanceInterval: LOCATION_DISTANCE_INTERVAL_METERS,
-        pausesUpdatesAutomatically: false,
-        showsBackgroundLocationIndicator: true,
-        foregroundService: {
-          notificationTitle: "FMSS live tracking",
-          notificationBody: `Sharing location for ${load.loadId}`,
-        },
-      });
-    }
-  };
-
-  const stopBackgroundTracking = async () => {
-    const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK);
-    if (running) {
-      await Location.stopLocationUpdatesAsync(LOCATION_TASK);
-    }
-    await AsyncStorage.removeItem(ACTIVE_TRACKING_LOAD_KEY);
-  };
-
-  const startTracking = async () => {
-    try {
-      setSaving(true);
-      const current = await requestCurrentPosition();
-      const payload = toLocationPayload(current);
-      const res = await api.post(`/tracking/${load.loadId}/start`, payload);
-      setTracking(res.data.data);
-      await startBackgroundTracking();
-
-      watcherRef.current?.remove?.();
-      watcherRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Highest,
-          timeInterval: LOCATION_UPDATE_INTERVAL_MS,
-          distanceInterval: LOCATION_DISTANCE_INTERVAL_METERS,
-        },
-        (nextPosition) => {
-          setPosition(nextPosition);
-          syncPosition(nextPosition).catch(() => null);
-        },
-      );
-
-      Alert.alert("Live tracking started", "Keep the app open while the load is in transit.");
-    } catch (error) {
-      Alert.alert("Tracking required", error.response?.data?.message || error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const pickProofImages = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (permission.status !== "granted") {
-      Alert.alert("Camera permission required", "Camera access is required for pickup proof.");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.7,
-      allowsEditing: false,
-    });
-
-    if (!result.canceled) {
-      setProofImages((prev) => [...prev, ...result.assets]);
-    }
-  };
-
-  const updateStatus = async (
-    status,
-    signatureOverride = signatureData,
-    streetTurnOverride = null,
-    // Captured on the signature sheet at the door — see SignatureModal. Falls
-    // back to what that sheet already gave us, so a retry does not arrive
-    // without it.
-    receiverOverride = receivedBy,
-    // Set by the confirmation below when the driver has said yes to a status
-    // that takes the load off their board.
-    confirmedRemoval = false,
-  ) => {
-    try {
-      // A status that takes the load off their board is worth one question
-      // first — it is not recoverable from the app, and "the load vanished"
-      // is otherwise a support call rather than a decision they made.
-      if (REMOVES_FROM_BOARD.includes(status) && !confirmedRemoval) {
-        Alert.alert(
-          `Mark as ${labelize(status)}?`,
-          "This load will be removed from your list. You will not be able to open it or update it again from the app.",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: `Yes, ${labelize(status)}`,
-              style: "destructive",
-              onPress: () =>
-                updateStatus(
-                  status,
-                  signatureOverride,
-                  streetTurnOverride,
-                  receiverOverride,
-                  true,
-                ),
-            },
-          ],
-        );
-        return;
-      }
-
-      // Forward-only: block moving back to an already-passed stage.
-      if (isStatusLocked(status)) {
-        Alert.alert(
-          "Not allowed",
-          `This load has already passed "${labelize(status)}". Status can't move backward.`,
-        );
-        return;
-      }
-
-      // Multi-origin pickup: confirm which origin this pickup is for.
-      if (status === "PICKED_UP" && canExtraPickup && pickedUpCount >= 1) {
-        const originNo = pickedUpCount + 1;
-        const confirmed = await new Promise((resolve) => {
-          Alert.alert(
-            "Confirm origin",
-            `Is this the pickup for origin #${originNo}?`,
-            [
-              { text: "No", style: "cancel", onPress: () => resolve(false) },
-              { text: "Yes", onPress: () => resolve(true) },
-            ],
-            { cancelable: false },
-          );
-        });
-        if (!confirmed) return;
-      }
-
-      if (["PICKED_UP", "IN_TRANSIT"].includes(status) && !isTrackingActive) {
-        Alert.alert("Start live tracking", "Live GPS sharing is compulsory from pickup.");
-        return;
-      }
-
-      if (status === "PICKED_UP" && proofImages.length === 0) {
-        Alert.alert("Pickup proof required", "Capture at least one pickup proof image.");
-        return;
-      }
-
-      // Checked before the signature pad opens, not after: being asked to sign
-      // and only then told a photo is missing means signing twice.
-      if (
-        status === "DELIVERED" &&
-        proofImages.length === 0 &&
-        !(load?.deliveryProof?.images || []).length
-      ) {
-        Alert.alert(
-          "Delivery proof required",
-          "Photograph the container at the drop before completing the delivery.",
-        );
-        return;
-      }
-
-      // Both halves come off the same sheet, so both have to be missing-checked
-      // against it. Testing the signature alone meant a delivery that failed
-      // after signing — no photo, no GPS, a dropped connection — retried with a
-      // signature in hand, skipped the sheet, and was refused by the server for
-      // a name the driver had already given it.
-      if (
-        status === "DELIVERED" &&
-        (!signatureOverride || !receiverOverride?.name)
-      ) {
-        pendingDeliveryStatusRef.current = status;
-        setSignatureOpen(true);
-        return;
-      }
-
-      // A street turn can't be saved until the handover parties are confirmed.
-      if (status === "STREET_TURN" && !streetTurnOverride) {
-        setStreetTurnOpen(true);
-        return;
-      }
-
-      setSaving(true);
-      const current = position || (await requestCurrentPosition());
-      const locationPayload = toLocationPayload(current);
-
-      const formData = new FormData();
-      formData.append("transportStatus", status);
-      formData.append("note", note);
-      formData.append("latitude", String(locationPayload.latitude));
-      formData.append("longitude", String(locationPayload.longitude));
-      formData.append("accuracy", String(locationPayload.accuracy || ""));
-      if (signatureOverride) formData.append("signatureData", signatureOverride);
-      if (receiverOverride?.name) {
-        formData.append("receivedByName", receiverOverride.name);
-        formData.append("receivedByTitle", receiverOverride.title || "");
-      }
-      // Multipart flattens nested objects, so the server parses this back.
-      if (streetTurnOverride) {
-        formData.append("streetTurn", JSON.stringify(streetTurnOverride));
-      }
-      proofImages.forEach((asset, index) => {
-        formData.append("proofImages", assetToFile(asset, `proof-${index + 1}.jpg`));
-      });
-
-      const res = await api.put(`/loads/${load.loadId}/transport-status`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        // Proof uploads and delivery POD generation can take longer than the
-        // normal API timeout, especially on cellular connections.
-        timeout: 60000,
-      });
-      setLoad(res.data.data);
-      setNote("");
-      setStreetTurnOpen(false);
-      if (["PICKED_UP", "DELIVERED"].includes(status)) setProofImages([]);
-      if (status === "DELIVERED") {
-        // Landed. Drop what was captured at this door so the next drop starts
-        // from a blank sheet rather than inheriting this consignee's name and
-        // mark — the whole reason the sheet used to clear itself on open.
-        setSignatureData("");
-        setReceivedBy(null);
-        watcherRef.current?.remove?.();
-        watcherRef.current = null;
-        await stopBackgroundTracking().catch(() => null);
-        await fetchTracking().catch(() => null);
-      }
-      Alert.alert("Status updated", `${labelize(status)} synced successfully.`);
-    } catch (error) {
-      Alert.alert("Update failed", error.response?.data?.message || error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const getDocumentByType = (type) =>
-    visibleToDriver(load.documents).find(
-      (doc) =>
-        (doc.documentType === "Invoice" ? "Carrier Invoice" : doc.documentType) === type,
-    );
-
-  const handleViewDocument = async (filePath) => {
-    const url = getDocumentUrl(filePath);
-    if (!url) {
-      Alert.alert("View unavailable", "No file is available for this document.");
-      return;
-    }
-
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("View failed", "Unable to open the document.");
-    }
-  };
-
-  const uploadDocument = async (type) => {
-    if (load.paperwork?.state === "APPROVED") {
-      Alert.alert(
-        "Documents locked",
-        "The office has approved this load's paperwork, so its documents can no longer be changed. Call the office if something is wrong with them.",
-      );
-      return;
-    }
-
-    if (type === POD_DOCUMENT_TYPE) {
-      Alert.alert("Auto-generated document", "Proof of Delivery is created automatically after delivery.");
-      return;
-    }
-
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-    });
-    if (result.canceled) return;
-
-    const file = result.assets[0];
-    const formData = new FormData();
-    formData.append("documentType", type);
-    formData.append("file", assetToFile(file, file.name || "document.pdf"));
-
-    try {
-      setSaving(true);
-      await api.post(`/loads/${load.loadId}/documents`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      await fetchLoad();
-      Alert.alert("Document uploaded", `${type} added to the load.`);
-    } catch (error) {
-      Alert.alert("Upload failed", error.response?.data?.message || error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.safeContent}>
-        <View style={styles.topBar}>
-          <SecondaryButton title="Back" onPress={onBack} />
-          <Pill tone={isTrackingActive ? "success" : "warning"}>
-            {isTrackingActive ? "Live GPS On" : "GPS Required"}
-          </Pill>
-        </View>
-
-        {/* A finished load is opened from the Over tab to read its paperwork.
-            Its status cannot change any more, so the map, the status buttons
-            and the signature pad are all noise in front of the one thing that
-            was actually asked for. */}
-        {!documentsOnly && (
-          <>
-        <LoadCard load={load}>
-          <Text style={styles.sectionTitle}>Current location</Text>
-          <Text style={styles.muted}>
-            {tracking?.lastLocation
-              ? `${Number(tracking.lastLocation.latitude).toFixed(5)}, ${Number(
-                  tracking.lastLocation.longitude,
-                ).toFixed(5)}`
-              : "No live location synced yet."}
-          </Text>
-          <PrimaryButton
-            title={isTrackingActive ? "Tracking Active" : "Allow and Start Live Tracking"}
-            onPress={startTracking}
-            disabled={saving || isTrackingActive}
-            tone="success"
-          />
-        </LoadCard>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Update status</Text>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="Optional note"
-            multiline
-            style={[styles.input, styles.noteInput]}
-            placeholderTextColor="#98a2b3"
-          />
-          <Pressable
-            onPress={() => setStatusPickerOpen(true)}
-            disabled={saving}
-            style={({ pressed }) => [styles.pickerField, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Text style={styles.pickerFieldText}>Select next status…</Text>
-            <Text style={styles.pickerChevron}>▾</Text>
-          </Pressable>
-          <SecondaryButton
-            title={`Proof photos: ${proofImages.length}`}
-            onPress={pickProofImages}
-          />
-          <SecondaryButton
-            title={signatureData ? "Signature captured" : "Capture delivery signature"}
-            onPress={() => setSignatureOpen(true)}
-          />
-        </View>
-
-          </>
-        )}
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Documents</Text>
-
-          <PaperworkBanner paperwork={load.paperwork} />
-
-          <View style={styles.docTypesHeader}>
-            <Text style={styles.muted}>Proof of Delivery is autogenerated after delivered status.</Text>
+            <Text style={styles.trMuted}>{docsOnLoad.length} document(s) on this load</Text>
           </View>
-
-          <DocumentCard
-            title={POD_DOCUMENT_TYPE}
-            document={getDocumentByType(POD_DOCUMENT_TYPE)}
-            isPOD
-            isDelivered={load.transportStatus === "DELIVERED"}
-            onView={() => handleViewDocument(getDocumentByType(POD_DOCUMENT_TYPE)?.filePath)}
-          />
-
-          <View style={styles.uploadList}>
-            {uploadableDocumentTypes.map((type) => (
-              <DocumentCard
-                key={type}
-                title={type}
-                document={getDocumentByType(type)}
-                locked={load.paperwork?.state === "APPROVED"}
-                onView={() => handleViewDocument(getDocumentByType(type)?.filePath)}
-                onUpload={() => uploadDocument(type)}
-              />
-            ))}
-          </View>
-
-          {/* Counts only what this screen lists, so the number cannot disagree
-              with the cards above it. */}
-          <Text style={styles.muted}>
-            {visibleToDriver(load.documents).length} document(s) on this load
-          </Text>
         </View>
       </ScrollView>
 
@@ -3186,7 +2786,10 @@ function TrackingScreen({ load: initialLoad, onBack, documentsOnly = false }) {
         isLocked={(s) => saving || isStatusLocked(s)}
         onSelect={(status) => {
           setStatusPickerOpen(false);
-          updateStatus(status);
+          // Chosen, not sent: the panels below then ask for what this status
+          // needs, and the Confirm button sends it.
+          setSelectedStatus(status);
+          if (!["PICKED_UP", "DELIVERED"].includes(status)) setProofImages([]);
         }}
       />
 
@@ -5480,6 +5083,159 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   bbDetailsText: { color: "#4338CA", fontSize: 15, fontWeight: "800" },
+  documentCameraButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#4F46E5",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  documentCameraText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  trHero: {
+    paddingTop: UI_TOP_INSET + 10,
+    paddingBottom: 22,
+    paddingHorizontal: 18,
+  },
+  trTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  trBack: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  trGps: { borderRadius: 999 },
+  trGpsOn: {},
+  trGpsOff: { backgroundColor: "#FEF3C7", paddingHorizontal: 12, paddingVertical: 5 },
+  trGpsOffText: { color: "#B45309", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  trEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "800", letterSpacing: 1.5 },
+  trLoadId: { color: "#fff", fontSize: 28, fontWeight: "900" },
+  trStatus: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  trStatusText: { fontSize: 13, fontWeight: "900" },
+  trRouteCard: { backgroundColor: "#fff", borderRadius: 18, padding: 16, marginTop: 16 },
+  trBody: { padding: 16, gap: 16 },
+  trCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E4E7F2",
+    shadowColor: "#1E3A8A",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  trCardTitle: { color: "#0F172A", fontSize: 19, fontWeight: "900" },
+  trMuted: { color: "#64748B", fontSize: 14, fontWeight: "600" },
+  trSteps: { flexDirection: "row", marginTop: 4 },
+  trStep: { flex: 1, alignItems: "center" },
+  trStepDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  trStepDotDone: { backgroundColor: "#22C55E" },
+  trStepDotCurrent: { backgroundColor: "#4F46E5", borderWidth: 3, borderColor: "#C7D2FE" },
+  trStepLine: { position: "absolute", top: 12, left: "50%", right: "-50%", height: 3, backgroundColor: "#E2E8F0" },
+  trStepLineDone: { backgroundColor: "#22C55E" },
+  trStepLabel: { color: "#64748B", fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  trIconBubble: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  trTrackingOn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ECFDF3",
+    borderRadius: 12,
+    padding: 12,
+  },
+  trTrackingOnText: { color: "#15803D", fontSize: 15, fontWeight: "800" },
+  trBigBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 16,
+    shadowColor: "#4F46E5",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+  },
+  trBigBtnText: { color: "#fff", fontSize: 17, fontWeight: "900" },
+  trPicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#F8FAFF",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  trPickerChosen: { borderColor: "#4F46E5", backgroundColor: "#EEF2FF" },
+  trPickerLabel: { color: "#6366F1", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  trPickerValue: { color: "#1E1B4B", fontSize: 18, fontWeight: "900", marginTop: 2 },
+  trPanel: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+  trPanelDone: { backgroundColor: "#ECFDF3", borderColor: "#BBF7D0" },
+  trPanelTitle: { color: "#312E81", fontSize: 16, fontWeight: "900", marginBottom: 2 },
+  trThumbWrap: { marginRight: 10 },
+  trThumb: { width: 76, height: 76, borderRadius: 12, backgroundColor: "#E2E8F0" },
+  trThumbX: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trBtnRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  trBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  trBtnPrimary: { backgroundColor: "#4F46E5", flex: 2 },
+  trBtnPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  trBtnGhost: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#C7D2FE", flex: 1 },
+  trBtnGhostText: { color: "#4338CA", fontSize: 15, fontWeight: "900" },
+  trNote: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    minHeight: 70,
+    fontSize: 15,
+    color: "#0F172A",
+    textAlignVertical: "top",
+  },
+  trDocCount: { backgroundColor: "#EEF2FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  trDocCountText: { color: "#4338CA", fontSize: 14, fontWeight: "900" },
+  trProgressTrack: { height: 8, borderRadius: 4, backgroundColor: "#E2E8F0", overflow: "hidden" },
+  trProgressFill: { height: 8, borderRadius: 4, backgroundColor: "#22C55E" },
   amountBadge: {
     alignItems: "flex-end",
     backgroundColor: "#ECFDF3",

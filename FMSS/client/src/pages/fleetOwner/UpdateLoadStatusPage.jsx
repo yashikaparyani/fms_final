@@ -9,6 +9,9 @@ import AppSelect from "../../components/AppSelect";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import CircularProgress from "@mui/material/CircularProgress";
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import CameraCapture from "../../components/CameraCapture";
 
 // Invoiceable is deliberately absent: it is reached by approving the paperwork,
 // not by picking it here — see ACTION_ONLY_TRANSPORT_STATUSES in
@@ -57,6 +60,8 @@ const UpdateLoadStatusPage = () => {
   const [submitError, setSubmitError] = useState("");
   const [note, setNote] = useState("");
   const [files, setFiles] = useState([]);
+  // The in-page camera for proof photos; files add to the same list.
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [signatureData, setSignatureData] = useState("");
   // Who took the delivery. A signature proves somebody signed, not who —
   // and "who signed for it" is the first question asked when a delivery is
@@ -319,6 +324,8 @@ const UpdateLoadStatusPage = () => {
                   onChange={(value) => {
                     setTransportStatus(value);
                     setSubmitError("");
+                    // Photos taken for one status are not proof of another.
+                    if (value !== transportStatus) setFiles([]);
                   }}
                   placeholder="Select status..."
                   isSearchable={false}
@@ -373,47 +380,101 @@ const UpdateLoadStatusPage = () => {
                 </span>
               </div>
 
-              <div>
-                <label style={{
-                  display: "block", fontSize: 13, fontWeight: 700,
-                  color: "#6b7280", marginBottom: 8,
-                  textTransform: "uppercase", letterSpacing: "0.06em",
-                }}>
-                  Supporting Files{transportStatus === "PICKED_UP" ? requiredMark : null}
-                </label>
-                <label style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px dashed #c7d2fe",
-                  backgroundColor: "#eef2ff",
-                  color: "#4338ca",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}>
-                  Choose Supporting Files
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.doc,.docx"
-                    capture="environment"
-                    onChange={(e) => {
-                      setFiles(Array.from(e.target.files || []));
+              {/* Proof photos belong to the two moments that need proof — the
+                  pickup and the drop — so they appear only for those. A photo
+                  can be taken here with the camera or picked from files. */}
+              {["PICKED_UP", "DELIVERED"].includes(transportStatus) && (
+                <div
+                  style={{
+                    border: "1px solid #c7d2fe",
+                    background: "linear-gradient(135deg,#eef2ff,#f5f3ff)",
+                    borderRadius: 14,
+                    padding: 16,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#4338ca", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
+                    {transportStatus === "PICKED_UP" ? "Pickup proof photos" : "Delivery proof photos"}
+                    {transportStatus === "PICKED_UP" ? requiredMark : null}
+                  </div>
+                  <div style={{ fontSize: 14, color: "#475569", marginBottom: 12 }}>
+                    {transportStatus === "PICKED_UP"
+                      ? "Photograph the container at pickup."
+                      : "Photograph the container at the drop."}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setCameraOpen(true)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 8,
+                        padding: "11px 16px", borderRadius: 10, border: "none",
+                        background: "#4f46e5", color: "#fff", fontSize: 15, fontWeight: 800,
+                        cursor: "pointer", boxShadow: "0 6px 16px rgba(79,70,229,0.3)",
+                      }}
+                    >
+                      <CameraAltIcon style={{ fontSize: 20 }} /> Take photo
+                    </button>
+                    <label
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 8,
+                        padding: "11px 16px", borderRadius: 10, border: "1px solid #c7d2fe",
+                        background: "#fff", color: "#4338ca", fontSize: 15, fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <UploadFileIcon style={{ fontSize: 20 }} /> Choose files
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf"
+                        onChange={(e) => {
+                          const picked = Array.from(e.target.files || []);
+                          setFiles((current) => [...current, ...picked]);
+                          setSubmitError("");
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  </div>
+                  {files.length > 0 ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                      {files.map((file, i) => (
+                        <span
+                          key={`${file.name}-${i}`}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            background: "#fff", border: "1px solid #e0e7ff", borderRadius: 999,
+                            padding: "5px 10px", fontSize: 13, fontWeight: 700, color: "#334155",
+                          }}
+                        >
+                          📷 {file.name.length > 22 ? `${file.name.slice(0, 20)}…` : file.name}
+                          <button
+                            type="button"
+                            aria-label="Remove"
+                            onClick={() => setFiles((current) => current.filter((_, j) => j !== i))}
+                            style={{ border: "none", background: "none", color: "#dc2626", fontWeight: 900, cursor: "pointer" }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 10, fontSize: 14, color: "#64748b" }}>No photos yet</div>
+                  )}
+                  <CameraCapture
+                    open={cameraOpen}
+                    title={transportStatus === "PICKED_UP" ? "Pickup proof" : "Delivery proof"}
+                    onClose={() => setCameraOpen(false)}
+                    onCapture={(file) => {
+                      setFiles((current) => [...current, file]);
                       setSubmitError("");
+                      setCameraOpen(false);
                     }}
-                    style={{ display: "none" }}
                   />
-                </label>
-                <div style={{ marginTop: 6, fontSize: 14, color: "#6b7280" }}>
-                  {files.length > 0
-                    ? `${files.length} file${files.length > 1 ? "s" : ""} selected`
-                    : "No supporting files selected"}
                 </div>
-              </div>
+              )}
 
               {transportStatus === "DELIVERED" && (
                 <div style={{ marginBottom: 16 }}>

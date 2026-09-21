@@ -27,6 +27,7 @@ const DOCUMENT_TYPES = [
   "Proof of Delivery",
   "Scale Ticket",
   "Lumper Receipt",
+  "Additional POD",
   "Misc.",
   "Carrier Invoice",
 ];

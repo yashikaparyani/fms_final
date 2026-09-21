@@ -24,8 +24,10 @@ const BASE_DOCUMENT_TYPES = [
 
 const POD_DOCUMENT_TYPE = "Proof of Delivery";
 
+// "Additional POD" sits beside the generated POD: some consignees hand over
+// their own stamped copy, and it is uploaded (or photographed) here.
 const getAvailableDocumentTypes = (transportStatus) =>
-  [...BASE_DOCUMENT_TYPES, POD_DOCUMENT_TYPE];
+  [...BASE_DOCUMENT_TYPES, POD_DOCUMENT_TYPE, "Additional POD"];
 
 const ViewLink = ({ filePath }) => {
   if (!filePath) return null;

@@ -290,6 +290,8 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   "Out-Gate Interchange",
   "In-Gate Interchange",
   POD_DOCUMENT_TYPE,
+  // Uploaded beside the generated POD, never instead of it.
+  "Additional POD",
   "Scale Ticket",
   "Lumper Receipt",
   "Misc.",

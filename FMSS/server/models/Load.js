@@ -484,6 +484,9 @@ const loadSchema = new mongoose.Schema(
             "Out-Gate Interchange",
             "In-Gate Interchange",
             "Proof of Delivery",
+            // A second, uploaded POD beside the one generated at delivery —
+            // some consignees stamp their own.
+            "Additional POD",
             "Scale Ticket",
             "Lumper Receipt",
             "Misc.",
