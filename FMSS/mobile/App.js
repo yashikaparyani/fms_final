@@ -541,7 +541,227 @@ function Field({ label, value, onChangeText, secureTextEntry, keyboardType, plac
   );
 }
 
+// ─── Carrier self-registration ───────────────────────────────────────────────
+// The same request the web "Create an account" page files (POST /api/signups):
+// it does not create an account or sign anybody in. The office reviews it on
+// the Registrations screen, and approval is what mints the login and emails the
+// password. Carriers only here — this app is where carriers and drivers work.
+// ─────────────────────────────────────────────────────────────────────────────
+const REGISTER_FIELDS = [
+  { key: "carrierName", label: "Carrier / company name", required: true, placeholder: "S Line Carriers LLC", caps: "words" },
+  { key: "mcLicense", label: "MC number", placeholder: "MC-123456", caps: "characters" },
+  { key: "dotLicense", label: "DOT number", placeholder: "DOT-7654321", caps: "characters" },
+  { key: "email", label: "Email", required: true, placeholder: "you@example.com", keyboardType: "email-address" },
+  { key: "phone", label: "Phone", required: true, placeholder: "(555) 010-2030", keyboardType: "phone-pad" },
+  { key: "street", label: "Street", placeholder: "1200 Commerce St", caps: "words" },
+  { key: "city", label: "City", placeholder: "Dallas", caps: "words" },
+  { key: "state", label: "State", placeholder: "TX", caps: "characters" },
+  { key: "zip", label: "ZIP", placeholder: "75201", keyboardType: "number-pad" },
+];
+
+function RegisterCarrierScreen({ onBack }) {
+  const [form, setForm] = useState({ note: "", locationId: "" });
+  const [errors, setErrors] = useState({});
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const scrollRef = useRef(null);
+  const offsets = useRef({});
+
+  useEffect(() => {
+    api
+      .get("/branches/public")
+      .then((res) => setLocations(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setLocations([]));
+  }, []);
+
+  const set = (key) => (value) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
+  };
+
+  const submit = async () => {
+    // Missing required fields are marked in place and the form scrolls to the
+    // first one, rather than listing them in a popup.
+    const problems = {};
+    REGISTER_FIELDS.forEach((f) => {
+      if (f.required && !String(form[f.key] || "").trim()) problems[f.key] = "Please fill this field";
+    });
+    const email = String(form.email || "").trim();
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) problems.email = "Enter a valid email";
+    if (locations.length > 1 && !form.locationId) problems.locationId = "Choose your location";
+
+    const first = [...REGISTER_FIELDS.map((f) => f.key), "locationId"].find((k) => problems[k]);
+    if (first) {
+      setErrors(problems);
+      const y = offsets.current[first];
+      if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - 20), animated: true });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await api.post("/signups", {
+        ...form,
+        email,
+        role: "fleetOwner",
+        locationId: form.locationId || undefined,
+      });
+      setDone(true);
+    } catch (error) {
+      Alert.alert(
+        "Could not submit",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <View style={styles.loginScreen}>
+        <StatusBar style="light" />
+        <GradientHeader from="#07152E" to="#16386F" style={styles.loginHero}>
+          <View style={styles.regDoneIcon}>
+            <Icon name="check" size={40} color="#fff" />
+          </View>
+          <Text style={styles.regDoneTitle}>Registration received</Text>
+          <Text style={styles.regDoneBody}>
+            Our office will review your details. Once approved, your sign-in details
+            are emailed to {String(form.email || "").trim()}. After you sign in you will
+            be asked to complete your carrier documentation.
+          </Text>
+        </GradientHeader>
+        <View style={{ padding: spacing.lg }}>
+          <PrimaryButton title="Back to sign in" onPress={onBack} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.loginScreen}>
+      <StatusBar style="light" />
+      <GradientHeader from="#07152E" to="#16386F" style={styles.regHero}>
+        <Pressable onPress={onBack} hitSlop={10} style={styles.regBack}>
+          <Icon name="back" size={20} color="#fff" />
+        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10 }}>
+          <View style={styles.loginMark}>
+            <Icon name="truck" size={26} color={colors.onBrand} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.regTitle}>Register as a carrier</Text>
+            <Text style={styles.regSub}>Bid on loads, run your drivers and get paid.</Text>
+          </View>
+        </View>
+      </GradientHeader>
+
+      <KeyboardAvoidingView
+        style={styles.loginBody}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.loginScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.loginCard}>
+            {REGISTER_FIELDS.map((f) => {
+              const empty = !String(form[f.key] || "").trim();
+              const error = errors[f.key];
+              return (
+                <View
+                  key={f.key}
+                  style={styles.field}
+                  onLayout={(e) => {
+                    offsets.current[f.key] = e.nativeEvent.layout.y;
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.label}>{f.label}</Text>
+                    {f.required ? (
+                      <Text style={[styles.regTag, empty ? styles.regTagTodo : styles.regTagDone]}>
+                        {empty ? "REQUIRED" : "✓ DONE"}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <TextInput
+                    value={form[f.key] || ""}
+                    onChangeText={set(f.key)}
+                    placeholder={f.placeholder}
+                    keyboardType={f.keyboardType}
+                    autoCapitalize={f.keyboardType === "email-address" ? "none" : f.caps || "sentences"}
+                    style={[
+                      styles.input,
+                      f.required && empty && !error && styles.regInputTodo,
+                      error && styles.regInputError,
+                    ]}
+                    placeholderTextColor="#98a2b3"
+                  />
+                  {error ? <Text style={styles.regError}>👉  {error}</Text> : null}
+                </View>
+              );
+            })}
+
+            {locations.length > 1 ? (
+              <View
+                style={styles.field}
+                onLayout={(e) => {
+                  offsets.current.locationId = e.nativeEvent.layout.y;
+                }}
+              >
+                <Text style={styles.label}>Operating location</Text>
+                <View style={styles.regChips}>
+                  {locations.map((loc) => {
+                    const on = form.locationId === loc._id;
+                    return (
+                      <Pressable
+                        key={loc._id}
+                        onPress={() => set("locationId")(loc._id)}
+                        style={[styles.regChip, on && styles.regChipOn]}
+                      >
+                        <Text style={[styles.regChipText, on && styles.regChipTextOn]}>{loc.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {errors.locationId ? <Text style={styles.regError}>👉  {errors.locationId}</Text> : null}
+              </View>
+            ) : null}
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Anything we should know?</Text>
+              <TextInput
+                value={form.note}
+                onChangeText={set("note")}
+                placeholder="Fleet size, equipment types, lanes you run…"
+                multiline
+                style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
+                placeholderTextColor="#98a2b3"
+              />
+            </View>
+
+            <PrimaryButton
+              title={loading ? "Submitting..." : "Submit for approval"}
+              onPress={submit}
+              disabled={loading}
+            />
+            <Text style={styles.regFoot}>
+              You can sign in once our office approves your account and emails your
+              sign-in details.
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
 function LoginScreen({ onLogin }) {
+  const [registering, setRegistering] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -575,6 +795,8 @@ function LoginScreen({ onLogin }) {
       setLoading(false);
     }
   };
+
+  if (registering) return <RegisterCarrierScreen onBack={() => setRegistering(false)} />;
 
   return (
     <View style={styles.loginScreen}>
@@ -623,6 +845,20 @@ function LoginScreen({ onLogin }) {
               placeholder="Password"
             />
             <PrimaryButton title={loading ? "Signing in..." : "Sign In"} onPress={submit} disabled={loading} />
+
+            {/* New carriers apply from the phone too — see RegisterCarrierScreen. */}
+            <Pressable
+              onPress={() => setRegistering(true)}
+              style={({ pressed }) => [styles.regCta, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="truck" size={20} color="#1D4ED8" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.regCtaTitle}>New carrier? Register</Text>
+                <Text style={styles.regCtaSub}>Apply in 2 minutes — our office approves it</Text>
+              </View>
+              <Icon name="chevron" size={18} color="#1D4ED8" />
+            </Pressable>
+
             <Text style={styles.apiHint}>API: {API_BASE_URL}</Text>
           </View>
         </ScrollView>
@@ -5236,6 +5472,54 @@ const styles = StyleSheet.create({
   trDocCountText: { color: "#4338CA", fontSize: 14, fontWeight: "900" },
   trProgressTrack: { height: 8, borderRadius: 4, backgroundColor: "#E2E8F0", overflow: "hidden" },
   trProgressFill: { height: 8, borderRadius: 4, backgroundColor: "#22C55E" },
+  regCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
+  },
+  regCtaTitle: { color: "#1D4ED8", fontSize: 16, fontWeight: "900" },
+  regCtaSub: { color: "#475569", fontSize: 13, fontWeight: "600", marginTop: 1 },
+  regHero: { paddingTop: UI_TOP_INSET + 10, paddingBottom: 24, paddingHorizontal: 18 },
+  regBack: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  regTitle: { color: "#fff", fontSize: 24, fontWeight: "900" },
+  regSub: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontWeight: "600", marginTop: 2 },
+  regTag: { fontSize: 10, fontWeight: "900", letterSpacing: 0.6, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: "hidden" },
+  regTagTodo: { backgroundColor: "#FEF3C7", color: "#92400E" },
+  regTagDone: { backgroundColor: "#DCFCE7", color: "#15803D" },
+  regInputTodo: { borderColor: "#FBBF24", backgroundColor: "#FFFBEB" },
+  regInputError: { borderColor: "#EF4444", borderWidth: 2, backgroundColor: "#FEF2F2" },
+  regError: { color: "#DC2626", fontSize: 14, fontWeight: "800", marginTop: 6 },
+  regChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  regChip: { borderRadius: 999, borderWidth: 1.5, borderColor: "#CBD5E1", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#fff" },
+  regChipOn: { borderColor: "#1D4ED8", backgroundColor: "#EFF6FF" },
+  regChipText: { color: "#334155", fontSize: 14, fontWeight: "700" },
+  regChipTextOn: { color: "#1D4ED8" },
+  regFoot: { color: "#64748B", fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 12, lineHeight: 19 },
+  regDoneIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#16A34A",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginTop: 30,
+  },
+  regDoneTitle: { color: "#fff", fontSize: 26, fontWeight: "900", textAlign: "center", marginTop: 16 },
+  regDoneBody: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 10, lineHeight: 22 },
   amountBadge: {
     alignItems: "flex-end",
     backgroundColor: "#ECFDF3",
