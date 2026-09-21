@@ -99,7 +99,7 @@ const LoadDetailsLeft = ({ load }) => (
       <SectionHeader label="Description / Remarks" accent="#10b981" />
 
       <div className="px-4 py-3 border-b border-gray-50">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+        <p className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
           Description
         </p>
         <p className={`text-sm ${load.description ? "text-gray-700" : "text-gray-300 italic"}`}>
@@ -108,7 +108,7 @@ const LoadDetailsLeft = ({ load }) => (
       </div>
 
       <div className="px-4 py-3">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+        <p className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
           Remarks
         </p>
         <p className={`text-sm ${load.remarks ? "text-gray-700" : "text-gray-300 italic"}`}>

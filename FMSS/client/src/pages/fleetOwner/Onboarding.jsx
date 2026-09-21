@@ -590,7 +590,7 @@ const Onboarding = () => {
               {s.label}
               {problems > 0 ? (
                 <span
-                  className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 ${
+                  className={`text-[12px] font-bold rounded-full px-1.5 py-0.5 ${
                     active ? "bg-white/25" : "bg-amber-100 text-amber-800"
                   }`}
                 >
@@ -599,7 +599,7 @@ const Onboarding = () => {
               ) : (
                 s.key !== "review" && (
                   <CheckCircleIcon
-                    style={{ fontSize: 16 }}
+                    style={{ fontSize: 18 }}
                     className={active ? "text-white" : "text-green-600"}
                   />
                 )
@@ -623,11 +623,11 @@ const Onboarding = () => {
 
             {catalog.sharedProfile.map((section) => (
               <div key={section.section} className="mb-6 last:mb-0">
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                   {section.section}
                 </h3>
                 {section.help && (
-                  <p className="text-[11px] text-gray-500 mb-2">{section.help}</p>
+                  <p className="text-[13px] text-gray-500 mb-2">{section.help}</p>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -720,7 +720,7 @@ const Onboarding = () => {
                     {signed ? (
                       <>
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
-                          <CheckCircleIcon style={{ fontSize: 14 }} />
+                          <CheckCircleIcon style={{ fontSize: 16 }} />
                           Signed {fmtDate(signed.signedAt)}
                         </span>
                         <button
@@ -762,7 +762,7 @@ const Onboarding = () => {
                       </div>
                     )}
 
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+                    <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
                       Confirm each of these
                     </h3>
                     <div className="space-y-2 mb-5">
@@ -906,7 +906,7 @@ const Onboarding = () => {
                       <div className="flex-1 min-w-[12rem]">
                         <p className="text-sm font-medium text-gray-900">
                           {driver.name}
-                          <span className="ml-2 text-[11px] font-mono text-gray-400">
+                          <span className="ml-2 text-[13px] font-mono text-gray-400">
                             {driver.driverCode}
                           </span>
                         </p>
@@ -925,17 +925,17 @@ const Onboarding = () => {
                       </div>
 
                       {expired && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                          <WarningAmberIcon style={{ fontSize: 13 }} /> Expired
+                        <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                          <WarningAmberIcon style={{ fontSize: 15 }} /> Expired
                         </span>
                       )}
 
                       {onFile ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
-                          <CheckCircleIcon style={{ fontSize: 13 }} /> Licence on file
+                        <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                          <CheckCircleIcon style={{ fontSize: 15 }} /> Licence on file
                         </span>
                       ) : (
-                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        <span className="text-[13px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
                           No copy yet
                         </span>
                       )}
@@ -1033,7 +1033,7 @@ const Onboarding = () => {
 
             {insuranceLink && (
               <div className="mt-3 flex flex-wrap items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
-                <code className="text-[11px] text-gray-700 break-all flex-1">
+                <code className="text-[13px] text-gray-700 break-all flex-1">
                   {insuranceLink}
                 </code>
                 <button
@@ -1041,9 +1041,9 @@ const Onboarding = () => {
                     navigator.clipboard?.writeText(insuranceLink);
                     notify.success("Link copied");
                   }}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-800"
+                  className="inline-flex items-center gap-1 text-[13px] font-medium text-indigo-600 hover:text-indigo-800"
                 >
-                  <ContentCopyIcon style={{ fontSize: 13 }} /> Copy link
+                  <ContentCopyIcon style={{ fontSize: 15 }} /> Copy link
                 </button>
               </div>
             )}
@@ -1105,16 +1105,16 @@ const Onboarding = () => {
                         <p className="text-sm font-medium text-gray-900">
                           {coverage.label}
                           {coverage.required ? (
-                            <span className="ml-2 text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-[12px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
                               REQUIRED
                             </span>
                           ) : (
-                            <span className="ml-2 text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-[12px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                               OPTIONAL
                             </span>
                           )}
                         </p>
-                        <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                        <p className="text-[13px] text-gray-500 mt-0.5 leading-snug">
                           {coverage.description}
                         </p>
                       </div>
@@ -1125,7 +1125,7 @@ const Onboarding = () => {
                             <p className="text-xs font-semibold text-green-700">
                               {filed.insurerName || "Filed"}
                             </p>
-                            <p className="text-[11px] text-gray-600">
+                            <p className="text-[13px] text-gray-600">
                               {money(filed.limit)}
                               {filed.expiryDate
                                 ? ` · to ${fmtDate(filed.expiryDate)}`
@@ -1133,7 +1133,7 @@ const Onboarding = () => {
                             </p>
                           </>
                         ) : (
-                          <p className="text-[11px] text-gray-500">
+                          <p className="text-[13px] text-gray-500">
                             {coverage.statutory
                               ? "Statutory limits"
                               : coverage.minLimit
@@ -1207,7 +1207,7 @@ const Onboarding = () => {
                     className="flex items-start gap-2 text-sm text-gray-700 border border-amber-200 bg-amber-50/50 rounded-lg px-3 py-2"
                   >
                     <WarningAmberIcon
-                      style={{ fontSize: 17 }}
+                      style={{ fontSize: 19 }}
                       className="text-amber-600 shrink-0 mt-0.5"
                     />
                     <span className="flex-1">{item.message}</span>
@@ -1225,7 +1225,7 @@ const Onboarding = () => {
 
           {/* Signed copies, always reachable from one place */}
           <div className="mt-6 pt-5 border-t border-gray-200">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+            <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
               Your signed agreements
             </h3>
             <div className="space-y-2">
@@ -1242,7 +1242,7 @@ const Onboarding = () => {
                       <p className="text-sm font-medium text-gray-900">
                         {agreement.title}
                       </p>
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-[13px] text-gray-500">
                         {signed
                           ? `Signed by ${signed.signedName} on ${fmtDate(signed.signedAt)}`
                           : "Not signed yet"}

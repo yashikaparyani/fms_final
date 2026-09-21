@@ -80,7 +80,7 @@ const AgingStrip = ({ aging, compact = false }) => (
   <div className={`grid grid-cols-5 gap-2 ${compact ? "" : "mt-1"}`}>
     {AGING_BUCKETS.map((bucket) => (
       <div key={bucket.key} className={compact ? "" : "rounded-lg bg-ink-50 p-2"}>
-        <p className="text-[10px] uppercase tracking-wide text-ink-400">{bucket.label}</p>
+        <p className="text-[12px] uppercase tracking-wide text-ink-400">{bucket.label}</p>
         <p className={`text-sm font-bold tabular-nums ${bucket.tone}`}>
           {moneyShort(aging?.[bucket.key])}
         </p>
@@ -271,7 +271,7 @@ const CustomerLedger = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-ink-300 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-600">
+                    <tr className="border-b border-ink-300 text-left text-[13px] font-semibold uppercase tracking-wide text-ink-600">
                       <th className="py-2 pr-3">Date</th>
                       <th className="py-2 pr-3">Load #</th>
                       <th className="py-2 pr-3">Customer</th>
@@ -417,7 +417,7 @@ const CustomerLedger = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-300 text-[11px] font-semibold uppercase tracking-wide text-ink-600">
+              <tr className="border-b border-ink-300 text-[13px] font-semibold uppercase tracking-wide text-ink-600">
                 <th className="py-2 pr-3 text-left" />
                 {AGING_COLUMNS.map((column) => (
                   <th key={column.key} className="py-2 pl-3 text-right whitespace-nowrap">
@@ -475,7 +475,7 @@ const CustomerLedger = () => {
 
             {!loading && summary?.rows?.length ? (
               <tfoot>
-                <tr className="border-t-2 border-ink-400 text-[13px]">
+                <tr className="border-t-2 border-ink-400 text-[15px]">
                   <td className="py-2 pr-3 pl-2 font-bold uppercase text-ink-900">
                     Total
                   </td>
@@ -490,7 +490,7 @@ const CustomerLedger = () => {
         </div>
 
         {summary?.asOf && (
-          <p className="border-t border-hairline pt-3 text-right text-[11px] text-ink-400">
+          <p className="border-t border-hairline pt-3 text-right text-[13px] text-ink-400">
             {formatDateTime(summary.asOf)}
           </p>
         )}

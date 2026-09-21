@@ -35,15 +35,15 @@ const CopyButton = ({ text, label = "Copy" }) => {
       type="button"
       onClick={copy}
       title={label}
-      className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-800"
+      className="inline-flex items-center gap-1 text-[13px] font-medium text-indigo-600 hover:text-indigo-800"
     >
       {copied ? (
         <>
-          <CheckIcon style={{ fontSize: 14 }} /> Copied
+          <CheckIcon style={{ fontSize: 16 }} /> Copied
         </>
       ) : (
         <>
-          <ContentCopyIcon style={{ fontSize: 13 }} /> {label}
+          <ContentCopyIcon style={{ fontSize: 15 }} /> {label}
         </>
       )}
     </button>
@@ -96,7 +96,7 @@ const CredentialsPanel = ({ entries = [], loginUrl, onDismiss, title }) => {
 
       {unsent.length > 0 && (
         <p className="flex items-start gap-1.5 text-xs text-amber-900 bg-amber-100 rounded-md px-2 py-1.5 mb-3">
-          <WarningAmberIcon style={{ fontSize: 15 }} />
+          <WarningAmberIcon style={{ fontSize: 17 }} />
           <span>
             {unsent.length} of these could not be emailed
             {unsent[0].emailStatus?.message
@@ -129,10 +129,10 @@ const CredentialsPanel = ({ entries = [], loginUrl, onDismiss, title }) => {
 
             {entry.emailStatus?.sent && (
               <span
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700"
+                className="inline-flex items-center gap-1 text-[13px] font-medium text-green-700"
                 title="Credentials were emailed to this address"
               >
-                <MarkEmailReadIcon style={{ fontSize: 14 }} /> Emailed
+                <MarkEmailReadIcon style={{ fontSize: 16 }} /> Emailed
               </span>
             )}
           </div>

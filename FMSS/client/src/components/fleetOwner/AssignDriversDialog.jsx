@@ -30,7 +30,7 @@ const BLANK = {
 
 const StopFields = ({ label, value, onChange, disabled }) => (
   <div>
-    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+    <p className="text-[13px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
       {label}
     </p>
     <div className="grid grid-cols-2 gap-2">

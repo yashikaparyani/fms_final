@@ -40,7 +40,7 @@ const USClock = () => {
         <span className="text-sm font-bold tabular-nums text-ink-800">
           {timeFormat.format(now)}
         </span>
-        <span className="hidden sm:block text-[11px] font-semibold text-ink-500">
+        <span className="hidden sm:block text-[13px] font-semibold text-ink-500">
           {dayFormat.format(now)} · US Eastern
         </span>
       </div>

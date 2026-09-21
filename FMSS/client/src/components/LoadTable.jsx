@@ -128,14 +128,14 @@ const LoadIdCell = ({ load, onClick }) => {
           and "paperwork pending" all came out the same amber. */}
       {load.transportStatus && !PRE_DISPATCH.has(load.transportStatus) && (
         <span
-          className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded"
+          className="inline-block mt-1 px-1.5 py-0.5 text-[12px] font-bold rounded"
           style={statusBadgeStyle(load.transportStatus)}
         >
           {transportStatusLabel(load.transportStatus)}
         </span>
       )}
       {load.isUrgent && (
-        <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700 border border-red-200">
+        <span className="inline-block mt-1 px-1.5 py-0.5 text-[12px] font-bold rounded bg-red-100 text-red-700 border border-red-200">
           🚨 URGENT
         </span>
       )}
@@ -150,7 +150,7 @@ const CustomerCell = ({ load }) => (
       {load.customerName || "—"}
     </div>
     {(load.pickup?.city || load.pickup?.state) && (
-      <div className="text-[11px] text-gray-500 mt-0.5">
+      <div className="text-[13px] text-gray-500 mt-0.5">
         {[load.pickup?.city, load.pickup?.state].filter(Boolean).join(", ")}
       </div>
     )}
@@ -172,12 +172,12 @@ const DateCell = ({ value, showExpiry, time }) => {
         {fmtDate(value)}
       </span>
       {time && (
-        <div className="text-[10px] font-medium text-gray-500 tabular-nums">
+        <div className="text-[12px] font-medium text-gray-500 tabular-nums">
           {time}
         </div>
       )}
       {expired && (
-        <div className="text-[10px] text-red-500 font-medium">EXPIRED</div>
+        <div className="text-[12px] text-red-500 font-medium">EXPIRED</div>
       )}
     </div>
   );
@@ -205,7 +205,7 @@ const StatusBadge = ({ value, colorMap }) => {
   const label = value.replace(/_/g, " ");
   return (
     <span
-      className="inline-block px-2 py-0.5 rounded text-[11px]  whitespace-nowrap"
+      className="inline-block px-2 py-0.5 rounded text-[13px]  whitespace-nowrap"
       style={{ backgroundColor: c.bg, color: c.text }}
     >
       {label}

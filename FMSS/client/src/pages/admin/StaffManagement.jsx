@@ -327,7 +327,7 @@ const StaffManagement = () => {
       width: "90px",
       render: (row) => (
         <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
             row.role === "admin"
               ? "bg-purple-100 text-purple-700"
               : "bg-blue-100 text-blue-700"
@@ -348,7 +348,7 @@ const StaffManagement = () => {
             {row.locations.map((loc) => (
               <span
                 key={loc._id}
-                className="text-[10px] font-mono font-semibold bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded"
+                className="text-[12px] font-mono font-semibold bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded"
                 title={loc.name}
               >
                 {loc.code || loc.name}
@@ -383,7 +383,7 @@ const StaffManagement = () => {
       render: (row) => (
         <div>
           <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
               row.isActive
                 ? "bg-green-100 text-green-700"
                 : "bg-gray-200 text-gray-600"
@@ -391,7 +391,7 @@ const StaffManagement = () => {
           >
             {row.isActive ? "Active" : "Inactive"}
           </span>
-          <p className="text-[10px] text-gray-400 mt-1">
+          <p className="text-[12px] text-gray-400 mt-1">
             {row.lastLogin
               ? `Seen ${LoadTable.fmtDate(row.lastLogin)}`
               : "Never signed in"}
@@ -482,10 +482,10 @@ const StaffManagement = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-5 mb-5 border-b border-gray-200">
             <div>
               <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                <PlaceIcon style={{ fontSize: 15 }} /> Locations they may work in
+                <PlaceIcon style={{ fontSize: 17 }} /> Locations they may work in
                 <span className="text-red-500">*</span>
               </label>
-              <p className="text-[11px] text-gray-500 mt-0.5 mb-2">
+              <p className="text-[13px] text-gray-500 mt-0.5 mb-2">
                 Everyone added below gets these. A staff member only ever sees the
                 loads, customers and carriers of the locations ticked here.
               </p>
@@ -508,7 +508,7 @@ const StaffManagement = () => {
                         onChange={() => toggleLocation(loc._id)}
                       />
                       <span className="text-sm text-gray-800">{loc.name}</span>
-                      <span className="text-[11px] font-mono text-gray-400">
+                      <span className="text-[13px] font-mono text-gray-400">
                         {loc.code}
                       </span>
                     </label>
@@ -543,7 +543,7 @@ const StaffManagement = () => {
               <label className="text-xs font-semibold text-gray-600">
                 Starting permissions
               </label>
-              <p className="text-[11px] text-gray-500 mt-0.5 mb-2">
+              <p className="text-[13px] text-gray-500 mt-0.5 mb-2">
                 A starting point, not a fixed role — adjust any individual
                 afterwards on the Permissions screen.
               </p>
@@ -561,7 +561,7 @@ const StaffManagement = () => {
               </select>
 
               {selectedTemplate && (
-                <div className="mt-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
+                <div className="mt-2 text-[13px] text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
                   <p>{selectedTemplate.description}</p>
                   <p className="mt-1 text-gray-500">
                     {selectedTemplate.permissions.length} permissions
@@ -676,18 +676,18 @@ const StaffManagement = () => {
             ]}
             actions={[
               {
-                icon: <EmailIcon style={{ fontSize: 18 }} />,
+                icon: <EmailIcon style={{ fontSize: 20 }} />,
                 color: "#2563eb",
                 onClick: () => resendCredentials(member),
                 disabled: busyId === member._id,
               },
               {
-                icon: <TuneIcon style={{ fontSize: 18 }} />,
+                icon: <TuneIcon style={{ fontSize: 20 }} />,
                 color: "#475569",
                 onClick: () => navigate("/admin/permissions"),
               },
               {
-                icon: <DeleteIcon style={{ fontSize: 18 }} />,
+                icon: <DeleteIcon style={{ fontSize: 20 }} />,
                 color: "#dc2626",
                 onClick: () => removeMember(member),
                 disabled: busyId === member._id,

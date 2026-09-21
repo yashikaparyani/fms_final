@@ -6,7 +6,7 @@ const OnboardingStatusBadge = ({ status, className = "" }) => {
 
   return (
     <span
-      className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${meta.badge} ${className}`}
+      className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[13px] font-semibold ${meta.badge} ${className}`}
     >
       {meta.label}
     </span>

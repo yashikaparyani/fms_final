@@ -156,7 +156,7 @@ const MarqueeBanner = () => {
         </div>
 
         {visible.length > 1 ? (
-          <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">
+          <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[13px] font-bold">
             +{visible.length - 1}
           </span>
         ) : null}
@@ -166,7 +166,7 @@ const MarqueeBanner = () => {
           className="shrink-0 rounded p-1 hover:bg-white/20 transition-colors"
           aria-label="Dismiss announcement"
         >
-          <CloseIcon style={{ fontSize: 16 }} />
+          <CloseIcon style={{ fontSize: 18 }} />
         </button>
       </div>
     </div>

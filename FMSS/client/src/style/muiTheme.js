@@ -79,19 +79,19 @@ const theme = createTheme({
     fontFamily: '"Poppins", ui-sans-serif, system-ui, sans-serif',
     // The app is dense — tables, forms, dashboards. MUI's defaults are set for
     // a roomier page than this one ever is.
-    fontSize: 14,
+    fontSize: 16,
     h1: { fontWeight: 800, fontSize: "1.75rem", letterSpacing: "-0.02em" },
     h2: { fontWeight: 800, fontSize: "1.5rem", letterSpacing: "-0.015em" },
-    h3: { fontWeight: 700, fontSize: "1.25rem", letterSpacing: "-0.01em" },
-    h4: { fontWeight: 700, fontSize: "1.125rem" },
-    h5: { fontWeight: 700, fontSize: "1rem" },
-    h6: { fontWeight: 700, fontSize: "0.9375rem" },
+    h3: { fontWeight: 700, fontSize: "1.375rem", letterSpacing: "-0.01em" },
+    h4: { fontWeight: 700, fontSize: "1.25rem" },
+    h5: { fontWeight: 700, fontSize: "1.125rem" },
+    h6: { fontWeight: 700, fontSize: "1.0625rem" },
     subtitle1: { fontWeight: 600 },
-    subtitle2: { fontWeight: 600, fontSize: "0.8125rem" },
-    body1: { fontSize: "0.875rem" },
-    body2: { fontSize: "0.8125rem" },
+    subtitle2: { fontWeight: 600, fontSize: "0.9375rem" },
+    body1: { fontSize: "1rem" },
+    body2: { fontSize: "0.9375rem" },
     button: { fontWeight: 700, textTransform: "none", letterSpacing: 0 },
-    caption: { fontSize: "0.75rem", fontWeight: 500 },
+    caption: { fontSize: "0.875rem", fontWeight: 500 },
   },
 
   components: {
@@ -111,7 +111,7 @@ const theme = createTheme({
         containedSuccess: { boxShadow: "0 4px 14px rgba(22,163,74,0.3)" },
         containedError: { boxShadow: "0 4px 14px rgba(220,38,38,0.3)" },
         outlined: { borderColor: HAIRLINE, "&:hover": { borderColor: accent[600] } },
-        sizeSmall: { minHeight: 32, paddingInline: 12, fontSize: "0.8125rem" },
+        sizeSmall: { minHeight: 32, paddingInline: 12, fontSize: "0.9375rem" },
       },
     },
 
@@ -136,12 +136,12 @@ const theme = createTheme({
       styleOverrides: { paper: { borderRadius: 18 } },
     },
     MuiDialogTitle: {
-      styleOverrides: { root: { fontWeight: 800, fontSize: "1.0625rem" } },
+      styleOverrides: { root: { fontWeight: 800, fontSize: "1.1875rem" } },
     },
 
     MuiChip: {
       styleOverrides: {
-        root: { fontWeight: 700, fontSize: "0.6875rem", height: 24 },
+        root: { fontWeight: 700, fontSize: "0.8125rem", height: 24 },
         outlined: { borderColor: HAIRLINE },
       },
     },
@@ -155,12 +155,12 @@ const theme = createTheme({
           "&:hover fieldset": { borderColor: ink[400] },
           "&.Mui-focused fieldset": { borderWidth: 2, borderColor: accent[600] },
         },
-        input: { fontSize: "0.875rem" },
+        input: { fontSize: "1rem" },
       },
     },
 
     MuiInputLabel: {
-      styleOverrides: { root: { fontSize: "0.875rem", fontWeight: 600 } },
+      styleOverrides: { root: { fontSize: "1rem", fontWeight: 600 } },
     },
 
     MuiTableHead: {
@@ -170,7 +170,7 @@ const theme = createTheme({
             backgroundColor: ink[50],
             fontWeight: 700,
             color: ink[600],
-            fontSize: "0.75rem",
+            fontSize: "0.875rem",
             textTransform: "uppercase",
             letterSpacing: "0.04em",
             borderBottom: `1px solid ${HAIRLINE}`,
@@ -181,7 +181,7 @@ const theme = createTheme({
 
     MuiTableCell: {
       styleOverrides: {
-        root: { borderBottomColor: HAIRLINE, fontSize: "0.8125rem" },
+        root: { borderBottomColor: HAIRLINE, fontSize: "0.9375rem" },
       },
     },
 
@@ -199,13 +199,13 @@ const theme = createTheme({
           border: `1px solid ${HAIRLINE}`,
           borderRadius: 14,
           backgroundColor: "#fff",
-          fontSize: "0.8125rem",
+          fontSize: "0.9375rem",
           "--DataGrid-rowBorderColor": HAIRLINE,
         },
         columnHeaders: { backgroundColor: ink[50] },
         columnHeaderTitle: {
           fontWeight: 700,
-          fontSize: "0.75rem",
+          fontSize: "0.875rem",
           textTransform: "uppercase",
           letterSpacing: "0.04em",
           color: ink[600],
@@ -219,7 +219,7 @@ const theme = createTheme({
       styleOverrides: {
         tooltip: {
           backgroundColor: brand[800],
-          fontSize: "0.75rem",
+          fontSize: "0.875rem",
           fontWeight: 600,
           borderRadius: 8,
           paddingBlock: 6,

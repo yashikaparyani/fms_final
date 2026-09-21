@@ -43,7 +43,7 @@ const ViewLink = ({ filePath }) => {
       rel="noreferrer"
       className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 px-2.5 py-1 border border-indigo-100 rounded-md bg-indigo-50 hover:bg-indigo-100 transition-colors"
     >
-      <VisibilityIcon style={{ fontSize: 13 }} /> View
+      <VisibilityIcon style={{ fontSize: 15 }} /> View
     </a>
   );
 };
@@ -51,11 +51,11 @@ const ViewLink = ({ filePath }) => {
 const StatusChip = ({ isUploaded }) =>
   isUploaded ? (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200 shrink-0">
-      <CheckCircleOutlineIcon style={{ fontSize: 11 }} /> Uploaded
+      <CheckCircleOutlineIcon style={{ fontSize: 13 }} /> Uploaded
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-300 shrink-0">
-      <ErrorOutlineIcon style={{ fontSize: 11 }} /> Missing
+      <ErrorOutlineIcon style={{ fontSize: 13 }} /> Missing
     </span>
   );
 
@@ -79,7 +79,7 @@ const UploadButton = ({ type, isDisabled, isUploading, isUploaded, transportStat
           : "text-gray-700 bg-white border-gray-200 hover:border-indigo-500 hover:text-indigo-600 cursor-pointer"
       }`}
     >
-      {isDisabled ? <BlockIcon style={{ fontSize: 14 }} /> : <UploadFileIcon style={{ fontSize: 14 }} />}
+      {isDisabled ? <BlockIcon style={{ fontSize: 16 }} /> : <UploadFileIcon style={{ fontSize: 16 }} />}
       {isUploading
         ? "Uploading…"
         : transportStatus !== "DELIVERED"
@@ -110,7 +110,7 @@ const DeleteButton = ({ docId, isDeleting, onDelete }) => {
           : "text-red-600 bg-white border-red-300 hover:bg-red-50 cursor-pointer"
       }`}
     >
-      <DeleteOutlineIcon style={{ fontSize: 14 }} />
+      <DeleteOutlineIcon style={{ fontSize: 16 }} />
       {isDeleting ? "…" : "Delete"}
     </button>
   );
@@ -130,7 +130,7 @@ const CameraButton = ({ isDisabled, onClick, compact }) => (
         : "text-gray-700 bg-white border-gray-200 hover:border-indigo-500 hover:text-indigo-600 cursor-pointer"
     }`}
   >
-    <CameraAltIcon style={{ fontSize: 14 }} /> Camera
+    <CameraAltIcon style={{ fontSize: 16 }} /> Camera
   </button>
 );
 
@@ -200,7 +200,7 @@ const DocumentUpload = ({
     <div className="font-sans">
       {locked && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-          <CheckCircleOutlineIcon style={{ fontSize: 16 }} className="mt-0.5 text-green-700" />
+          <CheckCircleOutlineIcon style={{ fontSize: 18 }} className="mt-0.5 text-green-700" />
           <p className="text-xs font-semibold leading-snug text-green-800">
             This load&apos;s paperwork has been approved. Its documents are locked
             and can no longer be uploaded, replaced or deleted.
@@ -310,7 +310,7 @@ const DocumentUpload = ({
                           : "text-gray-700 bg-white border-gray-200 hover:border-indigo-500 hover:text-indigo-600 cursor-pointer"
                       }`}
                     >
-                      {isDisabled ? <BlockIcon style={{ fontSize: 14 }} /> : <UploadFileIcon style={{ fontSize: 14 }} />}
+                      {isDisabled ? <BlockIcon style={{ fontSize: 16 }} /> : <UploadFileIcon style={{ fontSize: 16 }} />}
                       {isUploading ? "Uploading…" : isUploaded ? "Replace" : "Choose File"}
                     </button>
                     <CameraButton
@@ -392,7 +392,7 @@ const DocumentUpload = ({
                           : "text-gray-700 bg-white border-gray-200 hover:border-indigo-500 hover:text-indigo-600 cursor-pointer"
                       }`}
                     >
-                      {isDisabled ? <BlockIcon style={{ fontSize: 14 }} /> : <UploadFileIcon style={{ fontSize: 14 }} />}
+                      {isDisabled ? <BlockIcon style={{ fontSize: 16 }} /> : <UploadFileIcon style={{ fontSize: 16 }} />}
                       {isUploading ? "Uploading…" : isUploaded ? "Replace" : "Upload"}
                     </button>
 

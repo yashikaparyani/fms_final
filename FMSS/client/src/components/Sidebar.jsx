@@ -66,7 +66,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             <>
               <span className="flex items-center gap-2 text-xl font-extrabold tracking-wide text-white">
                 <span
-                  className="grid h-8 w-8 place-items-center rounded-lg text-[13px]"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-[15px]"
                   style={{ background: "var(--role-accent)" }}
                 >
                   SL
@@ -158,8 +158,8 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                             : "text-brand-100/60 hover:bg-white/10 hover:text-white"
                         }`}
                       >
-                        <ChildIcon fontSize="small" style={{ fontSize: 17 }} />
-                        <span className="text-[13px] font-medium">
+                        <ChildIcon fontSize="small" style={{ fontSize: 19 }} />
+                        <span className="text-[15px] font-medium">
                           {child.label}
                         </span>
                       </div>

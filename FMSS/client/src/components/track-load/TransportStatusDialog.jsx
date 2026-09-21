@@ -110,7 +110,7 @@ const TransportStatusDialog = ({ open, onClose, load, onSuccess }) => {
       PaperProps={{ style: { borderRadius: 12 } }}
     >
       <DialogTitle
-        style={{ fontWeight: 700, fontSize: 15, color: "#1f2937", paddingBottom: 8 }}
+        style={{ fontWeight: 700, fontSize: 17, color: "#1f2937", paddingBottom: 8 }}
       >
         Update Status
       </DialogTitle>

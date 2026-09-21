@@ -167,7 +167,7 @@ const Register = () => {
                   <p className="text-sm font-extrabold text-ink-900 leading-tight">
                     {option.label}
                   </p>
-                  <p className="text-[11px] font-semibold text-ink-500">{option.sub}</p>
+                  <p className="text-[13px] font-semibold text-ink-500">{option.sub}</p>
                 </div>
               </div>
               <p className="text-xs text-ink-500 mt-2 leading-relaxed">{option.blurb}</p>

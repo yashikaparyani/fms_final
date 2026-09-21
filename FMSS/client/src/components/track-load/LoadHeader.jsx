@@ -109,7 +109,7 @@ const LoadHeader = ({
                   title="Delete this load"
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-red-600 border border-red-600 rounded-lg text-white hover:bg-red-700 transition"
                 >
-                  <DeleteOutlineIcon fontSize="inherit" style={{ fontSize: "14px" }} />
+                  <DeleteOutlineIcon fontSize="inherit" style={{ fontSize: "16px" }} />
                   Delete
                 </button>
               )}
@@ -119,7 +119,7 @@ const LoadHeader = ({
                   onClick={() => onRebid && onRebid(load)}
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-red-50 border border-red-100 rounded-lg text-red-600 hover:bg-red-100 hover:border-red-200 transition"
                 >
-                  <TimelineIcon fontSize="inherit" style={{ fontSize: '14px' }} />
+                  <TimelineIcon fontSize="inherit" style={{ fontSize: '16px' }} />
                   Re-bid
                 </button>
               )}

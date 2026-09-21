@@ -14,7 +14,7 @@
 /** A titled block, the way each part of the paper agreement is separated. */
 export const Section = ({ title, children, className = "" }) => (
   <section className={`mt-6 ${className}`}>
-    <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-400 mb-3 pb-2 border-b border-hairline">
+    <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-ink-400 mb-3 pb-2 border-b border-hairline">
       {title}
     </h3>
     {children}
@@ -24,7 +24,7 @@ export const Section = ({ title, children, className = "" }) => (
 /** One party's identity block — company, SCAC and notice address. */
 export const Party = ({ title, party }) => (
   <div className="rounded-xl border border-hairline bg-ink-50 p-4">
-    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">
+    <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-400">
       {title}
     </p>
     <p className="text-sm font-extrabold text-ink-900 mt-1">{party?.name || "—"}</p>
@@ -48,7 +48,7 @@ export const Party = ({ title, party }) => (
 export const Detail = ({ label, value, className = "" }) =>
   value ? (
     <div className={className}>
-      <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+      <dt className="text-[12px] font-bold uppercase tracking-wide text-ink-400">
         {label}
       </dt>
       <dd className="text-sm font-semibold text-ink-800 break-words">{value}</dd>

@@ -40,7 +40,7 @@ const CarrierCell = ({ load, fleetOwners }) => {
         <div className="leading-tight">
           <span className="text-xs font-bold text-green-800">{assignedName}</span>
           {code && (
-            <div className="text-[10px] font-mono text-gray-500">{code}</div>
+            <div className="text-[12px] font-mono text-gray-500">{code}</div>
           )}
         </div>
       </div>
@@ -150,13 +150,13 @@ const VerifiedLoadsTable = () => {
 
         {/* Date */}
         {row.bidStartTime && (
-          <div className="text-[10px] text-gray-500 mt-0.5">
+          <div className="text-[12px] text-gray-500 mt-0.5">
             {fmtDate(row.bidStartTime)} {fmtDateTime(row.bidStartTime)?.split(", ")[2] || "?"}
           </div>
         )}
 
         {/* Time Range */}
-        <div className="text-[10px] text-gray-500 whitespace-nowrap">
+        <div className="text-[12px] text-gray-500 whitespace-nowrap">
           {fmtDate(row.bidEndTime)}
           {" – "}
           {fmtDateTime(row.bidEndTime)?.split(", ")[2] || "?"}

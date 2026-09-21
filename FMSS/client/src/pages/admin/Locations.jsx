@@ -141,7 +141,7 @@ const Locations = () => {
       width: "90px",
       render: (row) => (
         <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
             row.active ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
           }`}
         >
@@ -198,7 +198,7 @@ const Locations = () => {
                 maxLength={5}
                 required
               />
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-[13px] text-gray-500 mt-1">
                 2–5 letters/numbers. Goes into every ID this location issues
                 (NY-LD-0001) and cannot be changed once loads exist.
               </p>
@@ -256,7 +256,7 @@ const Locations = () => {
               b.active
                 ? [
                     {
-                      icon: <BlockIcon style={{ fontSize: 18 }} />,
+                      icon: <BlockIcon style={{ fontSize: 20 }} />,
                       color: "#dc2626",
                       onClick: () => deactivate(b),
                     },

@@ -206,7 +206,7 @@ const EmailPreviewTester = () => {
                 <div className="min-w-0">
                   <p className="font-semibold text-gray-900 text-sm leading-tight">{t.label}</p>
                   <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">{t.description}</p>
-                  <span className={`inline-block mt-2 text-[11px] font-medium border rounded-full px-2 py-0.5 ${TRIGGER_COLOURS[t.trigger] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                  <span className={`inline-block mt-2 text-[13px] font-medium border rounded-full px-2 py-0.5 ${TRIGGER_COLOURS[t.trigger] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
                     {t.trigger}
                   </span>
                 </div>

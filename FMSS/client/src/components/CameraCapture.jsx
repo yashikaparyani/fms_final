@@ -209,7 +209,7 @@ const CameraCapture = ({ open, title, onClose, onCapture }) => {
             onClick={() => fallbackInputRef.current?.click()}
             className="mr-auto inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
-            <UploadFileIcon style={{ fontSize: 15 }} /> Pick a file
+            <UploadFileIcon style={{ fontSize: 17 }} /> Pick a file
           </button>
 
           {preview ? (
@@ -219,7 +219,7 @@ const CameraCapture = ({ open, title, onClose, onCapture }) => {
                 onClick={clearPreview}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
               >
-                <RefreshIcon style={{ fontSize: 15 }} /> Retake
+                <RefreshIcon style={{ fontSize: 17 }} /> Retake
               </button>
               <button
                 type="button"
@@ -236,7 +236,7 @@ const CameraCapture = ({ open, title, onClose, onCapture }) => {
               disabled={!!error || starting}
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-              <CameraAltIcon style={{ fontSize: 15 }} /> Capture
+              <CameraAltIcon style={{ fontSize: 17 }} /> Capture
             </button>
           )}
         </div>

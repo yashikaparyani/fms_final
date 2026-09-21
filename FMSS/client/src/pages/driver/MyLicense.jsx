@@ -245,7 +245,7 @@ const MyLicense = () => {
                 setForm((f) => ({ ...f, medicalCardExpiry: e.target.value }))
               }
             />
-            <p className="text-[11px] text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               Optional — it expires on its own schedule, separately from the licence.
             </p>
           </div>
@@ -269,7 +269,7 @@ const MyLicense = () => {
           <p className="text-sm font-medium text-gray-700 mt-1">
             {file ? file.name : "Take a photo or choose a file"}
           </p>
-          <p className="text-[11px] text-gray-500 mt-0.5">
+          <p className="text-[13px] text-gray-500 mt-0.5">
             A clear photo of the front of your licence is fine
           </p>
         </button>

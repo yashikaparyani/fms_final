@@ -10,7 +10,7 @@ const UnassignedNote = ({ load, className = "" }) => {
   if (!reason) return null;
 
   return (
-    <div className={`text-[10px] text-amber-700 leading-tight mt-0.5 ${className}`}>
+    <div className={`text-[12px] text-amber-700 leading-tight mt-0.5 ${className}`}>
       {reason}
     </div>
   );

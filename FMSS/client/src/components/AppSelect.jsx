@@ -4,7 +4,7 @@ const buildStyles = (hasError, isDisabled) => ({
   control: (base, { isFocused }) => ({
     ...base,
     minHeight: "38px",
-    fontSize: "0.875rem",
+    fontSize: "1rem",
     backgroundColor: isDisabled ? "#f9fafb" : "#fff",
     borderRadius: "0.5rem",
     borderColor: hasError ? "#ef4444" : isFocused ? "#6366f1" : "#d1d5db",
@@ -46,21 +46,21 @@ const buildStyles = (hasError, isDisabled) => ({
   menuPortal: (base) => ({ ...base, zIndex: 9999 }),
   option: (base, { isSelected, isFocused }) => ({
     ...base,
-    fontSize: "0.875rem",
+    fontSize: "1rem",
     padding: "8px 12px",
     backgroundColor: isSelected ? "#6366f1" : isFocused ? "#eef2ff" : "#fff",
     color: isSelected ? "#fff" : "#111827",
     cursor: "pointer",
     "&:active": { backgroundColor: "#4f46e5" },
   }),
-  singleValue: (base) => ({ ...base, color: "#111827", fontSize: "0.875rem" }),
-  placeholder: (base) => ({ ...base, color: "#9ca3af", fontSize: "0.875rem" }),
+  singleValue: (base) => ({ ...base, color: "#111827", fontSize: "1rem" }),
+  placeholder: (base) => ({ ...base, color: "#9ca3af", fontSize: "1rem" }),
   noOptionsMessage: (base) => ({
     ...base,
-    fontSize: "0.875rem",
+    fontSize: "1rem",
     color: "#9ca3af",
   }),
-  input: (base) => ({ ...base, fontSize: "0.875rem" }),
+  input: (base) => ({ ...base, fontSize: "1rem" }),
 });
 
 /**

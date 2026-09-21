@@ -218,7 +218,7 @@ const DispatchSettings = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {FIELDS.map((field) => (
                 <div key={field.key}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-gray-400">
                     {field.label}
                   </p>
                   <p className="text-sm font-semibold text-gray-900 mt-0.5">

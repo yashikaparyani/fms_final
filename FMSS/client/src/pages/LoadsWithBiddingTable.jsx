@@ -141,11 +141,11 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
       width: "160px",
       render: (row) => (
         <div className="leading-tight">
-          <div className="text-[11px] text-gray-600">
+          <div className="text-[13px] text-gray-600">
             <span className="font-medium">Start:</span>{" "}
             {fmtDT(row.bidStartTime)}
           </div>
-          <div className="text-[11px] text-gray-600">
+          <div className="text-[13px] text-gray-600">
             <span className="font-medium">End:</span> {fmtDT(row.bidEndTime)}
           </div>
         </div>
@@ -281,7 +281,7 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
     if (!row.negotiation) return null;
     return (
       <span
-        className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-bold"
+        className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[12px] font-bold"
         title={`Offered ${money(row.negotiation.amount)}${
           row.negotiation.previousAmount
             ? ` against your bid of ${money(row.negotiation.previousAmount)}`

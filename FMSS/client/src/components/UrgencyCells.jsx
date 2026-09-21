@@ -22,7 +22,7 @@ export const UrgencyBadge = ({ urgency }) => {
   const label = URGENCY_LABEL[urgency];
   if (!label) return <span className="text-gray-400 text-xs">—</span>;
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${label.className}`}>
+    <span className={`inline-block px-2 py-0.5 rounded text-[12px] font-semibold ${label.className}`}>
       {label.text}
     </span>
   );
@@ -37,7 +37,7 @@ const LegendDot = ({ color, label }) => (
 
 /** Explains the row tints and the bulb. Shown above each urgency-sorted table. */
 export const UrgencyLegend = () => (
-  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-gray-600">
+  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[13px] text-gray-600">
     <LegendDot color="#ef4444" label="Picks up in under 5 days" />
     <LegendDot color="#f59e0b" label="5–10 days" />
     <LegendDot color="#22c55e" label="More than 10 days" />

@@ -124,7 +124,7 @@ const SignupApprovals = () => {
           >
             {option.label}
             {option.key === "PENDING" && pendingCount > 0 && (
-              <span className="ml-2 rounded-full bg-white/25 px-1.5 text-[11px]">
+              <span className="ml-2 rounded-full bg-white/25 px-1.5 text-[13px]">
                 {pendingCount}
               </span>
             )}
@@ -167,7 +167,7 @@ const SignupApprovals = () => {
                         {request.locationId?.name && (
                           <span className="badge-gray">{request.locationId.name}</span>
                         )}
-                        <span className="text-[11px] text-ink-400">
+                        <span className="text-[13px] text-ink-400">
                           {formatDateNumeric(request.createdAt)}
                         </span>
                       </div>
@@ -247,10 +247,10 @@ const SignupApprovals = () => {
                           notify.success("Password copied");
                         }}
                       >
-                        <ContentCopyIcon style={{ fontSize: 14 }} /> Copy
+                        <ContentCopyIcon style={{ fontSize: 16 }} /> Copy
                       </button>
                     </div>
-                    <p className="mt-1.5 text-[11px] text-warn-700/80">
+                    <p className="mt-1.5 text-[13px] text-warn-700/80">
                       Shown once. It is not stored anywhere in plain text.
                     </p>
                   </div>
@@ -267,7 +267,7 @@ const SignupApprovals = () => {
 const Detail = ({ label, value }) =>
   value ? (
     <div>
-      <dt className="font-semibold text-ink-400 uppercase tracking-wide text-[10px]">
+      <dt className="font-semibold text-ink-400 uppercase tracking-wide text-[12px]">
         {label}
       </dt>
       <dd className="text-ink-700 font-medium">{value}</dd>

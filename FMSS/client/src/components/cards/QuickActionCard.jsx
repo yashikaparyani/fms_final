@@ -31,7 +31,7 @@ const QuickActionCard = ({ label, sublabel, icon, color = "gray", badge, onClick
     >
       {badge ? (
         <span
-          className="absolute top-2 right-2 min-w-5 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+          className="absolute top-2 right-2 min-w-5 rounded-full px-1.5 py-0.5 text-[12px] font-extrabold text-white"
           style={{ background: "var(--role-accent)" }}
         >
           {badge}
@@ -48,7 +48,7 @@ const QuickActionCard = ({ label, sublabel, icon, color = "gray", badge, onClick
         {label}
       </span>
       {sublabel ? (
-        <span className="text-[11px] font-medium text-ink-400 text-center leading-tight">
+        <span className="text-[13px] font-medium text-ink-400 text-center leading-tight">
           {sublabel}
         </span>
       ) : null}

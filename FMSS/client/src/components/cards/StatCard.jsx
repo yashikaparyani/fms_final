@@ -77,7 +77,7 @@ export const SummaryCard = ({ stats = [] }) => {
                 `}
               >
                 <td
-                  className={`text-[13px] font-medium ${
+                  className={`text-[15px] font-medium ${
                     onClick ? "text-accent-700" : "text-ink-500"
                   }`}
                 >
@@ -106,7 +106,7 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
     >
       {/* Day */}
       <div
-        className={`text-[13px] font-semibold text-center whitespace-nowrap ${
+        className={`text-[15px] font-semibold text-center whitespace-nowrap ${
           isToday ? "text-ink-800" : "text-ink-500"
         } ${isToday && stats.date ? "mb-0.5" : "mb-3"}`}
       >
@@ -114,7 +114,7 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
       </div>
       {isToday && stats.date && (
         <div
-          className="text-[11px] font-bold text-center mb-3 whitespace-nowrap"
+          className="text-[13px] font-bold text-center mb-3 whitespace-nowrap"
           style={{ color: "var(--role-accent)" }}
         >
           {formatDate(stats.date)}
@@ -125,19 +125,19 @@ export const WeeklySummaryCard = ({ stats, onClick }) => {
       <div className="grid grid-cols-1 gap-2 text-center">
         {/* Delivery */}
         <div className="bg-good-50 rounded-lg py-2 flex flex-row justify-center gap-2 items-center">
-          <p className="text-[11px] font-semibold text-ink-500">DL</p>
+          <p className="text-[13px] font-semibold text-ink-500">DL</p>
           <p className="text-sm font-extrabold tabular-nums text-good-700">{stats.Delivery}</p>
         </div>
 
         {/* Pickup */}
         <div className="bg-accent-50 rounded-lg py-2 flex flex-row justify-center gap-2 items-center">
-          <p className="text-[11px] font-semibold text-ink-500">PU</p>
+          <p className="text-[13px] font-semibold text-ink-500">PU</p>
           <p className="text-sm font-extrabold tabular-nums text-accent-700">{stats.Pickup}</p>
         </div>
 
         {/* Drop — a drop-and-pick move, so "D/P" rather than "DR" */}
         <div className="bg-grape-100/60 rounded-lg py-2 flex flex-row justify-center gap-2 items-center">
-          <p className="text-[11px] font-semibold text-ink-500">D/P</p>
+          <p className="text-[13px] font-semibold text-ink-500">D/P</p>
           <p className="text-sm font-extrabold tabular-nums text-grape-600">{stats.Drop}</p>
         </div>
       </div>

@@ -146,7 +146,7 @@ const NotificationBell = ({ isOpen, onToggle }) => {
       >
         <NotificationsNoneOutlinedIcon />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-[3px] rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none">
+          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-[3px] rounded-full bg-red-500 text-white text-[12px] font-semibold leading-none">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -161,7 +161,7 @@ const NotificationBell = ({ isOpen, onToggle }) => {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-900">Notifications</span>
               {unreadCount > 0 && (
-                <span className="text-[11px] font-semibold bg-red-500 text-white rounded-full px-2 py-0.5">
+                <span className="text-[13px] font-semibold bg-red-500 text-white rounded-full px-2 py-0.5">
                   {unreadCount}
                 </span>
               )}
@@ -204,7 +204,7 @@ const NotificationBell = ({ isOpen, onToggle }) => {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-[13px] leading-snug mb-0.5 ${n.isRead ? "font-normal text-gray-700" : "font-medium text-gray-900"}`}>
+                        <p className={`text-[15px] leading-snug mb-0.5 ${n.isRead ? "font-normal text-gray-700" : "font-medium text-gray-900"}`}>
                           {n.title}
                         </p>
                         <p className="text-xs text-gray-500 leading-relaxed mb-1.5 line-clamp-2">
@@ -212,11 +212,11 @@ const NotificationBell = ({ isOpen, onToggle }) => {
                         </p>
                         <div className="flex items-center gap-2">
                           {n.loadId && (
-                            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${s.pill}`}>
+                            <span className={`text-[13px] font-medium px-2 py-0.5 rounded-full ${s.pill}`}>
                               {n.loadId}
                             </span>
                           )}
-                          <span className="text-[11px] text-gray-400">
+                          <span className="text-[13px] text-gray-400">
                             {relativeTime(n.createdAt)}
                           </span>
                         </div>
@@ -228,7 +228,7 @@ const NotificationBell = ({ isOpen, onToggle }) => {
                         aria-label="Delete notification"
                         className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 self-start mt-0.5"
                       >
-                        <DeleteOutlineIcon style={{ fontSize: 16 }} />
+                        <DeleteOutlineIcon style={{ fontSize: 18 }} />
                       </button>
                     </div>
                   );

@@ -37,7 +37,7 @@ const StatusChip = ({ value }) => {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center",
-      padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700,
+      padding: "3px 10px", borderRadius: 99, fontSize: 13, fontWeight: 700,
       backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}`,
       letterSpacing: "0.03em", whiteSpace: "nowrap",
     }}>
@@ -206,7 +206,7 @@ const UpdateLoadStatusPage = () => {
   if (!load) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 240, flexDirection: "column", gap: 16 }}>
       <CircularProgress size={28} style={{ color: "#4f46e5" }} />
-      <span style={{ fontSize: 13, color: "#9ca3af" }}>Loading…</span>
+      <span style={{ fontSize: 15, color: "#9ca3af" }}>Loading…</span>
     </div>
   );
 
@@ -227,10 +227,10 @@ const UpdateLoadStatusPage = () => {
           <ArrowBackIcon fontSize="small" style={{ color: "#6b7280" }} />
         </button>
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>
+          <h1 style={{ margin: 0, fontSize: "1.275rem", fontWeight: 700, color: "#111827" }}>
             Update Load Status
           </h1>
-          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af" }}>
+          <p style={{ margin: "2px 0 0", fontSize: 15, color: "#9ca3af" }}>
             {load.loadId} — {load.customerName}
           </p>
         </div>
@@ -255,11 +255,11 @@ const UpdateLoadStatusPage = () => {
               width: 34, height: 34, borderRadius: 8,
               backgroundColor: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
-              <LocalShippingIcon style={{ color: "#7c3aed", fontSize: 18 }} />
+              <LocalShippingIcon style={{ color: "#7c3aed", fontSize: 20 }} />
             </div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Update Status</div>
-              <div style={{ fontSize: 11, color: "#9ca3af" }}>Change status</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Update Status</div>
+              <div style={{ fontSize: 13, color: "#9ca3af" }}>Change status</div>
             </div>
           </div>
 
@@ -273,7 +273,7 @@ const UpdateLoadStatusPage = () => {
                   backgroundColor: "#fef2f2",
                   border: "1px solid #fecaca",
                   color: "#b91c1c",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 600,
                 }}>
                   {submitError}
@@ -294,10 +294,10 @@ const UpdateLoadStatusPage = () => {
                 ].map(({ label, value }, i, arr) => (
                   <div key={label}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                         {label}
                       </span>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{value}</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{value}</span>
                     </div>
                     {i < arr.length - 1 && <div style={{ height: 1, backgroundColor: "#f3f4f6", marginTop: 8 }} />}
                   </div>
@@ -307,7 +307,7 @@ const UpdateLoadStatusPage = () => {
               {/* Status picker — dropdown */}
               <div>
                 <label style={{
-                  display: "block", fontSize: 11, fontWeight: 700,
+                  display: "block", fontSize: 13, fontWeight: 700,
                   color: "#6b7280", marginBottom: 8,
                   textTransform: "uppercase", letterSpacing: "0.06em",
                 }}>
@@ -325,7 +325,7 @@ const UpdateLoadStatusPage = () => {
                   formatOptionLabel={(opt) => (
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
-                      color: opt.meta?.color ?? "#374151", fontWeight: 700, fontSize: 12,
+                      color: opt.meta?.color ?? "#374151", fontWeight: 700, fontSize: 14,
                     }}>
                       <span style={{
                         display: "inline-block", width: 8, height: 8, borderRadius: "50%",
@@ -339,7 +339,7 @@ const UpdateLoadStatusPage = () => {
 
               <div>
                 <label style={{
-                  display: "block", fontSize: 11, fontWeight: 700,
+                  display: "block", fontSize: 13, fontWeight: 700,
                   color: "#6b7280", marginBottom: 8,
                   textTransform: "uppercase", letterSpacing: "0.06em",
                 }}>
@@ -355,7 +355,7 @@ const UpdateLoadStatusPage = () => {
                   placeholder="Add a status note"
                   style={{
                     width: "100%", border: "1px solid #e5e7eb", borderRadius: 8,
-                    padding: "8px 10px", fontSize: 12, resize: "vertical",
+                    padding: "8px 10px", fontSize: 14, resize: "vertical",
                     boxSizing: "border-box", outline: "none",
                   }}
                 />
@@ -367,15 +367,15 @@ const UpdateLoadStatusPage = () => {
                 padding: "8px 12px", borderRadius: 8,
                 backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0",
               }}>
-                <span style={{ fontSize: 16 }}>📍</span>
-                <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>
+                <span style={{ fontSize: 18 }}>📍</span>
+                <span style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>
                   Location will be captured automatically when you submit.
                 </span>
               </div>
 
               <div>
                 <label style={{
-                  display: "block", fontSize: 11, fontWeight: 700,
+                  display: "block", fontSize: 13, fontWeight: 700,
                   color: "#6b7280", marginBottom: 8,
                   textTransform: "uppercase", letterSpacing: "0.06em",
                 }}>
@@ -391,7 +391,7 @@ const UpdateLoadStatusPage = () => {
                   border: "1px dashed #c7d2fe",
                   backgroundColor: "#eef2ff",
                   color: "#4338ca",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 700,
                   cursor: "pointer",
                 }}>
@@ -408,7 +408,7 @@ const UpdateLoadStatusPage = () => {
                     style={{ display: "none" }}
                   />
                 </label>
-                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                <div style={{ marginTop: 6, fontSize: 14, color: "#6b7280" }}>
                   {files.length > 0
                     ? `${files.length} file${files.length > 1 ? "s" : ""} selected`
                     : "No supporting files selected"}
@@ -418,7 +418,7 @@ const UpdateLoadStatusPage = () => {
               {transportStatus === "DELIVERED" && (
                 <div style={{ marginBottom: 16 }}>
                   <label style={{
-                    display: "block", fontSize: 11, fontWeight: 700,
+                    display: "block", fontSize: 13, fontWeight: 700,
                     color: "#6b7280", marginBottom: 8,
                     textTransform: "uppercase", letterSpacing: "0.06em",
                   }}>
@@ -430,7 +430,7 @@ const UpdateLoadStatusPage = () => {
                     onChange={(e) => setReceivedByName(e.target.value)}
                     placeholder="Name of the person who took the delivery"
                     style={{
-                      width: "100%", padding: "8px 10px", fontSize: 14,
+                      width: "100%", padding: "8px 10px", fontSize: 16,
                       border: "1px solid #d1d5db", borderRadius: 8, marginBottom: 8,
                     }}
                   />
@@ -440,11 +440,11 @@ const UpdateLoadStatusPage = () => {
                     onChange={(e) => setReceivedByTitle(e.target.value)}
                     placeholder="Their role (optional) — e.g. Warehouse supervisor"
                     style={{
-                      width: "100%", padding: "8px 10px", fontSize: 14,
+                      width: "100%", padding: "8px 10px", fontSize: 16,
                       border: "1px solid #d1d5db", borderRadius: 8,
                     }}
                   />
-                  <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
+                  <p style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>
                     Printed on the POD beside the signature.
                   </p>
                 </div>
@@ -453,7 +453,7 @@ const UpdateLoadStatusPage = () => {
               {transportStatus === "DELIVERED" && (
                 <div>
                   <label style={{
-                    display: "block", fontSize: 11, fontWeight: 700,
+                    display: "block", fontSize: 13, fontWeight: 700,
                     color: "#6b7280", marginBottom: 8,
                     textTransform: "uppercase", letterSpacing: "0.06em",
                   }}>
@@ -480,7 +480,7 @@ const UpdateLoadStatusPage = () => {
                     onClick={clearSignature}
                     style={{
                       marginTop: 6, border: "none", background: "transparent",
-                      color: "#6b7280", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      color: "#6b7280", fontSize: 14, fontWeight: 700, cursor: "pointer",
                     }}
                   >
                     Clear signature
@@ -499,7 +499,7 @@ const UpdateLoadStatusPage = () => {
                 type="button"
                 onClick={() => navigate(-1)}
                 style={{
-                  padding: "7px 16px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                  padding: "7px 16px", borderRadius: 7, fontSize: 14, fontWeight: 600,
                   border: "1px solid #e5e7eb", backgroundColor: "#fff",
                   color: "#6b7280", cursor: "pointer",
                 }}
@@ -511,7 +511,7 @@ const UpdateLoadStatusPage = () => {
                 disabled={saving || locating}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 18px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                  padding: "7px 18px", borderRadius: 7, fontSize: 14, fontWeight: 600,
                   border: "none",
                   backgroundColor: (saving || locating) ? "#a5b4fc" : "#4f46e5",
                   color: "#fff", cursor: (saving || locating) ? "not-allowed" : "pointer",
@@ -543,7 +543,7 @@ const UpdateLoadStatusPage = () => {
             padding: "14px 20px", borderBottom: "1px solid #f3f4f6",
           }}>
             <div style={{ width: 3, height: 16, borderRadius: 99, backgroundColor: "#4f46e5" }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Required Documents</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Required Documents</span>
           </div>
           <div style={{ padding: 20 }}>
             <DocumentUpload

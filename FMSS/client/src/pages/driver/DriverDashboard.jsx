@@ -183,13 +183,13 @@ const DriverDashboard = () => {
 
                   <div className="flex items-center gap-2">
                     {tracking && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[13px] font-semibold text-green-700">
                         <span className="h-1.5 w-1.5 rounded-full bg-green-600 animate-pulse" />
                         Tracking on
                       </span>
                     )}
                     <span
-                      className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${tone}`}
+                      className={`rounded-full border px-2.5 py-0.5 text-[13px] font-semibold ${tone}`}
                     >
                       {labelize(run.transportStatus)}
                     </span>
@@ -215,7 +215,7 @@ const DriverDashboard = () => {
                         key={label}
                         className="rounded-lg border border-gray-200 p-2.5"
                       >
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        <p className="text-[12px] font-bold uppercase tracking-wider text-gray-400">
                           {label}
                         </p>
                         <p className="text-sm text-gray-900 mt-0.5">
@@ -226,7 +226,7 @@ const DriverDashboard = () => {
                             : stopLine(fallback)}
                         </p>
                         {!own && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">
+                          <p className="text-[12px] text-gray-400 mt-0.5">
                             From the load
                           </p>
                         )}
@@ -254,7 +254,7 @@ const DriverDashboard = () => {
                     ],
                   ].map(([label, value]) => (
                     <div key={label}>
-                      <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      <dt className="text-[12px] font-bold uppercase tracking-wider text-gray-400">
                         {label}
                       </dt>
                       <dd className="text-gray-900 mt-0.5">{value || "—"}</dd>
@@ -263,7 +263,7 @@ const DriverDashboard = () => {
                 </dl>
 
                 {run.isSplitLoad && (
-                  <p className="mt-2 text-[11px] text-gray-500">
+                  <p className="mt-2 text-[13px] text-gray-500">
                     This load is shared between carriers — you are running your
                     carrier&apos;s leg of it.
                   </p>
@@ -319,13 +319,13 @@ const DriverDashboard = () => {
                       {run.customerName}
                     </span>
                   </p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-[13px] text-gray-500">
                     {stopLine(run.pickup)} → {stopLine(run.drop)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700">
-                    <CheckCircleIcon style={{ fontSize: 14 }} />
+                  <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-green-700">
+                    <CheckCircleIcon style={{ fontSize: 16 }} />
                     {labelize(run.transportStatus)}
                   </span>
                   <button

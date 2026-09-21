@@ -3151,7 +3151,7 @@ function LicenseScreen({ onBack, onUpdated }) {
                   ? "You are cleared to update your loads"
                   : "You cannot update loads yet"}
               </Text>
-              <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
+              <Text style={{ color: colors.muted, marginTop: 4, fontSize: 15 }}>
                 {compliance?.canUpdateLoads
                   ? "Your licence is on file. Nothing further is needed."
                   : compliance?.message}
@@ -3198,7 +3198,7 @@ function LicenseScreen({ onBack, onUpdated }) {
             />
 
             {driver?.hasLicenseOnFile && (
-              <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
+              <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
                 A copy is already on file. You only need to do this again when you
                 renew.
               </Text>
@@ -4753,7 +4753,7 @@ const styles = StyleSheet.create({
   },
   loginTagline: {
     color: "rgba(255,255,255,0.72)",
-    fontSize: 12.5,
+    fontSize: 14.5,
     fontWeight: "600",
     marginTop: spacing.sm,
     letterSpacing: 0.4,
@@ -4772,7 +4772,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
   },
-  loginRoleChipText: { color: "#CFE2FF", fontSize: 11, fontWeight: "700" },
+  loginRoleChipText: { color: "#CFE2FF", fontSize: 13, fontWeight: "700" },
   loginBody: { flex: 1, marginTop: -spacing.xl },
   loginScroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
@@ -4791,7 +4791,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   segmentActive: { backgroundColor: colors.surface },
-  segmentText: { fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.9)" },
+  segmentText: { fontSize: 14, fontWeight: "700", color: "rgba(255,255,255,0.9)" },
 
   /* ── Driver compliance banner ───────────────────────────────────────── */
   complianceBanner: {
@@ -4806,8 +4806,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.warningLight,
   },
-  complianceTitle: { fontSize: 13, fontWeight: "800", color: colors.warning },
-  complianceBody: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  complianceTitle: { fontSize: 15, fontWeight: "800", color: colors.warning },
+  complianceBody: { fontSize: 14, color: colors.muted, marginTop: 2 },
 
   /* ── More tab ───────────────────────────────────────────────────────── */
   moreBody: { padding: spacing.lg, gap: spacing.lg },
@@ -4850,7 +4850,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   moreRowLast: { borderBottomWidth: 0 },
-  moreRowText: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.text },
+  moreRowText: { flex: 1, fontSize: 16, fontWeight: "700", color: colors.text },
 
   centered: {
     flex: 1,
@@ -4883,12 +4883,12 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 13,
+    fontSize: 15,
     marginTop: 3,
   },
   apiHint: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 13,
     textAlign: "center",
   },
   field: {
@@ -4896,7 +4896,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
   },
   input: {
@@ -4907,7 +4907,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingHorizontal: 14,
     color: colors.text,
-    fontSize: 14,
+    fontSize: 16,
   },
   noteInput: {
     minHeight: 84,
@@ -4925,7 +4925,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 14,
+    fontSize: 16,
     letterSpacing: 0.3,
   },
   secondaryButton: {
@@ -4941,7 +4941,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: colors.primary,
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 15,
   },
   header: {
     paddingHorizontal: 16,
@@ -4982,7 +4982,7 @@ const styles = StyleSheet.create({
   tabText: {
     color: colors.muted,
     fontWeight: "800",
-    fontSize: 12,
+    fontSize: 14,
   },
   tabTextActive: {
     color: "#fff",
@@ -4992,15 +4992,15 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 12,
   },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  cardMeta: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  cardBody: { fontSize: 13, color: "#374151", marginTop: 6, marginBottom: 10 },
-  signedNote: { fontSize: 13, fontWeight: "600", color: "#16a34a", marginVertical: 8 },
-  gateFooter: { fontSize: 12, color: "#6b7280", marginVertical: 12, textAlign: "center" },
-  label: { fontSize: 12, fontWeight: "700", color: "#374151", marginTop: 8, marginBottom: 4 },
+  cardTitle: { fontSize: 17, fontWeight: "700", color: "#111827" },
+  cardMeta: { fontSize: 14, color: "#6b7280", marginTop: 2 },
+  cardBody: { fontSize: 15, color: "#374151", marginTop: 6, marginBottom: 10 },
+  signedNote: { fontSize: 15, fontWeight: "600", color: "#16a34a", marginVertical: 8 },
+  gateFooter: { fontSize: 14, color: "#6b7280", marginVertical: 12, textAlign: "center" },
+  label: { fontSize: 14, fontWeight: "700", color: "#374151", marginTop: 8, marginBottom: 4 },
   ackRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 8 },
-  ackBox: { fontSize: 16, marginRight: 8, color: "#4f46e5" },
-  ackText: { flex: 1, fontSize: 13, color: "#374151" },
+  ackBox: { fontSize: 18, marginRight: 8, color: "#4f46e5" },
+  ackText: { flex: 1, fontSize: 15, color: "#374151" },
   notifHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -5017,9 +5017,9 @@ const styles = StyleSheet.create({
     borderColor: "#e5e7eb",
   },
   notifUnread: { borderLeftWidth: 4, borderLeftColor: "#4f46e5", backgroundColor: "#eef2ff" },
-  notifTitle: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  notifBody: { fontSize: 13, color: "#374151", marginTop: 2 },
-  notifMeta: { fontSize: 11, color: "#6b7280", marginTop: 6 },
+  notifTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  notifBody: { fontSize: 15, color: "#374151", marginTop: 2 },
+  notifMeta: { fontSize: 13, color: "#6b7280", marginTop: 6 },
   empty: {
     color: colors.muted,
     fontWeight: "700",
@@ -5044,13 +5044,13 @@ const styles = StyleSheet.create({
   },
   loadId: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: "800",
     letterSpacing: -0.2,
   },
   muted: {
     color: colors.muted,
-    fontSize: 13,
+    fontSize: 15,
   },
   metaRow: {
     flexDirection: "row",
@@ -5070,19 +5070,19 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
   summaryValue: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
   },
   metaText: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
   },
   pill: {
@@ -5090,7 +5090,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "900",
   },
   bidRow: {
@@ -5112,7 +5112,7 @@ const styles = StyleSheet.create({
   },
   offerTitle: {
     color: "#4338ca",
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -5146,7 +5146,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "900",
   },
   docTypesHeader: {
@@ -5160,7 +5160,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "900",
     overflow: "hidden",
   },
@@ -5172,17 +5172,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   paperworkBannerTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "900",
   },
   paperworkBannerBody: {
     color: colors.text,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 20,
   },
   paperworkBannerHint: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 2,
   },
   documentCard: {
@@ -5211,12 +5211,12 @@ const styles = StyleSheet.create({
   },
   documentTitle: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "900",
   },
   documentSubtitle: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 3,
   },
   documentActions: {
@@ -5239,7 +5239,7 @@ const styles = StyleSheet.create({
   },
   documentActionText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "800",
   },
   documentActionTextDisabled: {
@@ -5255,7 +5255,7 @@ const styles = StyleSheet.create({
   },
   documentUploadText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "900",
   },
   signatureHeader: {
@@ -5276,22 +5276,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   capacityTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
     color: "#92400e",
     marginBottom: 4,
   },
   capacityBody: {
-    fontSize: 12,
+    fontSize: 14,
     color: "#b45309",
-    lineHeight: 17,
+    lineHeight: 19,
   },
   signatureReceiver: {
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
   inputLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
     color: colors.muted,
     marginBottom: 6,
@@ -5338,7 +5338,7 @@ const styles = StyleSheet.create({
     maxWidth: 170,
   },
   statusChipText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0.3,
   },
@@ -5355,7 +5355,7 @@ const styles = StyleSheet.create({
   },
   detailHint: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "800",
   },
 
@@ -5373,12 +5373,12 @@ const styles = StyleSheet.create({
   },
   pickerFieldText: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
   },
   pickerChevron: {
     color: colors.muted,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
   },
   modalBackdrop: {
@@ -5402,7 +5402,7 @@ const styles = StyleSheet.create({
   },
   stFieldLabel: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
     marginBottom: 6,
   },
@@ -5423,7 +5423,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
   },
-  removeLink: { fontSize: 12, fontWeight: "700", color: colors.danger },
+  removeLink: { fontSize: 14, fontWeight: "700", color: colors.danger },
   requiredStar: { color: colors.danger, fontWeight: "900" },
   updateBanner: {
     backgroundColor: colors.brand,
@@ -5432,14 +5432,14 @@ const styles = StyleSheet.create({
   },
   updateBannerText: {
     color: colors.onBrand,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
     textAlign: "center",
   },
   inputInvalid: { borderColor: colors.danger, borderWidth: 1.5 },
   fieldError: {
     marginTop: 4,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "700",
     color: colors.danger,
   },
@@ -5454,7 +5454,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#c7d2fe",
   },
-  copyChipText: { fontSize: 12, fontWeight: "700", color: "#3730a3" },
+  copyChipText: { fontSize: 14, fontWeight: "700", color: "#3730a3" },
   subTabRow: {
     flexDirection: "row",
     gap: 8,
@@ -5471,7 +5471,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   subTabActive: { backgroundColor: colors.brand, borderColor: colors.brand },
-  subTabText: { fontSize: 13, fontWeight: "700", color: colors.muted },
+  subTabText: { fontSize: 15, fontWeight: "700", color: colors.muted },
   subTabTextActive: { color: colors.onBrand },
   stOptionRow: {
     flexDirection: "row",
@@ -5493,12 +5493,12 @@ const styles = StyleSheet.create({
   pickerRowText: {
     flex: 1,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "700",
   },
   pickerRowNote: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
   },
   statusDot: {
@@ -5520,7 +5520,7 @@ const styles = StyleSheet.create({
   },
   detailSectionTitle: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "900",
     marginBottom: 4,
   },
@@ -5535,14 +5535,14 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
     flexShrink: 0,
     maxWidth: "50%",
   },
   detailValue: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
     textAlign: "right",
     flex: 1,
@@ -5553,7 +5553,7 @@ const styles = StyleSheet.create({
   },
   detailParagraph: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 15,
     lineHeight: 19,
     backgroundColor: "#f8fafc",
     borderWidth: 1,
@@ -5573,12 +5573,12 @@ const styles = StyleSheet.create({
   },
   stopTitle: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "900",
   },
   stopCompany: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "800",
   },
   stopMetaGrid: {
@@ -5594,7 +5594,7 @@ const styles = StyleSheet.create({
   },
   historyTime: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
   },
   docRow: {
@@ -5607,7 +5607,7 @@ const styles = StyleSheet.create({
   },
   docViewLink: {
     color: colors.primary,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "800",
   },
 });

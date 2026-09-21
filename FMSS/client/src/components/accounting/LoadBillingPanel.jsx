@@ -38,11 +38,11 @@ import {
 
 const Figure = ({ label, value, tone = "text-ink-800", hint }) => (
   <div>
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+    <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-500">
       {label}
     </p>
     <p className={`text-lg font-bold tabular-nums ${tone}`}>{money(value)}</p>
-    {hint && <p className="text-[11px] text-ink-400">{hint}</p>}
+    {hint && <p className="text-[13px] text-ink-400">{hint}</p>}
   </div>
 );
 
@@ -59,7 +59,7 @@ const InvoiceRow = ({ invoice, onOpen, onPay }) => {
           className="flex items-center gap-1 text-sm font-bold text-accent-700 hover:underline"
         >
           {invoice.invoiceNumber}
-          <OpenInNewIcon sx={{ fontSize: 13 }} />
+          <OpenInNewIcon sx={{ fontSize: 15 }} />
         </button>
         <p className="truncate text-xs text-ink-500">
           {PARTY_LABEL[invoice.party?.kind] || noun} · {invoice.party?.name || "—"}
@@ -69,7 +69,7 @@ const InvoiceRow = ({ invoice, onOpen, onPay }) => {
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="text-sm font-semibold tabular-nums">{money(invoice.total)}</p>
-          <p className="text-[11px] text-ink-400">
+          <p className="text-[13px] text-ink-400">
             {invoice.balance > 0
               ? `${money(invoice.balance)} outstanding`
               : "Settled"}
@@ -77,7 +77,7 @@ const InvoiceRow = ({ invoice, onOpen, onPay }) => {
         </div>
 
         <span
-          className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${status.chip}`}
+          className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[13px] font-semibold ${status.chip}`}
         >
           {status.label}
         </span>
@@ -221,7 +221,7 @@ const LoadBillingPanel = ({ loadId, onChanged }) => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-hairline bg-accent-50/40 p-4">
           <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-accent-700">
-            <ReceiptLongIcon sx={{ fontSize: 14 }} /> Receivable — money in
+            <ReceiptLongIcon sx={{ fontSize: 16 }} /> Receivable — money in
           </p>
           <div className="grid grid-cols-3 gap-3">
             <Figure label="Invoiced" value={data.receivable.invoiced} />
@@ -248,7 +248,7 @@ const LoadBillingPanel = ({ loadId, onChanged }) => {
 
         <div className="rounded-lg border border-hairline bg-ink-50/60 p-4">
           <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink-600">
-            <PaymentsIcon sx={{ fontSize: 14 }} /> Payable — money out
+            <PaymentsIcon sx={{ fontSize: 16 }} /> Payable — money out
           </p>
           <div className="grid grid-cols-3 gap-3">
             <Figure label="Billed" value={data.payable.invoiced} />
@@ -264,7 +264,7 @@ const LoadBillingPanel = ({ loadId, onChanged }) => {
 
       {/* ── Customer invoice ─────────────────────────────────────────────── */}
       <div className="mt-5">
-        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">
+        <p className="mb-1.5 text-[13px] font-bold uppercase tracking-wide text-ink-400">
           Customer invoice
         </p>
         <div className="rounded-lg border border-hairline">
@@ -288,7 +288,7 @@ const LoadBillingPanel = ({ loadId, onChanged }) => {
 
       {/* ── Carrier and driver bills ─────────────────────────────────────── */}
       <div className="mt-5">
-        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">
+        <p className="mb-1.5 text-[13px] font-bold uppercase tracking-wide text-ink-400">
           Carrier &amp; driver bills
         </p>
         <div className="rounded-lg border border-hairline">
@@ -322,7 +322,7 @@ const LoadBillingPanel = ({ loadId, onChanged }) => {
                     agreed {money(group.agreed)}
                   </span>
                 )}
-                <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600">
+                <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[13px] font-semibold text-gray-600">
                   Not billed
                 </span>
               </div>
@@ -340,7 +340,7 @@ const LoadBillingPanel = ({ loadId, onChanged }) => {
       {/* ── Payments on this load ────────────────────────────────────────── */}
       {data.payments?.length > 0 && (
         <div className="mt-5">
-          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">
+          <p className="mb-1.5 text-[13px] font-bold uppercase tracking-wide text-ink-400">
             Payments on this load
           </p>
           <div className="divide-y divide-hairline/60 rounded-lg border border-hairline">

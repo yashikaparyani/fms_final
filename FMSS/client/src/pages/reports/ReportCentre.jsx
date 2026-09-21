@@ -362,7 +362,7 @@ const ReportCentre = () => {
         <div className="border border-gray-200 rounded-lg bg-white overflow-hidden max-h-[36rem] overflow-y-auto">
           {catalog.groups.map((group) => (
             <div key={group}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-3 pt-3 pb-1">
+              <p className="text-[12px] font-bold uppercase tracking-wider text-gray-400 px-3 pt-3 pb-1">
                 {group}
               </p>
               {catalog.reports
@@ -727,7 +727,7 @@ const SHEET_REPORTS = new Set(["driverPayable", "payables"]);
 
 const Field = ({ label, children }) => (
   <div>
-    <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+    <label className="text-[13px] font-semibold text-gray-600 block mb-1">
       {label}
     </label>
     {children}

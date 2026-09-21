@@ -229,11 +229,11 @@ export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28 };
 export const type = {
   display: { fontSize: 28, fontWeight: "800", letterSpacing: -0.4 },
   h1: { fontSize: 22, fontWeight: "800", letterSpacing: -0.2 },
-  h2: { fontSize: 18, fontWeight: "800" },
-  h3: { fontSize: 15, fontWeight: "700" },
-  body: { fontSize: 14, fontWeight: "500" },
-  label: { fontSize: 12, fontWeight: "700" },
-  caption: { fontSize: 11, fontWeight: "600" },
+  h2: { fontSize: 20, fontWeight: "800" },
+  h3: { fontSize: 17, fontWeight: "700" },
+  body: { fontSize: 16, fontWeight: "500" },
+  label: { fontSize: 14, fontWeight: "700" },
+  caption: { fontSize: 13, fontWeight: "600" },
   stat: { fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
 };
 

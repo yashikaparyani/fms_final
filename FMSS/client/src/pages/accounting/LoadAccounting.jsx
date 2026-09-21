@@ -223,7 +223,7 @@ const LoadAccounting = () => {
             onClick={() => navigate(-1)}
             className="text-xs text-gray-500 hover:text-gray-800 inline-flex items-center gap-1 mb-1"
           >
-            <ArrowBackIcon style={{ fontSize: 14 }} /> Back
+            <ArrowBackIcon style={{ fontSize: 16 }} /> Back
           </button>
           {/* The load number opens the load. Everything on this screen is money
               about a job whose details — the container, the route, the dates,
@@ -265,13 +265,13 @@ const LoadAccounting = () => {
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {data.customerName && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-accent-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-50 px-2.5 py-0.5 text-[13px] font-semibold text-accent-700">
                 <span className="font-normal opacity-70">Customer</span>
                 {data.customerName}
               </span>
             )}
             {data.carrierName && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-0.5 text-[11px] font-semibold text-ink-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-0.5 text-[13px] font-semibold text-ink-700">
                 <span className="font-normal opacity-70">Carrier</span>
                 {data.carrierName}
               </span>
@@ -387,7 +387,7 @@ const LoadAccounting = () => {
             what has actually been put on the ledger against that carrier. */}
         {data.carrierPayables?.length > 0 && (
           <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <div className="bg-gray-50 px-3 py-2 text-[13px] font-bold uppercase tracking-wider text-gray-500">
               Owed per carrier
             </div>
             <div className="divide-y divide-gray-100">
@@ -404,12 +404,12 @@ const LoadAccounting = () => {
                       <p className="text-sm font-medium text-gray-900">
                         {row.fleetOwnerName}
                         {row.fleetOwnerCode && (
-                          <span className="ml-2 text-[11px] font-mono text-gray-400">
+                          <span className="ml-2 text-[13px] font-mono text-gray-400">
                             {row.fleetOwnerCode}
                           </span>
                         )}
                       </p>
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-[13px] text-gray-500">
                         {row.lineCount
                           ? row.lineCount + " line" + (row.lineCount === 1 ? "" : "s") + " booked"
                           : "Nothing booked yet"}
@@ -423,8 +423,8 @@ const LoadAccounting = () => {
                         <p
                           className={
                             short
-                              ? "text-[11px] font-medium text-amber-700"
-                              : "text-[11px] text-gray-500"
+                              ? "text-[13px] font-medium text-amber-700"
+                              : "text-[13px] text-gray-500"
                           }
                         >
                           agreed {money(row.agreed)}
@@ -446,8 +446,8 @@ const LoadAccounting = () => {
         {data.driverPayables?.length > 0 && (
           <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden">
             <div className="flex items-center gap-2 bg-gray-50 px-3 py-2">
-              <BadgeOutlinedIcon className="text-amber-600" style={{ fontSize: 15 }} />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <BadgeOutlinedIcon className="text-amber-600" style={{ fontSize: 17 }} />
+              <span className="text-[13px] font-bold uppercase tracking-wider text-gray-500">
                 Drivers on this load
               </span>
             </div>
@@ -468,7 +468,7 @@ const LoadAccounting = () => {
                         </span>
                       ) : null}
                     </p>
-                    <p className="text-[11px] text-gray-500">
+                    <p className="text-[13px] text-gray-500">
                       {row.uncosted
                         ? "Nothing booked against them yet"
                         : `${row.lineCount} line${row.lineCount === 1 ? "" : "s"}`}
@@ -485,7 +485,7 @@ const LoadAccounting = () => {
                       </p>
                       {!row.uncosted && (
                         <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          className={`text-[12px] font-bold px-1.5 py-0.5 rounded ${
                             row.paid
                               ? "bg-green-100 text-green-700"
                               : "bg-amber-100 text-amber-700"
@@ -524,7 +524,7 @@ const LoadAccounting = () => {
               ))}
             </div>
 
-            <p className="border-t border-gray-100 bg-gray-50/60 px-3 py-2 text-[11px] text-gray-500">
+            <p className="border-t border-gray-100 bg-gray-50/60 px-3 py-2 text-[13px] text-gray-500">
               Amounts come from the Driver Pay lines below. Save the payables
               first — a driver can only be paid once their figure is on the
               ledger.
@@ -567,12 +567,12 @@ const TONES = {
 
 const Stat = ({ label, value, tone, icon: Icon, suffix }) => (
   <div className={`rounded-xl border p-3 ${TONES[tone] || TONES.slate}`}>
-    <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">{label}</p>
+    <p className="text-[12px] font-bold uppercase tracking-wider opacity-70">{label}</p>
     <p className="text-xl font-bold tabular-nums mt-0.5 flex items-center gap-1">
-      {Icon && <Icon style={{ fontSize: 18 }} />}
+      {Icon && <Icon style={{ fontSize: 20 }} />}
       {money(value)}
     </p>
-    {suffix && <p className="text-[11px] opacity-70">{suffix}</p>}
+    {suffix && <p className="text-[13px] opacity-70">{suffix}</p>}
   </div>
 );
 

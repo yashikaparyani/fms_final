@@ -10,6 +10,18 @@
  */
 
 @theme {
+  /* Type scale — one step (+2px) above Tailwind's defaults across the board,
+     so the whole app reads larger on a laptop and on a phone. Line heights are
+     Tailwind's own ratios, so they follow the size. */
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
+
   /* Brand navy — sidebars, headers, the wordmark */
   --color-brand-50: #eef3fb;
   --color-brand-100: #d7e3f6;

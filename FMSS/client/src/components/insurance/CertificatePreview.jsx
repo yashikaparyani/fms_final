@@ -26,7 +26,7 @@ const CertificatePreview = ({ certificate, fleetOwnerId, emptyMessage }) => (
       // the one coverage it was attached to. Worth saying rather than letting
       // somebody assume it covers everything.
       certificate?.legacy ? (
-        <p className="text-[11px] text-amber-800 bg-amber-50 border-b border-amber-200 px-3 py-1.5">
+        <p className="text-[13px] text-amber-800 bg-amber-50 border-b border-amber-200 px-3 py-1.5">
           Filed before certificates were consolidated — this was attached to a
           single coverage and may not list the others.
         </p>

@@ -305,7 +305,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                     onChange={(e) => set({ amount: e.target.value })}
                   />
                   {usingManual && (
-                    <p className="mt-0.5 text-[11px] text-ink-400">
+                    <p className="mt-0.5 text-[13px] text-ink-400">
                       Set per load below
                     </p>
                   )}
@@ -402,7 +402,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                     <button
                       type="button"
                       onClick={() => setManual({})}
-                      className="text-[11px] font-semibold text-accent-700 hover:underline"
+                      className="text-[13px] font-semibold text-accent-700 hover:underline"
                     >
                       Clear per-load amounts
                     </button>
@@ -412,7 +412,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                 <div className="max-h-72 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-hairline text-left text-[11px] uppercase tracking-wide text-ink-500">
+                      <tr className="border-b border-hairline text-left text-[13px] uppercase tracking-wide text-ink-500">
                         <th className="py-2 pl-3 pr-2 font-semibold" />
                         <th className="py-2 pr-3 font-semibold">Load</th>
                         <th className="py-2 pr-3 font-semibold">Due</th>
@@ -442,7 +442,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
                             </td>
                             <td className="py-1.5 pr-3">
                               <p className="font-semibold text-ink-800">{row.loadId}</p>
-                              <p className="text-[11px] text-ink-400">
+                              <p className="text-[13px] text-ink-400">
                                 {row.invoiceNumber}
                               </p>
                             </td>

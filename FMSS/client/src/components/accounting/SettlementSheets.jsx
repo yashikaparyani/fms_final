@@ -195,7 +195,7 @@ const Sheet = ({ sheet, period, editable, onSaved }) => {
             </button>
           )}
           {!editable && (
-            <p className="print:hidden text-[11px] font-normal text-ink-500">
+            <p className="print:hidden text-[13px] font-normal text-ink-500">
               Set both dates to record a deduction and cheque number for this period.
             </p>
           )}

@@ -154,17 +154,17 @@ const RecordPaymentDialog = ({ invoice, open, onClose, onRecorded }) => {
 
         <div className="grid shrink-0 grid-cols-3 gap-3 border-b border-hairline bg-ink-50 px-5 py-3 text-center">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-ink-500">Total</p>
+            <p className="text-[13px] uppercase tracking-wide text-ink-500">Total</p>
             <p className="text-sm font-bold tabular-nums">{money(invoice.total)}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-ink-500">Already paid</p>
+            <p className="text-[13px] uppercase tracking-wide text-ink-500">Already paid</p>
             <p className="text-sm font-bold tabular-nums text-green-700">
               {money((invoice.amountPaid || 0) + (invoice.advanceApplied || 0))}
             </p>
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-ink-500">Outstanding</p>
+            <p className="text-[13px] uppercase tracking-wide text-ink-500">Outstanding</p>
             <p className="text-sm font-bold tabular-nums text-red-700">
               {money(invoice.balance)}
             </p>

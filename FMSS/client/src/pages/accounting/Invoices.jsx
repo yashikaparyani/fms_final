@@ -308,7 +308,7 @@ const Invoices = ({ direction: fixedDirection }) => {
 
           {!incoming && (
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-ink-500">
+              <label className="mb-1 block text-[13px] font-semibold text-ink-500">
                 Driver / carrier
               </label>
               <select
@@ -340,7 +340,7 @@ const Invoices = ({ direction: fixedDirection }) => {
 
           <div className="flex items-end gap-2">
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-ink-500">
+              <label className="mb-1 block text-[13px] font-semibold text-ink-500">
                 From
               </label>
               <input
@@ -353,7 +353,7 @@ const Invoices = ({ direction: fixedDirection }) => {
               />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-ink-500">
+              <label className="mb-1 block text-[13px] font-semibold text-ink-500">
                 To
               </label>
               <input
@@ -420,7 +420,7 @@ const Invoices = ({ direction: fixedDirection }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-hairline text-left text-[11px] uppercase tracking-wide text-ink-500">
+                  <tr className="border-b border-hairline text-left text-[13px] uppercase tracking-wide text-ink-500">
                     {!incoming && (
                       <th className="pb-2 pr-2 font-semibold">
                         <input
@@ -523,7 +523,7 @@ const Invoices = ({ direction: fixedDirection }) => {
                             {row.invoiceNumber}
                           </p>
                           {row.kind === "MANUAL" && (
-                            <span className="text-[10px] font-semibold uppercase text-ink-400">
+                            <span className="text-[12px] font-semibold uppercase text-ink-400">
                               Manual
                             </span>
                           )}
@@ -563,15 +563,15 @@ const Invoices = ({ direction: fixedDirection }) => {
                         </td>
                         <td className="py-2.5">
                           <span
-                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${status.chip}`}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] font-semibold ${status.chip}`}
                           >
                             {row.overdue && (
-                              <WarningAmberIcon sx={{ fontSize: 12 }} />
+                              <WarningAmberIcon sx={{ fontSize: 14 }} />
                             )}
                             {status.label}
                           </span>
                           {row.reminders?.length > 0 && (
-                            <p className="mt-0.5 text-[10px] text-ink-400">
+                            <p className="mt-0.5 text-[12px] text-ink-400">
                               {row.reminders.length} reminder
                               {row.reminders.length === 1 ? "" : "s"} sent
                             </p>

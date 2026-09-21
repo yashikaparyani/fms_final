@@ -154,7 +154,7 @@ const DriverLocations = () => {
                     <div className="flex-1 min-w-[12rem]">
                       <p className="text-sm font-medium text-gray-900">
                         {row.driver.name}
-                        <span className="ml-2 text-[11px] font-mono text-gray-400">
+                        <span className="ml-2 text-[13px] font-mono text-gray-400">
                           {row.driver.driverCode}
                         </span>
                       </p>
@@ -179,18 +179,18 @@ const DriverLocations = () => {
                     )}
 
                     {row.isLive ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                        <LocalShippingOutlinedIcon style={{ fontSize: 13 }} />
+                      <span className="inline-flex items-center gap-1 text-[13px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                        <LocalShippingOutlinedIcon style={{ fontSize: 15 }} />
                         LIVE
                       </span>
                     ) : row.location ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
-                        <PlaceIcon style={{ fontSize: 13 }} />
+                      <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <PlaceIcon style={{ fontSize: 15 }} />
                         Last seen {relativeTime(row.location.recordedAt)}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                        <SignalWifiOffIcon style={{ fontSize: 13 }} />
+                      <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <SignalWifiOffIcon style={{ fontSize: 15 }} />
                         Never reported
                       </span>
                     )}
@@ -199,14 +199,14 @@ const DriverLocations = () => {
                   {isSelected && row.location && (
                     <div className="mt-2 pt-2 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                       <div>
-                        <p className="text-[10px] uppercase text-gray-400">Position</p>
+                        <p className="text-[12px] uppercase text-gray-400">Position</p>
                         <p className="font-mono text-gray-700">
                           {row.location.latitude.toFixed(4)},{" "}
                           {row.location.longitude.toFixed(4)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase text-gray-400">Speed</p>
+                        <p className="text-[12px] uppercase text-gray-400">Speed</p>
                         <p className="text-gray-700">
                           {row.location.speed != null
                             ? `${Math.round(row.location.speed * 2.237)} mph`
@@ -214,7 +214,7 @@ const DriverLocations = () => {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase text-gray-400">Battery</p>
+                        <p className="text-[12px] uppercase text-gray-400">Battery</p>
                         <p className="text-gray-700">
                           {row.location.batteryLevel != null
                             ? `${Math.round(row.location.batteryLevel * 100)}%`
@@ -222,7 +222,7 @@ const DriverLocations = () => {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase text-gray-400">Reported</p>
+                        <p className="text-[12px] uppercase text-gray-400">Reported</p>
                         <p className="text-gray-700">
                           {formatDateTime(row.location.recordedAt)}
                         </p>

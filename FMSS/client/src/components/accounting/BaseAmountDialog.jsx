@@ -130,7 +130,7 @@ const BaseAmountDialog = ({ open, onClose, onApply, initialLines = [] }) => {
 
         <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-t border-gray-200 bg-gray-50 rounded-b-2xl shrink-0">
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">
+            <p className="text-[13px] uppercase tracking-wider text-gray-400 font-semibold">
               Base amount
             </p>
             <p className="text-2xl font-bold text-gray-900 tabular-nums">

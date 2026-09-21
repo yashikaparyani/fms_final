@@ -195,7 +195,7 @@ const LiveTrackingCard = ({ tracking }) => {
         {lastLocation ? (
           <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+              <div className="text-[13px] font-bold uppercase tracking-wide text-gray-400">
                 Latitude
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
@@ -203,7 +203,7 @@ const LiveTrackingCard = ({ tracking }) => {
               </div>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+              <div className="text-[13px] font-bold uppercase tracking-wide text-gray-400">
                 Longitude
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
@@ -211,7 +211,7 @@ const LiveTrackingCard = ({ tracking }) => {
               </div>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+              <div className="text-[13px] font-bold uppercase tracking-wide text-gray-400">
                 Accuracy
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-900">

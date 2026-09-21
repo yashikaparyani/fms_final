@@ -44,7 +44,7 @@ const TabBadge = ({ row }) => {
   const tab = tabOf(row);
   if (!tab) return <span className="text-gray-400 text-xs">—</span>;
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${tab.className}`}>
+    <span className={`inline-block px-2 py-0.5 rounded text-[12px] font-semibold whitespace-nowrap ${tab.className}`}>
       {tab.label}
     </span>
   );

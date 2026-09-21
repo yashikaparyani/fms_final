@@ -93,9 +93,9 @@ const SignaturePad = ({ onChange, disabled, height = 150 }) => {
             type="button"
             onClick={clear}
             disabled={disabled}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-gray-800"
+            className="inline-flex items-center gap-1 text-[13px] font-medium text-gray-500 hover:text-gray-800"
           >
-            <UndoIcon style={{ fontSize: 14 }} /> Clear
+            <UndoIcon style={{ fontSize: 16 }} /> Clear
           </button>
         )}
       </div>
@@ -112,7 +112,7 @@ const SignaturePad = ({ onChange, disabled, height = 150 }) => {
         } ${disabled ? "opacity-50" : "cursor-crosshair"}`}
       />
 
-      <p className="text-[11px] text-gray-500 mt-1">
+      <p className="text-[13px] text-gray-500 mt-1">
         Draw your signature with a finger, stylus or mouse. It is stamped onto
         your copy of the agreement.
       </p>

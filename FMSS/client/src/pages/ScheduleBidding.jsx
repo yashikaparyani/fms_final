@@ -182,23 +182,23 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
             {/* Load Info Strip - Ultra Compact */}
             <div className="mb-5 p-4 bg-slate-50 border border-slate-100 rounded-xl grid grid-cols-3 gap-y-3 gap-x-4">
               <div className="space-y-0.5">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Customer</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Customer</span>
                 <p className="font-bold text-xs text-slate-700 truncate">{loadDetails.customerName || "—"}</p>
               </div>
               <div className="space-y-0.5">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Material</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Material</span>
                 <p className="font-bold text-xs text-slate-700">{loadDetails.material || "—"}</p>
               </div>
               <div className="space-y-0.5">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Truck</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Truck</span>
                 <p className="font-bold text-xs text-slate-700">{loadDetails.truckType || "—"}</p>
               </div>
               <div className="col-span-2 space-y-0.5">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Route</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Route</span>
                 <p className="font-bold text-xs text-slate-700 truncate">{loadDetails.pickup?.city} → {loadDetails.drop?.city}</p>
               </div>
               <div className="space-y-0.5">
-                <span className="text-[9px] font-bold text-slate-400 uppercase text-emerald-500">Rate</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase text-emerald-500">Rate</span>
                 <p className="font-black text-xs text-emerald-600">${loadDetails.amount?.toLocaleString()}</p>
               </div>
             </div>
@@ -207,7 +207,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Bid Start</label>
+                  <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Bid Start</label>
                   <input
                     type="datetime-local"
                     name="bidStartTime"
@@ -218,7 +218,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Bid End</label>
+                  <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Bid End</label>
                   <input
                     type="datetime-local"
                     name="bidEndTime"
@@ -232,13 +232,13 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Base Rate ($)</label>
+                  <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Base Rate ($)</label>
                   <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-bold text-slate-500">
                     {Number(formData.targetRate || 0).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Fleet Owner Amount ($)</label>
+                  <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Fleet Owner Amount ($)</label>
                   <input
                     type="number"
                     name="fleetOwnerAmount"
@@ -255,8 +255,8 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
             {/* Result Bar */}
             <div className="mt-5 p-3 bg-indigo-600 rounded-xl flex items-center justify-between shadow-lg shadow-indigo-200">
               <div className="text-white">
-                <span className="text-[9px] font-black uppercase opacity-80">Fleet Owner Gets</span>
-                <p className="text-[10px] opacity-90 leading-tight">Amount displayed to fleet owners</p>
+                <span className="text-[11px] font-black uppercase opacity-80">Fleet Owner Gets</span>
+                <p className="text-[12px] opacity-90 leading-tight">Amount displayed to fleet owners</p>
               </div>
               <div className="text-xl font-black text-white tracking-tight">
                 ${Number(formData.fleetOwnerAmount || 0).toLocaleString()}

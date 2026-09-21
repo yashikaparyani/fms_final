@@ -298,7 +298,7 @@ const BidDetails = () => {
             </button>
           )}
           {load?.acceptanceMailSent && (
-            <p className="text-[11px] text-green-600 mt-1">
+            <p className="text-[13px] text-green-600 mt-1">
               ✓ Acceptance mail sent
               {load.acceptanceMailSentAt
                 ? ` on ${formatDateTime(load.acceptanceMailSentAt)}`
@@ -457,20 +457,20 @@ const BidDetails = () => {
                           {!isWinner && (!load.winningBid || !load.winningBid.fleetOwnerId) && (
                             <button
                               onClick={() => handleAward(bid.fleetOwnerId, bid.fleetOwnerName, bid.amount)}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition-colors"
+                              className="px-2 py-1 text-[12px] font-bold uppercase tracking-wider bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition-colors"
                             >
                               Award
                             </button>
                           )}
                             <button
                               onClick={() => handleRevise(bid._id, bid.amount)}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                              className="px-2 py-1 text-[12px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
                             >
                               Negotiate
                             </button>
                             <button
                               onClick={() => handleDiscard(bid._id, bid.fleetOwnerName)}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                              className="px-2 py-1 text-[12px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 transition-colors"
                             >
                               Discard
                             </button>

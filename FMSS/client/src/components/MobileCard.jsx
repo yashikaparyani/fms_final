@@ -37,11 +37,11 @@ const LocationBlock = ({ label, data }) => {
   const line2  = [data.city, data.state].filter(Boolean).join(", ");
   return (
     <div>
-      <p style={{ fontSize: 10, color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      <p style={{ fontSize: 12, color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {label}
       </p>
-      <p style={{ fontSize: 12, color: "#111827", fontWeight: 500, margin: "2px 0 0" }}>{line1}</p>
-      {line2 && <p style={{ fontSize: 11, color: "#6b7280", margin: "1px 0 0" }}>{line2}</p>}
+      <p style={{ fontSize: 14, color: "#111827", fontWeight: 500, margin: "2px 0 0" }}>{line1}</p>
+      {line2 && <p style={{ fontSize: 13, color: "#6b7280", margin: "1px 0 0" }}>{line2}</p>}
     </div>
   );
 };
@@ -105,7 +105,7 @@ const MobileCard = ({
   </Link>
 )}
             {subtitle && (
-              <p style={{ fontSize: 12, color: "#6366f1", fontWeight: 600, margin: "2px 0 0" }}>
+              <p style={{ fontSize: 14, color: "#6366f1", fontWeight: 600, margin: "2px 0 0" }}>
                 {subtitle}
               </p>
             )}
@@ -115,7 +115,7 @@ const MobileCard = ({
               style={{
                 backgroundColor: badge.bg || style.badge?.bg || "#f3f4f6",
                 color:           badge.text || style.badge?.text || "#374151",
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: 700,
                 padding: "3px 9px",
                 borderRadius: 6,
@@ -153,10 +153,10 @@ const MobileCard = ({
             .filter((f) => f.value != null && f.value !== "")
             .map(({ label, value, fullWidth }) => (
               <div key={label} style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
-                <p style={{ fontSize: 10, color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <p style={{ fontSize: 12, color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   {label}
                 </p>
-                <p style={{ fontSize: 12, color: "#111827", fontWeight: 500, margin: "1px 0 0", wordBreak: "break-word" }}>
+                <p style={{ fontSize: 14, color: "#111827", fontWeight: 500, margin: "1px 0 0", wordBreak: "break-word" }}>
                   {value}
                 </p>
               </div>
@@ -185,7 +185,7 @@ const MobileCard = ({
                   border: isOutline ? `1.5px solid ${color}` : "none",
                   backgroundColor: isSolid ? color : "transparent",
                   color: isOutline ? color : textColor,
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 600,
                   cursor: disabled ? "not-allowed" : "pointer",
                   opacity: disabled ? 0.5 : 1,

@@ -158,12 +158,12 @@ const InstantOffers = () => {
                         {offer.loadId}
                       </span>
                       {offer.isUrgent && (
-                        <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                        <span className="text-[12px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
                           URGENT
                         </span>
                       )}
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
-                        <PlaceIcon style={{ fontSize: 12 }} />
+                      <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                        <PlaceIcon style={{ fontSize: 14 }} />
                         {offer.distanceMiles} mi away
                       </span>
                     </div>
@@ -190,7 +190,7 @@ const InstantOffers = () => {
 
                     {offer.nearestDriver && (
                       <p className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                        <LocalShippingOutlinedIcon style={{ fontSize: 14 }} />
+                        <LocalShippingOutlinedIcon style={{ fontSize: 16 }} />
                         Nearest: {offer.nearestDriver}
                       </p>
                     )}
@@ -202,10 +202,10 @@ const InstantOffers = () => {
                     <p className="text-xl font-extrabold text-gray-900">
                       {money(offer.payout)}
                     </p>
-                    <p className="text-[11px] text-gray-500">to you</p>
+                    <p className="text-[13px] text-gray-500">to you</p>
 
                     <p
-                      className={`text-[11px] font-bold mt-1.5 ${
+                      className={`text-[13px] font-bold mt-1.5 ${
                         left ? "text-amber-700" : "text-gray-400"
                       }`}
                     >

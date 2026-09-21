@@ -155,8 +155,8 @@ const MobileAddressCard = ({ row, onEdit }) => {
       {/* Top row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
         <div style={{ minWidth: 0 }}>
-          <p style={{ fontWeight: 700, fontSize: "15px", color: "#111827", margin: 0 }}>{row.loadId}</p>
-          <p style={{ fontSize: "12px", color: "#6366f1", fontWeight: 600, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <p style={{ fontWeight: 700, fontSize: "17px", color: "#111827", margin: 0 }}>{row.loadId}</p>
+          <p style={{ fontSize: "14px", color: "#6366f1", fontWeight: 600, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {row.customerName || "—"}
           </p>
         </div>
@@ -164,13 +164,13 @@ const MobileAddressCard = ({ row, onEdit }) => {
           <span style={{
             backgroundColor: isUpdated ? "#dcfce7" : "#fef3c7",
             color: isUpdated ? "#166534" : "#92400e",
-            fontSize: "11px", fontWeight: 700,
+            fontSize: "13px", fontWeight: 700,
             padding: "3px 9px", borderRadius: "6px", whiteSpace: "nowrap",
           }}>
             {isUpdated ? "✓ Updated" : "⏳ Pending"}
           </span>
           <span style={{
-            fontSize: "10px", fontWeight: 600, color: "#6b7280",
+            fontSize: "12px", fontWeight: 600, color: "#6b7280",
             backgroundColor: "#f3f4f6", padding: "2px 7px", borderRadius: "4px",
           }}>
             {row.status || "—"}
@@ -185,11 +185,11 @@ const MobileAddressCard = ({ row, onEdit }) => {
           { label: "Drop",   data: row.drop },
         ].map(({ label, data }) => (
           <div key={label} style={{ minWidth: 0 }}>
-            <p style={{ fontSize: "10px", color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
-            <p style={{ fontSize: "12px", color: "#111827", fontWeight: 500, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
+            <p style={{ fontSize: "14px", color: "#111827", fontWeight: 500, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {data?.company || data?.address || "—"}
             </p>
-            <p style={{ fontSize: "11px", color: "#6b7280", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <p style={{ fontSize: "13px", color: "#6b7280", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {[data?.city, data?.state].filter(Boolean).join(", ") || "—"}
             </p>
           </div>
@@ -206,8 +206,8 @@ const MobileAddressCard = ({ row, onEdit }) => {
         ].map(({ label, value }) =>
           value ? (
             <div key={label} style={{ minWidth: 0 }}>
-              <p style={{ fontSize: "10px", color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
-              <p style={{ fontSize: "12px", color: "#111827", fontWeight: 500, margin: "1px 0 0" }}>{value}</p>
+              <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
+              <p style={{ fontSize: "14px", color: "#111827", fontWeight: 500, margin: "1px 0 0" }}>{value}</p>
             </div>
           ) : null
         )}
@@ -222,7 +222,7 @@ const MobileAddressCard = ({ row, onEdit }) => {
           display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
           padding: "8px 0", borderRadius: "7px",
           border: "none", backgroundColor: "#2563eb", color: "#fff",
-          fontSize: "12px", fontWeight: 600, cursor: "pointer",
+          fontSize: "14px", fontWeight: 600, cursor: "pointer",
         }}
       >
         <svg style={{ width: 14, height: 14, flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,12 +268,12 @@ const UpdateAddressPage = () => {
     {
       key: "addressStatus", header: "Address Status",  width: "110px",
       render: (row) => row.adressAdded ? (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800 border border-green-300">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[13px] font-bold bg-green-100 text-green-800 border border-green-300">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
           Updated
         </span>
       ) : (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[13px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
           Pending
         </span>

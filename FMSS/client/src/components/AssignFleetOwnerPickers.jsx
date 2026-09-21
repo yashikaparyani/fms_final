@@ -73,7 +73,7 @@ export const MobileAssignInline = ({
           onClick={() => onConfirm(loadId, ownerId, fleetOwners)}
           style={{
             flex: 1,
-            fontSize: 12,
+            fontSize: 14,
             padding: "6px 0",
             borderRadius: 6,
             border: "none",
@@ -88,7 +88,7 @@ export const MobileAssignInline = ({
         <button
           onClick={onCancel}
           style={{
-            fontSize: 12,
+            fontSize: 14,
             padding: "6px 10px",
             borderRadius: 6,
             border: "1px solid #d1d5db",

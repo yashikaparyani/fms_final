@@ -151,7 +151,7 @@ const CarrierOnboardingQueue = () => {
           >
             {file.carrier?.carrierName || file.legalName || "Unnamed carrier"}
           </button>
-          <p className="text-[11px] font-mono text-gray-500 mt-0.5">
+          <p className="text-[13px] font-mono text-gray-500 mt-0.5">
             {file.carrier?.fleetOwnerCode || "—"}
             {file.mcNumber ? ` · MC ${file.mcNumber}` : ""}
           </p>
@@ -166,7 +166,7 @@ const CarrierOnboardingQueue = () => {
         <div>
           <OnboardingStatusBadge status={file.status} />
           {file.outstandingCount > 0 && (
-            <p className="text-[11px] text-amber-700 mt-1">
+            <p className="text-[13px] text-amber-700 mt-1">
               {file.outstandingCount} item
               {file.outstandingCount === 1 ? "" : "s"} outstanding
             </p>
@@ -215,7 +215,7 @@ const CarrierOnboardingQueue = () => {
             {insuranceText(file)}
           </p>
           {file.shortfalls > 0 && (
-            <p className="text-[11px] font-semibold text-red-700 mt-0.5">
+            <p className="text-[13px] font-semibold text-red-700 mt-0.5">
               {file.shortfalls} shortfall{file.shortfalls === 1 ? "" : "s"}
             </p>
           )}
@@ -233,7 +233,7 @@ const CarrierOnboardingQueue = () => {
             <p className={days >= 3 && file.status === "UNDER_REVIEW" ? "font-semibold text-red-700" : "text-gray-700"}>
               {days === null ? "—" : days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
             </p>
-            <p className="text-[11px] text-gray-500">
+            <p className="text-[13px] text-gray-500">
               {fmtDate(file.submittedAt || file.updatedAt)}
             </p>
           </div>
@@ -290,7 +290,7 @@ const CarrierOnboardingQueue = () => {
             >
               {t.label}
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                className={`rounded-full px-1.5 py-0.5 text-[12px] font-bold ${
                   active ? "bg-white/25" : "bg-gray-100 text-gray-600"
                 }`}
               >
@@ -330,7 +330,7 @@ const CarrierOnboardingQueue = () => {
                     <p className="text-sm font-semibold">
                       {file.carrier?.carrierName || file.legalName || "Unnamed carrier"}
                     </p>
-                    <p className="text-[11px] font-mono opacity-70 mt-0.5">
+                    <p className="text-[13px] font-mono opacity-70 mt-0.5">
                       {file.carrier?.fleetOwnerCode || "—"}
                       {file.mcNumber ? ` · MC ${file.mcNumber}` : ""}
                     </p>
@@ -338,7 +338,7 @@ const CarrierOnboardingQueue = () => {
                   <OnboardingStatusBadge status={file.status} />
                 </div>
 
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-[13px]">
                   {[
                     ["Agreements", paperworkText(file)],
                     ["Drivers", driversText(file)],
@@ -384,10 +384,10 @@ const CarrierOnboardingQueue = () => {
       {/* A quiet reminder of what approving actually does, for whoever is new
           to this screen. */}
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-        <CheckCircleIcon style={{ fontSize: 15 }} className="text-green-600 mr-1 align-text-bottom" />
+        <CheckCircleIcon style={{ fontSize: 17 }} className="text-green-600 mr-1 align-text-bottom" />
         Approving clears the carrier to haul and locks their file from further
         edits on their side.
-        <WarningAmberIcon style={{ fontSize: 15 }} className="text-amber-600 mx-1 align-text-bottom" />
+        <WarningAmberIcon style={{ fontSize: 17 }} className="text-amber-600 mx-1 align-text-bottom" />
         Sending it back reopens it with your note attached, which is the only
         thing the carrier sees telling them what to fix.
       </div>

@@ -162,11 +162,11 @@ const transitProgressOf = (load = {}) => {
 
 const Endpoint = ({ label, place, when, align = "left" }) => (
   <div className={align === "right" ? "text-right" : ""}>
-    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+    <p className="text-[12px] font-bold uppercase tracking-wide text-gray-400">
       {label}
     </p>
     <p className="text-sm font-semibold text-gray-900 leading-tight">{place}</p>
-    <p className="text-[11px] text-gray-500">{when}</p>
+    <p className="text-[13px] text-gray-500">{when}</p>
   </div>
 );
 
@@ -246,7 +246,7 @@ const TransitProgress = ({ load }) => {
 
       <div className="flex items-center justify-between gap-3 mt-2.5 flex-wrap">
         <span
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[13px] font-bold"
           style={{
             backgroundColor: colors.bg,
             color: colors.color,
@@ -257,7 +257,7 @@ const TransitProgress = ({ load }) => {
           <span className="opacity-70">· {t.percent}%</span>
         </span>
 
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex items-center gap-2 text-[13px]">
           {t.offJourneyLabel && (
             <span className="font-semibold text-gray-500">
               Off the road — {t.offJourneyLabel.toLowerCase()}

@@ -128,7 +128,7 @@ const CarrierDriverLocations = ({ fleetOwnerId }) => {
             <div className="flex-1 min-w-[12rem]">
               <p className="text-sm font-medium text-gray-900">
                 {row.driver.name}
-                <span className="ml-2 text-[11px] font-mono text-gray-400">
+                <span className="ml-2 text-[13px] font-mono text-gray-400">
                   {row.driver.driverCode}
                 </span>
               </p>
@@ -150,18 +150,18 @@ const CarrierDriverLocations = ({ fleetOwnerId }) => {
             )}
 
             {row.isLive ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                <LocalShippingOutlinedIcon style={{ fontSize: 13 }} />
+              <span className="inline-flex items-center gap-1 text-[13px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                <LocalShippingOutlinedIcon style={{ fontSize: 15 }} />
                 LIVE
               </span>
             ) : row.location ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
-                <PlaceIcon style={{ fontSize: 13 }} />
+              <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                <PlaceIcon style={{ fontSize: 15 }} />
                 Last seen {relativeTime(row.location.recordedAt)}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                <SignalWifiOffIcon style={{ fontSize: 13 }} />
+              <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                <SignalWifiOffIcon style={{ fontSize: 15 }} />
                 Never reported
               </span>
             )}

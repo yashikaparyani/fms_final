@@ -233,13 +233,13 @@ const StaffFleetOwners = () => {
                   { label: "Email", value: f.email, fullWidth: true },
                 ]}
                 actions={[
-                  { icon: <FolderOpenIcon style={{ fontSize: 18 }} />, color: "#4f46e5", onClick: () => openFile(f._id) },
-                  { icon: <EmailIcon style={{ fontSize: 18 }} />,    color: "#2563eb", onClick: () => handleSendCredentials(f._id), disabled: sendingCredentials === f._id },
-                  { icon: <WhatsAppIcon style={{ fontSize: 18 }} />, color: "#16a34a", onClick: () => handleShareWhatsApp(f._id),  disabled: sendingCredentials === f._id },
-                  { icon: <EditIcon style={{ fontSize: 18 }} />,     color: "#0891b2", onClick: () => navigate(`/staff/fleet-owners/${f._id}/edit`) },
+                  { icon: <FolderOpenIcon style={{ fontSize: 20 }} />, color: "#4f46e5", onClick: () => openFile(f._id) },
+                  { icon: <EmailIcon style={{ fontSize: 20 }} />,    color: "#2563eb", onClick: () => handleSendCredentials(f._id), disabled: sendingCredentials === f._id },
+                  { icon: <WhatsAppIcon style={{ fontSize: 20 }} />, color: "#16a34a", onClick: () => handleShareWhatsApp(f._id),  disabled: sendingCredentials === f._id },
+                  { icon: <EditIcon style={{ fontSize: 20 }} />,     color: "#0891b2", onClick: () => navigate(`/staff/fleet-owners/${f._id}/edit`) },
                   isActive
-                    ? { icon: <BlockIcon style={{ fontSize: 18 }} />, color: "#d97706", onClick: () => handleSetActive(f, false) }
-                    : { icon: <CheckCircleOutlineIcon style={{ fontSize: 18 }} />, color: "#16a34a", onClick: () => handleSetActive(f, true) },
+                    ? { icon: <BlockIcon style={{ fontSize: 20 }} />, color: "#d97706", onClick: () => handleSetActive(f, false) }
+                    : { icon: <CheckCircleOutlineIcon style={{ fontSize: 20 }} />, color: "#16a34a", onClick: () => handleSetActive(f, true) },
                 ]}
               />
             );

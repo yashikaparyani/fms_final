@@ -58,7 +58,7 @@ const CheckBadge = ({ checked }) => (
 const rowClass =
   "flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0";
 const labelClass =
-  "text-[11px] font-bold text-gray-500 uppercase tracking-tight";
+  "text-[13px] font-bold text-gray-500 uppercase tracking-tight";
 
 const CheckboxDisplay = ({ label, checked }) => (
   <div className={rowClass}>
@@ -149,7 +149,7 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, showDriverPayments = fal
                   load.accountPerson?.name ? (
                     <span>
                       {load.assignedTo || load.assignedFleetOwner?.fleetOwnerName}
-                      <span className="block text-[11px] text-gray-500">
+                      <span className="block text-[13px] text-gray-500">
                         {load.accountPerson.name}
                         {load.accountPerson.phone ? ` · ${load.accountPerson.phone}` : ""}
                       </span>
@@ -295,13 +295,13 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, showDriverPayments = fal
              <SectionHeader label="Details & Remarks" accent="#10b981" />
              <div className="p-4 pt-2 space-y-4">
                 <div>
-                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Description</p>
+                   <p className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-1">Description</p>
                    <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-700 border border-gray-100 min-h-[60px]">
                       {load.description || "—"}
                    </div>
                 </div>
                 <div>
-                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Remarks</p>
+                   <p className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-1">Remarks</p>
                    <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-700 border border-gray-100 min-h-[60px]">
                       {load.remarks || "—"}
                    </div>

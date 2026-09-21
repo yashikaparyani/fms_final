@@ -27,7 +27,7 @@ const DashboardHeader = ({ title, subtitle, stats = [], actions, children }) => 
       <div className="px-6 py-5 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           {firstName ? (
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-white/70">
+            <p className="text-[13px] font-bold uppercase tracking-[0.08em] text-white/70">
               Welcome back, {firstName}
             </p>
           ) : null}
@@ -54,7 +54,7 @@ const DashboardHeader = ({ title, subtitle, stats = [], actions, children }) => 
               <p className="text-lg font-extrabold tabular-nums leading-none">
                 {stat.value ?? 0}
               </p>
-              <p className="text-[11px] font-medium text-white/75 mt-1 truncate">
+              <p className="text-[13px] font-medium text-white/75 mt-1 truncate">
                 {stat.label}
               </p>
             </div>

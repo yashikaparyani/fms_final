@@ -76,7 +76,7 @@ const LegPoint = ({ label, value, stops, onChange }) => {
 
   return (
     <div>
-      <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
+      <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
         {label}
       </label>
 
@@ -98,7 +98,7 @@ const LegPoint = ({ label, value, stops, onChange }) => {
       />
 
       {isStop ? (
-        <p className="text-[11px] text-gray-500 mt-1">
+        <p className="text-[13px] text-gray-500 mt-1">
           Taken from the load — {stops[value.stopIndex]?.label || "stop"}
         </p>
       ) : (
@@ -256,7 +256,7 @@ const AssignCarrierLegsDialog = ({
           {legs.map((leg, index) => (
             <div key={index} className="rounded-lg border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+                <span className="text-[13px] font-bold uppercase tracking-wider text-indigo-700">
                   {legs.length === 1 ? "Carrier" : `Leg ${index + 1}`}
                 </span>
                 {legs.length > 1 && (
@@ -271,7 +271,7 @@ const AssignCarrierLegsDialog = ({
               </div>
 
               <div className="mb-3">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
+                <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
                   Carrier
                 </label>
                 <AppSelect
@@ -299,7 +299,7 @@ const AssignCarrierLegsDialog = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                 <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
                     Carrier rate
                   </label>
                   <input
@@ -311,7 +311,7 @@ const AssignCarrierLegsDialog = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
                     Note
                   </label>
                   <input

@@ -38,7 +38,7 @@ const RatingSection = ({
         </div>
       ) : null}
 
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+      <p className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-3">
         {load.staffRating?.score ? "Update Rating" : "Submit Rating"}
       </p>
 

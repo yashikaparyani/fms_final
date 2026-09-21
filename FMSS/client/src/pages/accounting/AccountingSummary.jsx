@@ -123,7 +123,7 @@ const AccountingSummary = () => {
           >
             {money(row.margin)}
           </p>
-          <p className="text-[11px] text-gray-500">{row.marginPercent}%</p>
+          <p className="text-[13px] text-gray-500">{row.marginPercent}%</p>
         </div>
       ),
     },
@@ -147,7 +147,7 @@ const AccountingSummary = () => {
       width: "100px",
       render: (row) => (
         <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
             row.paid
               ? "bg-green-100 text-green-700"
               : row.invoiced
@@ -175,7 +175,7 @@ const AccountingSummary = () => {
 
         <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+            <label className="text-[13px] font-semibold text-gray-600 block mb-1">
               From
             </label>
             <input
@@ -186,7 +186,7 @@ const AccountingSummary = () => {
             />
           </div>
           <div>
-            <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+            <label className="text-[13px] font-semibold text-gray-600 block mb-1">
               To
             </label>
             <input
@@ -245,9 +245,9 @@ const TONES = {
 
 const Stat = ({ label, value, tone, suffix }) => (
   <div className={`rounded-xl border p-3 ${TONES[tone] || TONES.slate}`}>
-    <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">{label}</p>
+    <p className="text-[12px] font-bold uppercase tracking-wider opacity-70">{label}</p>
     <p className="text-xl font-bold tabular-nums mt-0.5">{money(value)}</p>
-    {suffix && <p className="text-[11px] opacity-70 mt-0.5">{suffix}</p>}
+    {suffix && <p className="text-[13px] opacity-70 mt-0.5">{suffix}</p>}
   </div>
 );
 

@@ -63,7 +63,7 @@ const Topbar = () => {
         <div className="flex items-center px-4 md:hidden">
           <span className="flex items-center gap-1.5 text-lg font-extrabold text-brand-800">
             <span
-              className="grid h-7 w-7 place-items-center rounded-md text-[11px] text-white"
+              className="grid h-7 w-7 place-items-center rounded-md text-[13px] text-white"
               style={{ background: "var(--role-accent)" }}
             >
               SL
@@ -106,7 +106,7 @@ const Topbar = () => {
             </div>
             <div className="hidden md:flex flex-col">
               <h4 className="text-sm font-bold">{displayName(user)}</h4>
-              <h4 className="text-[11px] font-semibold tracking-wide text-ink-500">{user?.role?.toUpperCase()}</h4>
+              <h4 className="text-[13px] font-semibold tracking-wide text-ink-500">{user?.role?.toUpperCase()}</h4>
             </div>
             {isProfileOpen && (
               <div className="absolute z-40 w-44 overflow-hidden cursor-pointer rounded-xl border border-hairline bg-surface shadow-card-hover top-[120%] right-0 flex flex-col">
@@ -214,8 +214,8 @@ const Topbar = () => {
                             : "text-brand-100/60 hover:bg-white/10 hover:text-white"
                           }`}
                       >
-                        <ChildIcon style={{ fontSize: 17 }} />
-                        <span className="text-[13px] font-medium">
+                        <ChildIcon style={{ fontSize: 19 }} />
+                        <span className="text-[15px] font-medium">
                           {child.label}
                         </span>
                       </div>

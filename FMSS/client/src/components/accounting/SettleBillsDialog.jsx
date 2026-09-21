@@ -177,7 +177,7 @@ const SettleBillsDialog = ({ open, bills = [], onClose, onSettled }) => {
           <div className="max-h-60 overflow-y-auto rounded-lg border border-hairline">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-hairline text-left text-[11px] uppercase tracking-wide text-ink-500">
+                <tr className="border-b border-hairline text-left text-[13px] uppercase tracking-wide text-ink-500">
                   <th className="py-2 pl-3 pr-3 font-semibold">Bill</th>
                   <th className="py-2 pr-3 font-semibold">Payee</th>
                   <th className="py-2 pr-3 font-semibold">Due</th>
@@ -190,7 +190,7 @@ const SettleBillsDialog = ({ open, bills = [], onClose, onSettled }) => {
                     <td className="py-1.5 pl-3 pr-3">
                       <p className="font-semibold text-ink-800">{bill.invoiceNumber}</p>
                       {bill.loadId && bill.loadId !== bill.invoiceNumber && (
-                        <p className="text-[11px] text-ink-400">{bill.loadId}</p>
+                        <p className="text-[13px] text-ink-400">{bill.loadId}</p>
                       )}
                     </td>
                     <td className="py-1.5 pr-3 text-ink-700">{bill.party?.name || "—"}</td>

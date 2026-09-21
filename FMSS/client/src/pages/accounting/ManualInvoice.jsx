@@ -223,7 +223,7 @@ const ManualInvoice = () => {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[11px] uppercase tracking-wide text-white/70">Balance</p>
+          <p className="text-[13px] uppercase tracking-wide text-white/70">Balance</p>
           <p className="text-2xl font-extrabold tabular-nums">{money(totals.balance)}</p>
         </div>
       </div>
@@ -330,7 +330,7 @@ const ManualInvoice = () => {
                 onClick={() => setLines([...lines, blankLine()])}
                 className="flex items-center gap-1 rounded-lg bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100"
               >
-                <AddIcon sx={{ fontSize: 15 }} /> Add line
+                <AddIcon sx={{ fontSize: 17 }} /> Add line
               </button>
             </div>
 
@@ -520,7 +520,7 @@ const ManualInvoice = () => {
               </div>
             )}
             <div className="mt-2 flex items-center justify-between rounded-lg bg-accent-600 px-3 py-2.5 text-white">
-              <span className="text-[11px] font-bold uppercase tracking-wide">
+              <span className="text-[13px] font-bold uppercase tracking-wide">
                 Balance
               </span>
               <span className="text-lg font-extrabold tabular-nums">

@@ -35,14 +35,14 @@ const CarrierLegs = ({ load }) => (
     {load.assignments.map((leg, index) => (
       <div key={leg._id || index} className="leading-tight">
         <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold text-white bg-indigo-600 rounded px-1 py-px flex-shrink-0">
+          <span className="text-[11px] font-bold text-white bg-indigo-600 rounded px-1 py-px flex-shrink-0">
             {index + 1}
           </span>
           <span className="text-xs font-bold text-green-800 truncate">
             {leg.fleetOwnerName}
           </span>
         </div>
-        <p className="text-[10px] text-gray-500 pl-5 truncate">
+        <p className="text-[12px] text-gray-500 pl-5 truncate">
           {[leg.origin?.city, leg.destination?.city].filter(Boolean).join(" → ") ||
             "—"}
           {leg.transportStatus

@@ -557,18 +557,18 @@ const s = StyleSheet.create({
   brandTileCompact: { width: 22, height: 22, borderRadius: 6 },
   brandTileText: {
     color: colors.onBrand,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
-  brandTileTextCompact: { fontSize: 10 },
+  brandTileTextCompact: { fontSize: 12 },
   brandWord: {
     color: colors.onBrand,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "900",
     letterSpacing: 1.2,
   },
-  brandWordCompact: { fontSize: 11, letterSpacing: 1 },
+  brandWordCompact: { fontSize: 13, letterSpacing: 1 },
   // The second word sits back so the eye lands on "S LINE".
   brandWordLight: { fontWeight: "600", opacity: 0.75 },
   gradientHeader: {
@@ -622,7 +622,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.onBrand,
   },
-  bellDotText: { color: colors.onBrand, fontSize: 9, fontWeight: "800" },
+  bellDotText: { color: colors.onBrand, fontSize: 11, fontWeight: "800" },
   headerChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -654,7 +654,7 @@ const s = StyleSheet.create({
   },
   bigActionTitle: {
     ...type.h3,
-    fontSize: 16,
+    fontSize: 18,
     color: colors.onBrand,
     letterSpacing: 0.3,
     textTransform: "uppercase",
@@ -697,7 +697,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tileBadgeText: { color: colors.onBrand, fontSize: 10, fontWeight: "800" },
+  tileBadgeText: { color: colors.onBrand, fontSize: 12, fontWeight: "800" },
 
   statStrip: {
     flexDirection: "row",
@@ -752,7 +752,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  listTitle: { ...type.h3, fontSize: 14, color: colors.text },
+  listTitle: { ...type.h3, fontSize: 16, color: colors.text },
   listSubtitle: { ...type.caption, color: colors.muted, marginTop: 2, fontWeight: "500" },
   listMeta: { ...type.caption, color: colors.faint, marginTop: 1, fontWeight: "500" },
   listAction: {
@@ -768,7 +768,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.pill,
   },
-  tagText: { ...type.caption, fontSize: 10.5 },
+  tagText: { ...type.caption, fontSize: 12.5 },
 
   empty: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
   emptyIcon: {
@@ -795,7 +795,7 @@ const s = StyleSheet.create({
     ...elevation.lg,
   },
   tabItem: { flex: 1, alignItems: "center", gap: 3 },
-  tabLabel: { fontSize: 10.5, fontWeight: "600", color: colors.faint },
+  tabLabel: { fontSize: 12.5, fontWeight: "600", color: colors.faint },
   tabBadge: {
     position: "absolute",
     top: -3,
@@ -808,7 +808,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tabBadgeText: { color: colors.onBrand, fontSize: 8.5, fontWeight: "800" },
+  tabBadgeText: { color: colors.onBrand, fontSize: 10.5, fontWeight: "800" },
 
   pressed: { opacity: 0.75, transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.5 },

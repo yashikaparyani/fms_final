@@ -118,7 +118,7 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
                 disabled={saving}
               />
               {field.hint && (
-                <p className="text-[11px] text-gray-500 mt-1">{field.hint}</p>
+                <p className="text-[13px] text-gray-500 mt-1">{field.hint}</p>
               )}
             </div>
           ))}
@@ -149,7 +149,7 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
 
 const StatusPill = ({ active }) => (
   <span
-    className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
+    className={`inline-block px-2 py-0.5 rounded text-[13px] font-semibold ${
       active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
     }`}
   >

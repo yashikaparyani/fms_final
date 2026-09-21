@@ -49,7 +49,7 @@ const EntryEditor = ({ entry, onCancel, onSave, saving }) => {
   return (
     <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">
       <div>
-        <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">
+        <label className="block text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-1">
           When this actually happened
         </label>
         <input
@@ -62,7 +62,7 @@ const EntryEditor = ({ entry, onCancel, onSave, saving }) => {
         />
       </div>
       <div>
-        <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">
+        <label className="block text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-1">
           Note
         </label>
         <input
@@ -212,7 +212,7 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
               {/* Top row: chip + duration */}
               <div className="flex items-center justify-between flex-wrap gap-1.5">
                 <span
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[13px] font-bold"
                   style={{
                     backgroundColor: row.colors.bg,
                     color: row.colors.color,
@@ -222,7 +222,7 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
                   {transportStatusLabel(row.status)}
                   {row.isCurrent && (
                     <span
-                      className="ml-1.5 text-[9px] font-extrabold px-1 py-px rounded-full text-white"
+                      className="ml-1.5 text-[11px] font-extrabold px-1 py-px rounded-full text-white"
                       style={{ backgroundColor: row.colors.color }}
                     >
                       CURRENT
@@ -232,10 +232,10 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
 
                 <div className="flex items-center gap-1.5">
                   {row.duration ? (
-                    <span className="badge-gray text-[11px]">⏱ {row.duration}</span>
+                    <span className="badge-gray text-[13px]">⏱ {row.duration}</span>
                   ) : (
                     <span
-                      className="text-[11px] font-semibold px-2 py-px rounded-full border"
+                      className="text-[13px] font-semibold px-2 py-px rounded-full border"
                       style={{
                         color: row.colors.color,
                         backgroundColor: row.colors.bg,
@@ -256,7 +256,7 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
                         title="Correct the time or note on this entry"
                         className="text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-40"
                       >
-                        <EditOutlinedIcon style={{ fontSize: 15 }} />
+                        <EditOutlinedIcon style={{ fontSize: 17 }} />
                       </button>
                       {/* The latest entry is what the load's current status
                           rests on, so it cannot be removed — set the right
@@ -268,7 +268,7 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
                           title="Delete this entry"
                           className="text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40"
                         >
-                          <DeleteOutlineIcon style={{ fontSize: 15 }} />
+                          <DeleteOutlineIcon style={{ fontSize: 17 }} />
                         </button>
                       )}
                     </>
@@ -277,7 +277,7 @@ const StatusTimeline = ({ history = [], loadId, canEdit = false, onChanged }) =>
               </div>
 
               {/* Timestamp */}
-              <p className="mt-1.5 text-[11px] text-gray-400">
+              <p className="mt-1.5 text-[13px] text-gray-400">
                 Changed at:{" "}
                 <span className="text-gray-600 font-semibold">{fmtFull(row.changedAt)}</span>
                 {row.to && (

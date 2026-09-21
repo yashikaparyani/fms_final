@@ -370,7 +370,7 @@ const Announcements = () => {
                                   .join(", ")
                               : "Everyone"}
                           </span>
-                          <span className="text-[11px] text-ink-400">
+                          <span className="text-[13px] text-ink-400">
                             {formatDateNumeric(item.createdAt)}
                           </span>
                         </div>
@@ -387,7 +387,7 @@ const Announcements = () => {
                           onClick={() => remove(item)}
                           className="btn-secondary-small bg-bad-600 hover:bg-bad-700"
                         >
-                          <DeleteOutlineIcon style={{ fontSize: 14 }} />
+                          <DeleteOutlineIcon style={{ fontSize: 16 }} />
                         </button>
                       </div>
                     </div>

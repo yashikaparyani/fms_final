@@ -344,7 +344,7 @@ const StaffLoadDetails = () => {
                 driverAssignments and are deliberately not listed — the office
                 deals with the account person, not whoever is behind the wheel. */}
             {load?.accountPerson?.name && (
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-[13px] text-gray-500 mt-1">
                 Contact: {load.accountPerson.name}
                 {load.accountPerson.phone ? ` · ${load.accountPerson.phone}` : ""}
               </p>

@@ -60,7 +60,7 @@ const FALLBACK_STYLE = {
 
 const Stamp = ({ label, at }) =>
   at ? (
-    <p className="text-[11px] text-gray-500">
+    <p className="text-[13px] text-gray-500">
       {label} {formatDateTime(at)}
     </p>
   ) : null;
@@ -215,9 +215,9 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
     <Card>
       <SectionHeader label="Paperwork Review" accent={style.accent}>
         <span
-          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${style.pill}`}
+          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[13px] font-bold ${style.pill}`}
         >
-          {locked && <LockOutlinedIcon style={{ fontSize: 12 }} />}
+          {locked && <LockOutlinedIcon style={{ fontSize: 14 }} />}
           {style.label}
         </span>
       </SectionHeader>
@@ -235,17 +235,17 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
 
         {/* ── What is still missing ── */}
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
+          <p className="text-[13px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
             Required documents
           </p>
           {missing.length === 0 ? (
             <p className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700">
-              <CheckCircleOutlineIcon style={{ fontSize: 16 }} />
+              <CheckCircleOutlineIcon style={{ fontSize: 18 }} />
               All required documents are on file.
             </p>
           ) : (
             <p className="inline-flex items-start gap-1.5 text-sm font-medium text-rose-700">
-              <ErrorOutlineIcon style={{ fontSize: 16, marginTop: 1 }} />
+              <ErrorOutlineIcon style={{ fontSize: 18, marginTop: 1 }} />
               <span>Still missing: {missing.join(", ")}</span>
             </p>
           )}
@@ -257,7 +257,7 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
             with. */}
         {paperwork.changesNote && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-3">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-rose-700 mb-1">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-rose-700 mb-1">
               {state === "CHANGES_REQUESTED"
                 ? "Changes requested by the office"
                 : "Previously sent back for"}
@@ -267,7 +267,7 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
             </p>
             <Stamp label="Sent" at={paperwork.changesRequestedAt} />
             {paperwork.changeRequestCount > 1 && (
-              <p className="text-[11px] font-semibold text-rose-700 mt-0.5">
+              <p className="text-[13px] font-semibold text-rose-700 mt-0.5">
                 Sent back {paperwork.changeRequestCount} times.
               </p>
             )}
@@ -291,12 +291,12 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
             only ever shows the latest state is not. */}
         {isStaff && chases.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-gray-400 mb-1">
               Reminders sent
             </p>
             <ul className="space-y-0.5">
               {chases.slice(-3).map((reminder, idx) => (
-                <li key={idx} className="text-[11px] text-gray-500">
+                <li key={idx} className="text-[13px] text-gray-500">
                   {formatDateTime(reminder.sentAt)} —{" "}
                   {reminder.sent
                     ? `${reminder.recipients} contact(s) notified`
@@ -305,7 +305,7 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
               ))}
             </ul>
             {chases.length > 3 && (
-              <p className="text-[11px] text-gray-400 mt-0.5">
+              <p className="text-[13px] text-gray-400 mt-0.5">
                 {chases.length} reminders in total.
               </p>
             )}
@@ -326,7 +326,7 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
               }
               className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <CheckCircleOutlineIcon style={{ fontSize: 15 }} />
+              <CheckCircleOutlineIcon style={{ fontSize: 17 }} />
               {busy === "Approve" ? "Approving…" : "Approve → Invoiceable"}
             </button>
 
@@ -337,7 +337,7 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
               title={inQueue ? undefined : "Move the load to Paperwork Pending first."}
               className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <ErrorOutlineIcon style={{ fontSize: 15 }} />
+              <ErrorOutlineIcon style={{ fontSize: 17 }} />
               {busy === "Request changes" ? "Sending…" : "Request changes"}
             </button>
 
@@ -347,7 +347,7 @@ const PaperworkReviewCard = ({ load, isStaff, refresh }) => {
               disabled={!!busy}
               className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <NotificationsActiveOutlinedIcon style={{ fontSize: 15 }} />
+              <NotificationsActiveOutlinedIcon style={{ fontSize: 17 }} />
               {busy === "Reminder" ? "Sending…" : "Send document reminder"}
             </button>
           </div>

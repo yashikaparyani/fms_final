@@ -312,7 +312,7 @@ const Permissions = () => {
                       title={loc.name}
                     >
                       <div>{loc.code}</div>
-                      <div className="text-[10px] font-normal text-slate-300 normal-case">
+                      <div className="text-[12px] font-normal text-slate-300 normal-case">
                         {loc.name}
                       </div>
                     </th>
@@ -348,13 +348,13 @@ const Permissions = () => {
                         </p>
                         <p className="text-xs text-gray-500">{member.email}</p>
                         {isAdmin && (
-                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
-                            <LockIcon style={{ fontSize: 11 }} /> ADMIN
+                          <span className="inline-flex items-center gap-1 mt-1 text-[12px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
+                            <LockIcon style={{ fontSize: 13 }} /> ADMIN
                           </span>
                         )}
                         {!isAdmin && assigned.length === 0 && (
-                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                            <WarningAmberIcon style={{ fontSize: 11 }} /> NO
+                          <span className="inline-flex items-center gap-1 mt-1 text-[12px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                            <WarningAmberIcon style={{ fontSize: 13 }} /> NO
                             ACCESS
                           </span>
                         )}
@@ -462,7 +462,7 @@ const Permissions = () => {
                       </span>
                     )}
                   </p>
-                  <p className="text-[11px] text-gray-500 truncate">
+                  <p className="text-[13px] text-gray-500 truncate">
                     {member.role === "admin"
                       ? "Administrator — everything"
                       : `${count} permission${count === 1 ? "" : "s"}`}
@@ -530,7 +530,7 @@ const Permissions = () => {
                 <div className="space-y-4">
                   {[...new Set(modules.map((m) => m.group))].map((group) => (
                     <div key={group}>
-                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                      <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
                         {group}
                       </h3>
 
@@ -570,7 +570,7 @@ const Permissions = () => {
                                       <span className="text-sm font-medium text-gray-800">
                                         {module.label}
                                       </span>
-                                      <span className="block text-[11px] text-gray-500">
+                                      <span className="block text-[13px] text-gray-500">
                                         {module.description}
                                       </span>
                                     </span>

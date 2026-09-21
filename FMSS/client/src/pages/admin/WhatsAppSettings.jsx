@@ -184,7 +184,7 @@ const WhatsAppSettings = () => {
               onChange={set("phoneNumberId")}
               placeholder="From the WhatsApp → API Setup page"
             />
-            <p className="text-[11px] text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               Meta&apos;s numeric id for the sending number — not the phone
               number itself.
             </p>
@@ -214,7 +214,7 @@ const WhatsAppSettings = () => {
               onChange={set("accessToken")}
               placeholder={saved?.hasAccessToken ? "Leave blank to keep" : "System user token"}
             />
-            <p className="text-[11px] text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               Never shown again once saved. Use a long-lived system user token,
               not a temporary one.
             </p>
@@ -255,7 +255,7 @@ const WhatsAppSettings = () => {
               value={form.perMinuteLimit}
               onChange={set("perMinuteLimit")}
             />
-            <p className="text-[11px] text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               Meta throttles per number. A burst that trips the quality rating
               costs sending capacity for days.
             </p>

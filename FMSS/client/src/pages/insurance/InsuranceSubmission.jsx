@@ -252,7 +252,7 @@ const InsuranceSubmission = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 pt-5 border-t border-gray-200">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              <p className="text-[13px] font-bold uppercase tracking-wider text-gray-400">
                 Insured
               </p>
               <p className="text-sm font-semibold text-gray-900 mt-1">
@@ -270,7 +270,7 @@ const InsuranceSubmission = () => {
             </div>
 
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              <p className="text-[13px] font-bold uppercase tracking-wider text-gray-400">
                 Certificate holder / additional insured
               </p>
               <p className="text-sm font-semibold text-gray-900 mt-1">{broker.name}</p>
@@ -339,24 +339,24 @@ const InsuranceSubmission = () => {
                       {coverage.label}
                     </span>
                     {coverage.required ? (
-                      <span className="ml-2 text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                      <span className="ml-2 text-[12px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
                         REQUIRED
                       </span>
                     ) : (
-                      <span className="ml-2 text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="ml-2 text-[12px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                         OPTIONAL
                       </span>
                     )}
-                    <span className="block text-[11px] text-gray-500 mt-1 leading-snug">
+                    <span className="block text-[13px] text-gray-500 mt-1 leading-snug">
                       {coverage.description}
                     </span>
-                    <span className="block text-[10px] text-gray-400 mt-0.5 italic">
+                    <span className="block text-[12px] text-gray-400 mt-0.5 italic">
                       {coverage.basis}
                     </span>
                   </span>
                 </label>
 
-                <div className="text-right text-[11px] text-gray-500 shrink-0">
+                <div className="text-right text-[13px] text-gray-500 shrink-0">
                   {coverage.statutory && <p>Statutory limits</p>}
                   {coverage.minLimit && <p>Min limit {money(coverage.minLimit)}</p>}
                   {coverage.minAggregate && (
@@ -483,8 +483,8 @@ const InsuranceSubmission = () => {
                   </div>
 
                   {warning && (
-                    <p className="flex items-start gap-1.5 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-3">
-                      <WarningAmberIcon style={{ fontSize: 14 }} />
+                    <p className="flex items-start gap-1.5 text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-3">
+                      <WarningAmberIcon style={{ fontSize: 16 }} />
                       <span>
                         {warning}. You can still file it — the broker will be shown
                         the shortfall.
@@ -533,7 +533,7 @@ const InsuranceSubmission = () => {
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {certificate.originalName}
                   </p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-[13px] text-gray-500">
                     Attached{" "}
                     {certificate.uploadedAt
                       ? formatDateTime(certificate.uploadedAt)
@@ -595,7 +595,7 @@ const InsuranceSubmission = () => {
           </div>
         </div>
 
-        <p className="text-[11px] text-gray-400 text-center pb-4">
+        <p className="text-[13px] text-gray-400 text-center pb-4">
           This link is specific to one carrier and grants no other access. If you
           were not expecting it, you can safely ignore it.
         </p>
@@ -607,7 +607,7 @@ const InsuranceSubmission = () => {
 // ── Small inputs, local to this page ─────────────────────────────────────────
 const Input = ({ label, value, onChange, type = "text" }) => (
   <div>
-    <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+    <label className="text-[13px] font-semibold text-gray-600 block mb-1">
       {label}
     </label>
     <input
@@ -621,7 +621,7 @@ const Input = ({ label, value, onChange, type = "text" }) => (
 
 const Select = ({ label, value, options, onChange }) => (
   <div>
-    <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+    <label className="text-[13px] font-semibold text-gray-600 block mb-1">
       {label}
     </label>
     <select

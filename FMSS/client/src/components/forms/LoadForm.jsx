@@ -82,7 +82,7 @@ const StepIndicator = ({ step, savedLoadId }) => {
               ) : s.num}
             </div>
             <span className={`hidden md:block text-xs mt-1.5 font-semibold whitespace-nowrap ${step >= s.num ? "text-gray-800" : "text-gray-400"}`}>{s.label}</span>
-            {s.num === 1 && savedLoadId && <span className="text-[10px] text-indigo-500 font-bold mt-0.5">{savedLoadId}</span>}
+            {s.num === 1 && savedLoadId && <span className="text-[12px] text-indigo-500 font-bold mt-0.5">{savedLoadId}</span>}
           </div>
           {i < steps.length - 1 && (
             <div className={`flex-1 h-0.5 mx-2 mb-5 transition-all duration-500 ${step > s.num ? "bg-green-400" : "bg-gray-200"}`} />
@@ -1064,14 +1064,14 @@ const LoadForm = () => {
                       type="button"
                       onClick={() => setShowBreakdown(true)}
                       disabled={loading}
-                      className="absolute right-2 top-2 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-1"
+                      className="absolute right-2 top-2 text-[13px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-1"
                     >
                       {receivableLines.length ? `${receivableLines.length} charges` : "Break down"}
                     </button>
                   )}
                   {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount.message}</p>}
                   {mayBreakDownAmount && receivableLines.length > 0 && (
-                    <p className="text-[11px] text-gray-500 mt-1">
+                    <p className="text-[13px] text-gray-500 mt-1">
                       Built from {receivableLines.length} charge
                       {receivableLines.length === 1 ? "" : "s"} — the receivables
                       ledger is saved with the load.

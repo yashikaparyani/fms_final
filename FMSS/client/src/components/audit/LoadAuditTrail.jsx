@@ -239,7 +239,7 @@ const LoadAuditTrail = ({ loadId }) => {
               />
               <span className="text-gray-700">
                 Share with the customer and carrier
-                <span className="block text-[11px] text-gray-500">
+                <span className="block text-[13px] text-gray-500">
                   Off by default — notes are internal unless you say otherwise.
                 </span>
               </span>
@@ -261,7 +261,7 @@ const LoadAuditTrail = ({ loadId }) => {
           {composer.followUp && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
               <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+                <label className="text-[13px] font-semibold text-gray-600 block mb-1">
                   Due by
                 </label>
                 <input
@@ -275,7 +275,7 @@ const LoadAuditTrail = ({ loadId }) => {
               </div>
               {staff.length > 0 && (
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+                  <label className="text-[13px] font-semibold text-gray-600 block mb-1">
                     Assign to
                   </label>
                   <select
@@ -349,7 +349,7 @@ const LoadAuditTrail = ({ loadId }) => {
                 <span
                   className={`relative z-10 shrink-0 w-8 h-8 rounded-full grid place-items-center ${style.tone}`}
                 >
-                  <Icon style={{ fontSize: 17 }} />
+                  <Icon style={{ fontSize: 19 }} />
                 </span>
 
                 <div className="flex-1 min-w-0 pt-0.5">
@@ -359,21 +359,21 @@ const LoadAuditTrail = ({ loadId }) => {
                     {entry.visibility === "INTERNAL" ? (
                       <span
                         title="Internal — not visible to the customer or carrier"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-bold text-gray-500"
+                        className="inline-flex items-center gap-0.5 text-[12px] font-bold text-gray-500"
                       >
-                        <LockOutlinedIcon style={{ fontSize: 11 }} /> INTERNAL
+                        <LockOutlinedIcon style={{ fontSize: 13 }} /> INTERNAL
                       </span>
                     ) : (
                       <span
                         title="Visible to the customer and carrier"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-bold text-cyan-700"
+                        className="inline-flex items-center gap-0.5 text-[12px] font-bold text-cyan-700"
                       >
-                        <PublicIcon style={{ fontSize: 11 }} /> SHARED
+                        <PublicIcon style={{ fontSize: 13 }} /> SHARED
                       </span>
                     )}
                   </div>
 
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-[13px] text-gray-500">
                     {entry.actorName}
                     {entry.actorRole ? ` · ${entry.actorRole}` : ""} ·{" "}
                     <span title={fullTime(entry.createdAt)}>
@@ -420,7 +420,7 @@ const LoadAuditTrail = ({ loadId }) => {
                     >
                       {entry.followUp.resolvedAt ? (
                         <span className="inline-flex items-center gap-1">
-                          <CheckCircleIcon style={{ fontSize: 14 }} />
+                          <CheckCircleIcon style={{ fontSize: 16 }} />
                           Closed by {entry.followUp.resolvedByName} on{" "}
                           {formatDateNumeric(entry.followUp.resolvedAt)}
                           {entry.followUp.resolutionNote

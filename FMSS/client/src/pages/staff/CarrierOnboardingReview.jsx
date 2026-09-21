@@ -61,7 +61,7 @@ const Section = ({ icon: Icon, title, subtitle, right, children }) => (
 
 const Detail = ({ label, value, missing }) => (
   <div>
-    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+    <p className="text-[12px] font-bold uppercase tracking-wider text-gray-400">
       {label}
     </p>
     <p
@@ -76,7 +76,7 @@ const Detail = ({ label, value, missing }) => (
 
 const Flag = ({ ok, children }) => (
   <span
-    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-semibold ${
       ok
         ? "bg-green-50 border-green-200 text-green-700"
         : "bg-gray-50 border-gray-200 text-gray-500"
@@ -252,7 +252,7 @@ const CarrierOnboardingReview = () => {
             onClick={() => navigate(`${base}/onboarding-review`)}
             className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800 mb-1"
           >
-            <ArrowBackIcon style={{ fontSize: 15 }} /> Review queue
+            <ArrowBackIcon style={{ fontSize: 17 }} /> Review queue
           </button>
           <h1 className="page-title">{file.carrier.carrierName}</h1>
           <p className="page-subtitle">
@@ -306,11 +306,11 @@ const CarrierOnboardingReview = () => {
                 className="flex items-start gap-2 text-sm text-gray-700 border border-amber-200 bg-amber-50/50 rounded-lg px-3 py-2"
               >
                 <WarningAmberIcon
-                  style={{ fontSize: 17 }}
+                  style={{ fontSize: 19 }}
                   className="text-amber-600 shrink-0 mt-0.5"
                 />
                 <span className="flex-1">{item.message}</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 whitespace-nowrap mt-0.5">
+                <span className="text-[12px] font-bold uppercase tracking-wider text-amber-700 whitespace-nowrap mt-0.5">
                   {item.step}
                 </span>
               </li>
@@ -326,7 +326,7 @@ const CarrierOnboardingReview = () => {
       >
         {profileSections.map((section) => (
           <div key={section.section} className="mb-5 last:mb-0">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+            <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
               {section.section}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -376,7 +376,7 @@ const CarrierOnboardingReview = () => {
                   <p className="text-sm font-medium text-gray-900">
                     {agreement.title}
                   </p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
+                  <p className="text-[13px] text-gray-500 mt-0.5">
                     With {agreement.counterparty}
                   </p>
                   {signed ? (
@@ -453,7 +453,7 @@ const CarrierOnboardingReview = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                <tr className="text-left text-[13px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
                   {["Unit", "Type", "Make", "Model", "Year", "VIN", "Plate"].map((h) => (
                     <th key={h} className="py-2 pr-3 font-semibold whitespace-nowrap">
                       {h}
@@ -513,7 +513,7 @@ const CarrierOnboardingReview = () => {
                   <div className="flex-1 min-w-[14rem]">
                     <p className="text-sm font-medium text-gray-900">
                       {driver.name}
-                      <span className="ml-2 text-[11px] font-mono text-gray-400">
+                      <span className="ml-2 text-[13px] font-mono text-gray-400">
                         {driver.driverCode}
                       </span>
                     </p>
@@ -534,7 +534,7 @@ const CarrierOnboardingReview = () => {
                     </p>
                     {driver.medicalCardExpiry && (
                       <p
-                        className={`text-[11px] mt-0.5 ${
+                        className={`text-[13px] mt-0.5 ${
                           medicalExpired ? "text-red-700 font-semibold" : "text-gray-500"
                         }`}
                       >
@@ -545,8 +545,8 @@ const CarrierOnboardingReview = () => {
                   </div>
 
                   {expired && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                      <WarningAmberIcon style={{ fontSize: 13 }} /> Licence expired
+                    <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                      <WarningAmberIcon style={{ fontSize: 15 }} /> Licence expired
                     </span>
                   )}
 
@@ -559,7 +559,7 @@ const CarrierOnboardingReview = () => {
                       {open ? "Hide licence" : "View licence"}
                     </button>
                   ) : (
-                    <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                    <span className="text-[13px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
                       No copy on file
                     </span>
                   )}
@@ -681,7 +681,7 @@ const CarrierOnboardingReview = () => {
                     <p className="text-sm font-medium text-gray-900">
                       {coverage.label}
                       <span
-                        className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        className={`ml-2 text-[12px] font-bold px-1.5 py-0.5 rounded ${
                           coverage.required
                             ? "text-red-700 bg-red-100"
                             : "text-gray-500 bg-gray-100"
@@ -690,7 +690,7 @@ const CarrierOnboardingReview = () => {
                         {coverage.required ? "REQUIRED" : "OPTIONAL"}
                       </span>
                     </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{spec?.basis}</p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">{spec?.basis}</p>
 
                     {policy ? (
                       <>
@@ -727,14 +727,14 @@ const CarrierOnboardingReview = () => {
                         ? ` / ${money(policy.aggregateLimit)} agg.`
                         : ""}
                     </p>
-                    <p className="text-[11px] text-gray-500">
+                    <p className="text-[13px] text-gray-500">
                       Minimum{" "}
                       {coverage.statutory ? "statutory" : money(coverage.minLimit)}
                       {coverage.minAmBest ? ` · AM Best ${coverage.minAmBest}+` : ""}
                     </p>
                     {policy && (
                       <p
-                        className={`text-[11px] mt-0.5 ${
+                        className={`text-[13px] mt-0.5 ${
                           expired ? "text-red-700 font-semibold" : "text-gray-600"
                         }`}
                       >
@@ -762,11 +762,11 @@ const CarrierOnboardingReview = () => {
       >
         {file.reviewNote && (
           <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+            <p className="text-[12px] font-bold uppercase tracking-wider text-gray-400 mb-1">
               Note on file
             </p>
             <p className="text-sm text-gray-700">{file.reviewNote}</p>
-            <p className="text-[11px] text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               {fmtDate(file.reviewedAt)}
               {file.reviewedByName ? ` · ${file.reviewedByName}` : ""}
             </p>

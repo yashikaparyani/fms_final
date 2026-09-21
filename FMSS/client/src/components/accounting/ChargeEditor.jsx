@@ -296,15 +296,15 @@ const ChargeEditor = ({
             {spec?.label || line.chargeType}
           </p>
           {spec?.help && !compact && (
-            <p className="text-[11px] text-gray-500 leading-snug">{spec.help}</p>
+            <p className="text-[13px] text-gray-500 leading-snug">{spec.help}</p>
           )}
           {isSettlement && (
-            <p className="text-[11px] text-blue-700 font-medium">
+            <p className="text-[13px] text-blue-700 font-medium">
               Comes off the balance — not added to the total
             </p>
           )}
           {settled && (
-            <p className="text-[11px] font-medium text-green-700">
+            <p className="text-[13px] font-medium text-green-700">
               Paid — put the payment back to edit this
             </p>
           )}
@@ -406,7 +406,7 @@ const ChargeEditor = ({
           </div>
 
           {line.basis === "PERCENT" && (
-            <p className="mt-0.5 text-right text-[11px] text-gray-500">
+            <p className="mt-0.5 text-right text-[13px] text-gray-500">
               {linehaulBase > 0
                 ? `${money(amountOf(line, linehaulBase))} of ${money(linehaulBase)}`
                 : "Add the base charge first"}
@@ -431,7 +431,7 @@ const ChargeEditor = ({
           title={settled ? "Already paid — put the payment back first" : "Remove"}
           className="p-1 text-gray-400 hover:text-red-600 mt-1"
         >
-          <DeleteOutlineIcon style={{ fontSize: 18 }} />
+          <DeleteOutlineIcon style={{ fontSize: 20 }} />
         </button>
       </div>
     );
@@ -439,7 +439,7 @@ const ChargeEditor = ({
 
   const columnHeadings = !compact && (
     <div
-      className="hidden md:grid gap-2 px-2.5 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400"
+      className="hidden md:grid gap-2 px-2.5 pb-0.5 text-[13px] font-semibold uppercase tracking-wider text-gray-400"
       style={{ gridTemplateColumns: columns }}
     >
       <span>Charge</span>
@@ -523,12 +523,12 @@ const ChargeEditor = ({
                     {payee.kind === "driver" ? (
                       <BadgeOutlinedIcon
                         className="text-amber-600"
-                        style={{ fontSize: 16 }}
+                        style={{ fontSize: 18 }}
                       />
                     ) : payee.kind === "carrier" ? (
                       <LocalShippingOutlinedIcon
                         className="text-slate-600"
-                        style={{ fontSize: 16 }}
+                        style={{ fontSize: 18 }}
                       />
                     ) : null}
 
@@ -536,7 +536,7 @@ const ChargeEditor = ({
                       <p className="text-sm font-bold text-gray-900 truncate">
                         {payee.name}
                         {payee.code && (
-                          <span className="ml-1.5 text-[11px] font-mono font-normal text-gray-400">
+                          <span className="ml-1.5 text-[13px] font-mono font-normal text-gray-400">
                             {payee.code}
                           </span>
                         )}
@@ -546,13 +546,13 @@ const ChargeEditor = ({
                           between two carriers it is the only thing that tells
                           two identical rows of money apart. */}
                       {(payee.from || payee.to) && (
-                        <p className="text-[11px] font-medium text-gray-600 truncate">
+                        <p className="text-[13px] font-medium text-gray-600 truncate">
                           {payee.from || "—"}
                           <span className="mx-1 text-gray-400">→</span>
                           {payee.to || "—"}
                         </p>
                       )}
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-[13px] text-gray-500">
                         {payee.kind === "driver"
                           ? "Driver"
                           : payee.kind === "carrier"
@@ -570,7 +570,7 @@ const ChargeEditor = ({
                     </p>
                     {payee.agreed != null && (
                       <p
-                        className={`text-[11px] ${
+                        className={`text-[13px] ${
                           subtotal.total !== payee.agreed
                             ? "font-medium text-amber-700"
                             : "text-gray-500"

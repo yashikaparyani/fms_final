@@ -214,7 +214,7 @@ const WhatsAppPanel = () => {
           </div>
 
           <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 mb-1">
+            <p className="text-[13px] font-semibold uppercase tracking-wider text-green-700 mb-1">
               Preview
             </p>
             <p className="text-sm text-gray-800 whitespace-pre-wrap">{preview}</p>
@@ -283,7 +283,7 @@ const WhatsAppPanel = () => {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-gray-800 truncate">{p.name}</p>
-                    <p className="text-[11px] text-gray-500">
+                    <p className="text-[13px] text-gray-500">
                       {p.phone}
                       {p.code ? ` · ${p.code}` : ""}
                       {p.optedOut ? " · opted out" : ""}
@@ -323,7 +323,7 @@ const WhatsAppPanel = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-200">
+                <tr className="text-left text-[13px] uppercase tracking-wider text-gray-400 border-b border-gray-200">
                   <th className="py-2 pr-3">To</th>
                   <th className="py-2 pr-3">Message</th>
                   <th className="py-2 pr-3">Load</th>
@@ -336,25 +336,25 @@ const WhatsAppPanel = () => {
                   <tr key={m._id}>
                     <td className="py-2 pr-3">
                       <div className="text-gray-800">{m.recipientName || "—"}</div>
-                      <div className="text-[11px] text-gray-500">{m.to || "no number"}</div>
+                      <div className="text-[13px] text-gray-500">{m.to || "no number"}</div>
                     </td>
                     <td className="py-2 pr-3 max-w-md">
                       <span className="text-gray-700 line-clamp-2">{m.preview}</span>
                       {m.lastError && (
-                        <span className="block text-[11px] text-red-600">{m.lastError}</span>
+                        <span className="block text-[13px] text-red-600">{m.lastError}</span>
                       )}
                     </td>
                     <td className="py-2 pr-3 text-gray-600">{m.loadId || "—"}</td>
                     <td className="py-2 pr-3">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${
+                        className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium ${
                           STATUS_TONE[m.status] || "bg-gray-100 text-gray-700"
                         }`}
                       >
                         {m.status}
                       </span>
                     </td>
-                    <td className="py-2 text-[11px] text-gray-500 whitespace-nowrap">
+                    <td className="py-2 text-[13px] text-gray-500 whitespace-nowrap">
                       {formatDateTime(m.createdAt)}
                     </td>
                   </tr>

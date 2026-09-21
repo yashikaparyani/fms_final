@@ -415,7 +415,7 @@ const InvoiceDetail = () => {
           </div>
 
           <div className="py-5">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-400">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-ink-400">
               {invoice.direction === "AR" ? "Bill to" : "Pay to"}
             </p>
             <p className="mt-1 text-base font-bold text-ink-800">
@@ -431,7 +431,7 @@ const InvoiceDetail = () => {
 
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-y border-hairline bg-ink-50 text-left text-[11px] uppercase tracking-wide text-ink-500">
+              <tr className="border-y border-hairline bg-ink-50 text-left text-[13px] uppercase tracking-wide text-ink-500">
                 <th className="px-2 py-2 font-semibold">Description</th>
                 <th className="px-2 py-2 text-right font-semibold">Qty</th>
                 <th className="px-2 py-2 text-right font-semibold">Rate</th>
@@ -489,7 +489,7 @@ const InvoiceDetail = () => {
             )}
 
             <div className="mt-2 flex items-center justify-between rounded-lg bg-accent-600 px-4 py-3 text-white">
-              <span className="text-[11px] font-bold uppercase tracking-wide">
+              <span className="text-[13px] font-bold uppercase tracking-wide">
                 {invoice.direction === "AR" ? "Amount due" : "Amount payable"}
               </span>
               <span className="text-xl font-extrabold tabular-nums">
@@ -612,7 +612,7 @@ const InvoiceDetail = () => {
                       {payment.bankName ? ` · ${payment.bankName}` : ""}
                     </p>
                   )}
-                  <p className="mt-0.5 text-[11px] text-ink-400">
+                  <p className="mt-0.5 text-[13px] text-ink-400">
                     {payment.paymentNumber}
                     {payment.recordedByName ? ` · ${payment.recordedByName}` : ""}
                   </p>

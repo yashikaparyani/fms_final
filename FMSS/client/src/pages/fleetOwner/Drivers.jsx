@@ -323,7 +323,7 @@ const Drivers = () => {
           <p className="font-medium text-sm">{row.name}</p>
           {row.email && <p className="text-xs text-indigo-600">{row.email}</p>}
           {isOffice && row.carrierName && (
-            <p className="text-[11px] text-gray-500">{row.carrierName}</p>
+            <p className="text-[13px] text-gray-500">{row.carrierName}</p>
           )}
         </div>
       ),
@@ -354,22 +354,22 @@ const Drivers = () => {
       width: "120px",
       render: (row) =>
         !row.hasLogin ? (
-          <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          <span className="text-[12px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
             No login
           </span>
         ) : (
           <div>
             <span
-              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              className={`inline-flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-full ${
                 row.loginActive
                   ? "bg-green-100 text-green-700"
                   : "bg-gray-200 text-gray-600"
               }`}
             >
-              <PhoneIphoneIcon style={{ fontSize: 11 }} />
+              <PhoneIphoneIcon style={{ fontSize: 13 }} />
               {row.loginActive ? "Active" : "Disabled"}
             </span>
-            <p className="text-[10px] text-gray-400 mt-1">
+            <p className="text-[12px] text-gray-400 mt-1">
               {row.lastLogin
                 ? `Seen ${LoadTable.fmtDate(row.lastLogin)}`
                 : "Never signed in"}
@@ -383,7 +383,7 @@ const Drivers = () => {
       width: "90px",
       render: (row) => (
         <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${
             row.active ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
           }`}
         >
@@ -478,7 +478,7 @@ const Drivers = () => {
           <label className="text-xs font-semibold text-gray-600 block mb-1">
             Drivers to add
           </label>
-          <p className="text-[11px] text-gray-500 mb-2">
+          <p className="text-[13px] text-gray-500 mb-2">
             Only the name is required. Leave the email blank for a driver who does
             not need the app — you can give them a login later.
           </p>
@@ -588,19 +588,19 @@ const Drivers = () => {
             ]}
             actions={[
               {
-                icon: <EditIcon style={{ fontSize: 18 }} />,
+                icon: <EditIcon style={{ fontSize: 20 }} />,
                 color: "#0891b2",
                 onClick: () => editDriver(driver),
                 disabled: busyId === driver._id,
               },
               {
-                icon: <KeyIcon style={{ fontSize: 18 }} />,
+                icon: <KeyIcon style={{ fontSize: 20 }} />,
                 color: "#2563eb",
                 onClick: () => issueLogin(driver),
                 disabled: busyId === driver._id,
               },
               {
-                icon: <DeleteIcon style={{ fontSize: 18 }} />,
+                icon: <DeleteIcon style={{ fontSize: 20 }} />,
                 color: "#dc2626",
                 onClick: () => deactivate(driver),
                 disabled: busyId === driver._id,

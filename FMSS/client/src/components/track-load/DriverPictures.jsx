@@ -38,7 +38,7 @@ const DriverPictures = ({ load }) => {
   return (
     <div className="mt-6">
       <div className="flex items-center gap-2 mb-3">
-        <PhotoLibraryIcon style={{ fontSize: 18, color: "#4f46e5" }} />
+        <PhotoLibraryIcon style={{ fontSize: 20, color: "#4f46e5" }} />
         <h3 className="text-sm font-bold text-gray-800">Pictures</h3>
         <span className="text-xs font-semibold text-gray-400">
           ({pictures.length})
@@ -74,11 +74,11 @@ const DriverPictures = ({ load }) => {
                 />
               </div>
               <div className="px-2.5 py-2">
-                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                <span className="inline-block px-1.5 py-0.5 rounded text-[12px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
                   {pic.tag}
                 </span>
                 {fmtDateTime(pic.uploadedAt) && (
-                  <p className="text-[10px] text-gray-400 mt-1 truncate">
+                  <p className="text-[12px] text-gray-400 mt-1 truncate">
                     {fmtDateTime(pic.uploadedAt)}
                   </p>
                 )}

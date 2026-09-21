@@ -299,7 +299,7 @@ const FleetOwnerForm = ({
                     <span className="text-sm font-semibold text-gray-600">
                       Contact #{index + 1}
                       {contact.isPrimary && (
-                        <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                        <span className="ml-2 text-[12px] font-bold uppercase tracking-wide text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
                           Primary
                         </span>
                       )}

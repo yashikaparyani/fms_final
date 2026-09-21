@@ -256,25 +256,25 @@ const StaffCustomers = () => {
                 ]}
                 actions={[
                   {
-                    icon: <EmailIcon style={{ fontSize: 18 }} />,
+                    icon: <EmailIcon style={{ fontSize: 20 }} />,
                     color: "#2563eb",
                     onClick: () => handleSendCredentials(customer._id),
                     disabled: sendingCredentials === customer._id,
                   },
                   {
-                    icon: <WhatsAppIcon style={{ fontSize: 18 }} />,
+                    icon: <WhatsAppIcon style={{ fontSize: 20 }} />,
                     color: "#16a34a",
                     onClick: () => handleShareWhatsApp(customer._id),
                     disabled: sendingCredentials === customer._id,
                   },
                   {
-                    icon: <EditIcon style={{ fontSize: 18 }} />,
+                    icon: <EditIcon style={{ fontSize: 20 }} />,
                     color: "#0891b2",
                     onClick: () =>
                       navigate(`/staff/customers/${customer._id}/edit`),
                   },
                   {
-                    icon: <DeleteIcon style={{ fontSize: 18 }} />,
+                    icon: <DeleteIcon style={{ fontSize: 20 }} />,
                     color: "#dc2626",
                     onClick: () => handleDelete(customer._id),
                   },

@@ -92,7 +92,7 @@ const SignatureBlock = ({ signature }) => (
       ) : null}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 mt-3">
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+          <dt className="text-[12px] font-bold uppercase tracking-wide text-ink-400">
             Signed by
           </dt>
           <dd className="text-sm font-semibold text-ink-800 break-words">
@@ -101,14 +101,14 @@ const SignatureBlock = ({ signature }) => (
           </dd>
         </div>
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+          <dt className="text-[12px] font-bold uppercase tracking-wide text-ink-400">
             Signed at
           </dt>
           <dd className="text-sm font-semibold text-ink-800">{fmt(signature.signedAt)}</dd>
         </div>
         {signature.company ? (
           <div>
-            <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+            <dt className="text-[12px] font-bold uppercase tracking-wide text-ink-400">
               Company
             </dt>
             <dd className="text-sm font-semibold text-ink-800 break-words">
@@ -118,7 +118,7 @@ const SignatureBlock = ({ signature }) => (
         ) : null}
         {signature.signedIp ? (
           <div>
-            <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+            <dt className="text-[12px] font-bold uppercase tracking-wide text-ink-400">
               Recorded from IP
             </dt>
             <dd className="text-sm font-semibold text-ink-800">{signature.signedIp}</dd>
@@ -126,7 +126,7 @@ const SignatureBlock = ({ signature }) => (
         ) : null}
         {signature.note ? (
           <div className="col-span-2">
-            <dt className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+            <dt className="text-[12px] font-bold uppercase tracking-wide text-ink-400">
               Partner note
             </dt>
             <dd className="text-sm font-semibold text-ink-800 break-words">

@@ -91,7 +91,7 @@ const LocationSwitcher = () => {
                 }`}
               >
                 <div className="text-sm font-medium text-gray-800">{branch.name}</div>
-                <div className="text-[11px] font-mono text-gray-500">
+                <div className="text-[13px] font-mono text-gray-500">
                   {branch.code}
                   {branch.city ? ` · ${branch.city}` : ""}
                 </div>
@@ -105,7 +105,7 @@ const LocationSwitcher = () => {
               }`}
             >
               <div className="text-sm font-medium text-gray-800">All locations</div>
-              <div className="text-[11px] text-gray-500">
+              <div className="text-[13px] text-gray-500">
                 Combined view — read-only reporting
               </div>
             </button>

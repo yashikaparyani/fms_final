@@ -44,7 +44,7 @@ const Tile = ({ label, value, tone = "text-ink-800", hint }) => (
 /** Itemised accessorials on one side of a load. */
 const ChargeList = ({ title, baseRate, charges, extra }) => (
   <div>
-    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">
+    <p className="mb-1.5 text-[13px] font-bold uppercase tracking-wide text-ink-400">
       {title}
     </p>
     <div className="space-y-1 text-sm">
@@ -275,7 +275,7 @@ const LoadLedgerReport = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-hairline text-left text-[11px] uppercase tracking-wide text-ink-500">
+              <tr className="border-b border-hairline text-left text-[13px] uppercase tracking-wide text-ink-500">
                 <th className="w-8 pb-2" />
                 <th className="pb-2 pr-3 font-semibold">Load</th>
                 <th className="pb-2 pr-3 text-right font-semibold">Receivable</th>
@@ -328,7 +328,7 @@ const LoadLedgerReport = () => {
                         {money(row.receivable.total)}
                       </p>
                       {row.receivable.uninvoiced > 0 && (
-                        <p className="text-[11px] font-semibold text-bad-600">
+                        <p className="text-[13px] font-semibold text-bad-600">
                           {money(row.receivable.uninvoiced)} unbilled
                         </p>
                       )}
@@ -353,7 +353,7 @@ const LoadLedgerReport = () => {
                       >
                         {money(row.margin)}
                       </p>
-                      <p className="text-[11px] text-ink-400">{row.marginPercent}%</p>
+                      <p className="text-[13px] text-ink-400">{row.marginPercent}%</p>
                     </td>
                   </tr>,
 

@@ -78,7 +78,7 @@ const LoadColorModeToggle = ({ mode, setMode, rows = [], className = "" }) => {
           Key
           <ExpandMoreIcon
             style={{
-              fontSize: 16,
+              fontSize: 18,
               transform: showLegend ? "rotate(180deg)" : "none",
               transition: "transform 150ms",
             }}
@@ -94,7 +94,7 @@ const LoadColorModeToggle = ({ mode, setMode, rows = [], className = "" }) => {
                 className="h-3 w-3 rounded-sm border"
                 style={{ background: entry.bg, borderColor: entry.border }}
               />
-              <span className="text-[11px] font-semibold text-ink-600">
+              <span className="text-[13px] font-semibold text-ink-600">
                 {entry.label}
               </span>
             </span>

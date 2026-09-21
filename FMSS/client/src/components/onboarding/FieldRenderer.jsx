@@ -59,9 +59,9 @@ const FieldRenderer = ({ field, value, onChange, error, disabled }) => {
       )}
 
       {field.help && !error && (
-        <p className="text-[11px] text-gray-500 mt-1 leading-snug">{field.help}</p>
+        <p className="text-[13px] text-gray-500 mt-1 leading-snug">{field.help}</p>
       )}
-      {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
+      {error && <p className="text-[13px] text-red-600 mt-1">{error}</p>}
     </div>
   );
 };

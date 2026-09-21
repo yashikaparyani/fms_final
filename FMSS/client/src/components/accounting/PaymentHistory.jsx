@@ -181,7 +181,7 @@ const PaymentHistory = ({ partyId, refreshKey }) => {
                       : ""}
                   </p>
                   {payment.reversed && (
-                    <p className="text-[11px] font-semibold text-bad-600">
+                    <p className="text-[13px] font-semibold text-bad-600">
                       Reversed — this money did not stay
                     </p>
                   )}
