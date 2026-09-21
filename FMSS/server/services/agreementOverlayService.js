@@ -72,7 +72,9 @@ const buildContext = ({ profile, signed }) => {
     businessCityStateZip: joinParts(profile.city, profile.state, profile.zip),
     businessAddress: joinParts(profile.street, profile.suite, profile.city, profile.state, profile.zip),
 
-    mcDot: str(profile.mcNumber) || str(profile.dotNumber),
+    // The form already prints "DOT/MC #", so only the number goes in the blank —
+    // "MC 123456" would not fit it at body size.
+    mcDot: (str(profile.mcNumber) || str(profile.dotNumber)).replace(/^(MC|DOT)\s*#?\s*/i, ""),
 
     noticeName: str(notice.name || profile.legalName),
     noticeStreet: str(notice.street || profile.street),
@@ -96,6 +98,8 @@ const buildContext = ({ profile, signed }) => {
     signerTitle: str(signed.signedTitle) || str(profile.signerTitle),
 
     signedMonth: when.toLocaleDateString("en-US", { month: "long", timeZone: BUSINESS_TIME_ZONE }),
+    // For the blanks too narrow to take "September" at body size.
+    signedMonthShort: when.toLocaleDateString("en-US", { month: "short", timeZone: BUSINESS_TIME_ZONE }),
     signedDay: String(wall.day),
     signedDayNum: String(wall.day),
     signedMonthNum: String(wall.month),
@@ -163,8 +167,10 @@ const buildFilledAgreement = async ({
     );
   }
 
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const script = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  // Times, to match the documents' own Times body text, at their body size.
+  const font = await pdf.embedFont(StandardFonts.TimesRoman);
+  const script = await pdf.embedFont(StandardFonts.TimesRomanItalic);
+  const bodySize = overlay.bodySize || SIZE;
   const ink = rgb(0.06, 0.09, 0.16);
 
   const context = buildContext({ profile, signed });
@@ -178,7 +184,7 @@ const buildFilledAgreement = async ({
 
     // A signature reads as a signature, not as another typed field.
     const face = placement.signature ? script : font;
-    const size = fitSize(face, text, placement.size || SIZE, placement.max);
+    const size = fitSize(face, text, placement.size || bodySize, placement.max);
 
     page.drawText(text, {
       x: placement.x,
@@ -209,7 +215,7 @@ const buildFilledAgreement = async ({
         page.drawText(text, {
           x: col.x,
           y,
-          size: fitSize(font, text, table.size, col.max),
+          size: fitSize(font, text, bodySize, col.max),
           font,
           color: ink,
         });
@@ -225,7 +231,7 @@ const buildFilledAgreement = async ({
         {
           x: table.columns.description.x,
           y: table.firstRowY - shown.length * table.rowHeight,
-          size: table.size - 1,
+          size: bodySize - 1,
           font: script,
           color: ink,
         },

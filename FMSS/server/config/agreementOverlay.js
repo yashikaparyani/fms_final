@@ -22,6 +22,9 @@
 // How far above the underscore rule the value sits.
 const LIFT = 3;
 
+// Fallback only. Each document sets `bodySize` to the size its own body text is
+// set in, measured from the pinned PDF, so a filled value reads as part of the
+// page rather than as a note written on it.
 const SIZE = 10;
 
 /**
@@ -35,6 +38,8 @@ const SIZE = 10;
 const BROKER = {
   file: "broker.pdf",
   pages: 15,
+  // Body text is Times New Roman at 11pt (11.04 in the content stream).
+  bodySize: 11,
   anchor: { page: 1, text: "TRANSPORTATION BROKERAGE AGREEMENT" },
 
   // "Initials Carrier Representative: ___________________" — x72-... on every
@@ -44,7 +49,7 @@ const BROKER = {
   fields: [
     // ── Page 1 — the parties ────────────────────────────────────────────────
     // Line ends "...is made as of" at x447; the blank "______Mo____," is x460-540.
-    { page: 1, x: 462, y: 604 + LIFT, value: "signedMonth", max: 34, size: 8 },
+    { page: 1, x: 462, y: 604 + LIFT, value: "signedMonthShort", max: 34 },
     // "Day____, 20______, between..." — one item x72-540, ~5.92pt per character.
     { page: 1, x: 92, y: 590 + LIFT, value: "signedDay", max: 21 },
     { page: 1, x: 140, y: 590 + LIFT, value: "signedYear2", max: 31 },
@@ -53,7 +58,7 @@ const BROKER = {
     // The full-width street/city/state/zip rule, x72-462.
     { page: 1, x: 74, y: 521 + LIFT, value: "businessAddress", max: 385 },
     // "...pursuant to DOT/MC # _______" — blank starts x321.
-    { page: 1, x: 322, y: 340 + LIFT, value: "mcDot", max: 36, size: 8 },
+    { page: 1, x: 322, y: 340 + LIFT, value: "mcDot", max: 36 },
 
     // ── Page 12 — address for notices (¶44) ─────────────────────────────────
     // Labels sit at x108; every rule is x216-438.
@@ -79,15 +84,17 @@ const BROKER = {
     { page: 15, x: 362, y: 201 + LIFT, value: "signerName", max: 170 },
     { page: 15, x: 392, y: 174 + LIFT, value: "signerTitle", max: 140 },
     // "Date: _____/____/20__" — rule x360-445, split at the printed slashes.
-    { page: 15, x: 363, y: 146 + LIFT, value: "signedMonthNum", max: 22, size: 9 },
-    { page: 15, x: 397, y: 146 + LIFT, value: "signedDayNum", max: 18, size: 9 },
-    { page: 15, x: 435, y: 146 + LIFT, value: "signedYear2", max: 11, size: 9 },
+    { page: 15, x: 363, y: 146 + LIFT, value: "signedMonthNum", max: 22 },
+    { page: 15, x: 397, y: 146 + LIFT, value: "signedDayNum", max: 18 },
+    { page: 15, x: 435, y: 146 + LIFT, value: "signedYear2", max: 11 },
   ],
 };
 
 const CONTRACTOR = {
   file: "contractor.pdf",
   pages: 15,
+  // Body text is Times-Roman at 10.75pt.
+  bodySize: 10.75,
   anchor: { page: 9, text: "OAKLAND" },
 
   // "Initials CONTRACTOR_____________" — label runs to about x165.
@@ -104,8 +111,8 @@ const CONTRACTOR = {
     { page: 1, x: 82, y: 563 + LIFT, value: "signedYear2", max: 30 },
     // "at _______:__________" — the hour and minutes straddle the printed colon
     // at x179, so they are placed as two values rather than one.
-    { page: 1, x: 148, y: 563 + LIFT, value: "signedHour", max: 28, size: 8 },
-    { page: 1, x: 186, y: 563 + LIFT, value: "signedMinute", max: 44, size: 8 },
+    { page: 1, x: 148, y: 563 + LIFT, value: "signedHour", max: 28 },
+    { page: 1, x: 186, y: 563 + LIFT, value: "signedMinute", max: 44 },
     { page: 1, x: 359, y: 563 + LIFT, value: "legalName", max: 140 },
     // "...located at ____" — blank starts x325.
     { page: 1, x: 325, y: 550 + LIFT, value: "businessStreet", max: 180 },
@@ -128,10 +135,10 @@ const CONTRACTOR = {
 
     // ── Page 13 — execution ─────────────────────────────────────────────────
     // "...this __day of________" — the day blank is barely nine points wide.
-    { page: 13, x: 418, y: 464 + LIFT, value: "signedDayNum", max: 9, size: 7 },
-    { page: 13, x: 457, y: 464 + LIFT, value: "signedMonth", max: 36, size: 7 },
+    { page: 13, x: 415, y: 464 + LIFT, value: "signedDayNum", max: 12 },
+    { page: 13, x: 457, y: 464 + LIFT, value: "signedMonthShort", max: 36 },
     // ", 20__, at" x105-145.
-    { page: 13, x: 122, y: 450 + LIFT, value: "signedYear2", max: 8, size: 7 },
+    { page: 13, x: 121, y: 450 + LIFT, value: "signedYear2", max: 12 },
     // "Contractor's signature____…" x70-293; blank starts after the label.
     { page: 13, x: 178, y: 278 + LIFT, value: "signature", max: 113, signature: true },
 
@@ -150,7 +157,6 @@ const CONTRACTOR = {
     firstRowY: 523,
     rowHeight: 12,
     maxRows: 2,
-    size: 9,
     columns: {
       description: { x: 72, max: 290 },
       vin: { x: 372, max: 160 },
