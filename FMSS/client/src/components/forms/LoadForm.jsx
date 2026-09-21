@@ -894,7 +894,7 @@ const LoadForm = () => {
                       control={control}
                       render={({ field }) => (
                         <AppSelect
-                          options={customers.map((c) => ({ value: c._id, label: `${c.customerName} (${c.email})` }))}
+                          options={customers.map((c) => ({ value: c._id, label: c.customerName }))}
                           value={field.value}
                           onChange={(val) => {
                             field.onChange(val);
