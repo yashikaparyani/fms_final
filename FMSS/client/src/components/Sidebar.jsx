@@ -64,7 +64,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         >
           {isMenuOpen ? (
             <>
-              <span className="flex items-center gap-2 text-xl font-extrabold tracking-wide text-white">
+              {/* Sized to fit the rail: at text-xl with wide tracking the
+                  wordmark ran past the edge and "TRANSPORT" was clipped. */}
+              <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-lg font-extrabold text-white">
                 <span
                   className="grid h-8 w-8 place-items-center rounded-lg text-[15px]"
                   style={{ background: "var(--role-accent)" }}
@@ -74,7 +76,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 S&nbsp;LINE
                 <span className="text-accent-500">TRANSPORT</span>
               </span>
-              <ChevronLeftIcon className="text-brand-100/70" />
+              <ChevronLeftIcon className="shrink-0 text-brand-100/70" />
             </>
           ) : (
             <MenuIcon className="text-brand-100/70" />
