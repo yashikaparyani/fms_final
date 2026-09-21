@@ -23,6 +23,9 @@ import {
   dropDateOf,
   isLfdAlarming,
   pickupDateOf,
+  pickupWindowOf,
+  dropWindowOf,
+  withWindow,
   sortByDeliveryDate,
 } from "../../utils/loadUrgency";
 
@@ -113,13 +116,13 @@ const VerifiedLoadsTable = () => {
       key: "pickupDate",
       header: "Pickup Date",
       width: "110px",
-      render: (row) => <DateCell value={pickupDateOf(row)} showExpiry />,
+      render: (row) => <DateCell value={pickupDateOf(row)} time={pickupWindowOf(row)} showExpiry />,
     },
     {
       key: "destDate",
       header: "Dest. Date",
       width: "110px",
-      render: (row) => <DateCell value={dropDateOf(row)} />,
+      render: (row) => <DateCell value={dropDateOf(row)} time={dropWindowOf(row)} />,
     },
     {
       key: "lfd",
@@ -221,8 +224,8 @@ const VerifiedLoadsTable = () => {
                 fields={[
                   { label: "Load Type", value: row.truckType },
                   { label: "Container #", value: row.containerNo },
-                  { label: "Pickup Date", value: fmtDate(pickupDateOf(row)) },
-                  { label: "Dest. Date", value: fmtDate(dropDateOf(row)) },
+                  { label: "Pickup Date", value: withWindow(fmtDate(pickupDateOf(row)), pickupWindowOf(row)) },
+                  { label: "Dest. Date", value: withWindow(fmtDate(dropDateOf(row)), dropWindowOf(row)) },
                   {
                     label: "LFD",
                     value: row.lastFreeDate

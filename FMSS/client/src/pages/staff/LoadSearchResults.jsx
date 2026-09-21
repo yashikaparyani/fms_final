@@ -2,7 +2,13 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
-import { dropDateOf, pickupDateOf } from "../../utils/loadUrgency";
+import {
+  dropDateOf,
+  dropWindowOf,
+  pickupDateOf,
+  pickupWindowOf,
+  withWindow,
+} from "../../utils/loadUrgency";
 import { formatDate } from "../../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell } = LoadTable;
@@ -80,9 +86,9 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
     { key: "tab",         header: "Found In",     width: "10%", render: (row) => <TabBadge row={row} /> },
     { key: "customer",    header: "Customer",     width: "12%", render: (row) => <CustomerCell load={row} /> },
     { key: "origin",      header: "Origin",       width: "15%", render: (row) => <AddressCell data={row.pickup} /> },
-    { key: "pickupDate",  header: "Pickup Date",  width: "9%",  render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
+    { key: "pickupDate",  header: "Pickup Date",  width: "9%",  render: (row) => <DateCell value={pickupDateOf(row)} time={pickupWindowOf(row)} showExpiry /> },
     { key: "destination", header: "Destination",  width: "15%", render: (row) => <AddressCell data={row.drop} /> },
-    { key: "deliveryDate",header: "Delivery Date",width: "9%",  render: (row) => <DateCell value={dropDateOf(row)} /> },
+    { key: "deliveryDate",header: "Delivery Date",width: "9%",  render: (row) => <DateCell value={dropDateOf(row)} time={dropWindowOf(row)} /> },
     { key: "truckType",   header: "Load Type",   width: "8%",  render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
     { key: "refNo",       header: "Ref No",       width: "7%",  render: (row) => <span className="text-xs text-gray-700">{row.refNo || "—"}</span> },
     { key: "lastFreeDate",header: "Last Free Date",width: "9%", render: (row) => <DateCell value={row.lastFreeDate} showExpiry /> },
@@ -141,8 +147,8 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
                 { label: "Destination", data: row.drop },
               ]}
               fields={[
-                { label: "Pickup Date",   value: fmtDate(pickupDateOf(row)) },
-                { label: "Delivery Date", value: fmtDate(dropDateOf(row)) },
+                { label: "Pickup Date",   value: withWindow(fmtDate(pickupDateOf(row)), pickupWindowOf(row)) },
+                { label: "Delivery Date", value: withWindow(fmtDate(dropDateOf(row)), dropWindowOf(row)) },
                 { label: "Load Type",    value: row.truckType },
                 { label: "Ref No",        value: row.refNo },
                 { label: "Container #",   value: row.containerNo },

@@ -19,6 +19,9 @@ import {
   dropDateOf,
   isLfdAlarming,
   pickupDateOf,
+  pickupWindowOf,
+  dropWindowOf,
+  withWindow,
   sortByDeliveryDate,
 } from "../../utils/loadUrgency";
 import { formatDate } from "../../utils/dates";
@@ -147,10 +150,10 @@ const columns = [
   { key: "load",         header: "Load",          width: "9%",  render: (row) => <LoadIdCell load={row} /> },
   { key: "customer",     header: "Customer",      width: "10%", render: (row) => <CustomerCell load={row} /> },
   { key: "origin",       header: "Origin",        width: "14%", render: (row) => <AddressCell data={row.pickup} /> },
-  { key: "pickupDate",   header: "Pickup Date",   width: "8%",  render: (row) => <DateCell value={pickupDateOf(row)} showExpiry /> },
+  { key: "pickupDate",   header: "Pickup Date",   width: "8%",  render: (row) => <DateCell value={pickupDateOf(row)} time={pickupWindowOf(row)} showExpiry /> },
   { key: "pickupNo",     header: "Pickup #",      width: "7%",  render: (row) => <span className="text-xs font-medium text-gray-700">{row.pickupNo || "—"}</span> },
   { key: "destination",  header: "Destination",   width: "14%", render: (row) => <AddressCell data={row.drop} /> },
-  { key: "deliveryDate", header: "Delivery Date", width: "8%",  render: (row) => <DateCell value={dropDateOf(row)} /> },
+  { key: "deliveryDate", header: "Delivery Date", width: "8%",  render: (row) => <DateCell value={dropDateOf(row)} time={dropWindowOf(row)} /> },
   { key: "truckType",    header: "Load Type",    width: "7%",  render: (row) => <span className="text-xs text-gray-700">{row.truckType || "—"}</span> },
   { key: "refNo",        header: "Ref No",        width: "6%",  render: (row) => <span className="text-xs text-gray-700">{row.refNo || "—"}</span> },
   { key: "lastFreeDate", header: "Last Free Date",width: "8%",  render: (row) => <LfdCell row={row} /> },
@@ -209,8 +212,8 @@ const columns = [
                 { label: "Destination", data: row.drop },
               ]}
               fields={[
-                { label: "Pickup Date",   value: fmtDate(pickupDateOf(row)) },
-                { label: "Delivery Date", value: fmtDate(dropDateOf(row)) },
+                { label: "Pickup Date",   value: withWindow(fmtDate(pickupDateOf(row)), pickupWindowOf(row)) },
+                { label: "Delivery Date", value: withWindow(fmtDate(dropDateOf(row)), dropWindowOf(row)) },
                 { label: "Pickup #",      value: row.pickupNo },
                 { label: "Load Type",    value: row.truckType },
                 { label: "Ref No",        value: row.refNo },

@@ -69,9 +69,18 @@ const dropStopOf = (row) =>
  * Returns "" rather than null when there is nothing, so a caller can test it as
  * a string and render nothing at all for the many loads with no window set.
  */
+// "14:30" → "2:30 PM", the US way of reading a clock. Anything that is not a
+// plain HH:MM ("8am", "0800-1400") is shown exactly as typed, for the reason above.
+const usClock = (value) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match || Number(match[1]) > 23) return value;
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour < 12 ? "AM" : "PM"}`;
+};
+
 const windowOf = (stop) => {
-  const from = String(stop?.fromTime ?? "").trim();
-  const to = String(stop?.toTime ?? "").trim();
+  const from = usClock(String(stop?.fromTime ?? "").trim());
+  const to = usClock(String(stop?.toTime ?? "").trim());
   if (from && to) return from === to ? from : `${from}–${to}`;
   return from || to || "";
 };

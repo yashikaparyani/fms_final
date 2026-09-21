@@ -162,7 +162,16 @@ const CustomerCell = ({ load }) => (
 // pickupWindowOf/dropWindowOf. Optional: most tables ask for the date alone,
 // and a load with no window set renders exactly as it did before.
 const DateCell = ({ value, showExpiry, time }) => {
-  if (!value) return <span className="text-gray-400">-</span>;
+  if (!value && !time) return <span className="text-gray-400">-</span>;
+  if (!value) {
+    // An appointment time with no date yet still tells dispatch something.
+    return (
+      <div className="leading-tight">
+        <span className="text-gray-400">-</span>
+        <div className="text-[12px] font-medium text-gray-500 tabular-nums">{time}</div>
+      </div>
+    );
+  }
   const expired = showExpiry && isExpired(value);
   return (
     <div className="leading-tight">
