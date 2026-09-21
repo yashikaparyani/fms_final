@@ -4,7 +4,6 @@ import { notify } from "../utils/swal";
 import { uiStyles } from "../style/uiStyles";
 import { CircularProgress } from "@mui/material";
 import { fromDateTimeInput, toDateTimeInput } from "../utils/dates";
-import { USDateTimeInput } from "../components/USTimeInput";
 
 const EMPTY_FORM = {
   bidStartTime: "",
@@ -209,7 +208,8 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Bid Start</label>
-                  <USDateTimeInput
+                  <input
+                    type="datetime-local"
                     name="bidStartTime"
                     value={formData.bidStartTime}
                     onChange={handleChange}
@@ -219,7 +219,8 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                 </div>
                 <div>
                   <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Bid End</label>
-                  <USDateTimeInput
+                  <input
+                    type="datetime-local"
                     name="bidEndTime"
                     value={formData.bidEndTime}
                     onChange={handleChange}

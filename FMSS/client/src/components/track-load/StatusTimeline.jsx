@@ -7,7 +7,6 @@ import { notify } from "../../utils/swal";
 import { STATUS_BADGE_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
 import { formatDateTime, fromDateTimeInput, toDateTimeInput } from "../../utils/dates";
-import { USDateTimeInput } from "../USTimeInput";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 // What happened to this load and when, in order.
@@ -53,7 +52,8 @@ const EntryEditor = ({ entry, onCancel, onSave, saving }) => {
         <label className="block text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-1">
           When this actually happened
         </label>
-        <USDateTimeInput
+        <input
+          type="datetime-local"
           value={changedAt}
           max={toLocalInput(new Date())}
           onChange={(e) => setChangedAt(e.target.value)}

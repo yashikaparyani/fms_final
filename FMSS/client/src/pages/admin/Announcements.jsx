@@ -7,7 +7,6 @@ import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import api from "../../api";
 import { formatDateNumeric, fromDateTimeInput } from "../../utils/dates";
-import { USDateTimeInput } from "../../components/USTimeInput";
 
 /**
  * Where the office writes to everybody.
@@ -252,7 +251,8 @@ const Announcements = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Show from (optional)</label>
-                <USDateTimeInput
+                <input
+                  type="datetime-local"
                   className={uiStyles.input}
                   value={form.startsAt}
                   onChange={(e) => set("startsAt", e.target.value)}
@@ -260,7 +260,8 @@ const Announcements = () => {
               </div>
               <div>
                 <label className={labelClass}>Until (optional)</label>
-                <USDateTimeInput
+                <input
+                  type="datetime-local"
                   className={uiStyles.input}
                   value={form.endsAt}
                   onChange={(e) => set("endsAt", e.target.value)}

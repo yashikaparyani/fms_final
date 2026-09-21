@@ -10,7 +10,6 @@ import api from "../api";
 import AppSelect from "../components/AppSelect";
 import AddressFields from "../components/AddressFields";
 import { toDateInput } from "../utils/dates";
-import { USTimeInput } from "../components/USTimeInput";
 
 // ─── Add Company Modal ────────────────────────────────────────────────────────
 const COMPANY_TYPES = ["Shipper", "Consignee", "Warehouse", "Terminal", "Other"];
@@ -235,7 +234,7 @@ const normalizeStop = (s = {}) => ({
   zip:     s.zip     || "",
   pickupDate:   toDateInput(s.pickupDate),
   deliveryDate: toDateInput(s.deliveryDate),
-  // Stored as plain "HH:MM" strings, which is what <USTimeInput> wants,
+  // Stored as plain "HH:MM" strings, which is what <input type="time"> wants,
   // so they pass straight through in both directions.
   fromTime: s.fromTime || "",
   toTime:   s.toTime   || "",
@@ -409,7 +408,8 @@ const StopForm = ({ data, onChange, loading, isPickup, allCompanies, setAllCompa
           window would have people inventing one. */}
       <div className="grid grid-cols-2 gap-3">
         <div className="relative">
-          <USTimeInput
+          <input
+            type="time"
             className={uiStyles.input}
             value={data.fromTime || ""}
             onChange={(e) => set("fromTime", e.target.value)}
@@ -418,7 +418,8 @@ const StopForm = ({ data, onChange, loading, isPickup, allCompanies, setAllCompa
           <label className="input-label">From Time</label>
         </div>
         <div className="relative">
-          <USTimeInput
+          <input
+            type="time"
             className={uiStyles.input}
             value={data.toTime || ""}
             onChange={(e) => set("toTime", e.target.value)}
