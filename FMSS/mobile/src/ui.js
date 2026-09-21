@@ -7,7 +7,7 @@
  * here once.
  */
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -17,6 +17,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Animated,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -255,6 +256,42 @@ export function HeaderChip({ icon, label, tone = "light" }) {
  * The full-width primary call to action — "FIND LOADS / Search & Book Loads".
  * Solid and coloured, with a glow so it reads as the one thing to tap.
  */
+/**
+ * A blinking "LIVE" pill — for bidding that is open right now. Blinks rather
+ * than just sitting there so a carrier glancing at the phone sees it.
+ */
+export function LiveBadge({ color = colors.danger, label = "LIVE", light = false }) {
+  const blink = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0.25, duration: 550, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 550, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [blink]);
+
+  return (
+    <View
+      style={[
+        s.liveBadge,
+        { backgroundColor: light ? "rgba(255,255,255,0.95)" : color },
+      ]}
+    >
+      <Animated.View
+        style={[
+          s.liveDot,
+          { backgroundColor: light ? color : colors.onBrand, opacity: blink },
+        ]}
+      />
+      <Text style={[s.liveText, { color: light ? color : colors.onBrand }]}>{label}</Text>
+    </View>
+  );
+}
+
 export function BigAction({
   icon,
   title,
@@ -263,6 +300,7 @@ export function BigAction({
   onPress,
   disabled,
   style,
+  live,
 }) {
   return (
     <Pressable
@@ -281,7 +319,10 @@ export function BigAction({
         <Icon name={icon} size={22} color={colors.onBrand} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={s.bigActionTitle}>{title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={s.bigActionTitle}>{title}</Text>
+          {live ? <LiveBadge light /> : null}
+        </View>
         {subtitle ? <Text style={s.bigActionSubtitle}>{subtitle}</Text> : null}
       </View>
       <Icon name="chevron" size={18} color="rgba(255,255,255,0.85)" />
@@ -537,6 +578,16 @@ export function withAlpha(hex, alpha) {
 }
 
 const s = StyleSheet.create({
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  liveText: { fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",

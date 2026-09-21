@@ -235,29 +235,25 @@ export function CarrierHome({
       </AppHeader>
 
       <Body {...refresher(refreshing, onRefresh, theme.accent)}>
+        {/* Blue: bidding open right now, straight to the bid board. Green: the
+            loads won and assigned to this carrier. */}
         <BigAction
-          icon="search"
-          title="Find Loads"
-          subtitle={`${stats?.availableLoads ?? 0} open for bidding`}
+          icon="bid"
+          title="Open Bids"
+          subtitle={`${stats?.availableLoads ?? 0} live — tap to bid`}
           color={theme.accent}
+          live={(stats?.availableLoads ?? 0) > 0}
           onPress={() => onOpen("available")}
         />
         <BigAction
-          icon="bid"
-          title="My Bids"
-          subtitle={`${stats?.pendingBids ?? 0} awaiting decision`}
+          icon="truck"
+          title="Assigned Bids"
+          subtitle={`${stats?.activeTrips ?? 0} running`}
           color={colors.success}
-          onPress={() => onOpen("myBids")}
+          onPress={() => onOpen("assigned")}
         />
 
         <TileGrid columns={3}>
-          <ActionTile
-            icon="truck"
-            title="Assigned"
-            subtitle={`${stats?.activeTrips ?? 0} running`}
-            color={colors.primary}
-            onPress={() => onOpen("assigned")}
-          />
           <ActionTile
             icon="check"
             title="Completed"

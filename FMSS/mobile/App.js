@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -52,6 +53,7 @@ import {
   BottomTabs,
   GradientHeader,
   Icon,
+  LiveBadge,
   Loader,
 } from "./src/ui";
 import { homeForRole } from "./src/dashboards";
@@ -631,7 +633,42 @@ function SummaryItem({ label, value }) {
   );
 }
 
-function LoadCard({ load, children, onPress }) {
+/** Open for bidding right now: open status, window started and not yet closed. */
+const isLiveBid = (load) => {
+  if (load?.bidStatus !== "OPEN") return false;
+  const now = Date.now();
+  const start = load.bidStartTime ? new Date(load.bidStartTime).getTime() : null;
+  const end = load.bidEndTime ? new Date(load.bidEndTime).getTime() : null;
+  return (!start || start <= now) && (!end || end > now);
+};
+
+/** A glowing border that pulses, laid over a live card. */
+function LivePulse({ color }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        StyleSheet.absoluteFillObject,
+        { borderRadius: 16, borderWidth: 3, borderColor: color, opacity: pulse },
+      ]}
+    />
+  );
+}
+
+function LoadCard({ load, children, onPress, live }) {
   // Prefer the single pickup/drop: the list endpoint hydrates those from the
   // Address collection, while the pickups/drops arrays come back raw.
   const origin = load.pickup || load.pickups?.[0];
@@ -648,8 +685,9 @@ function LoadCard({ load, children, onPress }) {
   const header = (
     <>
       <View style={styles.cardHeader}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flex: 1, paddingRight: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={styles.loadId}>{load.loadId}</Text>
+          {live ? <LiveBadge color={colors.danger} label="LIVE BID" /> : null}
         </View>
         {load.transportStatus ? (
           <StatusChip value={load.transportStatus} />
@@ -686,7 +724,14 @@ function LoadCard({ load, children, onPress }) {
   );
 
   return (
-    <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: statusTone.color }]}>
+    <View
+      style={[
+        styles.card,
+        { borderLeftWidth: 4, borderLeftColor: live ? colors.danger : statusTone.color },
+        live && { backgroundColor: "#FFF7F7" },
+      ]}
+    >
+      {live ? <LivePulse color={colors.danger} /> : null}
       {onPress ? (
         <Pressable
           onPress={onPress}
@@ -817,7 +862,7 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
         const isSaving = savingId === item.loadId;
 
         return (
-          <LoadCard load={item} onPress={() => onOpenDetail(item)}>
+          <LoadCard load={item} live={isLiveBid(item)} onPress={() => onOpenDetail(item)}>
             {offer ? (
               // An offer is a specific number waiting on a yes or no — not
               // another load to bid on — so it replaces the bid box entirely.
@@ -4389,9 +4434,13 @@ function FleetHomeScreen({ session, onLogout }) {
         case "alerts":
           setShowNotifications(true);
           break;
+        // Open bids go to the Bids window, which opens on "Available". The Loads
+        // screen has no "available" list, so sending it there showed nothing.
+        case "available":
+          setTab("bids");
+          break;
         case "assigned":
         case "over":
-        case "available":
         case "myBids":
           setLoadTab(key);
           setTab("loads");
