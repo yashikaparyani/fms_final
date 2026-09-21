@@ -239,6 +239,9 @@ const LoadTable = ({
   headerExtra,
   title,
   subtitle,
+  // Roomier type and padding, for the boards read at a glance from across the
+  // desk (All Transit). See .load-table-lg in index.css.
+  large = false,
 }) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(pageSize);
@@ -294,7 +297,7 @@ const LoadTable = ({
         <>
           {/* Table */}
           <div className="border border-gray-300 rounded-lg overflow-x-auto bg-white shadow-sm">
-            <table className="w-full border-collapse text-sm">
+            <table className={`w-full border-collapse text-sm ${large ? "load-table-lg" : ""}`}>
               <thead>
                 <tr className="bg-gradient-to-r from-slate-700 to-slate-800 text-white">
                   {columns.map((col) => (

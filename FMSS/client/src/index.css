@@ -130,3 +130,29 @@ h4 {
     display: none;
   }
 }
+
+/* ── Large load table (All Transit) ─────────────────────────────────────────
+   The cells are built from shared pieces sized for dense tables (text-xs,
+   text-[12px]). Rather than fork every cell, the large board scales them here.
+   Unlayered, so it wins over the Tailwind utilities it adjusts. */
+.load-table-lg th {
+  padding: 14px 16px;
+  font-size: 0.95rem;
+}
+.load-table-lg td {
+  padding: 16px;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+.load-table-lg td .text-xs {
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+.load-table-lg td .text-sm {
+  font-size: 1.1rem;
+}
+.load-table-lg td [class*="text-[12px]"],
+.load-table-lg td [class*="text-[13px]"],
+.load-table-lg td [class*="text-[14px]"] {
+  font-size: 0.95rem;
+}

@@ -100,7 +100,7 @@ const AssignedLoadsTable = () => {
     {
       key: "actions",
       header: "Actions",
-      width: "320px",
+      width: "170px",
       render: (row) => desktopActions(row),
     },
   ];
@@ -121,12 +121,14 @@ const AssignedLoadsTable = () => {
     }
 
     return (
-      <div className="flex items-center gap-1.5 flex-wrap">
+      // One above the other, each the full width of the column, so the three
+      // read as a list of things to do rather than a row to squint along.
+      <div className="flex flex-col items-stretch gap-2">
         {/* Reassign / Assign */}
         <button
           onClick={() => setOpenRow(row.loadId)}
           disabled={saving}
-          className={`${assigned ? "btn-secondary-small" : "btn-primary-small"} disabled:opacity-50`}
+          className={`${assigned ? "btn-secondary-small" : "btn-primary-small"} w-full justify-center !py-2 !text-sm disabled:opacity-50`}
         >
           {assigned ? "Reassign" : "Assign Load"}
         </button>
@@ -138,7 +140,7 @@ const AssignedLoadsTable = () => {
             onClick={() => setStatusModal(row)}
             disabled={saving || !assigned}
             title={assigned ? undefined : STATUS_LOCKED_REASON}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className="w-full text-sm font-semibold px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             Update Status
           </button>
@@ -149,7 +151,7 @@ const AssignedLoadsTable = () => {
           <button
             onClick={() => unassign(row)}
             disabled={saving}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition disabled:opacity-50 whitespace-nowrap"
+            className="w-full text-sm font-semibold px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition disabled:opacity-50 whitespace-nowrap"
           >
             Unassign
           </button>
@@ -253,6 +255,7 @@ const AssignedLoadsTable = () => {
           colorMap={isStatusMode ? STATUS_ROW_COLORS : URGENCY_COLORS}
           loading={loading}
           emptyMessage="No loads in transit."
+          large
         />
       </div>
 
