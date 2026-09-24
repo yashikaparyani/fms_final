@@ -153,26 +153,26 @@ const MAIN_ORDER = [
 // ─── Status colour maps (mirrors the web StatusChip so every status the web
 // shows is displayed with the same colour on mobile) ────────────────────────
 const TRANSPORT_STATUS_COLOR = {
-  LOAD_PLANNER: { bg: "#ede9fe", color: "#7c3aed", border: "#c4b5fd" },
-  NEW_LOAD: { bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
+  LOAD_PLANNER: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
+  NEW_LOAD: { bg: "#E2E2E2", color: "#000000", border: "#CBCBCB" },
   ASSIGNED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  READY_TO_PICKUP: { bg: "#e0f2fe", color: "#0369a1", border: "#7dd3fc" },
-  PICKED_UP: { bg: "#cffafe", color: "#0e7490", border: "#67e8f9" },
+  READY_TO_PICKUP: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
+  PICKED_UP: { bg: "#E2E2E2", color: "#000000", border: "#CBCBCB" },
   IN_TRANSIT: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   REACHED_DESTINATION: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
   DELIVERED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
   TERMINATED: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
   PAPERWORK_PENDING: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  INVOICED: { bg: "#ede9fe", color: "#7c3aed", border: "#c4b5fd" },
+  INVOICED: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
   STREET_TURN: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
-  EMPTY_IN_YARD: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" },
-  LOADED_IN_YARD: { bg: "#fdf4ff", color: "#86198f", border: "#f0abfc" },
-  DRIVER_ON_WAITING: { bg: "#fff7ed", color: "#c2410c", border: "#fdba74" },
-  DROP_IN_WAREHOUSE: { bg: "#faf5ff", color: "#6b21a8", border: "#d8b4fe" },
+  EMPTY_IN_YARD: { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" },
+  LOADED_IN_YARD: { bg: "#F6F6F6", color: "#000000", border: "#CBCBCB" },
+  DRIVER_ON_WAITING: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
+  DROP_IN_WAREHOUSE: { bg: "#F6F6F6", color: "#000000", border: "#CBCBCB" },
 };
 
 const LOAD_STATUS_COLOR = {
-  DRAFT: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" },
+  DRAFT: { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" },
   PENDING_VERIFICATION: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   REQUIRES_CHANGES: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
   VERIFIED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
@@ -181,12 +181,12 @@ const LOAD_STATUS_COLOR = {
 };
 
 const BID_STATUS_COLOR = {
-  UPCOMING: { bg: "#e0f2fe", color: "#0369a1", border: "#7dd3fc" },
+  UPCOMING: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
   OPEN: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  CLOSED: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" },
+  CLOSED: { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" },
 };
 
-const STATUS_FALLBACK = { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" };
+const STATUS_FALLBACK = { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" };
 
 const uploadableDocumentTypes = [
   // Beside the generated POD: a consignee's own stamped copy.
@@ -224,10 +224,10 @@ const getDocumentUrl = (filePath) => {
 
 const DocumentChip = ({ label, tone = "default" }) => {
   const palette = {
-    default: { backgroundColor: "#eef2f7", color: colors.muted, borderColor: "#dbe3ee" },
+    default: { backgroundColor: "#EEEEEE", color: colors.muted, borderColor: "#E2E2E2" },
     success: { backgroundColor: "#dcfce7", color: colors.success, borderColor: "#bbf7d0" },
     warning: { backgroundColor: "#fef3c7", color: colors.warning, borderColor: "#fde68a" },
-    muted: { backgroundColor: "#f8fafc", color: "#64748b", borderColor: "#e2e8f0" },
+    muted: { backgroundColor: "#F6F6F6", color: "#787878", borderColor: "#E2E2E2" },
   };
   const style = palette[tone] || palette.default;
 
@@ -316,7 +316,7 @@ const PAPERWORK_BANNER = {
   },
   IN_REVIEW: {
     title: "With the office",
-    tone: { bg: "#e0f2fe", border: "#7dd3fc", color: "#0369a1" },
+    tone: { bg: "#EEEEEE", border: "#CBCBCB", color: "#000000" },
     body: "Your documents are being checked. Nothing more is needed unless the office asks for a change.",
   },
   CHANGES_REQUESTED: {
@@ -459,7 +459,7 @@ const assetToFile = (asset, fallbackName) => ({
 
 function Pill({ children, tone = "default" }) {
   const toneStyle = {
-    default: { backgroundColor: "#eef2f7", color: colors.muted },
+    default: { backgroundColor: "#EEEEEE", color: colors.muted },
     success: { backgroundColor: "#dcfce7", color: colors.success },
     warning: { backgroundColor: "#fef3c7", color: colors.warning },
     danger: { backgroundColor: "#fee2e2", color: colors.danger },
@@ -535,7 +535,7 @@ function Field({ label, value, onChangeText, secureTextEntry, keyboardType, plac
         placeholder={placeholder}
         autoCapitalize="none"
         style={styles.input}
-        placeholderTextColor="#98a2b3"
+        placeholderTextColor="#A5A5A5"
       />
     </View>
   );
@@ -622,7 +622,7 @@ function RegisterCarrierScreen({ onBack }) {
     return (
       <View style={styles.loginScreen}>
         <StatusBar style="light" />
-        <GradientHeader from="#07152E" to="#16386F" style={styles.loginHero}>
+        <GradientHeader from="#000000" to="#000000" style={styles.loginHero}>
           <View style={styles.regDoneIcon}>
             <Icon name="check" size={40} color="#fff" />
           </View>
@@ -643,7 +643,7 @@ function RegisterCarrierScreen({ onBack }) {
   return (
     <View style={styles.loginScreen}>
       <StatusBar style="light" />
-      <GradientHeader from="#07152E" to="#16386F" style={styles.regHero}>
+      <GradientHeader from="#000000" to="#000000" style={styles.regHero}>
         <Pressable onPress={onBack} hitSlop={10} style={styles.regBack}>
           <Icon name="back" size={20} color="#fff" />
         </Pressable>
@@ -699,7 +699,7 @@ function RegisterCarrierScreen({ onBack }) {
                       f.required && empty && !error && styles.regInputTodo,
                       error && styles.regInputError,
                     ]}
-                    placeholderTextColor="#98a2b3"
+                    placeholderTextColor="#A5A5A5"
                   />
                   {error ? <Text style={styles.regError}>👉  {error}</Text> : null}
                 </View>
@@ -740,7 +740,7 @@ function RegisterCarrierScreen({ onBack }) {
                 placeholder="Fleet size, equipment types, lanes you run…"
                 multiline
                 style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
-                placeholderTextColor="#98a2b3"
+                placeholderTextColor="#A5A5A5"
               />
             </View>
 
@@ -803,14 +803,14 @@ function LoginScreen({ onLogin }) {
       <StatusBar style="light" />
       {/* Brand block on the deep navy, sign-in on white beneath it — the
           split the marketing screens use, so the app opens on-brand. */}
-      <GradientHeader from="#07152E" to="#16386F" style={styles.loginHero}>
+      <GradientHeader from="#000000" to="#000000" style={styles.loginHero}>
         <View style={styles.loginBrandRow}>
           <View style={styles.loginMark}>
             <Icon name="truck" size={26} color={colors.onBrand} />
           </View>
           <Text style={styles.brand}>
             {brand.name}
-            <Text style={{ color: "#5EA8FF" }}>{brand.nameAccent}</Text>
+            <Text style={{ color: "#AFAFAF" }}>{brand.nameAccent}</Text>
           </Text>
         </View>
         <Text style={styles.loginTagline}>{brand.tagline}</Text>
@@ -851,12 +851,12 @@ function LoginScreen({ onLogin }) {
               onPress={() => setRegistering(true)}
               style={({ pressed }) => [styles.regCta, pressed && { opacity: 0.8 }]}
             >
-              <Icon name="truck" size={20} color="#1D4ED8" />
+              <Icon name="truck" size={20} color="#000000" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.regCtaTitle}>New carrier? Register</Text>
                 <Text style={styles.regCtaSub}>Apply in 2 minutes — our office approves it</Text>
               </View>
-              <Icon name="chevron" size={18} color="#1D4ED8" />
+              <Icon name="chevron" size={18} color="#000000" />
             </Pressable>
 
             <Text style={styles.apiHint}>API: {API_BASE_URL}</Text>
@@ -1078,7 +1078,7 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
       {live ? <LivePulse color={colors.danger} /> : null}
 
       {/* Header: id, live state and the rate, on the brand gradient. */}
-      <GradientHeader from="#1D4ED8" to="#4F46E5" style={styles.bbHeader}>
+      <GradientHeader from="#000000" to="#000000" style={styles.bbHeader}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={styles.bbLoadId}>{load.loadId}</Text>
@@ -1095,7 +1095,7 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
       <View style={styles.bbBody}>
         {/* The clock: how long is left to act. */}
         <View style={[styles.bbClock, clock.urgent && styles.bbClockUrgent]}>
-          <Icon name="clock" size={16} color={clock.urgent ? colors.danger : "#4338CA"} />
+          <Icon name="clock" size={16} color={clock.urgent ? colors.danger : "#000000"} />
           <Text style={[styles.bbClockText, clock.urgent && { color: colors.danger }]}>
             {clock.text}
           </Text>
@@ -1113,7 +1113,7 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
         {offer ? (
           // A counter-offer is a yes-or-no on one number, so it replaces the
           // bid box entirely.
-          <GradientHeader from="#EEF2FF" to="#F5F3FF" style={styles.bbOffer}>
+          <GradientHeader from="#F6F6F6" to="#F6F6F6" style={styles.bbOffer}>
             <Text style={styles.bbOfferTag}>🤝  OFFICE COUNTER-OFFER</Text>
             <Text style={styles.bbOfferAmount}>{money(offer.amount)}</Text>
             {offer.previousAmount ? (
@@ -1152,7 +1152,7 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
                   onChangeText={onAmount}
                   keyboardType="numeric"
                   placeholder="0"
-                  placeholderTextColor="#98a2b3"
+                  placeholderTextColor="#A5A5A5"
                   style={styles.bbInput}
                 />
               </View>
@@ -1182,7 +1182,7 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
 
         <Pressable onPress={onOpen} style={styles.bbDetails}>
           <Text style={styles.bbDetailsText}>View full details</Text>
-          <Icon name="chevron" size={16} color="#4338CA" />
+          <Icon name="chevron" size={16} color="#000000" />
         </Pressable>
       </View>
     </View>
@@ -2201,7 +2201,7 @@ function MyBidsTab({ onOpenDetail }) {
                   keyboardType="numeric"
                   placeholder="New bid amount"
                   style={[styles.input, styles.bidInput]}
-                  placeholderTextColor="#98a2b3"
+                  placeholderTextColor="#A5A5A5"
                 />
                 <SecondaryButton title="Cancel" onPress={() => cancelEditing(item.loadId)} disabled={isSaving} />
                 <PrimaryButton
@@ -2382,7 +2382,7 @@ function SignatureModal({
               value={receiverName}
               onChangeText={setReceiverName}
               placeholder="Name of the person taking delivery"
-              placeholderTextColor="#98a2b3"
+              placeholderTextColor="#A5A5A5"
               style={styles.input}
               autoCapitalize="words"
             />
@@ -2390,7 +2390,7 @@ function SignatureModal({
               value={receiverTitle}
               onChangeText={setReceiverTitle}
               placeholder="Their role (optional)"
-              placeholderTextColor="#98a2b3"
+              placeholderTextColor="#A5A5A5"
               style={[styles.input, { marginTop: 8 }]}
               autoCapitalize="words"
             />
@@ -2420,7 +2420,7 @@ function SignatureModal({
             dotSize={3}
             descriptionText="Receiver signature"
             webStyle={
-              ".m-signature-pad { box-shadow: none; border: 0; } .m-signature-pad--body { border: 1px solid #d9e2ec; border-radius: 14px; }"
+              ".m-signature-pad { box-shadow: none; border: 0; } .m-signature-pad--body { border: 1px solid #E2E2E2; border-radius: 14px; }"
             }
             style={styles.signaturePad}
           />
@@ -2626,7 +2626,7 @@ function StreetTurnModal({ visible, load, saving, onClose, onConfirm }) {
                   placeholder="Optional note included in the emails"
                   multiline
                   style={[styles.input, styles.noteInput]}
-                  placeholderTextColor="#98a2b3"
+                  placeholderTextColor="#A5A5A5"
                 />
               </View>
             </ScrollView>
@@ -2758,7 +2758,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {/* ── Hero: the load, its status and its lane ───────────────────── */}
-        <GradientHeader from="#1E3A8A" to="#4F46E5" style={styles.trHero}>
+        <GradientHeader from="#000000" to="#000000" style={styles.trHero}>
           <View style={styles.trTopRow}>
             <Pressable onPress={onBack} style={styles.trBack} hitSlop={10}>
               <Icon name="back" size={20} color="#fff" />
@@ -2812,7 +2812,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
                           <View style={[styles.trStepLine, currentStatusIdx > i && styles.trStepLineDone]} />
                         ) : null}
                         <Text
-                          style={[styles.trStepLabel, current && { color: "#4338CA", fontWeight: "900" }]}
+                          style={[styles.trStepLabel, current && { color: "#000000", fontWeight: "900" }]}
                           numberOfLines={2}
                         >
                           {labelize(step)}
@@ -2873,11 +2873,11 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.trPickerLabel}>NEXT STATUS</Text>
-                    <Text style={[styles.trPickerValue, !selectedStatus && { color: "#94A3B8" }]}>
+                    <Text style={[styles.trPickerValue, !selectedStatus && { color: "#A6A6A6" }]}>
                       {selectedStatus ? labelize(selectedStatus) : "Tap to choose…"}
                     </Text>
                   </View>
-                  <Icon name="chevron" size={18} color="#4338CA" />
+                  <Icon name="chevron" size={18} color="#000000" />
                 </Pressable>
 
                 {/* Proof photos — only for pickup and delivery. */}
@@ -2939,7 +2939,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
                         pressed && { opacity: 0.85 },
                       ]}
                     >
-                      <Icon name="signature" size={18} color={signatureData ? "#4338CA" : "#fff"} />
+                      <Icon name="signature" size={18} color={signatureData ? "#000000" : "#fff"} />
                       <Text style={signatureData ? styles.trBtnGhostText : styles.trBtnPrimaryText}>
                         {signatureData ? "Sign again" : "Capture signature"}
                       </Text>
@@ -2953,7 +2953,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
                   placeholder="Add a note for the office (optional)"
                   multiline
                   style={styles.trNote}
-                  placeholderTextColor="#98a2b3"
+                  placeholderTextColor="#A5A5A5"
                 />
 
                 <Pressable
@@ -2961,7 +2961,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
                   disabled={!selectedStatus || saving}
                   style={({ pressed }) => [
                     styles.trBigBtn,
-                    { backgroundColor: selectedStatus ? "#4F46E5" : "#CBD5E1" },
+                    { backgroundColor: selectedStatus ? "#000000" : "#D6D6D6" },
                     pressed && { opacity: 0.85 },
                   ]}
                 >
@@ -4974,7 +4974,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
   },
-  loginRoleChipText: { color: "#CFE2FF", fontSize: 13, fontWeight: "700" },
+  loginRoleChipText: { color: "#E2E2E2", fontSize: 13, fontWeight: "700" },
   loginBody: { flex: 1, marginTop: -spacing.xl },
   loginScroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
@@ -5194,15 +5194,15 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 12,
   },
-  cardTitle: { fontSize: 17, fontWeight: "700", color: "#111827" },
-  cardMeta: { fontSize: 14, color: "#6b7280", marginTop: 2 },
-  cardBody: { fontSize: 15, color: "#374151", marginTop: 6, marginBottom: 10 },
+  cardTitle: { fontSize: 17, fontWeight: "700", color: "#000000" },
+  cardMeta: { fontSize: 14, color: "#767676", marginTop: 2 },
+  cardBody: { fontSize: 15, color: "#444444", marginTop: 6, marginBottom: 10 },
   signedNote: { fontSize: 15, fontWeight: "600", color: "#16a34a", marginVertical: 8 },
-  gateFooter: { fontSize: 14, color: "#6b7280", marginVertical: 12, textAlign: "center" },
-  label: { fontSize: 14, fontWeight: "700", color: "#374151", marginTop: 8, marginBottom: 4 },
+  gateFooter: { fontSize: 14, color: "#767676", marginVertical: 12, textAlign: "center" },
+  label: { fontSize: 14, fontWeight: "700", color: "#444444", marginTop: 8, marginBottom: 4 },
   ackRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 8 },
-  ackBox: { fontSize: 18, marginRight: 8, color: "#4f46e5" },
-  ackText: { flex: 1, fontSize: 15, color: "#374151" },
+  ackBox: { fontSize: 18, marginRight: 8, color: "#000000" },
+  ackText: { flex: 1, fontSize: 15, color: "#444444" },
   notifHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -5216,12 +5216,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#E8E8E8",
   },
-  notifUnread: { borderLeftWidth: 4, borderLeftColor: "#4f46e5", backgroundColor: "#eef2ff" },
-  notifTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
-  notifBody: { fontSize: 15, color: "#374151", marginTop: 2 },
-  notifMeta: { fontSize: 13, color: "#6b7280", marginTop: 6 },
+  notifUnread: { borderLeftWidth: 4, borderLeftColor: "#000000", backgroundColor: "#F6F6F6" },
+  notifTitle: { fontSize: 16, fontWeight: "700", color: "#000000" },
+  notifBody: { fontSize: 15, color: "#444444", marginTop: 2 },
+  notifMeta: { fontSize: 13, color: "#767676", marginTop: 6 },
   empty: {
     color: colors.muted,
     fontWeight: "700",
@@ -5307,13 +5307,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#eef2ff",
+    backgroundColor: "#F6F6F6",
     borderWidth: 1,
-    borderColor: "#c7d2fe",
+    borderColor: "#E2E2E2",
     gap: 6,
   },
   offerTitle: {
-    color: "#4338ca",
+    color: "#000000",
     fontSize: 13,
     fontWeight: "900",
     textTransform: "uppercase",
@@ -5325,8 +5325,8 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E4E7F2",
-    shadowColor: "#1E3A8A",
+    borderColor: "#E2E2E2",
+    shadowColor: "#000000",
     shadowOpacity: 0.12,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -5354,13 +5354,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 6,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#F6F6F6",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   bbClockUrgent: { backgroundColor: "#FEF2F2" },
-  bbClockText: { color: "#4338CA", fontSize: 14, fontWeight: "800" },
+  bbClockText: { color: "#000000", fontSize: 14, fontWeight: "800" },
   routeWrap: { flexDirection: "row", gap: 12 },
   routeRail: { alignItems: "center", paddingTop: 4, width: 14 },
   routeDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: "#fff", elevation: 2 },
@@ -5369,24 +5369,24 @@ const styles = StyleSheet.create({
     width: 0,
     borderLeftWidth: 2,
     borderStyle: "dashed",
-    borderColor: "#CBD5E1",
+    borderColor: "#D6D6D6",
     marginVertical: 3,
   },
-  routeTag: { color: "#94A3B8", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  routeCity: { color: "#0F172A", fontSize: 19, fontWeight: "800" },
-  routeSub: { color: "#64748B", fontSize: 13, fontWeight: "600", marginTop: 1 },
+  routeTag: { color: "#A6A6A6", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  routeCity: { color: "#000000", fontSize: 19, fontWeight: "800" },
+  routeSub: { color: "#787878", fontSize: 13, fontWeight: "600", marginTop: 1 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   infoChip: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F6F6F6",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#E2E2E2",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 6,
     maxWidth: "48%",
   },
-  infoChipLabel: { color: "#94A3B8", fontSize: 10, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase" },
-  infoChipValue: { color: "#1E293B", fontSize: 14, fontWeight: "700" },
+  infoChipLabel: { color: "#A6A6A6", fontSize: 10, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase" },
+  infoChipValue: { color: "#000000", fontSize: 14, fontWeight: "700" },
   bbOffer: {
     borderRadius: 16,
     borderBottomLeftRadius: 16,
@@ -5395,12 +5395,12 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
+    borderColor: "#E2E2E2",
     overflow: "hidden",
   },
-  bbOfferTag: { color: "#4338CA", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
-  bbOfferAmount: { color: "#312E81", fontSize: 34, fontWeight: "900", marginTop: 4 },
-  bbOfferNote: { color: "#475569", fontSize: 14, fontWeight: "600", marginTop: 2 },
+  bbOfferTag: { color: "#000000", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  bbOfferAmount: { color: "#000000", fontSize: 34, fontWeight: "900", marginTop: 4 },
+  bbOfferNote: { color: "#585858", fontSize: 14, fontWeight: "600", marginTop: 2 },
   bbActions: { flexDirection: "row", gap: 10, marginTop: 14 },
   bbDecline: {
     flex: 1,
@@ -5429,8 +5429,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   bbAcceptText: { color: "#fff", fontSize: 17, fontWeight: "900" },
-  bbBidBox: { backgroundColor: "#F8FAFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E0E7FF" },
-  bbBidTag: { color: "#4338CA", fontSize: 12, fontWeight: "900", letterSpacing: 1, marginBottom: 8 },
+  bbBidBox: { backgroundColor: "#F8FAFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#EEEEEE" },
+  bbBidTag: { color: "#000000", fontSize: 12, fontWeight: "900", letterSpacing: 1, marginBottom: 8 },
   bbBidRow: { flexDirection: "row", gap: 10 },
   bbInputWrap: {
     flex: 1,
@@ -5439,19 +5439,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#C7D2FE",
+    borderColor: "#E2E2E2",
     paddingHorizontal: 12,
   },
-  bbDollar: { color: "#4338CA", fontSize: 20, fontWeight: "900", marginRight: 4 },
-  bbInput: { flex: 1, fontSize: 20, fontWeight: "800", color: "#0F172A", paddingVertical: 10 },
+  bbDollar: { color: "#000000", fontSize: 20, fontWeight: "900", marginRight: 4 },
+  bbInput: { flex: 1, fontSize: 20, fontWeight: "800", color: "#000000", paddingVertical: 10 },
   bbBidBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#000000",
     borderRadius: 12,
     paddingHorizontal: 16,
-    shadowColor: "#2563EB",
+    shadowColor: "#000000",
     shadowOpacity: 0.35,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -5466,9 +5466,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#E0E7FF",
+    borderColor: "#EEEEEE",
   },
-  bbQuickText: { color: "#4338CA", fontSize: 14, fontWeight: "800" },
+  bbQuickText: { color: "#000000", fontSize: 14, fontWeight: "800" },
   bbDetails: {
     flexDirection: "row",
     alignItems: "center",
@@ -5476,12 +5476,12 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingTop: 4,
   },
-  bbDetailsText: { color: "#4338CA", fontSize: 15, fontWeight: "800" },
+  bbDetailsText: { color: "#000000", fontSize: 15, fontWeight: "800" },
   documentCameraButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#4F46E5",
+    backgroundColor: "#000000",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -5517,31 +5517,31 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
     borderWidth: 1,
-    borderColor: "#E4E7F2",
-    shadowColor: "#1E3A8A",
+    borderColor: "#E2E2E2",
+    shadowColor: "#000000",
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-  trCardTitle: { color: "#0F172A", fontSize: 19, fontWeight: "900" },
-  trMuted: { color: "#64748B", fontSize: 14, fontWeight: "600" },
+  trCardTitle: { color: "#000000", fontSize: 19, fontWeight: "900" },
+  trMuted: { color: "#787878", fontSize: 14, fontWeight: "600" },
   trSteps: { flexDirection: "row", marginTop: 4 },
   trStep: { flex: 1, alignItems: "center" },
   trStepDot: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#E2E2E2",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
   },
   trStepDotDone: { backgroundColor: "#22C55E" },
-  trStepDotCurrent: { backgroundColor: "#4F46E5", borderWidth: 3, borderColor: "#C7D2FE" },
-  trStepLine: { position: "absolute", top: 12, left: "50%", right: "-50%", height: 3, backgroundColor: "#E2E8F0" },
+  trStepDotCurrent: { backgroundColor: "#000000", borderWidth: 3, borderColor: "#E2E2E2" },
+  trStepLine: { position: "absolute", top: 12, left: "50%", right: "-50%", height: 3, backgroundColor: "#E2E2E2" },
   trStepLineDone: { backgroundColor: "#22C55E" },
-  trStepLabel: { color: "#64748B", fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  trStepLabel: { color: "#787878", fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
   trIconBubble: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   trTrackingOn: {
     flexDirection: "row",
@@ -5559,7 +5559,7 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 14,
     paddingVertical: 16,
-    shadowColor: "#4F46E5",
+    shadowColor: "#000000",
     shadowOpacity: 0.25,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -5571,25 +5571,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#C7D2FE",
+    borderColor: "#E2E2E2",
     backgroundColor: "#F8FAFF",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  trPickerChosen: { borderColor: "#4F46E5", backgroundColor: "#EEF2FF" },
-  trPickerLabel: { color: "#6366F1", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
-  trPickerValue: { color: "#1E1B4B", fontSize: 18, fontWeight: "900", marginTop: 2 },
+  trPickerChosen: { borderColor: "#000000", backgroundColor: "#F6F6F6" },
+  trPickerLabel: { color: "#000000", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  trPickerValue: { color: "#000000", fontSize: 18, fontWeight: "900", marginTop: 2 },
   trPanel: {
     borderRadius: 16,
     padding: 14,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "#F6F6F6",
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: "#E2E2E2",
   },
   trPanelDone: { backgroundColor: "#ECFDF3", borderColor: "#BBF7D0" },
-  trPanelTitle: { color: "#312E81", fontSize: 16, fontWeight: "900", marginBottom: 2 },
+  trPanelTitle: { color: "#000000", fontSize: 16, fontWeight: "900", marginBottom: 2 },
   trThumbWrap: { marginRight: 10 },
-  trThumb: { width: 76, height: 76, borderRadius: 12, backgroundColor: "#E2E8F0" },
+  trThumb: { width: 76, height: 76, borderRadius: 12, backgroundColor: "#E2E2E2" },
   trThumbX: {
     position: "absolute",
     top: -6,
@@ -5611,24 +5611,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  trBtnPrimary: { backgroundColor: "#4F46E5", flex: 2 },
+  trBtnPrimary: { backgroundColor: "#000000", flex: 2 },
   trBtnPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  trBtnGhost: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#C7D2FE", flex: 1 },
-  trBtnGhostText: { color: "#4338CA", fontSize: 15, fontWeight: "900" },
+  trBtnGhost: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E2E2E2", flex: 1 },
+  trBtnGhostText: { color: "#000000", fontSize: 15, fontWeight: "900" },
   trNote: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E2E2",
+    backgroundColor: "#F6F6F6",
     padding: 14,
     minHeight: 70,
     fontSize: 15,
-    color: "#0F172A",
+    color: "#000000",
     textAlignVertical: "top",
   },
-  trDocCount: { backgroundColor: "#EEF2FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  trDocCountText: { color: "#4338CA", fontSize: 14, fontWeight: "900" },
-  trProgressTrack: { height: 8, borderRadius: 4, backgroundColor: "#E2E8F0", overflow: "hidden" },
+  trDocCount: { backgroundColor: "#F6F6F6", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  trDocCountText: { color: "#000000", fontSize: 14, fontWeight: "900" },
+  trProgressTrack: { height: 8, borderRadius: 4, backgroundColor: "#E2E2E2", overflow: "hidden" },
   trProgressFill: { height: 8, borderRadius: 4, backgroundColor: "#22C55E" },
   regCta: {
     flexDirection: "row",
@@ -5638,11 +5638,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: "#E2E2E2",
+    backgroundColor: "#F6F6F6",
   },
-  regCtaTitle: { color: "#1D4ED8", fontSize: 16, fontWeight: "900" },
-  regCtaSub: { color: "#475569", fontSize: 13, fontWeight: "600", marginTop: 1 },
+  regCtaTitle: { color: "#000000", fontSize: 16, fontWeight: "900" },
+  regCtaSub: { color: "#585858", fontSize: 13, fontWeight: "600", marginTop: 1 },
   regHero: { paddingTop: UI_TOP_INSET + 10, paddingBottom: 24, paddingHorizontal: 18 },
   regBack: {
     width: 40,
@@ -5661,11 +5661,11 @@ const styles = StyleSheet.create({
   regInputError: { borderColor: "#EF4444", borderWidth: 2, backgroundColor: "#FEF2F2" },
   regError: { color: "#DC2626", fontSize: 14, fontWeight: "800", marginTop: 6 },
   regChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  regChip: { borderRadius: 999, borderWidth: 1.5, borderColor: "#CBD5E1", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#fff" },
-  regChipOn: { borderColor: "#1D4ED8", backgroundColor: "#EFF6FF" },
-  regChipText: { color: "#334155", fontSize: 14, fontWeight: "700" },
-  regChipTextOn: { color: "#1D4ED8" },
-  regFoot: { color: "#64748B", fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 12, lineHeight: 19 },
+  regChip: { borderRadius: 999, borderWidth: 1.5, borderColor: "#D6D6D6", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#fff" },
+  regChipOn: { borderColor: "#000000", backgroundColor: "#F6F6F6" },
+  regChipText: { color: "#444444", fontSize: 14, fontWeight: "700" },
+  regChipTextOn: { color: "#000000" },
+  regFoot: { color: "#787878", fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 12, lineHeight: 19 },
   regDoneIcon: {
     width: 72,
     height: 72,
@@ -5698,7 +5698,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   offerAmount: {
-    color: "#312e81",
+    color: "#000000",
     fontSize: 22,
     fontWeight: "900",
   },
@@ -5774,7 +5774,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   documentUploadButtonLocked: {
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#F4F4F4",
     borderColor: colors.border,
   },
   documentUploadTextLocked: {
@@ -5814,8 +5814,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   documentActionButtonDisabled: {
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderColor: "#E2E2E2",
+    backgroundColor: "#F6F6F6",
   },
   documentActionText: {
     color: colors.primary,
@@ -5823,7 +5823,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   documentActionTextDisabled: {
-    color: "#94a3b8",
+    color: "#A6A6A6",
   },
   documentUploadButton: {
     borderWidth: 1,
@@ -5898,7 +5898,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.48)",
+    backgroundColor: "rgba(0,0,0, 0.48)",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
@@ -5963,7 +5963,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    backgroundColor: "rgba(0,0,0, 0.45)",
     justifyContent: "flex-end",
   },
   pickerSheet: {
@@ -5989,7 +5989,7 @@ const styles = StyleSheet.create({
   stOptionList: {
     marginTop: 6,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#E2E2E2",
     borderRadius: 12,
     paddingHorizontal: 12,
   },
@@ -5999,7 +5999,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     maxHeight: 220,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#E2E2E2",
     borderRadius: 12,
     paddingHorizontal: 12,
   },
@@ -6030,11 +6030,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#eef2ff",
+    backgroundColor: "#F6F6F6",
     borderWidth: 1,
-    borderColor: "#c7d2fe",
+    borderColor: "#E2E2E2",
   },
-  copyChipText: { fontSize: 14, fontWeight: "700", color: "#3730a3" },
+  copyChipText: { fontSize: 14, fontWeight: "700", color: "#000000" },
   subTabRow: {
     flexDirection: "row",
     gap: 8,
@@ -6048,7 +6048,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#E2E2E2",
   },
   subTabActive: { backgroundColor: colors.brand, borderColor: colors.brand },
   subTabText: { fontSize: 15, fontWeight: "700", color: colors.muted },
@@ -6060,7 +6060,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#EEEEEE",
   },
   pickerRow: {
     flexDirection: "row",
@@ -6068,7 +6068,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#eef2f7",
+    borderBottomColor: "#EEEEEE",
   },
   pickerRowText: {
     flex: 1,
@@ -6111,7 +6111,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 5,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#EEEEEE",
   },
   detailLabel: {
     color: colors.muted,
@@ -6135,9 +6135,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     lineHeight: 19,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#F6F6F6",
     borderWidth: 1,
-    borderColor: "#eef2f7",
+    borderColor: "#EEEEEE",
     borderRadius: 10,
     padding: 10,
     marginTop: 4,
@@ -6170,7 +6170,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#EEEEEE",
   },
   historyTime: {
     color: colors.text,
@@ -6183,7 +6183,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#EEEEEE",
   },
   docViewLink: {
     color: colors.primary,

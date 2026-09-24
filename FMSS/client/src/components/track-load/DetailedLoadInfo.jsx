@@ -58,7 +58,7 @@ const CheckBadge = ({ checked }) => (
 const rowClass =
   "flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0";
 const labelClass =
-  "text-[13px] font-bold text-gray-500 uppercase tracking-tight";
+  "text-[15px] font-bold text-black uppercase tracking-tight";
 
 const CheckboxDisplay = ({ label, checked }) => (
   <div className={rowClass}>
@@ -228,28 +228,28 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, showDriverPayments = fal
             <SectionHeader label="Routing" accent="#06b6d4" />
             <div className="p-4 pt-2">
                <div className="mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">Main Address</p>
+                  <p className="text-sm font-bold text-black uppercase mb-2">Main Address</p>
                   <p className="text-sm font-semibold text-slate-700">{load.pickup?.company || "—"}</p>
-                  <p className="text-sm text-slate-600">{load.pickup?.address || "—"}</p>
-                  <p className="text-sm text-slate-600">{[load.pickup?.city, load.pickup?.state, load.pickup?.zip].filter(Boolean).join(", ")}</p>
+                  <p className="text-sm text-gray-900">{load.pickup?.address || "—"}</p>
+                  <p className="text-sm text-gray-900">{[load.pickup?.city, load.pickup?.state, load.pickup?.zip].filter(Boolean).join(", ")}</p>
                </div>
                {/* Carrier and equipment for this leg. Rendered as plain rows
                    rather than InfoRow so the labels stay visible on a load that
                    has not had them filled in yet. */}
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                     <p className="text-xs font-bold text-slate-400 uppercase mb-2">Shipping Line</p>
+                     <p className="text-sm font-bold text-black uppercase mb-2">Shipping Line</p>
                      <p className="text-sm font-semibold text-slate-700">{load.shippingLine || "—"}</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                     <p className="text-xs font-bold text-slate-400 uppercase mb-2">Chassis Details</p>
+                     <p className="text-sm font-bold text-black uppercase mb-2">Chassis Details</p>
                      <p className="text-sm font-semibold text-slate-700">{load.chassisCompany || "—"}</p>
-                     <p className="text-sm text-slate-600">Chassis #: {load.chassisNo || "—"}</p>
+                     <p className="text-sm text-gray-900">Chassis #: {load.chassisNo || "—"}</p>
                      {/* A Drop moves two containers, so it has a second chassis. */}
                      {load.chassisNo2 && (
-                        <p className="text-sm text-slate-600">Chassis #2: {load.chassisNo2}</p>
+                        <p className="text-sm text-gray-900">Chassis #2: {load.chassisNo2}</p>
                      )}
-                     <p className="text-sm text-slate-600">
+                     <p className="text-sm text-gray-900">
                         Chassis Rent: {load.chassisRent ? "Yes" : "No"}
                      </p>
                   </div>

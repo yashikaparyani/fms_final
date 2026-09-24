@@ -2,8 +2,9 @@
  * S Line Transport — design tokens.
  *
  * One source of truth for colour, elevation, spacing and type across the app.
- * The palette is deliberately saturated: the old muted teal/grey read as an
- * internal tool, and drivers use this in a cab, in daylight, at a glance.
+ * The palette is black and white, Uber style: black for the brand and every
+ * action, neutral greys for surfaces and secondary type, and colour only where
+ * it carries meaning (green done, red wrong, amber waiting).
  *
  * The ten keys the original theme exported (background, surface, border, text,
  * muted, primary, primaryLight, success, warning, danger) are all still here
@@ -15,28 +16,36 @@
 // when you are expressing intent.
 // ---------------------------------------------------------------------------
 
+// Black-and-white, Uber style: black for brand and actions, neutral greys for
+// everything around it. Green, red and amber stay because they mean something
+// (done, wrong, waiting). The old hue ramps are kept by name, pointing at the
+// greys, so every screen that reaches for one follows the theme.
+const mono = {
+  900: "#000000",
+  800: "#141414",
+  700: "#333333",
+  600: "#545454",
+  500: "#757575",
+  400: "#AFAFAF",
+  300: "#CBCBCB",
+  200: "#E2E2E2",
+  100: "#EEEEEE",
+  50: "#F6F6F6",
+};
+const accentRamp = { 900: mono[900], 800: mono[900], 700: mono[900], 600: mono[900], 500: mono[800], 400: mono[700], 100: mono[200], 50: mono[50] };
+
 export const palette = {
-  navy: { 900: "#07152E", 800: "#0B1E3D", 700: "#102B57", 600: "#16386F", 400: "#2A4D86", 100: "#D7E3F6", 50: "#EEF3FB" },
-  blue: { 700: "#1544A3", 600: "#1D6FE0", 500: "#2E86F0", 100: "#DDEBFD", 50: "#EFF6FF" },
+  mono,
+  navy: accentRamp,
+  blue: accentRamp,
   green: { 700: "#12803C", 600: "#16A34A", 500: "#22C55E", 100: "#D6F5E0", 50: "#ECFDF3" },
-  orange: { 700: "#C2410C", 600: "#EA580C", 500: "#F97316", 100: "#FFEAD5", 50: "#FFF7ED" },
+  orange: accentRamp,
   red: { 700: "#B91C1C", 600: "#DC2626", 500: "#EF4444", 100: "#FEE2E2", 50: "#FEF2F2" },
   amber: { 700: "#B45309", 600: "#D97706", 500: "#F59E0B", 100: "#FEF0C7", 50: "#FFFBEB" },
-  purple: { 700: "#6D28D9", 600: "#7C3AED", 500: "#8B5CF6", 100: "#EDE4FE", 50: "#F5F3FF" },
-  teal: { 700: "#0F766E", 600: "#0D9488", 500: "#14B8A6", 100: "#CCFBF1", 50: "#F0FDFA" },
-  pink: { 600: "#DB2777", 500: "#EC4899", 100: "#FCE7F3" },
-  slate: {
-    900: "#0F172A",
-    800: "#1E293B",
-    700: "#334155",
-    600: "#475569",
-    500: "#64748B",
-    400: "#94A3B8",
-    300: "#CBD5E1",
-    200: "#E2E8F0",
-    100: "#F1F5F9",
-    50: "#F8FAFC",
-  },
+  purple: accentRamp,
+  teal: accentRamp,
+  pink: accentRamp,
+  slate: mono,
   white: "#FFFFFF",
 };
 
@@ -46,11 +55,11 @@ export const palette = {
 
 export const colors = {
   // Surfaces
-  background: "#F4F7FC",
+  background: palette.mono[50],
   surface: palette.white,
   surfaceAlt: palette.slate[50],
   surfaceSunken: palette.slate[100],
-  border: "#E3E9F4",
+  border: "#E2E2E2",
   borderStrong: palette.slate[300],
 
   // Type
@@ -112,12 +121,12 @@ export const roleTheme = {
     key: "driver",
     label: "Driver",
     tagline: "Easy tools for drivers",
-    accent: palette.green[600],
-    accentDark: palette.green[700],
-    accentLight: palette.green[100],
-    accentFaint: palette.green[50],
-    headerFrom: palette.green[700],
-    headerTo: palette.green[500],
+    accent: palette.navy[900],
+    accentDark: palette.navy[900],
+    accentLight: palette.navy[100],
+    accentFaint: palette.navy[50],
+    headerFrom: palette.navy[900],
+    headerTo: palette.mono[700],
   },
   fleetOwner: {
     key: "fleetOwner",
@@ -128,7 +137,7 @@ export const roleTheme = {
     accentLight: palette.blue[100],
     accentFaint: palette.blue[50],
     headerFrom: palette.navy[800],
-    headerTo: palette.blue[600],
+    headerTo: palette.mono[700],
   },
   client: {
     key: "client",
@@ -139,7 +148,7 @@ export const roleTheme = {
     accentLight: palette.teal[100],
     accentFaint: palette.teal[50],
     headerFrom: palette.teal[700],
-    headerTo: palette.teal[500],
+    headerTo: palette.mono[700],
   },
   // Deep indigo — the same family as admin, a clear step lighter. The two
   // back-office portals reading as related is deliberate; the red-to-orange this
@@ -154,7 +163,7 @@ export const roleTheme = {
     accentLight: palette.navy[100],
     accentFaint: palette.navy[50],
     headerFrom: palette.navy[600],
-    headerTo: palette.navy[400],
+    headerTo: palette.mono[700],
   },
   admin: {
     key: "admin",
@@ -165,7 +174,7 @@ export const roleTheme = {
     accentLight: palette.blue[100],
     accentFaint: palette.blue[50],
     headerFrom: palette.navy[900],
-    headerTo: palette.navy[600],
+    headerTo: palette.mono[700],
   },
 };
 
@@ -177,7 +186,7 @@ export const themeForRole = (role) => roleTheme[role] || roleTheme.fleetOwner;
 // ---------------------------------------------------------------------------
 
 export const shadow = {
-  shadowColor: "#0B1E3D",
+  shadowColor: "#000000",
   shadowOpacity: 0.08,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 4 },
@@ -193,7 +202,7 @@ export const elevation = {
     elevation: 0,
   },
   sm: {
-    shadowColor: "#0B1E3D",
+    shadowColor: "#000000",
     shadowOpacity: 0.06,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -201,7 +210,7 @@ export const elevation = {
   },
   md: shadow,
   lg: {
-    shadowColor: "#0B1E3D",
+    shadowColor: "#000000",
     shadowOpacity: 0.14,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },

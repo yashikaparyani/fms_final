@@ -27,6 +27,7 @@ const { routeOf, placeOf } = require("../utils/loadRoute");
 // createdAt and calculatedAt are instants, so their windows are bounded by the
 // business day rather than the UTC day — see utils/dates.js.
 const { instantRange } = require("../utils/dates");
+const { YARD_STATUSES, yardAge } = require("../utils/yardAge");
 
 // ─── Accounting ───────────────────────────────────────────────────────────────
 // Receivables (what the customer is billed) and payables (what the carrier and
@@ -853,13 +854,25 @@ const getSummary = async (req, res) => {
     const awaitingInvoice = String(req.query.awaitingInvoice) === "true";
     if (awaitingInvoice) filter.transportStatus = { $in: AWAITING_INVOICE_STATUSES };
 
+    // The parked queue: boxes standing empty or loaded in the yard, or dropped
+    // at a warehouse. They can stand there for months and are nowhere near
+    // being billed, but the driver who put them there has done their work —
+    // accounting pays them from here without the load being moved on. Billing
+    // is untouched: these do not become invoiceable by being listed.
+    const inYard = String(req.query.inYard) === "true";
+    if (inYard) filter.transportStatus = { $in: YARD_STATUSES };
+
     const loads = await Load.find(filter)
       .select(
         // vendorRate, winningBid and assignments are read by ledgerFallback to
         // derive the payable side of a load nobody has itemised. Omitting them
         // does not error — the fields are just absent on the lean document, and
         // every such load reports $0 expense and a 100% margin.
-        "loadId customerName amount vendorRate winningBid assignments transportStatus createdAt accounting assignedFleetOwner",
+        "loadId customerName amount vendorRate winningBid assignments transportStatus createdAt accounting assignedFleetOwner " +
+          // For the parked queue: how long it has stood (history, updatedAt),
+          // and who drove it there (driverAssignments, and the stops their
+          // legs are read against).
+          "transportStatusHistory updatedAt driverAssignments pickup drop containerNo",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -892,12 +905,17 @@ const getSummary = async (req, res) => {
         // user search the register for a number they can already see.
         invoiceNumber: billed.invoiceNumber,
         invoicedAt: billed.invoicedAt,
+        ...(inYard ? parkedDetail(load) : {}),
       };
     });
 
     // Filtered here rather than in the query: the answer lives in another
     // collection, and the totals below have to describe the rows that survive.
     if (awaitingInvoice) rows = rows.filter((row) => !row.invoiced);
+
+    // Longest-standing first: the box that has been there since spring is the
+    // driver most likely to have been missed on a pay cycle.
+    if (inYard) rows.sort((a, b) => (b.yard?.days || 0) - (a.yard?.days || 0));
 
     const sum = (key) => money(rows.reduce((acc, row) => acc + (row[key] || 0), 0));
 
@@ -938,6 +956,35 @@ const getSummary = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+/**
+ * What the parked queue shows on top of the money: how long the box has stood,
+ * and where its drivers' pay is — nobody costed, owed, or paid.
+ */
+const parkedDetail = (load) => {
+  const drivers = driverPayables(load);
+  const owed = drivers.filter((d) => !d.uncosted && !d.paid);
+  return {
+    containerNo: load.containerNo || "",
+    yard: yardAge(load),
+    drivers: drivers.map((d) => ({
+      driverId: d.driverId,
+      driverName: d.driverName,
+      amount: d.amount,
+      paid: d.paid,
+      uncosted: d.uncosted,
+      paidAt: d.paidAt,
+    })),
+    driverOwed: money(owed.reduce((sum, d) => sum + d.amount, 0)),
+    driverPayState: !drivers.length
+      ? "NO_DRIVER"
+      : drivers.some((d) => d.uncosted)
+        ? "NOT_COSTED"
+        : owed.length
+          ? "OWED"
+          : "PAID",
+  };
 };
 
 // @desc    What each driver earned over a period

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import CarrierCell from "../../components/loads/CarrierCell";
+import YardDays from "../../components/loads/YardDays";
 import UpdateStatusModal from "../../components/loads/UpdateStatusModal";
 import AssignCarrierPicker from "../../components/loads/AssignCarrierPicker";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
@@ -249,7 +250,13 @@ const OverLoadsTable = () => {
       key: "loadStatus",
       header: "Load Status",
       width: "150px",
-      render: (row) => <StatusBadge value={row.transportStatus} />,
+      // A parked box also says how long it has stood there — see YardDays.
+      render: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge value={row.transportStatus} />
+          <YardDays yard={row.yard} />
+        </div>
+      ),
     },
   ];
 
@@ -400,7 +407,10 @@ const OverLoadsTable = () => {
                       {row.customerName || "—"}
                     </p>
                   </div>
-                  <StatusBadge value={row.transportStatus} />
+                  <div className="flex flex-col items-end gap-1">
+                    <StatusBadge value={row.transportStatus} />
+                    <YardDays yard={row.yard} />
+                  </div>
                 </div>
 
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-[13px]">

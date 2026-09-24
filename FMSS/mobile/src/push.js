@@ -48,7 +48,7 @@ const ensureAndroidChannel = async () => {
     name: "Load offers and updates",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
-    lightColor: "#4f46e5",
+    lightColor: "#000000",
   });
 };
 

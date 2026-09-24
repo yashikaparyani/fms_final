@@ -5,7 +5,9 @@ import LoadTable from "../../components/LoadTable";
 import { money } from "../../components/accounting/ChargeEditor";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
-import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/dates";
+import { todayKey as today, startOfMonthKey as startOfMonth, formatDate } from "../../utils/dates";
+import { transportStatusLabel } from "../../utils/transportStatus";
+import YardDays from "../../components/loads/YardDays";
 
 // ─── The invoicing queue ──────────────────────────────────────────────────────
 // The loads waiting to be billed, and the period's headline figures above them.
@@ -21,7 +23,12 @@ import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/
 //             paid out of a load's payables alongside the carrier — see
 //             LoadAccounting — so there is nothing here for it to total.
 //
-// What is left is the queue. A load marked invoiceable leaves dispatch's All
+// What is left is two queues. The second — boxes parked in the yard or at a
+// warehouse — is here so their drivers are paid on time: a container can stand
+// for months before it is billed, and the driver who put it there is owed now.
+// Paying them does not move the load on; billing waits.
+//
+// The first is the invoicing queue. A load marked invoiceable leaves dispatch's All
 // Transit tab and arrives here (see ACCOUNTING_TRANSPORT_STATUSES on the
 // server), and leaves again once an invoice is raised against it. It ignores
 // the date range on purpose: a load that has been waiting to be billed since
@@ -34,16 +41,20 @@ import { todayKey as today, startOfMonthKey as startOfMonth } from "../../utils/
 
 const AccountingSummary = () => {
   const navigate = useNavigate();
+  // Accounting lives under both /admin and /staff; links follow whoever is here.
+  const role = JSON.parse(localStorage.getItem("user") || "{}")?.role || "admin";
+  const openLoad = (loadId) => navigate(`/${role}/accounting/${loadId}`);
 
   const [range, setRange] = useState({ from: startOfMonth(), to: today() });
   const [summary, setSummary] = useState(null);
   const [invoiceable, setInvoiceable] = useState(null);
+  const [parked, setParked] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [summaryRes, invoiceableRes] = await Promise.all([
+      const [summaryRes, invoiceableRes, parkedRes] = await Promise.all([
         // Still fetched: the headline figures above the list are the period's,
         // even though the list itself is not.
         api.get("/accounting/summary", { params: range }),
@@ -52,9 +63,12 @@ const AccountingSummary = () => {
         // ones already billed, which it can only know by reading the invoice
         // register. See server/services/billingState.js.
         api.get("/accounting/summary", { params: { awaitingInvoice: true } }),
+        // Also unranged: a box parked since March is the one to find.
+        api.get("/accounting/summary", { params: { inYard: true } }),
       ]);
       setSummary(summaryRes.data);
       setInvoiceable(invoiceableRes.data);
+      setParked(parkedRes.data);
     } catch (err) {
       notify.error(err.response?.data?.message || "Could not load the figures");
     } finally {
@@ -73,7 +87,7 @@ const AccountingSummary = () => {
       width: "120px",
       render: (row) => (
         <button
-          onClick={() => navigate(`/admin/accounting/${row.loadId}`)}
+          onClick={() => openLoad(row.loadId)}
           className="text-left"
         >
           <p className="font-bold text-indigo-700 text-sm hover:underline">
@@ -161,6 +175,90 @@ const AccountingSummary = () => {
     },
   ];
 
+  const parkedColumns = [
+    {
+      key: "load",
+      header: "Load",
+      width: "120px",
+      render: (row) => (
+        <button onClick={() => openLoad(row.loadId)} className="text-left">
+          <p className="font-bold text-indigo-700 text-sm hover:underline">{row.loadId}</p>
+          {row.containerNo && (
+            <p className="text-[13px] text-gray-600">{row.containerNo}</p>
+          )}
+        </button>
+      ),
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      width: "170px",
+      render: (row) => (
+        <span className="text-sm text-gray-800">{row.customerName || "—"}</span>
+      ),
+    },
+    {
+      key: "where",
+      header: "Status",
+      width: "150px",
+      render: (row) => (
+        <span className="text-sm font-semibold text-gray-900">
+          {transportStatusLabel(row.transportStatus)}
+        </span>
+      ),
+    },
+    {
+      key: "days",
+      header: "In yard",
+      width: "150px",
+      render: (row) => (
+        <div>
+          <YardDays yard={row.yard} />
+          {row.yard?.since && (
+            <p className="text-[13px] text-gray-600 mt-0.5">since {formatDate(row.yard.since)}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "drivers",
+      header: "Driver",
+      width: "200px",
+      render: (row) =>
+        row.drivers?.length ? (
+          <div className="space-y-0.5">
+            {row.drivers.map((d) => (
+              <p key={d.driverId} className="text-sm text-gray-900">
+                {d.driverName || "Unnamed driver"}
+                <span className="text-gray-600 tabular-nums">
+                  {d.uncosted ? " · not costed" : ` · ${money(d.amount)}`}
+                </span>
+              </p>
+            ))}
+          </div>
+        ) : (
+          <span className="text-sm text-gray-600">No driver on the load</span>
+        ),
+    },
+    {
+      key: "pay",
+      header: "Driver pay",
+      width: "140px",
+      render: (row) => <DriverPayBadge row={row} />,
+    },
+    {
+      key: "action",
+      header: "",
+      width: "110px",
+      render: (row) =>
+        row.driverPayState === "PAID" ? null : (
+          <button onClick={() => openLoad(row.loadId)} className="btn-primary-small">
+            Pay driver
+          </button>
+        ),
+    },
+  ];
+
   const totals = summary?.totals;
 
   return (
@@ -219,6 +317,25 @@ const AccountingSummary = () => {
         </div>
       )}
 
+      {/* ── Parked: pay the driver now, bill later ─────────────────────────── */}
+      <div>
+        <h2 className="text-base font-bold text-gray-900">In the yard — pay the driver</h2>
+        <p className="text-sm text-gray-600">
+          Containers empty or loaded in the yard, or dropped at a warehouse. The
+          driver can be paid now; the load stays where it is and billing waits.
+          Longest in the yard first.
+        </p>
+      </div>
+      <LoadTable
+        loads={parked?.rows || []}
+        columns={parkedColumns}
+        loading={loading}
+        colorBy="__none"
+        pageSize={10}
+        emptyMessage="No containers parked in the yard or at a warehouse."
+      />
+
+      <h2 className="text-base font-bold text-gray-900 pt-2">Waiting to be invoiced</h2>
       <p className="text-sm text-gray-500">
         Loads dispatch has marked invoiceable. They have left All Transit and are
         waiting to be billed — the date range above does not apply here.
@@ -231,6 +348,29 @@ const AccountingSummary = () => {
         pageSize={20}
         emptyMessage="Nothing waiting to be invoiced."
       />
+    </div>
+  );
+};
+
+const PAY_BADGE = {
+  PAID: ["Paid", "bg-green-100 text-green-800"],
+  OWED: ["Owed", "bg-amber-100 text-amber-800"],
+  NOT_COSTED: ["Not costed", "bg-gray-200 text-gray-800"],
+  NO_DRIVER: ["No driver", "bg-gray-100 text-gray-700"],
+};
+
+const DriverPayBadge = ({ row }) => {
+  const [label, tone] = PAY_BADGE[row.driverPayState] || PAY_BADGE.NO_DRIVER;
+  return (
+    <div>
+      <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${tone}`}>
+        {label.toUpperCase()}
+      </span>
+      {row.driverPayState === "OWED" && (
+        <p className="text-sm font-semibold tabular-nums text-amber-800 mt-1">
+          {money(row.driverOwed)}
+        </p>
+      )}
     </div>
   );
 };

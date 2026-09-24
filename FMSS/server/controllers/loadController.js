@@ -264,6 +264,7 @@ const {
   notifyLoadStatusChanged,
 } = require("../services/NotificationService");
 const mongoose = require("mongoose");
+const { yardAge } = require("../utils/yardAge");
 const { biddingBlockFor, biddingCarrierIds } = require("../utils/biddingEligibility");
 const {
   requestInstantDispatch,
@@ -1032,6 +1033,9 @@ const getLoads = async (req, res) => {
           bidCount: bidCountMap.get(String(load._id)) || load.bids?.length || 0,
           pickup: hydrateStopFromAddressMap(load.pickup, addressMap),
           drop: hydrateStopFromAddressMap(load.drop, addressMap),
+          // How long a parked box has stood in the yard or at the warehouse —
+          // see utils/yardAge.js. Null for anything still moving or finished.
+          yard: yardAge(load),
           // Answered on the list as well as on the single load, so the Over
           // tab's Transfer to Invoiceable can say what is missing before
           // somebody clicks it rather than after — see config/paperwork.js for

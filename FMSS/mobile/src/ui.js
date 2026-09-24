@@ -572,7 +572,7 @@ export function withAlpha(hex, alpha) {
           .join("")
       : clean;
   const int = parseInt(full, 16);
-  if (Number.isNaN(int)) return `rgba(29,111,224,${alpha})`;
+  if (Number.isNaN(int)) return `rgba(0,0,0,${alpha})`;
   // eslint-disable-next-line no-bitwise
   return `rgba(${(int >> 16) & 255},${(int >> 8) & 255},${int & 255},${alpha})`;
 }
