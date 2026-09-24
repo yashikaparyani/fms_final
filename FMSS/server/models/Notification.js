@@ -48,6 +48,9 @@ const notificationSchema = new mongoose.Schema(
         "PAPERWORK_SUBMITTED",
         "PAPERWORK_CHANGES_REQUESTED",
         "PAPERWORK_APPROVED",
+        // The carrier's insurance agency has filed certificates, or replaced
+        // the certificate on file — the office's cue to review the onboarding.
+        "INSURANCE_FILED",
       ],
       required: true,
     },

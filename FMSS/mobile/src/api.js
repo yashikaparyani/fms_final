@@ -82,10 +82,15 @@ export const getStoredSession = async () => {
   ]);
 
   if (!token || !userJson) return null;
-  return {
-    api_token: token,
-    user: JSON.parse(userJson),
-  };
+  try {
+    return {
+      api_token: token,
+      user: JSON.parse(userJson),
+    };
+  } catch {
+    await clearSession();
+    return null;
+  }
 };
 
 export const clearSession = async () => {

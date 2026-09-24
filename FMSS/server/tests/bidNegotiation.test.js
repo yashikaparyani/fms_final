@@ -2,7 +2,7 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed } = require("./helpers/tenantTestContext");
+const { seed, clearedToBid } = require("./helpers/tenantTestContext");
 
 const Load = require("../models/Load");
 const Bid = require("../models/bidSchema");
@@ -44,6 +44,9 @@ const makeLoad = () =>
 const makeCarrier = async (carrierName) => {
   const userId = new mongoose.Types.ObjectId();
   const fleetOwner = await seed(() => FleetOwner.create({ userId, carrierName }));
+  // Approved onboarding with insurance on file — otherwise every bid route
+  // refuses before it reaches what these tests are about.
+  await clearedToBid(fleetOwner._id);
   return { userId: userId.toString(), fleetOwner };
 };
 

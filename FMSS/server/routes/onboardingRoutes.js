@@ -5,6 +5,10 @@ const {
   getOnboarding,
   saveProfile,
   signAgreement,
+  previewAgreement,
+  downloadDraft,
+  allowAgreementDraftToken,
+  downloadDraftByToken,
   downloadAgreement,
   agreementDownloadLink,
   allowAgreementDownloadToken,
@@ -52,6 +56,18 @@ router
   .get(protect, authorizeRoles("fleetOwner", "driver", "staff", "admin"), getOnboarding);
 
 router.put("/profile", protect, carrierOrOffice, saveProfile);
+
+// Read before signing: a watermarked draft of exactly what will be signed.
+// Same token-or-session arrangement as the download below, for the phone.
+router.post("/agreements/:key/preview", protect, carrierOrOffice, previewAgreement);
+router.get(
+  "/agreements/:key/draft",
+  allowAgreementDraftToken,
+  protect,
+  carrierOrOffice,
+  downloadDraft,
+);
+router.get("/agreements/:key/draft", downloadDraftByToken);
 
 router.post("/agreements/:key/sign", protect, carrierOrOffice, signAgreement);
 // A one-off, five-minute link the phone can hand to the system PDF viewer —

@@ -18,7 +18,11 @@ const {
 const {
   sendInsuranceRequest,
   sendInsuranceFiled,
+  sendInsuranceFiledToOffice,
 } = require("../services/emailService");
+const User = require("../models/User");
+const { notifyInsuranceFiled } = require("../services/NotificationService");
+const { frontendUrl } = require("../utils/frontendUrl");
 
 // ─── Insurance certificates ───────────────────────────────────────────────────
 // The carrier does not fill this in — their insurance agency does. The carrier
@@ -34,6 +38,53 @@ const {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const trimmed = (value) => String(value ?? "").trim();
+
+/**
+ * Tell the office, and the carrier, that the agency has filed.
+ *
+ * The office is waiting on this to approve the carrier and the agency files
+ * whenever it suits them, so neither side should have to keep checking. In-app
+ * and by email, best-effort: a filing that landed must not be undone because a
+ * mail server was slow.
+ */
+const announceFiling = async (onboarding, { policyCount, shortfalls, certificateOnly }) => {
+  const carrierName =
+    onboarding.profile?.legalName || onboarding.fleetOwner?.carrierName || "A carrier";
+  const agencyName = onboarding.insurance?.agencyName;
+
+  try {
+    const [office, carrierAccount] = await runUnscoped(() =>
+      Promise.all([
+        User.find({ role: { $in: ["staff", "admin"] }, isActive: true })
+          .select("email")
+          .lean(),
+        onboarding.userId ? User.findById(onboarding.userId).select("_id").lean() : null,
+      ]),
+    );
+
+    await notifyInsuranceFiled({
+      carrierName,
+      carrierUserId: carrierAccount?._id || onboarding.userId,
+      policyCount,
+      shortfalls,
+      certificateOnly,
+    });
+
+    await sendInsuranceFiledToOffice({
+      recipients: office.map((u) => u.email),
+      carrierName,
+      agencyName,
+      policyCount,
+      shortfalls,
+      certificateOnly,
+      // Straight to the file that needs the decision.
+      link: `${frontendUrl()}/staff/onboarding-review/${onboarding.fleetOwner?._id || onboarding.fleetOwner}`,
+    });
+  } catch {
+    // Nobody loses a filing because a notification failed.
+  }
+};
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const toNumberOrNull = (value) => {
@@ -42,7 +93,6 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const { frontendUrl } = require("../utils/frontendUrl");
 const {
   resolveCertificate,
   certificateMeta,
@@ -366,6 +416,13 @@ const submitPublicInsurance = async (req, res) => {
       });
     }
 
+    // And the office, who cannot approve the carrier until this lands.
+    await announceFiling(onboarding, {
+      policyCount: deduped.length,
+      shortfalls,
+      certificateOnly: false,
+    });
+
     res.status(201).json({
       message: shortfalls.length
         ? "Certificates filed. Some items fall short of the contractual requirements — the details are listed below and have been passed to the broker."
@@ -428,6 +485,15 @@ const uploadPublicCertificate = async (req, res) => {
     if (previous && previous !== onboarding.insurance.certificate.filePath) {
       fs.promises.unlink(previous).catch(() => {});
     }
+
+    // The certificate is the document the office actually reads, so its arrival
+    // is announced in its own right — not only when the policy details are
+    // keyed, which may have happened days earlier.
+    await announceFiling(onboarding, {
+      policyCount: (onboarding.insurance.policies || []).length,
+      shortfalls: onboarding.insurance.shortfalls || [],
+      certificateOnly: true,
+    });
 
     res.json({
       message: "Certificate attached.",

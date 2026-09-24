@@ -14,7 +14,7 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
+const { seed, clearedToBid, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
 const { withTenant } = require("../utils/tenantContext");
 
 const Load = require("../models/Load");
@@ -58,18 +58,25 @@ const TRACTOR = {
 };
 
 /** An Appendix A schedule with `count` power units on it. */
+// Updates rather than creates: the carrier already has an onboarding file from
+// `clearedToBid` in the setup below, and one carrier has one file.
 const withEquipment = (count, extra = []) =>
   seed(() =>
-    CarrierOnboarding.create({
-      fleetOwner: carrier._id,
-      equipment: [
-        ...Array.from({ length: count }, (_, i) => ({
-          ...TRACTOR,
-          unitNumber: `T-${i + 1}`,
-        })),
-        ...extra,
-      ],
-    }),
+    CarrierOnboarding.findOneAndUpdate(
+      { fleetOwner: carrier._id },
+      {
+        $set: {
+          equipment: [
+            ...Array.from({ length: count }, (_, i) => ({
+              ...TRACTOR,
+              unitNumber: `T-${i + 1}`,
+            })),
+            ...extra,
+          ],
+        },
+      },
+      { upsert: true, new: true },
+    ),
   );
 
 const makeLoad = (over = {}) =>
@@ -113,6 +120,8 @@ beforeEach(async () => {
   carrier = await seed(() =>
     FleetOwner.create({ userId: CARRIER_USER_ID, carrierName: "Owner Operator" }),
   );
+  // This suite is about capacity, not clearance — see utils/biddingEligibility.js.
+  await clearedToBid(carrier._id);
 });
 
 describe("Reading the fleet size", () => {

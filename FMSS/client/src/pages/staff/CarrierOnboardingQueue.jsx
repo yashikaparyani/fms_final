@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -55,7 +55,19 @@ const CarrierOnboardingQueue = () => {
 
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("UNDER_REVIEW");
+  // The tab can be named in the URL, so a link from a carrier's file — or from
+  // the email the office gets when an agency files — opens on the right one.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(
+    TABS.some((t) => t.key === searchParams.get("tab"))
+      ? searchParams.get("tab")
+      : "UNDER_REVIEW",
+  );
+
+  const openTab = (key) => {
+    setTab(key);
+    setSearchParams(key === "UNDER_REVIEW" ? {} : { tab: key }, { replace: true });
+  };
   const [search, setSearch] = useState("");
 
   const fetchQueue = useCallback(async ({ silent = false } = {}) => {
@@ -281,7 +293,7 @@ const CarrierOnboardingQueue = () => {
           return (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => openTab(t.key)}
               className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-indigo-600 border-indigo-600 text-white"

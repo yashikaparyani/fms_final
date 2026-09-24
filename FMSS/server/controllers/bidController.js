@@ -6,6 +6,7 @@ const {
   carrierAvailability,
   atCapacityMessage,
 } = require("../utils/carrierCapacity");
+const { biddingBlockFor } = require("../utils/biddingEligibility");
 
 // @desc    Place or update a bid on a load
 // @route   POST /api/loads/:loadId/bids
@@ -24,6 +25,11 @@ const placeOrUpdateBid = async (req, res) => {
         .status(403)
         .json({ message: "Only fleet owners can place bids" });
     }
+
+    // Not approved by the office, or no insurance on file: no bidding. The board
+    // is already empty for them (see getLoads); this is the write end.
+    const blocked = await biddingBlockFor(fleetOwner._id);
+    if (blocked) return res.status(403).json(blocked);
 
     // ─── One truck, one load ─────────────────────────────────────────────────
     // A carrier with every truck committed cannot take another load, so letting
@@ -115,6 +121,13 @@ const getMyBid = async (req, res) => {
 
 const getBidsForFleetOwner = async (req, res) => {
   try {
+    // A carrier not yet cleared to bid has no business reading the bidding.
+    if (req.user.role === "fleetOwner") {
+      const own = await FleetOwner.findOne({ userId: req.user._id }).select("_id");
+      const blocked = await biddingBlockFor(own?._id);
+      if (blocked) return res.status(403).json(blocked);
+    }
+
     const load = await Load.findOne({ loadId: req.params.loadId });
     if (!load) {
       return res.status(404).json({ message: "Load not found" });

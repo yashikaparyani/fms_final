@@ -1,8 +1,12 @@
 const fs = require("fs");
 const path = require("path");
-const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
+const { PDFDocument, StandardFonts, rgb, degrees } = require("pdf-lib");
 
-const { AGREEMENT_BY_KEY, noticeAddressFor } = require("../config/carrierAgreements");
+const {
+  AGREEMENT_BY_KEY,
+  agreementFor,
+  noticeAddressFor,
+} = require("../config/carrierAgreements");
 const { OVERLAYS, SIZE } = require("../config/agreementOverlay");
 const { BUSINESS_TIME_ZONE, businessParts, formatDateNumeric, todayKey } = require("../utils/dates");
 
@@ -54,14 +58,14 @@ const initialsFrom = (signed, profile) => {
 };
 
 /** Everything a placement can ask for, assembled once per document. */
-const buildContext = ({ profile, signed }) => {
+const buildContext = ({ profile, signed, draft = false }) => {
   const when = signed.signedAt ? new Date(signed.signedAt) : new Date();
   // Read on the US business clock, not the server's (UTC) one.
   const wall = businessParts(when);
   const notice = noticeAddressFor(profile) || {};
   const initials = initialsFrom(signed, profile);
 
-  return {
+  const context = {
     legalName: str(profile.legalName),
     dba: str(profile.dba),
 
@@ -113,6 +117,19 @@ const buildContext = ({ profile, signed }) => {
       String(wall.minute).padStart(2, "0") + (wall.hour < 12 ? " AM" : " PM"),
     signedDateShort: formatDateNumeric(when),
   };
+
+  // A draft is read before anything is signed, so the signature and the date of
+  // signing stay blank — it shows what will be signed, not a signing.
+  if (draft) {
+    context.signature = "";
+    Object.keys(context)
+      .filter((key) => /^signed[A-Z]/.test(key))
+      .forEach((key) => {
+        context[key] = "";
+      });
+  }
+
+  return context;
 };
 
 /**
@@ -141,8 +158,11 @@ const buildFilledAgreement = async ({
   signed = {},
   equipment = [],
   carrierCode = "carrier",
+  // Preview before signing: watermarked, unsigned, written to `filePath`.
+  draft = false,
+  filePath: outputPath,
 }) => {
-  const agreement = AGREEMENT_BY_KEY.get(agreementKey);
+  const agreement = agreementFor(AGREEMENT_BY_KEY.get(agreementKey), profile);
   if (!agreement) throw new Error(`Unknown agreement "${agreementKey}"`);
 
   const overlay = OVERLAYS[agreementKey];
@@ -173,7 +193,7 @@ const buildFilledAgreement = async ({
   const bodySize = overlay.bodySize || SIZE;
   const ink = rgb(0.06, 0.09, 0.16);
 
-  const context = buildContext({ profile, signed });
+  const context = buildContext({ profile, signed, draft });
 
   const draw = (placement) => {
     const text = str(context[placement.value]);
@@ -246,13 +266,34 @@ const buildFilledAgreement = async ({
     }
   }
 
+  // "DRAFT" across every page, so a preview that escapes the review screen can
+  // never be mistaken for the executed agreement.
+  if (draft) {
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    pages.forEach((page) => {
+      const { width, height } = page.getSize();
+      const size = 110;
+      const textWidth = bold.widthOfTextAtSize("DRAFT", size);
+      page.drawText("DRAFT", {
+        x: width / 2 - (textWidth / 2) * Math.cos(Math.PI / 5),
+        y: height / 2 - (textWidth / 2) * Math.sin(Math.PI / 5),
+        size,
+        font: bold,
+        color: rgb(0.86, 0.15, 0.15),
+        opacity: 0.15,
+        rotate: degrees(36),
+      });
+    });
+  }
+
   pdf.setTitle(`${agreement.title} — ${context.legalName || carrierCode}`);
-  pdf.setSubject("Executed carrier agreement");
+  pdf.setSubject(draft ? "Draft carrier agreement — not signed" : "Executed carrier agreement");
   pdf.setProducer("FMS");
 
   const stamp = todayKey();
-  const fileName = `${carrierCode}-${agreementKey}-agreement-${stamp}.pdf`;
-  const filePath = path.join(AGREEMENT_DIR, fileName);
+  const filePath =
+    outputPath || path.join(AGREEMENT_DIR, `${carrierCode}-${agreementKey}-agreement-${stamp}.pdf`);
+  const fileName = path.basename(filePath);
 
   fs.writeFileSync(filePath, await pdf.save());
 

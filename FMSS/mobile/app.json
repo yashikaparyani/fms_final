@@ -16,7 +16,6 @@
         "NSCameraUsageDescription": "FMSS needs camera access for pickup proof and delivery documents.",
         "NSPhotoLibraryUsageDescription": "FMSS needs photo access for pickup proof and delivery documents.",
         "UIBackgroundModes": [
-          "location",
           "location"
         ],
         "ITSAppUsesNonExemptEncryption": false

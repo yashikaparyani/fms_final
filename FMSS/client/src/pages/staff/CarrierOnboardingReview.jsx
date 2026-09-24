@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
@@ -264,6 +265,14 @@ const CarrierOnboardingReview = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <OnboardingStatusBadge status={file.status} className="px-3 py-1" />
+          {/* Back to the work queue itself, not the tab that happened to be
+              open — the next file to decide on is the point of coming here. */}
+          <Link
+            to={`${base}/onboarding-review?tab=UNDER_REVIEW`}
+            className="btn-secondary whitespace-nowrap"
+          >
+            <FactCheckOutlinedIcon fontSize="small" /> Needs review
+          </Link>
           {/* Corrections happen on the carrier's own form, against this
               carrier — half of these files get finished over the phone. */}
           <Link
@@ -490,7 +499,7 @@ const CarrierOnboardingReview = () => {
       <Section
         icon={BadgeOutlinedIcon}
         title="Drivers and licences"
-        subtitle="Both agreements warrant every driver is competent and properly licensed (¶23). Open each licence and check it against the details typed here."
+        subtitle="Both agreements warrant every driver is competent and properly licensed. Open each licence and check it against the details typed here."
       >
         {file.drivers.length === 0 ? (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -689,7 +698,7 @@ const CarrierOnboardingReview = () => {
                         className={`ml-2 text-[12px] font-bold px-1.5 py-0.5 rounded ${
                           coverage.required
                             ? "text-red-700 bg-red-100"
-                            : "text-gray-500 bg-gray-100"
+                            : "text-purple-700 bg-purple-100"
                         }`}
                       >
                         {coverage.required ? "REQUIRED" : "OPTIONAL"}

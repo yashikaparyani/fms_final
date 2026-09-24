@@ -33,7 +33,7 @@ const COVERAGES = [
     minLimit: 1000000,
     minAggregate: null,
     minAmBest: "A",
-    basis: "Agreement ¶12 (Truckers Liability) · 49 CFR 387.9",
+    basis: "Agreement (Truckers Liability) · 49 CFR 387.9",
     description:
       "Primary liability for bodily injury and property damage caused by the truck. The federal floor is $750,000 for general freight; the agreement requires $1,000,000 combined single limit each occurrence.",
     needsAdditionalInsured: true,
@@ -51,7 +51,7 @@ const COVERAGES = [
     minLimit: 1000000,
     minAggregate: 2000000,
     minAmBest: "A",
-    basis: "Agreement ¶12",
+    basis: "Agreement",
     description:
       "Premises and operations liability away from the vehicle itself. $1,000,000 combined single limit for bodily injury and property damage, with a $2,000,000 annual aggregate.",
     needsAdditionalInsured: true,
@@ -64,7 +64,7 @@ const COVERAGES = [
     minLimit: 100000,
     minAggregate: null,
     minAmBest: "B++",
-    basis: "Agreement ¶11",
+    basis: "Agreement",
     description:
       "Covers the freight itself while in the carrier's custody. The agreement sets $100,000 for bobtails and $100,000 for containers, trailers and vans, and requires the broker to be named loss payee.",
     needsAdditionalInsured: false,
@@ -82,7 +82,7 @@ const COVERAGES = [
     statutory: true,
     minAggregate: null,
     minAmBest: null,
-    basis: "Independent Contractor Agreement ¶38",
+    basis: "Independent Contractor Agreement",
     description:
       "Statutory cover for the carrier and every one of their employees. Limits are set by the state rather than by the agreement. Carriers with no employees sometimes carry Occupational Accident instead — record that below if so.",
     needsAdditionalInsured: false,
@@ -134,7 +134,7 @@ const COVERAGES = [
     minLimit: 1000000,
     minAggregate: null,
     minAmBest: null,
-    basis: "Independent Contractor Agreement ¶24 · MCS-90 endorsement, 49 CFR 387.7",
+    basis: "Independent Contractor Agreement · MCS-90 endorsement, 49 CFR 387.7",
     description:
       "Environmental restoration cover, named explicitly in the agreement. For most carriers this is satisfied by the MCS-90 endorsement on the auto liability policy rather than a separate policy — record it either way.",
     needsAdditionalInsured: false,

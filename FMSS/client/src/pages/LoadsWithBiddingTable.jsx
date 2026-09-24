@@ -302,7 +302,12 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
 
   return (
     <div className="p-5">
-      {capacity?.atCapacity && (
+      {capacity?.biddingBlocked ? (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-bold text-amber-900">Bidding is not open to you yet</p>
+          <p className="text-xs text-amber-800 mt-0.5">{capacity.biddingBlocked.message}</p>
+        </div>
+      ) : capacity?.atCapacity && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-bold text-amber-900">
             Bidding is paused while your {capacity.trucks === 1 ? "truck is" : "trucks are"} committed
@@ -320,7 +325,9 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
         colorBy="bidStatus"
         loading={loading}
         emptyMessage={
-          capacity?.atCapacity
+          capacity?.biddingBlocked
+            ? "No loads are shown until your onboarding is approved and your insurance is on file."
+            : capacity?.atCapacity
             ? "Nothing to bid on until your current load is delivered."
             : meta.empty
         }

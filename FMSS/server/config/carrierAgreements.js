@@ -107,6 +107,11 @@ const SHARED_PROFILE = [
         sensitive: true,
         placeholder: "12-3456789",
         paper: "Contractor p13",
+        // Follows the tax ID type chosen just above — see agreementFor.
+        byTaxIdType: {
+          EIN: { label: "EIN", placeholder: "12-3456789" },
+          SSN: { label: "SSN", placeholder: "123-45-6789" },
+        },
       },
       {
         key: "scac",
@@ -233,7 +238,7 @@ const AGREEMENTS = [
         // trial. It is deliberately separate from the signature, and separate
         // from the class waiver below, because the paper agreement treats them
         // as two distinct waivers.
-        help: "By initialling you agree that disputes go to binding arbitration in Sacramento County, California, and that you are giving up the right to a jury trial (¶49).",
+        help: "By initialling you agree that disputes go to binding arbitration in Sacramento County, California, and that you are giving up the right to a jury trial.",
         paper: "p13",
       },
       {
@@ -241,14 +246,14 @@ const AGREEMENTS = [
         label: "Class action waiver — your initials",
         type: "initials",
         required: true,
-        help: "By initialling you agree to bring any dispute individually rather than as part of a class or collective action (¶50).",
+        help: "By initialling you agree to bring any dispute individually rather than as part of a class or collective action.",
         paper: "p13",
       },
     ],
     acknowledgements: [
       "I have read the Transportation Brokerage Agreement in full.",
-      "I confirm the carrier holds a satisfactory USDOT safety rating (¶22).",
-      "I confirm I will not sub-contract, broker or re-tender freight arranged under this agreement (¶19).",
+      "I confirm the carrier holds a satisfactory USDOT safety rating.",
+      "I confirm I will not sub-contract, broker or re-tender freight arranged under this agreement.",
       "I am authorised to sign this agreement on behalf of the carrier.",
     ],
   },
@@ -266,7 +271,7 @@ const AGREEMENTS = [
         label: "Arbitration waiver — your initials",
         type: "initials",
         required: true,
-        help: "Binding arbitration rather than a court, and no jury trial (¶40).",
+        help: "Binding arbitration rather than a court, and no jury trial.",
         paper: "p10",
       },
       {
@@ -314,9 +319,9 @@ const AGREEMENTS = [
     },
     acknowledgements: [
       "I have read the Independent Contractor Transportation Agreement in full.",
-      "I confirm I hold title to, or exclusive use of, the equipment listed in Appendix A (¶2).",
-      "I confirm I will maintain Workers' Compensation cover for myself and my employees (¶38).",
-      "I understand I am an independent contractor and not an employee (¶6).",
+      "I confirm I hold title to, or exclusive use of, the equipment listed in Appendix A.",
+      "I confirm I will maintain Workers' Compensation cover for myself and my employees.",
+      "I understand I am an independent contractor and not an employee.",
       "I am authorised to sign this agreement on behalf of the contractor.",
     ],
   },
@@ -352,7 +357,18 @@ const AGREEMENTS = [
         // optional on the way in and normalised on the way out.
         pattern: "^\\d{2}-?\\d{7}$",
         patternMessage: "An EIN is nine digits, written 12-3456789.",
-        help: "Type it again from your IRS notice rather than copying it from the form above — retyping is what makes this a verification.",
+        // Filled in from the company details, so it is never typed twice.
+        prefillFrom: "taxId",
+        help: "Filled in from your company details. Check it against your IRS notice (CP 575 or 147C) before you sign.",
+        byTaxIdType: {
+          SSN: {
+            label: "SSN",
+            placeholder: "123-45-6789",
+            pattern: "^\\d{3}-?\\d{2}-?\\d{4}$",
+            patternMessage: "An SSN is nine digits, written 123-45-6789.",
+            help: "Filled in from your company details. Check it against your Social Security card before you sign.",
+          },
+        },
       },
       {
         key: "einLegalName",
@@ -360,7 +376,15 @@ const AGREEMENTS = [
         type: "text",
         required: true,
         placeholder: "SWIFT HAULAGE LLC",
-        help: "From your CP 575 or 147C letter. It must be the name the EIN was issued to, which is not always the name you trade under.",
+        prefillFrom: "legalName",
+        help: "Filled in from your company details. It must be the name the EIN was issued to, which is not always the name you trade under.",
+        byTaxIdType: {
+          SSN: {
+            label: "Name exactly as shown on your Social Security card",
+            placeholder: "RAVI KUMAR",
+            help: "Filled in from your company details. It must be the name the SSN was issued to.",
+          },
+        },
       },
       {
         key: "einCertificationInitials",
@@ -376,12 +400,48 @@ const AGREEMENTS = [
       "I will notify the office in writing if this number or the legal name it was issued to changes.",
       "I am authorised to certify this on behalf of the carrier.",
     ],
+    // A carrier filing under a Social Security Number certifies that instead.
+    // Same key and same fields, so the signed record and the onboarding checklist
+    // do not need to know which one it was.
+    byTaxIdType: {
+      SSN: {
+        title: "SSN Verification and Taxpayer Certification",
+        summary:
+          "Confirms the Social Security Number we will report your settlements under, and certifies it is the number issued to the name shown.",
+        acknowledgements: [
+          "The SSN stated above is the number issued to the name shown, and I have read it from the Social Security card itself.",
+          "I understand this number will be used to report payments made to me, including on any Form 1099 issued.",
+          "I will notify the office in writing if this number or the name it was issued to changes.",
+          "I am authorised to certify this on behalf of the carrier.",
+        ],
+      },
+    },
   },
 ];
 
 const AGREEMENT_BY_KEY = new Map(AGREEMENTS.map((a) => [a.key, a]));
 
 const AGREEMENT_KEYS = AGREEMENTS.map((a) => a.key);
+
+// ─── Tax ID type ──────────────────────────────────────────────────────────────
+// The carrier picks EIN or SSN once, on the company details, and every later
+// screen and document follows it: the label on the number, the taxpayer
+// certification's wording, its acknowledgements. Anything that differs by type
+// is declared as `byTaxIdType` on the field or agreement, and resolved here.
+// The web and phone apps apply the same rule to the catalog they are sent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A field or agreement with its tax-ID-type overrides applied. */
+const forTaxIdType = (item, taxIdType) =>
+  item?.byTaxIdType?.[taxIdType] ? { ...item, ...item.byTaxIdType[taxIdType] } : item;
+
+/** An agreement as it reads for this carrier's tax ID type. */
+const agreementFor = (agreement, profile = {}) => {
+  if (!agreement) return agreement;
+  const type = profile?.taxIdType;
+  const resolved = forTaxIdType(agreement, type);
+  return { ...resolved, fields: (resolved.fields || []).map((f) => forTaxIdType(f, type)) };
+};
 
 // ─── Appendix A equipment ─────────────────────────────────────────────────────
 
@@ -479,6 +539,8 @@ module.exports = {
   AGREEMENTS,
   AGREEMENT_BY_KEY,
   AGREEMENT_KEYS,
+  agreementFor,
+  forTaxIdType,
   EQUIPMENT_COLUMNS,
   VIN_COLUMN,
   isValidVin,

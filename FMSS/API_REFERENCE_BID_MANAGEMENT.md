@@ -1,4 +1,4 @@
-# Bid Management API Reference
+![1790170055141](image/API_REFERENCE_BID_MANAGEMENT/1790170055141.png)# Bid Management API Reference
 
 ## Base URL
 ```

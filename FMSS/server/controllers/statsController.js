@@ -10,6 +10,7 @@ const {
   unassignedFilter,
 } = require("../utils/dashboardBuckets");
 const { findCarrierFor } = require("../utils/carrierAccount");
+const { biddingBlockFor } = require("../utils/biddingEligibility");
 const { CARRIER_FINISHED_STATUSES } = require("../config/transportStatuses");
 
 // @desc    Get dashboard stats based on user role
@@ -407,6 +408,13 @@ const getStats = async (req, res) => {
 
       const fleetOwnerId = fleetOwner._id;
 
+      // The board's numbers follow the board: nothing open for bidding is
+      // counted or listed until the carrier is cleared to bid — see
+      // utils/biddingEligibility.js.
+      const biddingBlocked = await biddingBlockFor(fleetOwnerId);
+      const boardCount = (filter) =>
+        biddingBlocked ? Promise.resolve(0) : Load.countDocuments(filter);
+
       // =========================
       // BIDS
       // =========================
@@ -436,17 +444,17 @@ const getStats = async (req, res) => {
       // AVAILABLE LOADS
       // =========================
 
-      const availableLoads = await Load.countDocuments({
+      const availableLoads = await boardCount({
         status: { $in: ["VERIFIED", "ASSIGNED"] },
         bidStatus: "OPEN",
       });
 
-      const upcomingBidding = await Load.countDocuments({
+      const upcomingBidding = await boardCount({
         status: { $in: ["VERIFIED", "ASSIGNED"] },
         bidStatus: "UPCOMING",
       });
 
-      const activeBidding = await Load.countDocuments({
+      const activeBidding = await boardCount({
         status: { $in: ["VERIFIED", "ASSIGNED"] },
         bidStatus: "OPEN",
       });
@@ -477,12 +485,14 @@ const getStats = async (req, res) => {
       // RECENT AVAILABLE LOADS
       // =========================
 
-      const recentAvailableLoads = await Load.find({
-        bidStatus: "OPEN",
-      })
-        .sort({ bidEndTime: 1 })
-        .limit(5)
-        .select("loadId customer customerName pickup drop amount bidEndTime");
+      const recentAvailableLoads = biddingBlocked
+        ? []
+        : await Load.find({
+            bidStatus: "OPEN",
+          })
+            .sort({ bidEndTime: 1 })
+            .limit(5)
+            .select("loadId customer customerName pickup drop amount bidEndTime");
 
       // =========================
       // MY RECENT BIDS

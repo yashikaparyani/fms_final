@@ -3,6 +3,7 @@ const Load = require("../models/Load");
 const { sendBidWon, sendBiddingNowOpen } = require("../services/emailService");
 const { notifyBiddingClosed, notifyBiddingScheduled } = require("../services/NotificationService");
 const FleetOwner = require("../models/FleetOwner");
+const { biddingCarrierIds } = require("./biddingEligibility");
 const { runUnscoped } = require("./tenantContext");
 const { drainQueue } = require("../services/whatsappService");
 const { expireStaleOffers } = require("../services/instantDispatchService");
@@ -38,8 +39,9 @@ const startCronJobs = () => {
           console.log(`Opened bidding for ${load.loadId}`);
           notifyBiddingScheduled({ load, type: "BIDDING_OPENED" }).catch(console.error);
 
-          // Notify fleet owners
-          const fleetOwners = await FleetOwner.find({ status: 'ACTIVE' });
+          // Notify fleet owners cleared to bid — see utils/biddingEligibility.js
+          const cleared = await biddingCarrierIds();
+          const fleetOwners = await FleetOwner.find({ status: 'ACTIVE', _id: { $in: [...cleared] } });
           for (const owner of fleetOwners) {
             const email = owner.contactPersons?.find(c => c.isPrimary)?.email || owner.contactPersons?.[0]?.email;
             if (email) {

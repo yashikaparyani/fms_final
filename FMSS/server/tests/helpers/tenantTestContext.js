@@ -19,6 +19,7 @@
 
 const mongoose = require("mongoose");
 const { withTenant } = require("../../utils/tenantContext");
+const CarrierOnboarding = require("../../models/CarrierOnboarding");
 
 // Fixed rather than random so fixtures and requests always agree, and so a
 // failure is reproducible run to run.
@@ -92,4 +93,25 @@ const authMock = ({ defaultRole = "staff", bearerTestUser = false } = {}) => ({
  */
 const seed = (fn) => withTenant({ locationId: TEST_LOCATION_ID }, fn);
 
-module.exports = { TEST_LOCATION_ID, authMock, seed };
+/**
+ * Clear a carrier to see and bid on the board: an approved onboarding file with
+ * insurance on file. See utils/biddingEligibility.js — without one, the board
+ * is empty and every bid route refuses, which is the point of the rule but not
+ * what a bidding test is trying to exercise.
+ */
+const clearedToBid = (fleetOwnerId) =>
+  seed(() =>
+    CarrierOnboarding.findOneAndUpdate(
+      { fleetOwner: fleetOwnerId },
+      {
+        $set: {
+          status: "APPROVED",
+          "insurance.submittedAt": new Date(),
+          "insurance.policies": [{ coverage: "autoLiability", limit: 1000000 }],
+        },
+      },
+      { upsert: true, new: true },
+    ),
+  );
+
+module.exports = { TEST_LOCATION_ID, authMock, seed, clearedToBid };

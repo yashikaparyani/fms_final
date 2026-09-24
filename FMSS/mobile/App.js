@@ -1280,7 +1280,12 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
       keyExtractor={(item, index) => String(item._id || item.loadId || index)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchLoads} />}
       ListHeaderComponent={
-        capacity?.atCapacity ? (
+        capacity?.biddingBlocked ? (
+          <View style={styles.capacityNotice}>
+            <Text style={styles.capacityTitle}>Bidding is not open to you yet</Text>
+            <Text style={styles.capacityBody}>{capacity.biddingBlocked.message}</Text>
+          </View>
+        ) : capacity?.atCapacity ? (
           <View style={styles.capacityNotice}>
             <Text style={styles.capacityTitle}>
               Bidding paused — {capacity.trucks === 1 ? "your truck is" : "your trucks are"} committed
@@ -1293,7 +1298,9 @@ function AvailableBidsTab({ onOpenAssigned, onOpenDetail }) {
         <Text style={styles.empty}>
           {loading
             ? "Loading open bids..."
-            : capacity?.atCapacity
+            : capacity?.biddingBlocked
+              ? "No loads are shown until your onboarding is approved and your insurance is on file."
+              : capacity?.atCapacity
               ? "Nothing to bid on until your current load is delivered."
               : "No open bids right now."}
         </Text>
@@ -1338,7 +1345,9 @@ function CarrierDocumentsScreen({ onBack }) {
       ]);
       setState({
         loading: false,
-        agreements: catalogRes.data?.agreements || [],
+        agreements: (catalogRes.data?.agreements || []).map((a) =>
+          agreementFor(a, fileRes.data?.profile),
+        ),
         signed: fileRes.data?.agreements || [],
       });
     } catch (error) {
@@ -3372,7 +3381,7 @@ function CarrierDocumentationGate({ session, onLogout, children }) {
   if (screen?.kind === "sign") {
     return (
       <AgreementSignScreen
-        agreement={screen.agreement}
+        agreement={agreementFor(screen.agreement, state.data?.profile)}
         profile={state.data?.profile || {}}
         onBack={() => setScreen(null)}
         onSigned={async () => {
@@ -3408,6 +3417,30 @@ function CarrierDocumentationGate({ session, onLogout, children }) {
  * signature is drawn rather than rejecting it afterwards. The server stays the
  * authority — this only decides what the screen offers.
  */
+/**
+ * A field or agreement as it reads for the chosen tax ID type (EIN or SSN) —
+ * the same rule as agreementFor in server/config/carrierAgreements.js.
+ */
+const forTaxIdType = (item, taxIdType) =>
+  item?.byTaxIdType?.[taxIdType] ? { ...item, ...item.byTaxIdType[taxIdType] } : item;
+
+const agreementFor = (agreement, profile) => {
+  if (!agreement) return agreement;
+  const resolved = forTaxIdType(agreement, profile?.taxIdType);
+  return {
+    ...resolved,
+    fields: (resolved.fields || []).map((f) => forTaxIdType(f, profile?.taxIdType)),
+  };
+};
+
+const initialsOf = (name) =>
+  String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => word[0].toUpperCase())
+    .join("");
+
 const profileGapsFor = (sections, profile) =>
   (sections || [])
     .flatMap((section) => section.fields || [])
@@ -3669,7 +3702,7 @@ function CarrierProfileScreen({ sections, profile, onBack, onSaved }) {
               {(section.fields || []).map((field) => (
                 <SchemaField
                   key={field.key}
-                  field={field}
+                  field={forTaxIdType(field, values.taxIdType)}
                   value={values[field.key]}
                   error={errors[field.key]}
                   onLayout={(e) => {
@@ -3899,7 +3932,8 @@ function CarrierDocumentationScreen({
             </View>
           )}
 
-          {(catalog.agreements || []).map((agreement) => {
+          {(catalog.agreements || []).map((baseAgreement) => {
+            const agreement = agreementFor(baseAgreement, data?.profile);
             const done = signedKeys.includes(agreement.key);
             // What is stopping this one being signed right now. Shown up front
             // rather than letting the carrier read fifteen pages, tick every box
@@ -3952,7 +3986,20 @@ function CarrierDocumentationScreen({
 // form collects, because the server accepts a signature from either and produces
 // the same filled PDF from it.
 function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
-  const [values, setValues] = useState({});
+  // Anything the company details already say — the EIN or SSN, the legal name —
+  // is filled in rather than asked again, and initials come from the signer's
+  // name. All of it stays editable.
+  const [values, setValues] = useState(() =>
+    Object.fromEntries(
+      (agreement.fields || [])
+        .map((field) => [
+          field.key,
+          (field.prefillFrom && String(profile?.[field.prefillFrom] || "").trim()) ||
+            (field.type === "initials" ? initialsOf(profile?.signerName) : ""),
+        ])
+        .filter(([, value]) => value),
+    ),
+  );
   const [accepted, setAccepted] = useState([]);
   // Prefilled from the authorised signer on the company details, which is who
   // this is meant to be — still editable, because a second officer sometimes
@@ -3962,18 +4009,26 @@ function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
   const [signature, setSignature] = useState("");
   const [saving, setSaving] = useState(false);
   const [showPad, setShowPad] = useState(false);
+  // Read the draft first: the confirmations and the signature only appear once
+  // the carrier has opened it, and any edit to what it shows hides them again.
+  const [draftSeen, setDraftSeen] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
+  // Set once the server has the signature — the screen then offers the copy.
+  const [signed, setSigned] = useState(false);
+  const [opening, setOpening] = useState(false);
 
   const allAcknowledged =
     accepted.length === (agreement.acknowledgements || []).length;
 
-  const submit = async () => {
+  /** What stops a draft being built, as an alert — true when something does. */
+  const detailsProblem = () => {
     const missing = (agreement.fields || [])
       .filter((f) => f.required && !String(values[f.key] || "").trim())
       .map((f) => f.label);
 
     if (missing.length) {
       Alert.alert("Still needed", missing.join(", "));
-      return;
+      return true;
     }
 
     // A field that declares a shape has to match it — the EIN certification's
@@ -3989,15 +4044,67 @@ function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
         `Check the ${malformed.label.toLowerCase()}`,
         malformed.patternMessage || "That does not look right.",
       );
-      return;
+      return true;
     }
+
+    if (!signedName.trim() || !signedTitle.trim()) {
+      Alert.alert("Signer", "Your full name and title are both required.");
+      return true;
+    }
+    return false;
+  };
+
+  // The agreement exactly as it will be signed, opened in the phone's PDF
+  // viewer through a short-lived link (the viewer sends no auth header).
+  const viewDraft = async () => {
+    if (detailsProblem()) return;
+
+    setDraftLoading(true);
+    try {
+      const res = await api.post(`/onboarding/agreements/${agreement.key}/preview`, {
+        values,
+        signedName,
+        signedTitle,
+      });
+      const url = res.data?.url;
+      if (!url) throw new Error("No link came back for the draft.");
+      await Linking.openURL(url);
+      setDraftSeen(true);
+    } catch (error) {
+      Alert.alert(
+        "Could not open the draft",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const openSignedCopy = async () => {
+    setOpening(true);
+    try {
+      const res = await api.get(`/onboarding/agreements/${agreement.key}/link`);
+      const url = res.data?.url;
+      if (!url) throw new Error("No link came back for that document.");
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert("Could not open it", error.response?.data?.message || error.message);
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  /** An edit to anything the draft shows means it has to be read again. */
+  const edited = (setter) => (value) => {
+    setter(value);
+    setDraftSeen(false);
+  };
+
+  const submit = async () => {
+    if (detailsProblem()) return;
 
     if (!allAcknowledged) {
       Alert.alert("Confirm each point", "Every acknowledgement has to be ticked.");
-      return;
-    }
-    if (!signedName.trim() || !signedTitle.trim()) {
-      Alert.alert("Signer", "Your full name and title are both required.");
       return;
     }
     if (!signature) {
@@ -4014,7 +4121,7 @@ function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
         signedTitle,
         signatureData: signature,
       });
-      onSigned();
+      setSigned(true);
     } catch (error) {
       Alert.alert(
         "Could not sign",
@@ -4024,6 +4131,29 @@ function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
       setSaving(false);
     }
   };
+
+  if (signed) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.listContent}>
+          <Text style={styles.title}>{agreement.title}</Text>
+          <View style={styles.card}>
+            <Text style={styles.signedNote}>✓ Signed</Text>
+            <Text style={styles.cardBody}>
+              Your signed copy is ready. Open it to read, save or share it — it is
+              also kept under Your documents.
+            </Text>
+            <PrimaryButton
+              title={opening ? "Opening…" : "Open / download signed copy"}
+              onPress={openSignedCopy}
+              disabled={opening}
+            />
+          </View>
+          <SecondaryButton title="Done" onPress={onSigned} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (showPad) {
     return (
@@ -4049,61 +4179,86 @@ function AgreementSignScreen({ agreement, profile, onBack, onSigned }) {
             <SchemaField
               field={field}
               value={values[field.key]}
-              onChange={(text) =>
-                setValues((current) => ({ ...current, [field.key]: text }))
-              }
+              onChange={(text) => {
+                setValues((current) => ({ ...current, [field.key]: text }));
+                setDraftSeen(false);
+              }}
             />
           </View>
         ))}
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Confirm each of these</Text>
-          {(agreement.acknowledgements || []).map((ack) => {
-            const on = accepted.includes(ack);
-            return (
-              <Pressable
-                key={ack}
-                style={styles.ackRow}
-                onPress={() =>
-                  setAccepted((current) =>
-                    on ? current.filter((a) => a !== ack) : [...current, ack],
-                  )
-                }
-              >
-                <Text style={styles.ackBox}>{on ? "☑" : "☐"}</Text>
-                <Text style={styles.ackText}>{ack}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Signer full name *</Text>
           <TextInput
             style={styles.input}
             value={signedName}
-            onChangeText={setSignedName}
+            onChangeText={edited(setSignedName)}
           />
           <Text style={styles.label}>Title *</Text>
           <TextInput
             style={styles.input}
             value={signedTitle}
-            onChangeText={setSignedTitle}
-          />
-          <Text style={styles.signedNote}>
-            {signature ? "✓ Signature captured" : "No signature yet"}
-          </Text>
-          <SecondaryButton
-            title={signature ? "Redraw signature" : "Draw signature"}
-            onPress={() => setShowPad(true)}
+            onChangeText={edited(setSignedTitle)}
           />
         </View>
 
-        <PrimaryButton
-          title={saving ? "Signing…" : "Sign agreement"}
-          onPress={submit}
-          disabled={saving}
-        />
+        {!draftSeen ? (
+          <>
+            <Text style={styles.cardMeta}>
+              Read the agreement with your details filled in before you sign it.
+            </Text>
+            <PrimaryButton
+              title={draftLoading ? "Preparing draft…" : "View draft"}
+              onPress={viewDraft}
+              disabled={draftLoading}
+            />
+          </>
+        ) : (
+          <>
+            <SecondaryButton
+              title={draftLoading ? "Preparing draft…" : "View draft again"}
+              onPress={viewDraft}
+              disabled={draftLoading}
+            />
+
+            <View style={styles.card}>
+              <Text style={styles.label}>Confirm each of these</Text>
+              {(agreement.acknowledgements || []).map((ack) => {
+                const on = accepted.includes(ack);
+                return (
+                  <Pressable
+                    key={ack}
+                    style={styles.ackRow}
+                    onPress={() =>
+                      setAccepted((current) =>
+                        on ? current.filter((a) => a !== ack) : [...current, ack],
+                      )
+                    }
+                  >
+                    <Text style={styles.ackBox}>{on ? "☑" : "☐"}</Text>
+                    <Text style={styles.ackText}>{ack}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.signedNote}>
+                {signature ? "✓ Signature captured" : "No signature yet"}
+              </Text>
+              <SecondaryButton
+                title={signature ? "Redraw signature" : "Draw signature"}
+                onPress={() => setShowPad(true)}
+              />
+            </View>
+
+            <PrimaryButton
+              title={saving ? "Signing…" : "Sign agreement"}
+              onPress={submit}
+              disabled={saving}
+            />
+          </>
+        )}
         <SecondaryButton title="Back" onPress={onBack} />
       </ScrollView>
     </SafeAreaView>
@@ -4706,6 +4861,9 @@ export default function App() {
   useEffect(() => {
     getStoredSession()
       .then((stored) => setSession(stored))
+      // A rejection here used to take the whole launch with it, with nothing on
+      // screen and nothing recorded. Signed out is the safe way to fail.
+      .catch(() => setSession(null))
       .finally(() => setBooting(false));
   }, []);
 

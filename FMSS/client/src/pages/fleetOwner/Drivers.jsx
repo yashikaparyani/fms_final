@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import GroupAddIcon from "@mui/icons-material/GroupAdd";
 import AddIcon from "@mui/icons-material/Add";
 import KeyIcon from "@mui/icons-material/Key";
@@ -67,8 +68,10 @@ const Drivers = () => {
   const [busyId, setBusyId] = useState(null);
 
   // Staff and admins manage any carrier's roster, so they have to say whose.
+  // `?fleetOwnerId=` preselects one — the driver dialog on a load links here.
+  const [searchParams] = useSearchParams();
   const [carriers, setCarriers] = useState([]);
-  const [carrierId, setCarrierId] = useState("");
+  const [carrierId, setCarrierId] = useState(searchParams.get("fleetOwnerId") || "");
 
   const fetchDrivers = async ({ silent = false } = {}) => {
     try {

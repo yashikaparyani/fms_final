@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link, useLocation } from "react-router-dom";
 import CloseIcon from "@mui/icons-material/Close";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -70,8 +71,19 @@ const StopFields = ({ label, value, onChange, disabled }) => (
 
 // `fleetOwnerId` is for the office, who have no roster of their own: it names
 // whose drivers to offer. A carrier opening this omits it and gets theirs.
-const AssignDriversDialog = ({ open, onClose, load, onSaved, fleetOwnerId }) => {
+const AssignDriversDialog = ({
+  open,
+  onClose,
+  load,
+  onSaved,
+  fleetOwnerId,
+  carrierName,
+}) => {
+  const { pathname } = useLocation();
   const [drivers, setDrivers] = useState([]);
+  // Why the roster could not be read, shown in place of it — a toast alone
+  // vanished and left "no drivers" looking like the answer.
+  const [loadError, setLoadError] = useState("");
   const [rows, setRows] = useState([{ ...BLANK }]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,6 +92,7 @@ const AssignDriversDialog = ({ open, onClose, load, onSaved, fleetOwnerId }) => 
     if (!open) return;
 
     setLoading(true);
+    setLoadError("");
 
     // Seeded from what is already on the load, so opening this to change one
     // driver's leg does not silently drop the others on save.
@@ -94,7 +107,12 @@ const AssignDriversDialog = ({ open, onClose, load, onSaved, fleetOwnerId }) => 
     api
       .get("/drivers", { params: fleetOwnerId ? { fleetOwnerId } : {} })
       .then(({ data }) => setDrivers(data.drivers || data || []))
-      .catch(() => notify.error("Could not load the driver roster"))
+      .catch((err) => {
+        setDrivers([]);
+        setLoadError(
+          err.response?.data?.message || "Could not load the driver roster.",
+        );
+      })
       .finally(() => setLoading(false));
   }, [open, load, fleetOwnerId]);
 
@@ -171,11 +189,33 @@ const AssignDriversDialog = ({ open, onClose, load, onSaved, fleetOwnerId }) => 
         <div className="p-5 overflow-y-auto grow space-y-3">
           {loading ? (
             <p className="text-center text-gray-400 py-10 text-sm">Loading…</p>
-          ) : !drivers.length ? (
-            <p className="text-sm text-gray-500 text-center py-8 border border-dashed border-gray-300 rounded-lg">
-              No drivers on your roster yet. Add them from the Drivers screen
-              first.
+          ) : loadError ? (
+            <p className="text-sm text-red-700 bg-red-50 text-center py-8 px-4 border border-dashed border-red-200 rounded-lg">
+              {loadError}
             </p>
+          ) : !drivers.length ? (
+            <div className="text-sm text-gray-500 text-center py-8 px-4 border border-dashed border-gray-300 rounded-lg space-y-2">
+              {fleetOwnerId ? (
+                // The office has no roster of its own — this is the carrier's.
+                <>
+                  <p>
+                    {carrierName || "This carrier"} has no drivers on their
+                    roster yet.
+                  </p>
+                  <Link
+                    to={`/${pathname.split("/")[1]}/drivers?fleetOwnerId=${fleetOwnerId}`}
+                    className="link inline-block"
+                  >
+                    Add a driver for {carrierName || "this carrier"}
+                  </Link>
+                </>
+              ) : (
+                <p>
+                  No drivers on your roster yet. Add them from the Drivers
+                  screen first.
+                </p>
+              )}
+            </div>
           ) : (
             rows.map((row, index) => (
               <div

@@ -15,6 +15,7 @@ const {
   catalog: agreementCatalog,
   AGREEMENT_BY_KEY,
   AGREEMENT_KEYS,
+  agreementFor,
   profileGaps,
   equipmentVinProblems,
 } = require("../config/carrierAgreements");
@@ -28,7 +29,10 @@ const { buildFilledAgreement } = require("../services/agreementOverlayService");
 // Documents with no counterparty original behind them (the EIN certification)
 // are generated instead. Which of the two runs is decided by whether the
 // agreement has an overlay map — see documentBuilderFor below.
-const { buildAgreementDocument } = require("../services/agreementDocumentService");
+const {
+  buildAgreementDocument,
+  AGREEMENT_DIR,
+} = require("../services/agreementDocumentService");
 const { OVERLAYS } = require("../config/agreementOverlay");
 const { certificateMeta } = require("../utils/insuranceCertificate");
 const { serveFile } = require("../utils/serveFile");
@@ -423,6 +427,14 @@ const saveProfile = async (req, res) => {
     onboarding.refreshStatus({ hasDrivers: drivers.length > 0 });
     await onboarding.save();
 
+    // The carrier record the office edits shows the same tax ID the carrier
+    // gave here, rather than whatever (often nothing) was typed at account
+    // creation — one number, not two that drift apart.
+    const taxId = trimmed(onboarding.profile?.taxId);
+    if (taxId && taxId !== trimmed(carrier.taxId)) {
+      await FleetOwner.updateOne({ _id: carrier._id }, { $set: { taxId } });
+    }
+
     res.json({
       message: "Saved.",
       onboarding: toPayload(onboarding, { carrier, drivers }),
@@ -432,12 +444,102 @@ const saveProfile = async (req, res) => {
   }
 };
 
+/**
+ * Why this agreement cannot be produced yet, or null when it can.
+ *
+ * Shared by the draft and the signature, so the carrier is never shown a draft
+ * that would then be refused at signing — or refused a draft for a reason that
+ * signing would not have raised. Only the signature itself (name, title,
+ * acknowledgements) is checked at signing alone.
+ *
+ * Mutates nothing; any profile edits from the request are merged by the caller.
+ */
+const signingProblem = (baseAgreement, onboarding, values) => {
+  const agreement = agreementFor(baseAgreement, onboarding.profile);
+
+  // Completeness IS enforced here — a contract with blanks in it is not a
+  // contract, and this is the last point before one is produced.
+  const gaps = profileGaps(onboarding.profile);
+  if (gaps.length) {
+    return {
+      message: `These details are needed before you can sign: ${gaps.join(", ")}.`,
+      gaps,
+    };
+  }
+
+  const missingFields = (agreement.fields || [])
+    .filter((f) => f.required && !trimmed(values[f.key]))
+    .map((f) => f.label);
+
+  if (missingFields.length) {
+    return {
+      message: `Still needed: ${missingFields.join(", ")}.`,
+      gaps: missingFields,
+    };
+  }
+
+  // A field that declares a shape has to match it. Checked here rather than
+  // per document so a new field with a `pattern` is validated the day it is
+  // added to config/carrierAgreements.js.
+  const malformed = (agreement.fields || [])
+    .filter((f) => f.pattern && trimmed(values[f.key]))
+    .filter((f) => !new RegExp(f.pattern).test(trimmed(values[f.key])))
+    .map((f) => `${f.label}: ${f.patternMessage || "that does not look right."}`);
+
+  if (malformed.length) {
+    return { message: malformed.join(" ") };
+  }
+
+  // The taxpayer certification exists to catch a mistyped tax ID, so the
+  // number certified here has to be the number already on the carrier's
+  // profile — an EIN or an SSN, whichever type they chose there. Compared on
+  // digits: one of the two is routinely written with the hyphens and the other
+  // without, and that is not a discrepancy.
+  if (agreement.key === "einVerification") {
+    const profileTaxId = digitsOf(onboarding.profile?.taxId);
+    const certified = digitsOf(values.einNumber);
+    const type = onboarding.profile?.taxIdType || "tax ID";
+
+    if (profileTaxId && certified !== profileTaxId) {
+      return {
+        message: `The ${type} you have certified does not match the tax ID on your company details. Correct whichever one is wrong before signing.`,
+      };
+    }
+  }
+
+  if (agreement.key === "contractor") {
+    if (!(onboarding.equipment || []).length) {
+      return {
+        message:
+          "Appendix A needs at least one piece of equipment before this agreement can be signed.",
+      };
+    }
+
+    // Signing executes the equipment schedule, so every VIN on it has to be
+    // complete and correct — not merely well-formed where one was typed.
+    const vinProblems = equipmentVinProblems(onboarding.equipment, {
+      requireVin: true,
+    });
+
+    if (vinProblems.length) {
+      return {
+        message: `Appendix A cannot be signed yet — ${vinProblems
+          .map((p) => p.message)
+          .join(" ")}`,
+        equipmentErrors: vinProblems,
+      };
+    }
+  }
+
+  return null;
+};
+
 // @desc    Sign one of the agreements
 // @route   POST /api/onboarding/agreements/:key/sign
 // @access  Private (own carrier, staff, admin)
 const signAgreement = async (req, res) => {
   try {
-    const agreement = AGREEMENT_BY_KEY.get(req.params.key);
+    let agreement = AGREEMENT_BY_KEY.get(req.params.key);
     if (!agreement) {
       return res.status(404).json({ message: "Unknown agreement." });
     }
@@ -453,63 +555,14 @@ const signAgreement = async (req, res) => {
       onboarding.markModified("profile");
     }
 
-    // Completeness IS enforced here — a contract with blanks in it is not a
-    // contract, and this is the last point before one is produced.
-    const gaps = profileGaps(onboarding.profile);
-    if (gaps.length) {
-      return res.status(400).json({
-        message: `These details are needed before you can sign: ${gaps.join(", ")}.`,
-        gaps,
-      });
-    }
-
     const values = req.body.values || {};
 
-    const missingFields = (agreement.fields || [])
-      .filter((f) => f.required && !trimmed(values[f.key]))
-      .map((f) => f.label);
+    const problem = signingProblem(agreement, onboarding, values);
+    if (problem) return res.status(400).json(problem);
 
-    if (missingFields.length) {
-      return res.status(400).json({
-        message: `Still needed: ${missingFields.join(", ")}.`,
-        gaps: missingFields,
-      });
-    }
-
-    // A field that declares a shape has to match it. Checked here rather than
-    // per document so a new field with a `pattern` is validated the day it is
-    // added to config/carrierAgreements.js.
-    const malformed = (agreement.fields || [])
-      .filter((f) => f.pattern && trimmed(values[f.key]))
-      .filter((f) => !new RegExp(f.pattern).test(trimmed(values[f.key])))
-      .map((f) => `${f.label}: ${f.patternMessage || "that does not look right."}`);
-
-    if (malformed.length) {
-      return res.status(400).json({ message: malformed.join(" ") });
-    }
-
-    // The EIN certification exists to catch a mistyped tax ID, so the number
-    // certified here has to be the number already on the carrier's profile.
-    // Compared on digits: one of the two is routinely written with the hyphen
-    // and the other without, and that is not a discrepancy.
-    if (agreement.key === "einVerification") {
-      const profileTaxId = digitsOf(onboarding.profile?.taxId);
-      const certified = digitsOf(values.einNumber);
-
-      if (onboarding.profile?.taxIdType !== "EIN") {
-        return res.status(400).json({
-          message:
-            "Your tax ID type is not set to EIN. Set it on the company details above before certifying an EIN.",
-        });
-      }
-
-      if (profileTaxId && certified !== profileTaxId) {
-        return res.status(400).json({
-          message:
-            "The EIN you have certified does not match the tax ID on your company details. Correct whichever one is wrong before signing.",
-        });
-      }
-    }
+    // Worded for the carrier's tax ID type from here on: the acknowledgements
+    // recorded, and the title in the reply.
+    agreement = agreementFor(agreement, onboarding.profile);
 
     const signedName = trimmed(req.body.signedName) || trimmed(onboarding.profile.signerName);
     const signedTitle = trimmed(req.body.signedTitle) || trimmed(onboarding.profile.signerTitle);
@@ -532,30 +585,6 @@ const signAgreement = async (req, res) => {
       return res.status(400).json({
         message: "Every acknowledgement must be confirmed before signing.",
       });
-    }
-
-    if (agreement.key === "contractor") {
-      if (!(onboarding.equipment || []).length) {
-        return res.status(400).json({
-          message:
-            "Appendix A needs at least one piece of equipment before this agreement can be signed.",
-        });
-      }
-
-      // Signing executes the equipment schedule, so every VIN on it has to be
-      // complete and correct — not merely well-formed where one was typed.
-      const vinProblems = equipmentVinProblems(onboarding.equipment, {
-        requireVin: true,
-      });
-
-      if (vinProblems.length) {
-        return res.status(400).json({
-          message: `Appendix A cannot be signed yet — ${vinProblems
-            .map((p) => p.message)
-            .join(" ")}`,
-          equipmentErrors: vinProblems,
-        });
-      }
     }
 
     const signed = {
@@ -606,6 +635,11 @@ const signAgreement = async (req, res) => {
     onboarding.refreshStatus({ hasDrivers: drivers.length > 0 });
     await onboarding.save();
 
+    // The draft has served its purpose; the executed copy is the one to keep.
+    fs.promises.unlink(draftPathFor(carrier._id, agreement.key)).catch(() => {
+      /* never previewed, or already gone */
+    });
+
     res.status(201).json({
       message: `${agreement.title} signed. Your copy is ready to download.`,
       onboarding: toPayload(onboarding, { carrier, drivers }),
@@ -646,18 +680,8 @@ const agreementDownloadLink = async (req, res) => {
     const agreement = AGREEMENT_BY_KEY.get(req.params.key);
     if (!agreement) return res.status(404).json({ message: "Unknown agreement." });
 
-    const token = jwt.sign(
-      {
-        scope: DOWNLOAD_TOKEN_SCOPE,
-        carrierId: String(carrier._id),
-        key: req.params.key,
-      },
-      getJwtSecret(),
-      { expiresIn: DOWNLOAD_TOKEN_TTL },
-    );
-
     res.json({
-      url: `${frontendApiBase()}/onboarding/agreements/${req.params.key}/download?token=${token}`,
+      url: tokenLinkFor(DOWNLOAD_TOKEN_SCOPE, carrier._id, req.params.key, "download"),
       expiresInSeconds: 300,
     });
   } catch (error) {
@@ -672,13 +696,13 @@ const agreementDownloadLink = async (req, res) => {
  * agreement, a different carrier, an expired or differently-scoped token — falls
  * through to the ordinary auth chain and is refused there.
  */
-const allowAgreementDownloadToken = (req, res, next) => {
+const allowTokenScoped = (scope) => (req, res, next) => {
   const token = req.query.token;
   if (!token) return next();
 
   try {
     const claims = jwt.verify(String(token), getJwtSecret());
-    if (claims.scope !== DOWNLOAD_TOKEN_SCOPE) return next();
+    if (claims.scope !== scope) return next();
     if (claims.key !== req.params.key) return next();
 
     req.agreementDownload = { carrierId: claims.carrierId };
@@ -686,6 +710,18 @@ const allowAgreementDownloadToken = (req, res, next) => {
   } catch {
     return next();
   }
+};
+
+const allowAgreementDownloadToken = allowTokenScoped(DOWNLOAD_TOKEN_SCOPE);
+
+/** A five-minute link to one file, for the phone's system PDF viewer. */
+const tokenLinkFor = (scope, carrierId, key, route) => {
+  const token = jwt.sign(
+    { scope, carrierId: String(carrierId), key },
+    getJwtSecret(),
+    { expiresIn: DOWNLOAD_TOKEN_TTL },
+  );
+  return `${frontendApiBase()}/onboarding/agreements/${key}/${route}?token=${token}`;
 };
 
 const downloadAgreementByToken = async (req, res) => {
@@ -732,6 +768,111 @@ const downloadAgreement = async (req, res) => {
     res.status(error.status || 500).json({ message: error.message });
   }
 };
+
+// ─── Draft before signing ─────────────────────────────────────────────────────
+// The carrier reads the agreement exactly as it will be produced — their own
+// details in the blanks — before they put a signature on it. Same builder as the
+// signed copy, run in draft mode: watermarked, unsigned, undated.
+//
+// One draft per carrier per agreement, overwritten each time, and deleted once
+// the agreement is signed. Nothing is saved to the onboarding file: a draft is
+// what the form says right now, not a record of anything.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DRAFT_TOKEN_SCOPE = "agreement-draft";
+const DRAFT_DIR = path.join(AGREEMENT_DIR, "drafts");
+
+const draftPathFor = (carrierId, key) =>
+  path.join(DRAFT_DIR, `${String(carrierId)}-${key}-draft.pdf`);
+
+// @desc    Build a draft of an agreement from what the form holds right now
+// @route   POST /api/onboarding/agreements/:key/preview
+// @access  Private (own carrier, staff, admin)
+//
+// Returns a short-lived link rather than the file, so the phone can hand it to
+// the system PDF viewer. The web reads GET …/draft with its session instead.
+const previewAgreement = async (req, res) => {
+  try {
+    const agreement = AGREEMENT_BY_KEY.get(req.params.key);
+    if (!agreement) {
+      return res.status(404).json({ message: "Unknown agreement." });
+    }
+
+    const carrier = await resolveCarrier(req, req.body.fleetOwnerId);
+    const onboarding = await loadOrCreate(carrier, req.user);
+
+    // Merged for this draft only — never saved from here.
+    const profile =
+      req.body.profile && typeof req.body.profile === "object"
+        ? { ...(onboarding.profile || {}), ...req.body.profile }
+        : onboarding.profile || {};
+
+    const values = req.body.values || {};
+
+    const problem = signingProblem(
+      agreement,
+      { profile, equipment: onboarding.equipment || [] },
+      values,
+    );
+    if (problem) return res.status(400).json(problem);
+
+    fs.mkdirSync(DRAFT_DIR, { recursive: true });
+
+    await documentBuilderFor(agreement.key)({
+      agreementKey: agreement.key,
+      profile,
+      signed: {
+        key: agreement.key,
+        values,
+        acknowledgements: agreementFor(agreement, profile).acknowledgements,
+        signedName: trimmed(req.body.signedName) || trimmed(profile.signerName),
+        signedTitle: trimmed(req.body.signedTitle) || trimmed(profile.signerTitle),
+      },
+      equipment: onboarding.equipment || [],
+      carrierCode: carrier.fleetOwnerCode || String(carrier._id).slice(-6),
+      draft: true,
+      filePath: draftPathFor(carrier._id, agreement.key),
+    });
+
+    res.json({
+      message: "Draft ready.",
+      url: tokenLinkFor(DRAFT_TOKEN_SCOPE, carrier._id, agreement.key, "draft"),
+      expiresInSeconds: 300,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+const allowAgreementDraftToken = allowTokenScoped(DRAFT_TOKEN_SCOPE);
+
+const serveDraft = (req, res, carrierId) => {
+  const agreement = AGREEMENT_BY_KEY.get(req.params.key);
+  if (!agreement) return res.status(404).json({ message: "Unknown agreement." });
+
+  const filePath = draftPathFor(carrierId, agreement.key);
+  return serveFile(req, res, {
+    filePath: fs.existsSync(filePath) ? filePath : null,
+    filename: `DRAFT - ${agreement.title}.pdf`,
+    mimeType: "application/pdf",
+    missingMessage: "No draft yet. Open the draft from the signing screen again.",
+  });
+};
+
+// @desc    The draft built by previewAgreement
+// @route   GET /api/onboarding/agreements/:key/draft
+// @access  Private (own carrier, staff, admin), or a draft link's token
+const downloadDraft = async (req, res) => {
+  try {
+    const carrier = await resolveCarrier(req, req.query.fleetOwnerId);
+    return serveDraft(req, res, carrier._id);
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+const downloadDraftByToken = (req, res) =>
+  serveDraft(req, res, req.agreementDownload.carrierId);
 
 // @desc    Attach a driver's licence scan
 // @route   POST /api/onboarding/drivers/:driverId/license
@@ -961,6 +1102,10 @@ module.exports = {
   getOnboarding,
   saveProfile,
   signAgreement,
+  previewAgreement,
+  downloadDraft,
+  allowAgreementDraftToken,
+  downloadDraftByToken,
   downloadAgreement,
   agreementDownloadLink,
   allowAgreementDownloadToken,

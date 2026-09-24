@@ -19,6 +19,8 @@ import BulkEntryTable from "../../components/BulkEntryTable";
 import FieldRenderer, { FillHint } from "../../components/onboarding/FieldRenderer";
 import { focusField } from "../../utils/focusField";
 import SignaturePad from "../../components/onboarding/SignaturePad";
+import DocumentPreview from "../../components/common/DocumentPreview";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { usePermissions } from "../../hooks/usePermissions";
 import { formatDateNumeric } from "../../utils/dates";
 
@@ -71,6 +73,22 @@ const money = (value) =>
 
 const fmtDate = (value) =>
   value ? formatDateNumeric(value) : "—";
+
+/**
+ * A field or agreement as it reads for the chosen tax ID type (EIN or SSN) —
+ * the same rule as agreementFor in server/config/carrierAgreements.js.
+ */
+const forTaxIdType = (item, taxIdType) =>
+  item?.byTaxIdType?.[taxIdType] ? { ...item, ...item.byTaxIdType[taxIdType] } : item;
+
+const agreementFor = (agreement, profile) => {
+  if (!agreement) return agreement;
+  const resolved = forTaxIdType(agreement, profile?.taxIdType);
+  return {
+    ...resolved,
+    fields: (resolved.fields || []).map((f) => forTaxIdType(f, profile?.taxIdType)),
+  };
+};
 
 /** Profile fields that default to another one ("notice name" ← legal name). */
 const copyPairs = (catalog) =>
@@ -146,6 +164,13 @@ const Onboarding = () => {
   // Which agreement fields were filled in for the carrier from answers they had
   // already given, so the form can say so.
   const [autoFilled, setAutoFilled] = useState({});
+  // The draft the carrier has read for the open agreement. Bumped on every
+  // rebuild so the preview refetches; cleared by any edit to what the draft
+  // shows, so what gets signed is always what was last read.
+  const [draftVersion, setDraftVersion] = useState(0);
+  const [draftLoading, setDraftLoading] = useState(false);
+  // Signed agreement whose copy is open on its card.
+  const [viewingSigned, setViewingSigned] = useState(null);
 
   const licenceInput = useRef({});
 
@@ -311,17 +336,20 @@ const Onboarding = () => {
       (all, a) => ({ ...all, ...(a.values || {}) }),
       {},
     );
-    const derived = {
-      einNumber: profile.taxIdType === "EIN" ? profile.taxId : "",
-      einLegalName: profile.legalName,
-    };
     const values = { ...(existing?.values || {}) };
     const filled = {};
     (agreement.fields || []).forEach((field) => {
+      // A field that repeats a company detail (the EIN or SSN, the legal name)
+      // always takes the current one, so a correction made there reaches here.
+      const fromProfile = field.prefillFrom && trimmedOf(profile[field.prefillFrom]);
+      if (fromProfile) {
+        values[field.key] = fromProfile;
+        filled[field.key] = true;
+        return;
+      }
       if (String(values[field.key] ?? "").trim()) return;
       const guess =
         answered[field.key] ||
-        derived[field.key] ||
         (field.type === "initials" ? initialsFrom(profile.signerName) : "");
       if (guess) {
         values[field.key] = guess;
@@ -330,6 +358,7 @@ const Onboarding = () => {
     });
     setAutoFilled(filled);
     setSignErrors({});
+    setDraftVersion(0);
 
     setSignState({
       values,
@@ -341,36 +370,88 @@ const Onboarding = () => {
     setSigning(agreement.key);
   };
 
-  const submitSignature = async (agreement) => {
+  /**
+   * Everything missing on the panel, in the order it appears on screen, or
+   * false when there is nothing. The carrier is taken to the first one rather
+   * than shown a popup. `signature` adds the parts that come after the draft.
+   */
+  const panelProblems = (agreement, { signature = false } = {}) => {
     const gaps = profileGapsOf(profile, catalog);
     if (gaps.length) {
       setSigning(null);
       sendToFields(gaps, setErrors);
-      return;
+      return true;
     }
 
-    // Everything missing on the panel, in the order it appears on screen. The
-    // carrier is taken to the first one rather than shown a popup.
     const problems = {};
     (agreement.fields || []).forEach((f) => {
       if (f.required && !String(signState.values?.[f.key] || "").trim()) {
         problems[f.key] = "Please fill this field";
       }
     });
-    if (signState.acknowledgements.length !== agreement.acknowledgements.length) {
-      problems[`acks-${agreement.key}`] = "Tick every box below to confirm";
-    }
     if (!trimmedOf(signState.signedName)) problems.signedName = "Please fill this field";
     if (!trimmedOf(signState.signedTitle)) problems.signedTitle = "Please fill this field";
-    if (!signState.signatureData) problems[`sig-${agreement.key}`] = "Draw your signature here";
+    if (signature) {
+      if (signState.acknowledgements.length !== agreement.acknowledgements.length) {
+        problems[`acks-${agreement.key}`] = "Tick every box below to confirm";
+      }
+      if (!signState.signatureData) problems[`sig-${agreement.key}`] = "Draw your signature here";
+    }
 
     const first = Object.keys(problems)[0];
     if (first) {
       setSignErrors(problems);
       focusField(first);
-      return;
+      return true;
     }
     setSignErrors({});
+    return false;
+  };
+
+  /** Server-side refusals name company details, which live behind the panel. */
+  const handleSigningRefusal = (err, fallback) => {
+    const payload = err.response?.data;
+    if (payload?.gaps?.length) {
+      setSigning(null);
+      setStep("agreements");
+      const gaps = profileGapsOf(profile, catalog);
+      if (gaps.length) sendToFields(gaps, setErrors);
+      else notify.error(payload.message);
+    } else {
+      notify.error(payload?.message || fallback);
+    }
+  };
+
+  // The agreement as it will be signed, built from what the panel holds now.
+  const viewDraft = async (agreement) => {
+    if (panelProblems(agreement)) return;
+
+    try {
+      setDraftLoading(true);
+      await api.post(`/onboarding/agreements/${agreement.key}/preview`, {
+        ...forCarrier,
+        profile,
+        values: signState.values,
+        signedName: signState.signedName,
+        signedTitle: signState.signedTitle,
+      });
+      setDraftVersion((v) => v + 1);
+      requestAnimationFrame(() => focusField(`draft-${agreement.key}`));
+    } catch (err) {
+      handleSigningRefusal(err, "Could not prepare the draft");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  /** An edit to anything the draft shows means it has to be read again. */
+  const editPanel = (update) => {
+    setSignState(update);
+    setDraftVersion(0);
+  };
+
+  const submitSignature = async (agreement) => {
+    if (panelProblems(agreement, { signature: true })) return;
 
     try {
       setSaving(true);
@@ -389,20 +470,12 @@ const Onboarding = () => {
 
       setData(saved.onboarding);
       setSigning(null);
+      setDraftVersion(0);
+      // Straight to the signed copy, with its download, on the same card.
+      setViewingSigned(agreement.key);
       notify.success(saved.message);
     } catch (err) {
-      const payload = err.response?.data;
-      if (payload?.gaps?.length) {
-        // Server-side gaps are company details, which live on the step behind
-        // this dialog — take them to the first empty one.
-        setSigning(null);
-        setStep("agreements");
-        const gaps = profileGapsOf(profile, catalog);
-        if (gaps.length) sendToFields(gaps, setErrors);
-        else notify.error(payload.message);
-      } else {
-        notify.error(payload?.message || "Could not sign");
-      }
+      handleSigningRefusal(err, "Could not sign");
     } finally {
       setSaving(false);
     }
@@ -748,7 +821,7 @@ const Onboarding = () => {
                   {section.fields.map((field) => (
                     <FieldRenderer
                       key={field.key}
-                      field={field}
+                      field={forTaxIdType(field, profile.taxIdType)}
                       value={profile[field.key]}
                       error={errors[field.key]}
                       autoFilled={
@@ -816,7 +889,8 @@ const Onboarding = () => {
           </div>
 
           {/* The two agreements */}
-          {catalog.agreements.map((agreement) => {
+          {catalog.agreements.map((baseAgreement) => {
+            const agreement = agreementFor(baseAgreement, profile);
             const signed = data.agreements.find(
               (a) => a.key === agreement.key && a.signedAt,
             );
@@ -842,6 +916,15 @@ const Onboarding = () => {
                           Signed {fmtDate(signed.signedAt)}
                         </span>
                         <button
+                          onClick={() =>
+                            setViewingSigned((k) => (k === agreement.key ? null : agreement.key))
+                          }
+                          className="btn-secondary whitespace-nowrap"
+                        >
+                          <VisibilityOutlinedIcon fontSize="small" />{" "}
+                          {viewingSigned === agreement.key ? "Hide" : "View"}
+                        </button>
+                        <button
                           onClick={() => downloadAgreement(agreement)}
                           className="btn-secondary whitespace-nowrap"
                         >
@@ -859,6 +942,19 @@ const Onboarding = () => {
                   </div>
                 </div>
 
+                {signed && viewingSigned === agreement.key && (
+                  <div className="mt-4">
+                    <DocumentPreview
+                      url={`/onboarding/agreements/${agreement.key}/download`}
+                      params={forCarrier}
+                      name={`${agreement.title} (signed)`}
+                      mimeType="application/pdf"
+                      downloadName={`${agreement.title}.pdf`}
+                      height="36rem"
+                    />
+                  </div>
+                )}
+
                 {/* ── Signing panel ────────────────────────────────────── */}
                 {signing === agreement.key && (
                   <div className="mt-5 pt-5 border-t border-gray-200">
@@ -872,7 +968,7 @@ const Onboarding = () => {
                             error={signErrors[field.key]}
                             autoFilled={autoFilled[field.key]}
                             onChange={(key, value) => {
-                              setSignState((s) => ({
+                              editPanel((s) => ({
                                 ...s,
                                 values: { ...s.values, [key]: value },
                               }));
@@ -882,48 +978,6 @@ const Onboarding = () => {
                         ))}
                       </div>
                     )}
-
-                    <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
-                      Confirm each of these
-                    </h3>
-                    {signErrors[`acks-${agreement.key}`] && (
-                      <FillHint>{signErrors[`acks-${agreement.key}`]}</FillHint>
-                    )}
-                    <div
-                      id={`f-acks-${agreement.key}`}
-                      tabIndex={-1}
-                      className={`space-y-2 mb-5 mt-2 rounded-lg outline-none ${
-                        signErrors[`acks-${agreement.key}`]
-                          ? "ring-2 ring-red-400/60 bg-red-50/40 p-3"
-                          : ""
-                      }`}
-                    >
-                      {agreement.acknowledgements.map((ack) => {
-                        const checked = signState.acknowledgements.includes(ack);
-                        return (
-                          <label
-                            key={ack}
-                            className="flex items-start gap-2 cursor-pointer text-sm text-gray-700"
-                          >
-                            <input
-                              type="checkbox"
-                              className="mt-0.5 h-4 w-4 accent-indigo-600"
-                              checked={checked}
-                              onChange={() => {
-                                setSignState((s) => ({
-                                  ...s,
-                                  acknowledgements: checked
-                                    ? s.acknowledgements.filter((a) => a !== ack)
-                                    : [...s.acknowledgements, ack],
-                                }));
-                                clearSignError(`acks-${agreement.key}`);
-                              }}
-                            />
-                            <span>{ack}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
@@ -943,7 +997,7 @@ const Onboarding = () => {
                           }`}
                           value={signState.signedName}
                           onChange={(e) => {
-                            setSignState((s) => ({ ...s, signedName: e.target.value }));
+                            editPanel((s) => ({ ...s, signedName: e.target.value }));
                             clearSignError("signedName");
                           }}
                         />
@@ -966,7 +1020,7 @@ const Onboarding = () => {
                           }`}
                           value={signState.signedTitle}
                           onChange={(e) => {
-                            setSignState((s) => ({ ...s, signedTitle: e.target.value }));
+                            editPanel((s) => ({ ...s, signedTitle: e.target.value }));
                             clearSignError("signedTitle");
                           }}
                         />
@@ -974,40 +1028,129 @@ const Onboarding = () => {
                       </div>
                     </div>
 
-                    <div
-                      id={`f-sig-${agreement.key}`}
-                      tabIndex={-1}
-                      className={`rounded-lg outline-none ${
-                        signErrors[`sig-${agreement.key}`] ? "ring-2 ring-red-400/60 p-2" : ""
-                      }`}
-                    >
-                      <SignaturePad
-                        onChange={(signatureData) => {
-                          setSignState((s) => ({ ...s, signatureData }));
-                          if (signatureData) clearSignError(`sig-${agreement.key}`);
-                        }}
-                      />
-                      {signErrors[`sig-${agreement.key}`] && (
-                        <FillHint>{signErrors[`sig-${agreement.key}`]}</FillHint>
-                      )}
-                    </div>
+                    {!draftVersion ? (
+                      <div className="flex flex-wrap items-center justify-end gap-2 mt-5">
+                        <p className="text-sm text-gray-500 mr-auto">
+                          Read the agreement with your details filled in before you sign it.
+                        </p>
+                        <button
+                          onClick={() => setSigning(null)}
+                          className="btn-secondary"
+                          disabled={draftLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => viewDraft(agreement)}
+                          className="btn-primary"
+                          disabled={draftLoading}
+                        >
+                          <VisibilityOutlinedIcon fontSize="small" />{" "}
+                          {draftLoading ? "Preparing draft…" : "View draft"}
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          id={`f-draft-${agreement.key}`}
+                          tabIndex={-1}
+                          className="mt-5 mb-5 outline-none"
+                        >
+                          <DocumentPreview
+                            url={`/onboarding/agreements/${agreement.key}/draft`}
+                            // `v` only makes a rebuilt draft refetch.
+                            params={{ ...forCarrier, v: draftVersion }}
+                            name={`DRAFT — ${agreement.title}`}
+                            mimeType="application/pdf"
+                            downloadName={`DRAFT - ${agreement.title}.pdf`}
+                            height="36rem"
+                            banner={
+                              <p className="px-3 py-2 text-[13px] text-amber-800 bg-amber-50 border-b border-amber-200">
+                                Draft — not signed. Check every detail. To change
+                                something, edit it above and view the draft again.
+                              </p>
+                            }
+                          />
+                        </div>
 
-                    <div className="flex justify-end gap-2 mt-5">
-                      <button
-                        onClick={() => setSigning(null)}
-                        className="btn-secondary"
-                        disabled={saving}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => submitSignature(agreement)}
-                        className="btn-primary"
-                        disabled={saving}
-                      >
-                        {saving ? "Signing…" : "Sign agreement"}
-                      </button>
-                    </div>
+                        <h3 className="text-[13px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+                          Confirm each of these
+                        </h3>
+                        {signErrors[`acks-${agreement.key}`] && (
+                          <FillHint>{signErrors[`acks-${agreement.key}`]}</FillHint>
+                        )}
+                        <div
+                          id={`f-acks-${agreement.key}`}
+                          tabIndex={-1}
+                          className={`space-y-2 mb-5 mt-2 rounded-lg outline-none ${
+                            signErrors[`acks-${agreement.key}`]
+                              ? "ring-2 ring-red-400/60 bg-red-50/40 p-3"
+                              : ""
+                          }`}
+                        >
+                          {agreement.acknowledgements.map((ack) => {
+                            const checked = signState.acknowledgements.includes(ack);
+                            return (
+                              <label
+                                key={ack}
+                                className="flex items-start gap-2 cursor-pointer text-sm text-gray-700"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5 h-4 w-4 accent-indigo-600"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSignState((s) => ({
+                                      ...s,
+                                      acknowledgements: checked
+                                        ? s.acknowledgements.filter((a) => a !== ack)
+                                        : [...s.acknowledgements, ack],
+                                    }));
+                                    clearSignError(`acks-${agreement.key}`);
+                                  }}
+                                />
+                                <span>{ack}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div
+                          id={`f-sig-${agreement.key}`}
+                          tabIndex={-1}
+                          className={`rounded-lg outline-none ${
+                            signErrors[`sig-${agreement.key}`] ? "ring-2 ring-red-400/60 p-2" : ""
+                          }`}
+                        >
+                          <SignaturePad
+                            onChange={(signatureData) => {
+                              setSignState((s) => ({ ...s, signatureData }));
+                              if (signatureData) clearSignError(`sig-${agreement.key}`);
+                            }}
+                          />
+                          {signErrors[`sig-${agreement.key}`] && (
+                            <FillHint>{signErrors[`sig-${agreement.key}`]}</FillHint>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end gap-2 mt-5">
+                          <button
+                            onClick={() => setSigning(null)}
+                            className="btn-secondary"
+                            disabled={saving}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => submitSignature(agreement)}
+                            className="btn-primary"
+                            disabled={saving}
+                          >
+                            {saving ? "Signing…" : "Sign agreement"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1276,7 +1419,7 @@ const Onboarding = () => {
                               REQUIRED
                             </span>
                           ) : (
-                            <span className="ml-2 text-[12px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-[12px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
                               OPTIONAL
                             </span>
                           )}
@@ -1396,7 +1539,8 @@ const Onboarding = () => {
               Your signed agreements
             </h3>
             <div className="space-y-2">
-              {catalog.agreements.map((agreement) => {
+              {catalog.agreements.map((baseAgreement) => {
+                const agreement = agreementFor(baseAgreement, profile);
                 const signed = data.agreements.find(
                   (a) => a.key === agreement.key && a.signedAt,
                 );

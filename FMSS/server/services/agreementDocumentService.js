@@ -5,6 +5,7 @@ const { formatDateLong, formatDateNumeric, formatTime, todayKey } = require("../
 
 const {
   AGREEMENT_BY_KEY,
+  agreementFor,
   noticeAddressFor,
   businessAddressLine,
 } = require("../config/carrierAgreements");
@@ -204,7 +205,7 @@ const table = (doc, columns, rows) => {
  * The signature block: drawn signature if one was captured, typed name either
  * way, plus the audit trail.
  */
-const signatureBlock = (doc, signed) => {
+const signatureBlock = (doc, signed, { draft = false } = {}) => {
   heading(doc, "Execution");
 
   const boxY = doc.y;
@@ -216,7 +217,7 @@ const signatureBlock = (doc, signed) => {
     .strokeColor(RULE)
     .stroke();
 
-  if (signed.signatureData) {
+  if (signed.signatureData && !draft) {
     try {
       // pdfkit takes a data-URL's base64 payload directly as a buffer.
       const base64 = String(signed.signatureData).split(",").pop();
@@ -263,9 +264,20 @@ const signatureBlock = (doc, signed) => {
     .font("Helvetica-Bold")
     .fontSize(8)
     .fillColor(INK)
-    .text(formatDateTime(signed.signedAt), rightX, boxY + 75, { width: 220 });
+    .text(draft ? "Not yet signed" : formatDateTime(signed.signedAt), rightX, boxY + 75, {
+      width: 220,
+    });
 
   doc.y = boxY + boxHeight + 10;
+
+  if (draft) {
+    paragraph(
+      doc,
+      "Draft for review. This document has not been signed and has no effect until it is.",
+      { size: 7 },
+    );
+    return;
+  }
 
   // The audit trail is what makes this an execution record rather than a form.
   paragraph(
@@ -275,6 +287,36 @@ const signatureBlock = (doc, signed) => {
     )}. The signatory confirmed they are authorised to bind the carrier.`,
     { size: 7 },
   );
+};
+
+/**
+ * "DRAFT" across every page of a preview, so a copy that escapes the review
+ * screen can never be mistaken for the executed agreement.
+ */
+const draftWatermark = (doc) => {
+  const range = doc.bufferedPageRange();
+
+  for (let i = range.start; i < range.start + range.count; i += 1) {
+    doc.switchToPage(i);
+    const bottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
+    doc.save();
+    doc.rotate(-35, { origin: [doc.page.width / 2, doc.page.height / 2] });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(110)
+      .fillColor("#dc2626")
+      .fillOpacity(0.12)
+      .text("DRAFT", 0, doc.page.height / 2 - 55, {
+        width: doc.page.width,
+        align: "center",
+        lineBreak: false,
+      });
+    doc.restore();
+
+    doc.page.margins.bottom = bottomMargin;
+  }
 };
 
 const pageFurniture = (doc, agreement, profile) => {
@@ -325,6 +367,8 @@ const pageFurniture = (doc, agreement, profile) => {
  * @param {array}   args.equipment     Appendix A rows (contractor only)
  * @param {array}   args.drivers       roster snapshot, for the ¶23 warranty
  * @param {string}  args.carrierCode   FO-0001, for the filename
+ * @param {boolean} args.draft         preview before signing: watermarked, unsigned
+ * @param {string}  args.filePath      where to write it, instead of the dated name
  */
 const buildAgreementDocument = async ({
   agreementKey,
@@ -333,15 +377,18 @@ const buildAgreementDocument = async ({
   equipment = [],
   drivers = [],
   carrierCode = "carrier",
+  draft = false,
+  filePath: outputPath,
 }) => {
-  const agreement = AGREEMENT_BY_KEY.get(agreementKey);
+  const agreement = agreementFor(AGREEMENT_BY_KEY.get(agreementKey), profile);
   if (!agreement) throw new Error(`Unknown agreement "${agreementKey}"`);
 
   ensureDir();
 
   const stamp = todayKey();
-  const fileName = `${carrierCode}-${agreementKey}-agreement-${stamp}.pdf`;
-  const filePath = path.join(AGREEMENT_DIR, fileName);
+  const filePath =
+    outputPath || path.join(AGREEMENT_DIR, `${carrierCode}-${agreementKey}-agreement-${stamp}.pdf`);
+  const fileName = path.basename(filePath);
 
   const doc = new PDFDocument({
     size: "A4",
@@ -350,7 +397,7 @@ const buildAgreementDocument = async ({
     info: {
       Title: `${agreement.title} — ${profile.legalName || carrierCode}`,
       Author: agreement.counterparty,
-      Subject: "Executed carrier agreement",
+      Subject: draft ? "Draft carrier agreement — not signed" : "Executed carrier agreement",
     },
   });
 
@@ -395,7 +442,7 @@ const buildAgreementDocument = async ({
 
   paragraph(
     doc,
-    `This is the executed record of the ${agreement.title} between ${agreement.counterparty} and the carrier identified below. ` +
+    `${draft ? "This is a DRAFT for review, not yet signed, of" : "This is the executed record of"} the ${agreement.title} between ${agreement.counterparty} and the carrier identified below. ` +
       `It records the particulars supplied by the carrier, the clauses they separately initialled, the acknowledgements they confirmed, and their signature.` +
       (standsInForAnOriginal
         ? ` The full ${agreement.pages}-page terms are those of the ${agreement.title} as furnished by ${agreement.counterparty}; paragraph and page references below point into that document.`
@@ -420,7 +467,7 @@ const buildAgreementDocument = async ({
   // ── Notice address (broker agreement p12) ────────────────────────────────
   if (agreementKey === "broker") {
     const notice = noticeAddressFor(profile);
-    heading(doc, "Address for notices (¶44, p12)");
+    heading(doc, "Address for notices");
     fieldGrid(doc, [
       ["Name", notice.name],
       ["Attention", notice.attn],
@@ -541,7 +588,7 @@ const buildAgreementDocument = async ({
   if (drivers.length) {
     if (doc.y > 560) doc.addPage();
 
-    heading(doc, "Drivers declared at signing (¶23 — competent and properly licensed)");
+    heading(doc, "Drivers declared at signing (competent and properly licensed)");
     table(
       doc,
       [
@@ -568,9 +615,10 @@ const buildAgreementDocument = async ({
 
   // ── Signature ────────────────────────────────────────────────────────────
   if (doc.y > 600) doc.addPage();
-  signatureBlock(doc, signed);
+  signatureBlock(doc, signed, { draft });
 
   pageFurniture(doc, agreement, profile);
+  if (draft) draftWatermark(doc);
 
   doc.end();
   return completion;

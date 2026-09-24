@@ -486,6 +486,7 @@ const OverLoadsTable = () => {
         open={Boolean(driverModal)}
         load={driverModal}
         fleetOwnerId={carrierIdOnLoad(driverModal)}
+        carrierName={carrierNameOnLoad(driverModal)}
         onClose={() => setDriverModal(null)}
         onSaved={async () => {
           setDriverModal(null);

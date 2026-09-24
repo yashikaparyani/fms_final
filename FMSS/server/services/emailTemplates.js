@@ -216,6 +216,47 @@ const insuranceFiled = ({ carrierName, agencyName, policyCount, shortfalls = [] 
   `,
 });
 
+/**
+ * The office's copy of a filing. Different email from the carrier's: it opens
+ * the review rather than reassuring anybody, so it leads with what has to be
+ * decided and links to the file.
+ */
+const insuranceFiledOffice = ({
+  carrierName,
+  agencyName,
+  policyCount = 0,
+  shortfalls = [],
+  certificateOnly = false,
+  link,
+}) => {
+  const what = certificateOnly
+    ? "attached a new certificate of insurance"
+    : `filed ${policyCount} polic${policyCount === 1 ? "y" : "ies"}`;
+
+  return {
+    subject: shortfalls.length
+      ? `Insurance filed for ${carrierName} — ${shortfalls.length} item${shortfalls.length === 1 ? "" : "s"} short`
+      : `Insurance filed for ${carrierName} — ready for review`,
+    text:
+      `${agencyName || "The carrier's insurance agency"} has ${what} for ${carrierName}. ` +
+      (shortfalls.length
+        ? `These fall short of the agreement: ${shortfalls.join(" ")} `
+        : "Everything meets the contractual requirements. ") +
+      (link ? `Review the file: ${link}` : ""),
+    html: `
+      <p><strong>${escapeHtml(agencyName || "The carrier's insurance agency")}</strong> has ${what}
+        for <strong>${escapeHtml(carrierName)}</strong>.</p>
+      ${
+        shortfalls.length
+          ? `<p>These fall short of what the agreement requires:</p>
+             <ul>${shortfalls.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>`
+          : `<p>Everything meets the contractual requirements.</p>`
+      }
+      ${link ? `<p><a href="${escapeHtml(link)}">Open the onboarding review</a></p>` : ""}
+    `,
+  };
+};
+
 // Sent to a driver the moment their pay is settled. It itemises the loads
 // rather than stating a lump sum: "you were paid $1,340" invites a phone call
 // asking which runs that covered, which is the call this email exists to avoid.
@@ -846,6 +887,7 @@ module.exports = {
   driverPaymentStatement,
   fleetOwnerCredentials,
   insuranceFiled,
+  insuranceFiledOffice,
   instantDispatchOffer,
   insuranceRequest,
   loadRequiresChanges,

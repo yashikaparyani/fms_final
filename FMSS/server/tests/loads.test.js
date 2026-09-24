@@ -1,7 +1,7 @@
 const request = require("supertest");
 const express = require("express");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed } = require("./helpers/tenantTestContext");
+const { seed, clearedToBid } = require("./helpers/tenantTestContext");
 const loadRoutes = require("../routes/loadRoutes");
 const bidRoutes = require("../routes/bidRoutes");
 const User = require("../models/User");
@@ -151,11 +151,13 @@ describe("Load & Bidding API", () => {
       }));
       loadIdStr = load.loadId;
 
-      await seed(() => FleetOwner.create({
+      const carrier = await seed(() => FleetOwner.create({
         carrierName: "Test Fleet",
         phone: "111",
         userId: fleetOwnerId
       }));
+      // Approved, insured: what a carrier needs before they may bid at all.
+      await clearedToBid(carrier._id);
     });
 
     it("should allow a fleet owner to place a bid", async () => {

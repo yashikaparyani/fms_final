@@ -744,11 +744,30 @@ describe("EIN verification", () => {
     fs.unlinkSync(await executedCopyPath());
   });
 
-  it("will not certify an EIN for a carrier filing under an SSN", async () => {
-    const res = await signEin(goodValues, { ...FULL_PROFILE, taxIdType: "SSN" });
+  it("certifies an SSN, worded as one, for a carrier filing under an SSN", async () => {
+    const ssnProfile = { ...FULL_PROFILE, taxIdType: "SSN", taxId: "123-45-6789" };
+
+    // The EIN's shape is refused — the field follows the chosen type.
+    const asEin = await signEin(goodValues, ssnProfile);
+    expect(asEin.statusCode).toBe(400);
+    expect(asEin.body.message).toMatch(/SSN is nine digits/);
+
+    const res = await signEin({ ...goodValues, einNumber: "123456789" }, ssnProfile);
+    expect(res.statusCode).toBe(201);
+    expect(res.body.message).toMatch(/SSN Verification/);
+
+    const signed = res.body.onboarding.agreements.find((a) => a.key === "einVerification");
+    expect(signed.acknowledgements[0]).toMatch(/SSN stated above/);
+  });
+
+  it("refuses an SSN that disagrees with the one on the profile", async () => {
+    const res = await signEin(
+      { ...goodValues, einNumber: "999-99-9999" },
+      { ...FULL_PROFILE, taxIdType: "SSN", taxId: "123-45-6789" },
+    );
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toMatch(/not set to EIN/i);
+    expect(res.body.message).toMatch(/SSN you have certified does not match/);
   });
 
   it("counts as outstanding until it is signed", async () => {
@@ -973,5 +992,82 @@ describe("Opening a signed agreement from the phone", () => {
       `/api/onboarding/agreements/broker/download?token=${tokenFor(carrierUser)}`,
     );
     expect([401, 403]).toContain(res.statusCode);
+  });
+});
+
+describe("Draft before signing", () => {
+  const BROKER_VALUES = { arbitrationInitials: "RK", classWaiverInitials: "RK" };
+
+  const preview = (body = {}) =>
+    call("post", "/api/onboarding/agreements/broker/preview", carrierUser, ny).send({
+      values: BROKER_VALUES,
+      signedName: "Ravi Kumar",
+      signedTitle: "Owner",
+      ...body,
+    });
+
+  it("refuses a draft for the same reasons signing would", async () => {
+    const res = await preview();
+    expect(res.statusCode).toBe(400);
+    expect(res.body.gaps.length).toBeGreaterThan(0);
+  });
+
+  it("builds a draft without signing or saving anything", async () => {
+    await call("put", "/api/onboarding/profile", carrierUser, ny).send({
+      profile: FULL_PROFILE,
+    });
+
+    const res = await preview();
+    expect(res.statusCode).toBe(200);
+
+    // Read with the session (the web) …
+    const bySession = await call("get", "/api/onboarding/agreements/broker/draft", carrierUser, ny);
+    expect(bySession.statusCode).toBe(200);
+    expect(bySession.headers["content-type"]).toMatch(/pdf/);
+
+    // … and through the link alone (the phone's PDF viewer).
+    const token = new URL(res.body.url).searchParams.get("token");
+    const byToken = await request(app).get(
+      `/api/onboarding/agreements/broker/draft?token=${token}`,
+    );
+    expect(byToken.statusCode).toBe(200);
+
+    const file = await call("get", "/api/onboarding", carrierUser, ny);
+    expect(file.body.agreements.find((a) => a.key === "broker")).toBeUndefined();
+  });
+
+  it("does not let a draft link open the signed copy, or another carrier's draft", async () => {
+    await call("put", "/api/onboarding/profile", carrierUser, ny).send({
+      profile: FULL_PROFILE,
+    });
+    const res = await preview();
+    const token = new URL(res.body.url).searchParams.get("token");
+
+    const asDownload = await request(app).get(
+      `/api/onboarding/agreements/broker/download?token=${token}`,
+    );
+    expect([401, 403]).toContain(asDownload.statusCode);
+
+    const rivalDraft = await call("get", "/api/onboarding/agreements/broker/draft", rivalUser, ny);
+    expect(rivalDraft.statusCode).toBe(404);
+  });
+
+  it("clears the draft once the agreement is signed", async () => {
+    await call("put", "/api/onboarding/profile", carrierUser, ny).send({
+      profile: FULL_PROFILE,
+    });
+    await preview();
+
+    await call("post", "/api/onboarding/agreements/broker/sign", carrierUser, ny).send({
+      values: BROKER_VALUES,
+      acknowledgements: [1, 2, 3, 4],
+      signedName: "Ravi Kumar",
+      signedTitle: "Owner",
+    });
+    // The unlink is not awaited by the handler.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const draft = await call("get", "/api/onboarding/agreements/broker/draft", carrierUser, ny);
+    expect(draft.statusCode).toBe(404);
   });
 });

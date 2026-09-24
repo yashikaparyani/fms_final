@@ -3,6 +3,7 @@ const User = require("../models/User");
 const FleetOwner = require("../models/FleetOwner");
 const Bid = require("../models/bidSchema");
 const { formatDateTime } = require("../utils/dates");
+const { biddingCarrierIds } = require("../utils/biddingEligibility");
 
 // ─── Low-level: create a single notification ──────────────────────────────────
 const createNotification = async ({ recipient, recipientRole, type, title, message, load, loadId }) => {
@@ -35,6 +36,19 @@ const getAllFleetOwnerUserIds = async () => {
   const fleetOwners = await FleetOwner.find().select("userId").lean();
   const userIds = fleetOwners.map((fo) => fo.userId).filter(Boolean);
   return userIds;
+};
+
+/**
+ * Fleet owners cleared to bid — approved by the office, insurance on file. A
+ * "bidding is open" message to anyone else invites them to a board they cannot
+ * see. See utils/biddingEligibility.js.
+ */
+const getBiddingFleetOwnerUserIds = async () => {
+  const cleared = await biddingCarrierIds();
+  const fleetOwners = await FleetOwner.find({ _id: { $in: [...cleared] } })
+    .select("userId")
+    .lean();
+  return fleetOwners.map((fo) => fo.userId).filter(Boolean);
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -71,11 +85,61 @@ const notifyLoadCreated = async ({ load, customerName }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SCENARIO: the carrier's insurance agency files → notify the office + carrier
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// The office is waiting on exactly this before it can approve the carrier, and
+// the agency files whenever it suits them — often days later. Nobody should
+// have to keep opening the queue to find out it landed.
+const notifyInsuranceFiled = async ({
+  carrierName,
+  carrierUserId,
+  policyCount = 0,
+  shortfalls = [],
+  certificateOnly = false,
+}) => {
+  const staffAdminIds = await getStaffAndAdminIds();
+
+  const what = certificateOnly
+    ? "has attached a new certificate of insurance"
+    : `has filed ${policyCount} polic${policyCount === 1 ? "y" : "ies"}`;
+
+  const officePayload = {
+    type: "INSURANCE_FILED",
+    recipientRole: "staff",
+    title: shortfalls.length
+      ? `Insurance filed for ${carrierName} — items short`
+      : `Insurance filed for ${carrierName}`,
+    message: shortfalls.length
+      ? `${carrierName}'s agency ${what}. ${shortfalls.length} item${shortfalls.length === 1 ? "" : "s"} fall short of the agreement. Their onboarding is ready for review.`
+      : `${carrierName}'s agency ${what}. Their onboarding is ready for review.`,
+  };
+
+  await Promise.all([
+    createBulkNotifications(staffAdminIds, officePayload),
+    // The carrier asked their agency for this and has been waiting on it.
+    carrierUserId
+      ? createNotification({
+          recipient: carrierUserId,
+          recipientRole: "fleetOwner",
+          type: "INSURANCE_FILED",
+          title: certificateOnly
+            ? "Your certificate of insurance has been filed"
+            : "Your insurance has been filed",
+          message: shortfalls.length
+            ? `Your agency ${what}. Some items fall short of the agreement — see your onboarding page.`
+            : `Your agency ${what}. Nothing further is needed from you on insurance.`,
+        })
+      : null,
+  ]);
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SCENARIO 2: Staff/Admin schedules or opens bidding → notify all fleet owners + client
 // ═══════════════════════════════════════════════════════════════════════════════
 const notifyBiddingScheduled = async ({ load, type = "BIDDING_SCHEDULED" }) => {
   const [fleetOwnerUserIds, staffAdminIds] = await Promise.all([
-    getAllFleetOwnerUserIds(),
+    getBiddingFleetOwnerUserIds(),
     getStaffAndAdminIds(),
   ]);
 
@@ -218,6 +282,7 @@ module.exports = {
   getStaffAndAdminIds,
   notifyLoadCreated,
   notifyBiddingScheduled,
+  notifyInsuranceFiled,
   notifyBiddingClosed,
   notifyLoadStatusChanged,
 };

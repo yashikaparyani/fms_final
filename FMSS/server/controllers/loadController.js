@@ -264,6 +264,7 @@ const {
   notifyLoadStatusChanged,
 } = require("../services/NotificationService");
 const mongoose = require("mongoose");
+const { biddingBlockFor, biddingCarrierIds } = require("../utils/biddingEligibility");
 const {
   requestInstantDispatch,
 } = require("../services/instantDispatchService");
@@ -816,8 +817,15 @@ const getLoads = async (req, res) => {
     // to the payload below. Populated only for a fleet owner.
     let bidsByLoad = null;
 
-    if (req.user.role === "fleetOwner") {
+    // A driver sees their carrier's board, under the same rules — and never the
+    // unscoped list every other role falls through to.
+    if (["fleetOwner", "driver"].includes(req.user.role)) {
       const carrier = await findCarrierFor(req.user, "_id");
+
+      // Nothing on the board until the office has approved the carrier and
+      // their insurance is on file — see utils/biddingEligibility.js. The
+      // capacity endpoint says why, so the screen can too.
+      if (await biddingBlockFor(carrier?._id)) return res.json([]);
 
       // A counter-offer the office has put to this carrier and not yet had an
       // answer to. It belongs on their board whatever the bid window is doing —
@@ -2355,7 +2363,9 @@ const scheduleBidding = async (req, res) => {
 
       // 📧 Push email to all active fleet owners about the scheduled bidding
       // (fire-and-forget so it doesn't block the response)
-      FleetOwner.find({ status: "ACTIVE" })
+      // Only carriers cleared to bid — see utils/biddingEligibility.js.
+      biddingCarrierIds()
+        .then((cleared) => FleetOwner.find({ status: "ACTIVE", _id: { $in: [...cleared] } }))
         .then((fleetOwners) => {
           for (const owner of fleetOwners) {
             const email = getFleetOwnerEmail(owner);
@@ -3772,6 +3782,11 @@ const reviseBid = async (req, res) => {
       return res.status(403).json({ message: "Cannot revise bid of other vendors" });
     }
 
+    if (req.user.role === "fleetOwner") {
+      const blocked = await biddingBlockFor(userFleetOwner?._id);
+      if (blocked) return res.status(403).json(blocked);
+    }
+
     // Bidding must still be OPEN or UPCOMING for vendors, but staff/admin can revise anytime
     if (req.user.role === "fleetOwner" && !["OPEN", "UPCOMING"].includes(load.bidStatus)) {
       return res.status(400).json({
@@ -3855,6 +3870,13 @@ const respondToNegotiation = async (req, res) => {
     const fleetOwner = await FleetOwner.findOne({ userId: req.user._id });
     if (!fleetOwner || bidDoc.fleetOwnerId.toString() !== fleetOwner._id.toString()) {
       return res.status(403).json({ message: "Cannot respond to another carrier's bid" });
+    }
+
+    // Accepting awards the load, so it takes the same clearance as bidding.
+    // Declining is always allowed — an offer should never be left stranded.
+    if (accept) {
+      const blocked = await biddingBlockFor(fleetOwner._id);
+      if (blocked) return res.status(403).json(blocked);
     }
 
     if (bidDoc.negotiation?.status !== "PENDING") {
@@ -4187,11 +4209,17 @@ const deleteLoad = async (req, res) => {
 const getMyCapacity = async (req, res) => {
   try {
     const carrier = await findCarrierFor(req.user, "_id");
-    const availability = await carrierAvailability(carrier?._id);
+    const [availability, blocked] = await Promise.all([
+      carrierAvailability(carrier?._id),
+      biddingBlockFor(carrier?._id),
+    ]);
 
     res.json({
       ...availability,
       message: atCapacityMessage(availability),
+      // Not yet approved, or no insurance on file: the board is empty for
+      // that reason, which takes precedence over capacity.
+      biddingBlocked: blocked,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

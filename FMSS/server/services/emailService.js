@@ -127,6 +127,17 @@ const sendInsuranceFiled = ({ to, carrierName, agencyName, policyCount, shortfal
     }),
   });
 
+/** The office's copy of a filing — one send per recipient, failures ignored. */
+const sendInsuranceFiledToOffice = ({ recipients = [], ...rest }) => {
+  const unique = [...new Set(recipients.filter(Boolean).map((e) => String(e).trim()))];
+
+  return Promise.allSettled(
+    unique.map((to) =>
+      sendTemplate({ to, template: templates.insuranceFiledOffice(rest) }),
+    ),
+  );
+};
+
 const sendDriverPaymentStatement = ({
   to,
   driverName,
@@ -309,6 +320,7 @@ module.exports = {
   sendCarrierAccountStatement,
   sendFleetOwnerCredentials,
   sendInsuranceFiled,
+  sendInsuranceFiledToOffice,
   sendInsuranceRequest,
   sendInstantDispatchOffer,
   sendLoadRequiresChanges,

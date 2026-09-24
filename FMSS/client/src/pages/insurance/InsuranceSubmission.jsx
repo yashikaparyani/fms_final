@@ -343,7 +343,7 @@ const InsuranceSubmission = () => {
                         REQUIRED
                       </span>
                     ) : (
-                      <span className="ml-2 text-[12px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="ml-2 text-[12px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
                         OPTIONAL
                       </span>
                     )}
