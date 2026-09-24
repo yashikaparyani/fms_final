@@ -350,7 +350,7 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, showDriverPayments = fal
         </Card>
 
         {/* Office only — see DriverPaymentsTable. */}
-        {showDriverPayments && <DriverPaymentsTable load={load} />}
+        {showDriverPayments && <DriverPaymentsTable load={load} editable />}
 
         <OriginsTable load={load} />
 

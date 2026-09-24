@@ -6,6 +6,7 @@ const {
   saveReceivables,
   savePayables,
   payDriver,
+  setDriverPay,
   savePayroll,
   previewPayroll,
   settlePayroll,
@@ -124,6 +125,14 @@ router.put(
   ...office,
   requirePermission("loads.edit"),
   payDriver,
+);
+
+// Setting that driver's figure from the load's own page — see setDriverPay.
+router.put(
+  "/loads/:loadId/payables/drivers/:driverId/amount",
+  ...office,
+  requirePermission("loads.edit"),
+  setDriverPay,
 );
 
 router.post(

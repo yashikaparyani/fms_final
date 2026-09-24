@@ -1,5 +1,9 @@
+import { useCallback, useEffect, useState } from "react";
+import Swal from "sweetalert2";
 import Card from "./Card";
 import SectionHeader from "./SectionHeader";
+import api from "../../api";
+import { notify } from "../../utils/swal";
 import { formatDate } from "../../utils/dates";
 
 // ─── Load stop and driver tables ──────────────────────────────────────────────
@@ -66,6 +70,7 @@ const driverPaymentRows = (load) => {
       payroll?.driver && String(payroll.driver) === String(assignment.driver);
 
     return {
+      driverId: assignment.driver ? String(assignment.driver) : null,
       name: assignment.driverName || assignment.driverCode || "—",
       via: leg?.fleetOwnerName || load.assignedFleetOwner?.fleetOwnerName || "",
       pickup: place(assignment.pickup) || place(leg?.origin) || place(load.pickup),
@@ -124,8 +129,116 @@ const dropsOf = (load) =>
  * (getLoadById strips driverAssignments for clients), and what a driver is paid
  * is not the carrier's business either. Callers decide whether to render it.
  */
-export const DriverPaymentsTable = ({ load }) => {
-  const paymentRows = driverPaymentRows(load);
+/**
+ * With `editable`, each named driver's amount can be set and the driver paid
+ * right here — on any load, whatever its status, so a box parked in the yard
+ * for weeks does not hold up the driver who put it there. Billing is not
+ * touched.
+ *
+ * The figures then come from the load's payables (the same Driver Pay lines the
+ * accounting screen edits), not from `accounting.payroll`, so the two screens
+ * always agree. Carrier legs with no driver named stay read-only.
+ */
+export const DriverPaymentsTable = ({ load, editable = false }) => {
+  const baseRows = driverPaymentRows(load);
+
+  // driverId -> { amount, paid, uncosted } from the payables.
+  const [pay, setPay] = useState(null);
+  const [editing, setEditing] = useState(null); // driverId being edited
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(null); // driverId being saved
+
+  const readPay = (accounting) =>
+    setPay(
+      Object.fromEntries(
+        (accounting?.driverPayables || []).map((d) => [String(d.driverId), d]),
+      ),
+    );
+
+  const fetchPay = useCallback(async () => {
+    if (!editable || !load?.loadId) return;
+    try {
+      const { data } = await api.get(`/accounting/loads/${load.loadId}`);
+      readPay(data);
+    } catch {
+      // Without the books (no permission, or offline) the table stays as it
+      // was: read-only, from the load.
+      setPay(null);
+    }
+  }, [editable, load?.loadId]);
+
+  useEffect(() => {
+    fetchPay();
+  }, [fetchPay]);
+
+  const live = editable && pay !== null;
+
+  const rows = baseRows.map((row) => {
+    if (!live || !row.driverId) return row;
+    const d = pay[row.driverId];
+    return {
+      ...row,
+      amount: d && !d.uncosted ? d.amount : undefined,
+      paid: Boolean(d?.paid),
+      canEdit: true,
+    };
+  });
+
+  const startEdit = (row) => {
+    setEditing(row.driverId);
+    setDraft(row.amount !== undefined ? String(row.amount) : "");
+  };
+
+  const saveAmount = async (row) => {
+    const amount = Number(String(draft).replace(/[$,\s]/g, ""));
+    if (!Number.isFinite(amount) || amount < 0) {
+      notify.warning("Enter the driver's amount — a number, $0 or more.");
+      return;
+    }
+    setBusy(row.driverId);
+    try {
+      const { data } = await api.put(
+        `/accounting/loads/${load.loadId}/payables/drivers/${row.driverId}/amount`,
+        { amount },
+      );
+      readPay(data.accounting);
+      setEditing(null);
+      notify.success(data.message);
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not save the amount");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const togglePaid = async (row) => {
+    const { isConfirmed } = await Swal.fire({
+      title: row.paid
+        ? `Mark ${row.name}'s pay as unpaid?`
+        : `Pay ${money(row.amount)} to ${row.name}?`,
+      text: row.paid
+        ? "It goes back to outstanding and the amount can be changed again."
+        : "This records the driver as paid. The load's status and billing do not change.",
+      showCancelButton: true,
+      confirmButtonText: row.paid ? "Mark unpaid" : "Mark paid",
+      confirmButtonColor: row.paid ? "#b45309" : "#059669",
+    });
+    if (!isConfirmed) return;
+
+    setBusy(row.driverId);
+    try {
+      const { data } = await api.put(
+        `/accounting/loads/${load.loadId}/payables/drivers/${row.driverId}/pay`,
+        { paid: !row.paid },
+      );
+      readPay(data.accounting);
+      notify.success(data.message);
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not update the payment");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <Card>
@@ -137,51 +250,130 @@ export const DriverPaymentsTable = ({ load }) => {
               <th className="px-4 py-3 text-left font-bold">Driver Name</th>
               <th className="px-4 py-3 text-left font-bold">Pickup Location</th>
               <th className="px-4 py-3 text-left font-bold">Destination</th>
-              <th className="px-4 py-3 text-left font-bold w-32">Driver Amount</th>
-              <th className="px-4 py-3 text-left font-bold w-36">Payment Status</th>
+              <th className="px-4 py-3 text-left font-bold w-44">Driver Amount</th>
+              <th className="px-4 py-3 text-left font-bold w-48">Payment Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {paymentRows.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan="5" className="px-4 py-8 text-center text-gray-400 italic">
                   Nobody assigned to this load yet
                 </td>
               </tr>
             )}
-            {paymentRows.map((row, idx) => (
-              <tr key={idx} className="hover:bg-teal-50/20 transition-colors">
-                <td className="px-4 py-4">
-                  <p className="font-bold text-gray-800">{row.name}</p>
-                  {row.via && <p className="text-xs text-gray-500">{row.via}</p>}
-                </td>
-                <td className="px-4 py-4">
-                  <p className="font-medium text-gray-800">{row.pickup?.title || "—"}</p>
-                  {row.pickup?.sub && <p className="text-xs text-gray-600">{row.pickup.sub}</p>}
-                </td>
-                <td className="px-4 py-4">
-                  <p className="font-medium text-gray-800">{row.destination?.title || "—"}</p>
-                  {row.destination?.sub && (
-                    <p className="text-xs text-gray-600">{row.destination.sub}</p>
-                  )}
-                </td>
-                <td className="px-4 py-4 font-bold text-gray-800">{money(row.amount)}</td>
-                <td className="px-4 py-4">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${
-                      row.paid
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {row.paid ? "Paid" : "Unpaid"}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row, idx) => {
+              const isBusy = busy && busy === row.driverId;
+              const isEditing = row.canEdit && editing === row.driverId;
+              const hasAmount = row.amount !== undefined && Number(row.amount) > 0;
+
+              return (
+                <tr key={row.driverId || idx} className="hover:bg-teal-50/20 transition-colors">
+                  <td className="px-4 py-4">
+                    <p className="font-bold text-gray-800">{row.name}</p>
+                    {row.via && <p className="text-xs text-gray-500">{row.via}</p>}
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="font-medium text-gray-800">{row.pickup?.title || "—"}</p>
+                    {row.pickup?.sub && <p className="text-xs text-gray-600">{row.pickup.sub}</p>}
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="font-medium text-gray-800">{row.destination?.title || "—"}</p>
+                    {row.destination?.sub && (
+                      <p className="text-xs text-gray-600">{row.destination.sub}</p>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-700 font-bold">$</span>
+                        <input
+                          autoFocus
+                          inputMode="decimal"
+                          value={draft}
+                          disabled={isBusy}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveAmount(row);
+                            if (e.key === "Escape") setEditing(null);
+                          }}
+                          className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm font-bold text-gray-900 focus:border-teal-500 focus:outline-none"
+                          placeholder="0.00"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveAmount(row)}
+                          disabled={isBusy}
+                          className="text-xs font-semibold px-2 py-1 rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+                        >
+                          {isBusy ? "…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(null)}
+                          disabled={isBusy}
+                          className="text-xs font-semibold px-1.5 py-1 text-gray-600 hover:text-gray-900"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-800">{money(row.amount)}</span>
+                        {row.canEdit && !row.paid && (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(row)}
+                            disabled={Boolean(busy)}
+                            className="text-xs font-semibold text-teal-700 hover:underline disabled:opacity-50"
+                          >
+                            {hasAmount ? "Edit" : "Add amount"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${
+                          row.paid
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {row.paid ? "Paid" : "Unpaid"}
+                      </span>
+                      {row.canEdit && !isEditing && (row.paid || hasAmount) && (
+                        <button
+                          type="button"
+                          onClick={() => togglePaid(row)}
+                          disabled={Boolean(busy)}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-md border transition disabled:opacity-50 whitespace-nowrap ${
+                            row.paid
+                              ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                              : "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                          }`}
+                        >
+                          {isBusy ? "…" : row.paid ? "Mark unpaid" : "Pay"}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      {live && rows.some((r) => r.canEdit) && (
+        <p className="border-t border-gray-100 px-4 py-2 text-[13px] text-gray-600">
+          Set a driver&apos;s amount, then Pay. Paying a driver does not change the
+          load&apos;s status or its billing.
+        </p>
+      )}
     </Card>
   );
 };

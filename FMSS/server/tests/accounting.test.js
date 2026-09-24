@@ -655,3 +655,77 @@ describe("What the heading is built from", () => {
     expect(res.body.route).toEqual({ from: "Newark, NJ", to: "" });
   });
 });
+
+describe("Setting a driver's pay from the load page", () => {
+  let driver;
+
+  beforeEach(async () => {
+    let carrier;
+    await withTenant({ locationId: String(ny._id) }, async () => {
+      carrier = await FleetOwner.create({ carrierName: "Swift Haulage" });
+      driver = await Driver.create({ fleetOwner: carrier._id, name: "Priya Shah" });
+    });
+    // Parked in the yard with the carrier's agreed rate on the load and no
+    // ledger saved yet — the case this exists for.
+    load = await newLoad({
+      amount: 800,
+      vendorRate: 500,
+      transportStatus: "LOADED_IN_YARD",
+      assignedFleetOwner: { fleetOwnerId: carrier._id, fleetOwnerName: "Swift Haulage" },
+      driverAssignments: [{ driver: driver._id, fleetOwnerId: carrier._id, driverName: "Priya Shah" }],
+    });
+  });
+
+  const setPay = (amount) =>
+    call("put", `/api/accounting/loads/${load.loadId}/payables/drivers/${driver._id}/amount`, staff, ny).send({ amount });
+  const pay = (paid) =>
+    call("put", `/api/accounting/loads/${load.loadId}/payables/drivers/${driver._id}/pay`, staff, ny).send({ paid });
+
+  it("sets the amount without losing the derived carrier rate", async () => {
+    const res = await setPay(150);
+    expect(res.status).toBe(200);
+
+    const row = res.body.accounting.driverPayables.find((d) => d.driverId === String(driver._id));
+    expect(row.amount).toBe(150);
+    expect(row.paid).toBe(false);
+    // Carrier $500 + driver $150 — the carrier line was written out, not dropped.
+    expect(res.body.accounting.payables.totals.total).toBe(650);
+  });
+
+  it("replaces the figure on a second save rather than adding another line", async () => {
+    await setPay(150);
+    const res = await setPay(175);
+    const lines = res.body.accounting.payables.lines.filter((l) => l.chargeType === "driverPay");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].amount).toBe(175);
+  });
+
+  it("pays the driver while the load stays in the yard", async () => {
+    await setPay(150);
+    const res = await pay(true);
+    expect(res.status).toBe(200);
+    expect(res.body.accounting.driverPayables[0].paid).toBe(true);
+
+    const stored = await withTenant({ locationId: String(ny._id) }, () => Load.findById(load._id));
+    expect(stored.transportStatus).toBe("LOADED_IN_YARD");
+  });
+
+  it("refuses to change the amount once paid, and allows it again after unpaying", async () => {
+    await setPay(150);
+    await pay(true);
+    expect((await setPay(200)).status).toBe(400);
+
+    await pay(false);
+    expect((await setPay(200)).status).toBe(200);
+  });
+
+  it("refuses a driver who is not on the load", async () => {
+    const res = await call(
+      "put",
+      `/api/accounting/loads/${load.loadId}/payables/drivers/${new (require("mongoose").Types.ObjectId)()}/amount`,
+      staff,
+      ny,
+    ).send({ amount: 100 });
+    expect(res.status).toBe(400);
+  });
+});

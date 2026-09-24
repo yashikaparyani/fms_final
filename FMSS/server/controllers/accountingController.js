@@ -27,7 +27,6 @@ const { routeOf, placeOf } = require("../utils/loadRoute");
 // createdAt and calculatedAt are instants, so their windows are bounded by the
 // business day rather than the UTC day — see utils/dates.js.
 const { instantRange } = require("../utils/dates");
-const { YARD_STATUSES, yardAge } = require("../utils/yardAge");
 
 // ─── Accounting ───────────────────────────────────────────────────────────────
 // Receivables (what the customer is billed) and payables (what the carrier and
@@ -522,6 +521,129 @@ const payDriver = async (req, res) => {
   }
 };
 
+// @desc    Set what one driver is paid on a load
+// @route   PUT /api/accounting/loads/:loadId/payables/drivers/:driverId/amount
+// @access  Private (staff, admin)
+//
+// The Driver Payments table on the load's own page, so the office can put a
+// figure against a driver and pay them without opening the ledger editor —
+// including on a box parked in the yard for weeks, whose driver is owed long
+// before anybody bills the customer. Nothing about the load's status changes.
+//
+// Writes the driver's Driver Pay line on the payables, the same line the
+// ledger editor would, so the two screens can never show different figures.
+// Any other charges booked to the driver (fuel, a lumper) are left alone. On a
+// load nobody has itemised, the derived carrier lines are written out first, or
+// storing this one line would silently drop the carrier's rate.
+//
+// Refused once the driver is paid: changing a figure that money already moved
+// against is how the ledger and the bank stop agreeing. Mark it unpaid first.
+const setDriverPay = async (req, res) => {
+  try {
+    const load = await Load.findOne({ loadId: req.params.loadId });
+    if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const driverId = String(req.params.driverId || "");
+    const amount = toNumberOrNull(req.body.amount);
+
+    if (amount === null || amount < 0) {
+      return res.status(400).json({ message: "Enter the driver's amount — a number, $0 or more." });
+    }
+
+    const assignment = (load.driverAssignments || []).find(
+      (a) => String(a.driver || "") === driverId,
+    );
+    const stored = load.accounting?.payables?.lines || [];
+    const theirs = stored.filter((line) => String(line.driverId || "") === driverId);
+
+    if (!assignment && !theirs.length) {
+      return res.status(400).json({ message: "That driver is not on this load." });
+    }
+
+    if (theirs.some((line) => line.paidAt)) {
+      return res.status(400).json({
+        message: "This driver is already paid. Mark them unpaid first to change the amount.",
+        code: "DRIVER_ALREADY_PAID",
+      });
+    }
+
+    // Stored lines as they are, or the derived ones made real.
+    const base = stored.length
+      ? stored.map((line) => (line.toObject ? line.toObject() : { ...line }))
+      : ledger.payableLinesFor(load).map(({ derived, ...line }) => ({
+          ...line,
+          addedBy: req.user._id,
+          addedAt: new Date(),
+        }));
+
+    const driverName = assignment?.driverName || theirs.find((l) => l.driverName)?.driverName || "";
+    const isTheirPayLine = (line) =>
+      String(line.driverId || "") === driverId && line.chargeType === "driverPay";
+
+    const previous = money(
+      base.filter(isTheirPayLine).reduce((sum, line) => sum + Number(line.amount || 0), 0),
+    );
+
+    // One Driver Pay line for them, carrying the new figure. $0 removes it.
+    const lines = base.filter((line) => !isTheirPayLine(line));
+    if (amount > 0) {
+      lines.push(
+        normalizeLine(
+          { chargeType: "driverPay", amount, driverId, driverName, note: trimmed(req.body.note) },
+          "payable",
+          req.user._id,
+        ),
+      );
+    }
+
+    const problems = validateLines(lines, "payable");
+    if (problems.length) {
+      return res.status(400).json({ message: problems[0], problems });
+    }
+
+    load.accounting = load.accounting || {};
+    load.accounting.payables = {
+      ...(load.accounting.payables?.toObject?.() || load.accounting.payables || {}),
+      lines,
+      updatedBy: req.user._id,
+    };
+    load.markModified("accounting.payables");
+    await load.save();
+
+    const name = driverName || "the driver";
+    if (previous !== money(amount)) {
+      await audit
+        .recordFinancial({
+          load,
+          action: "accounting.driver_pay_set",
+          summary: `Driver pay for ${name} changed from $${previous.toLocaleString("en-US")} to $${money(amount).toLocaleString("en-US")}`,
+          changes: [
+            {
+              field: "accounting.payables.driverPay",
+              label: `Driver Pay — ${name}`,
+              from: `$${previous.toLocaleString("en-US")}`,
+              to: `$${money(amount).toLocaleString("en-US")}`,
+            },
+          ],
+          user: req.user,
+          req,
+        })
+        .catch((error) =>
+          console.error(`Driver pay audit failed for ${load.loadId}:`, error.message),
+        );
+    }
+
+    res.json({
+      message: amount > 0
+        ? `${name}'s pay set to $${money(amount).toLocaleString("en-US")}.`
+        : `${name}'s pay removed.`,
+      accounting: presentAccounting(load),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    The charge catalog both ledgers are built from
 // @route   GET /api/accounting/catalog
 // @access  Private (staff, admin)
@@ -854,25 +976,13 @@ const getSummary = async (req, res) => {
     const awaitingInvoice = String(req.query.awaitingInvoice) === "true";
     if (awaitingInvoice) filter.transportStatus = { $in: AWAITING_INVOICE_STATUSES };
 
-    // The parked queue: boxes standing empty or loaded in the yard, or dropped
-    // at a warehouse. They can stand there for months and are nowhere near
-    // being billed, but the driver who put them there has done their work —
-    // accounting pays them from here without the load being moved on. Billing
-    // is untouched: these do not become invoiceable by being listed.
-    const inYard = String(req.query.inYard) === "true";
-    if (inYard) filter.transportStatus = { $in: YARD_STATUSES };
-
     const loads = await Load.find(filter)
       .select(
         // vendorRate, winningBid and assignments are read by ledgerFallback to
         // derive the payable side of a load nobody has itemised. Omitting them
         // does not error — the fields are just absent on the lean document, and
         // every such load reports $0 expense and a 100% margin.
-        "loadId customerName amount vendorRate winningBid assignments transportStatus createdAt accounting assignedFleetOwner " +
-          // For the parked queue: how long it has stood (history, updatedAt),
-          // and who drove it there (driverAssignments, and the stops their
-          // legs are read against).
-          "transportStatusHistory updatedAt driverAssignments pickup drop containerNo",
+        "loadId customerName amount vendorRate winningBid assignments transportStatus createdAt accounting assignedFleetOwner",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -905,17 +1015,12 @@ const getSummary = async (req, res) => {
         // user search the register for a number they can already see.
         invoiceNumber: billed.invoiceNumber,
         invoicedAt: billed.invoicedAt,
-        ...(inYard ? parkedDetail(load) : {}),
       };
     });
 
     // Filtered here rather than in the query: the answer lives in another
     // collection, and the totals below have to describe the rows that survive.
     if (awaitingInvoice) rows = rows.filter((row) => !row.invoiced);
-
-    // Longest-standing first: the box that has been there since spring is the
-    // driver most likely to have been missed on a pay cycle.
-    if (inYard) rows.sort((a, b) => (b.yard?.days || 0) - (a.yard?.days || 0));
 
     const sum = (key) => money(rows.reduce((acc, row) => acc + (row[key] || 0), 0));
 
@@ -956,35 +1061,6 @@ const getSummary = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
-
-/**
- * What the parked queue shows on top of the money: how long the box has stood,
- * and where its drivers' pay is — nobody costed, owed, or paid.
- */
-const parkedDetail = (load) => {
-  const drivers = driverPayables(load);
-  const owed = drivers.filter((d) => !d.uncosted && !d.paid);
-  return {
-    containerNo: load.containerNo || "",
-    yard: yardAge(load),
-    drivers: drivers.map((d) => ({
-      driverId: d.driverId,
-      driverName: d.driverName,
-      amount: d.amount,
-      paid: d.paid,
-      uncosted: d.uncosted,
-      paidAt: d.paidAt,
-    })),
-    driverOwed: money(owed.reduce((sum, d) => sum + d.amount, 0)),
-    driverPayState: !drivers.length
-      ? "NO_DRIVER"
-      : drivers.some((d) => d.uncosted)
-        ? "NOT_COSTED"
-        : owed.length
-          ? "OWED"
-          : "PAID",
-  };
 };
 
 // @desc    What each driver earned over a period
@@ -1093,6 +1169,7 @@ const settlePayroll = async (req, res) => {
 
 module.exports = {
   payDriver,
+  setDriverPay,
   getCatalog,
   getLoadAccounting,
   saveReceivables: saveLedger("receivable"),
