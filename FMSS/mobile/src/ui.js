@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { colors, elevation, glow, radius, spacing, type } from "./theme";
+import { colors, elevation, glow, inkOn, radius, spacing, type } from "./theme";
 
 export const ANDROID_TOP_INSET =
   Platform.OS === "android" ? RNStatusBar.currentHeight || 0 : 0;
@@ -376,7 +376,7 @@ export function ActionTile({ icon, title, subtitle, color = colors.primary, tint
       ) : null}
       {badge ? (
         <View style={[s.tileBadge, { backgroundColor: color }]}>
-          <Text style={s.tileBadgeText}>{badge}</Text>
+          <Text style={[s.tileBadgeText, { color: inkOn(color) }]}>{badge}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -488,7 +488,9 @@ export function ListRow({
             pressed && s.pressed,
           ]}
         >
-          <Text style={s.listActionText}>{actionLabel}</Text>
+          <Text style={[s.listActionText, { color: inkOn(actionColor || colors.success) }]}>
+            {actionLabel}
+          </Text>
         </Pressable>
       ) : onPress ? (
         <Icon name="chevron" size={16} color={colors.faint} />
@@ -506,7 +508,7 @@ export function Tag({ label, color = colors.primary, solid }) {
         solid ? { backgroundColor: color } : { backgroundColor: withAlpha(color, 0.12) },
       ]}
     >
-      <Text style={[s.tagText, { color: solid ? colors.onBrand : color }]}>{label}</Text>
+      <Text style={[s.tagText, { color: solid ? inkOn(color) : color }]}>{label}</Text>
     </View>
   );
 }
@@ -785,7 +787,7 @@ const s = StyleSheet.create({
     ...elevation.sm,
   },
   statBox: { flex: 1, alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: 4 },
-  // The header's stat tiles: solid black with white figures.
+  // The header's stat tiles: grey sections with white figures.
   statBoxDark: {
     backgroundColor: colors.brand,
     borderRadius: radius.sm,

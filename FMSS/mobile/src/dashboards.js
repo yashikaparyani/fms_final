@@ -109,7 +109,7 @@ export function DriverHome({
           icon="loads"
           title="My Loads"
           subtitle={`${active} active ${active === 1 ? "load" : "loads"}`}
-          color={theme.accent}
+          color={colors.brand}
           onPress={() => onOpen("assigned")}
         />
 
@@ -235,13 +235,13 @@ export function CarrierHome({
       </AppHeader>
 
       <Body {...refresher(refreshing, onRefresh, theme.accent)}>
-        {/* Every shortcut is one full-width bar, alternating Uber black and
-            charcoal so neighbouring bars never read as one block. */}
+        {/* Every shortcut is one full-width bar, alternating grey sections and
+            deep navy so neighbouring bars never read as one block. */}
         <BigAction
           icon="bid"
           title="Open Bids"
           subtitle={`${stats?.availableLoads ?? 0} live — tap to bid`}
-          color={theme.accent}
+          color={colors.brand}
           live={(stats?.availableLoads ?? 0) > 0}
           onPress={() => onOpen("available")}
         />
@@ -256,7 +256,7 @@ export function CarrierHome({
           icon="check"
           title="Completed"
           subtitle={`${stats?.completedTrips ?? 0} done`}
-          color={theme.accent}
+          color={colors.brand}
           onPress={() => onOpen("over")}
         />
         <BigAction
@@ -270,7 +270,7 @@ export function CarrierHome({
           icon="doc"
           title="Insurance"
           subtitle="Your cover"
-          color={theme.accent}
+          color={colors.brand}
           onPress={() => onOpen("insurance")}
         />
         <BigAction
@@ -284,7 +284,7 @@ export function CarrierHome({
           icon="truck"
           title="Trucks"
           subtitle="Trucks & equipment details"
-          color={theme.accent}
+          color={colors.brand}
           onPress={() => onOpen("trucks")}
         />
 
@@ -530,7 +530,7 @@ export function BrokerHome({
           icon="search"
           title="Find Trucks"
           subtitle={`${stats?.totalFleetOwners ?? 0} carriers on the board`}
-          color={theme.accent}
+          color={colors.brand}
           onPress={() => onOpen("carriers")}
         />
 

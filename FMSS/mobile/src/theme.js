@@ -2,9 +2,9 @@
  * S Line Transport — design tokens.
  *
  * One source of truth for colour, elevation, spacing and type across the app.
- * The palette is Uber style: a white canvas, black for the brand and every
- * action, flat greys for chips and secondary type, and colour only where it
- * carries meaning (green done, red wrong, amber waiting).
+ * The palette is Uber's dark mode: a black canvas, grey sections on it, white
+ * type and white primary buttons, deep navy as the second action colour, and
+ * colour only where it carries meaning (green done, red wrong, amber waiting).
  *
  * The ten keys the original theme exported (background, surface, border, text,
  * muted, primary, primaryLight, success, warning, danger) are all still here
@@ -16,7 +16,7 @@
 // when you are expressing intent.
 // ---------------------------------------------------------------------------
 
-// Uber style: a white canvas, black and charcoal for brand and every action,
+// Uber style: a white canvas, black and deep navy for brand and every action,
 // flat grey fills for chips and tiles, and Uber's own green, red and amber only
 // where they mean something (done, wrong, waiting). The old hue
 // ramps are kept by name, pointing at the greys, so every screen that reaches
@@ -33,20 +33,25 @@ const mono = {
   100: "#EEEEEE",
   50: "#F3F3F3",
 };
-const accentRamp = { 900: mono[900], 800: mono[900], 700: mono[900], 600: mono[900], 500: mono[800], 400: mono[700], 100: mono[200], 50: mono[50] };
+// Dark mode: an accent drawn on the black canvas is white, and its tints are
+// the greys the cards are made of.
+const accentRamp = { 900: "#FFFFFF", 800: "#FFFFFF", 700: "#F3F3F3", 600: "#FFFFFF", 500: "#E2E2E2", 400: "#CBCBCB", 100: "#2E2E2E", 50: "#1C1C1C" };
 
 export const palette = {
   mono,
   navy: accentRamp,
   blue: accentRamp,
-  green: { 700: "#03703C", 600: "#05944F", 500: "#06C167", 100: "#ADDEC9", 50: "#E6F2ED" },
+  green: { 700: "#03703C", 600: "#06C167", 500: "#06C167", 100: "#0E3B25", 50: "#0A2419" },
   orange: accentRamp,
-  red: { 700: "#AB1300", 600: "#E11900", 500: "#E85C4A", 100: "#FED7D2", 50: "#FFEFED" },
-  amber: { 700: "#674D1B", 600: "#996F00", 500: "#FFC043", 100: "#FFF2D9", 50: "#FFFAF0" },
+  red: { 700: "#AB1300", 600: "#F25C4A", 500: "#E85C4A", 100: "#4A1C17", 50: "#2B100D" },
+  amber: { 700: "#674D1B", 600: "#FFC043", 500: "#FFC043", 100: "#4A3A12", 50: "#2B220A" },
   purple: accentRamp,
   teal: accentRamp,
   pink: accentRamp,
   slate: mono,
+  // Deep navy: the second action colour beside black — blue enough to read as
+  // a different bar, quiet enough to sit with black and white.
+  navyAccent: { 700: "#173C6C", 600: "#1F4E8C", 400: "#6E9BD6", 100: "#1C3355", 50: "#132338" },
   white: "#FFFFFF",
 };
 
@@ -54,30 +59,33 @@ export const palette = {
 // Semantic colours. Screens use these, not the ramps.
 // ---------------------------------------------------------------------------
 
+// Uber dark: a black canvas, grey sections on it, white type, and a white
+// primary button with black type on it.
 export const colors = {
   // Surfaces
-  background: palette.white,
-  surface: palette.white,
-  surfaceAlt: palette.slate[50],
-  surfaceSunken: palette.slate[100],
-  border: palette.slate[100],
-  borderStrong: palette.slate[200],
+  background: "#000000",
+  surface: "#1C1C1C",
+  surfaceAlt: "#262626",
+  surfaceSunken: "#2E2E2E",
+  border: "#2C2C2C",
+  borderStrong: "#3D3D3D",
 
   // Type
-  text: palette.slate[900],
-  textSoft: palette.slate[700],
-  muted: palette.slate[500],
-  faint: palette.slate[400],
+  text: "#FFFFFF",
+  textSoft: "#D6D6D6",
+  muted: "#A6A6A6",
+  faint: "#6E6E6E",
   onBrand: palette.white,
 
-  // Brand
-  brand: palette.navy[800],
-  brandDeep: palette.navy[900],
-  brandSoft: palette.navy[700],
-  primary: palette.blue[600],
-  primaryDark: palette.blue[700],
-  primaryLight: palette.blue[100],
-  primaryFaint: palette.blue[50],
+  // Brand — the grey of a raised section (stat tiles, bars, the logo tile)
+  brand: "#2A2A2A",
+  brandDeep: "#1C1C1C",
+  brandSoft: "#333333",
+  primary: palette.white,
+  onPrimary: "#000000",
+  primaryDark: "#E2E2E2",
+  primaryLight: "#2E2E2E",
+  primaryFaint: "#1C1C1C",
 
   // Status
   success: palette.green[600],
@@ -89,10 +97,12 @@ export const colors = {
   danger: palette.red[600],
   dangerLight: palette.red[100],
   dangerFaint: palette.red[50],
-  // Uber charcoal: the second action colour beside black, and "information".
-  info: palette.mono[600],
-  infoLight: palette.mono[100],
-  infoFaint: palette.mono[50],
+  // Deep navy: the second action colour beside black, and "information".
+  info: palette.navyAccent[600],
+  // Navy as type or an icon on black — the bar shade is too dark to read.
+  infoInk: palette.navyAccent[400],
+  infoLight: palette.navyAccent[100],
+  infoFaint: palette.navyAccent[50],
 
   // Category accents — the colour-coded action tiles on the dashboards.
   fuel: palette.orange[500],
@@ -114,7 +124,7 @@ export const colors = {
 };
 
 /**
- * Per-role identity. Every portal shares Uber's white app bar and black
+ * Per-role identity. Every portal shares Uber's black app bar and white
  * accent; the label and tagline tell the portals apart.
  */
 export const roleTheme = {
@@ -122,56 +132,56 @@ export const roleTheme = {
     key: "driver",
     label: "Driver",
     tagline: "Easy tools for drivers",
-    accent: palette.mono[900],
-    accentDark: palette.mono[900],
-    accentLight: palette.mono[100],
-    accentFaint: palette.mono[50],
-    headerFrom: palette.white,
-    headerTo: palette.white,
+    accent: palette.white,
+    accentDark: palette.white,
+    accentLight: "#2E2E2E",
+    accentFaint: "#1C1C1C",
+    headerFrom: "#000000",
+    headerTo: "#000000",
   },
   fleetOwner: {
     key: "fleetOwner",
     label: "Owner-Operator",
     tagline: "Find loads and grow your business",
-    accent: palette.mono[900],
-    accentDark: palette.mono[900],
-    accentLight: palette.mono[100],
-    accentFaint: palette.mono[50],
-    headerFrom: palette.white,
-    headerTo: palette.white,
+    accent: palette.white,
+    accentDark: palette.white,
+    accentLight: "#2E2E2E",
+    accentFaint: "#1C1C1C",
+    headerFrom: "#000000",
+    headerTo: "#000000",
   },
   client: {
     key: "client",
     label: "Shipper",
     tagline: "Ship freight with confidence",
-    accent: palette.mono[900],
-    accentDark: palette.mono[900],
-    accentLight: palette.mono[100],
-    accentFaint: palette.mono[50],
-    headerFrom: palette.white,
-    headerTo: palette.white,
+    accent: palette.white,
+    accentDark: palette.white,
+    accentLight: "#2E2E2E",
+    accentFaint: "#1C1C1C",
+    headerFrom: "#000000",
+    headerTo: "#000000",
   },
   staff: {
     key: "staff",
     label: "Freight Broker",
     tagline: "Find trucks, book loads fast",
-    accent: palette.mono[900],
-    accentDark: palette.mono[900],
-    accentLight: palette.mono[100],
-    accentFaint: palette.mono[50],
-    headerFrom: palette.white,
-    headerTo: palette.white,
+    accent: palette.white,
+    accentDark: palette.white,
+    accentLight: "#2E2E2E",
+    accentFaint: "#1C1C1C",
+    headerFrom: "#000000",
+    headerTo: "#000000",
   },
   admin: {
     key: "admin",
     label: "Administrator",
     tagline: "Manage your entire fleet",
-    accent: palette.mono[900],
-    accentDark: palette.mono[900],
-    accentLight: palette.mono[100],
-    accentFaint: palette.mono[50],
-    headerFrom: palette.white,
-    headerTo: palette.white,
+    accent: palette.white,
+    accentDark: palette.white,
+    accentLight: "#2E2E2E",
+    accentFaint: "#1C1C1C",
+    headerFrom: "#000000",
+    headerTo: "#000000",
   },
 };
 
@@ -247,4 +257,16 @@ export const brand = {
   name: "S LINE",
   nameAccent: "TRANSPORT",
   tagline: "All Roads. One Connection.",
+};
+
+/**
+ * Black or white, whichever reads on the given background. Used wherever a
+ * component takes its fill as a prop — a white button needs black type, a navy
+ * bar needs white.
+ */
+export const inkOn = (hex) => {
+  const h = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return "#FFFFFF";
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? "#000000" : "#FFFFFF";
 };
