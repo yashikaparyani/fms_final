@@ -39,6 +39,7 @@ const {
   accountPersonFor,
   carrierLoadFilter,
   isCarrierSide,
+  legView,
 } = require("../utils/carrierAccount");
 const whatsapp = require("../services/whatsappEvents");
 const { isValidCharge, money } = require("../config/chargeTypes");
@@ -1269,6 +1270,17 @@ const getLoadById = async (req, res) => {
         .select("contactPersons")
         .lean();
       responsePayload.accountPerson = accountPersonFor(carrier);
+    }
+
+    // A carrier (or their driver) on a split load sees their own leg — its
+    // pickup, drop, status and timeline — not the load's original ends. See
+    // legView in utils/carrierAccount.js.
+    if (["fleetOwner", "driver"].includes(req.user?.role) && load.assignments?.length) {
+      const carrier = await findCarrierFor(req.user, "_id");
+      if (carrier) {
+        const view = legView(load, carrier._id);
+        if (view.myLeg) Object.assign(responsePayload, view);
+      }
     }
 
     // 🔒 Customers (clients) must NOT see bid status/amounts — only the
@@ -2880,22 +2892,57 @@ const setLoadAssignments = async (req, res) => {
       (load.assignments || []).map((leg) => [String(leg._id), leg]),
     );
 
-    const legs = submitted.map((row) => {
+    // Splitting a load that one carrier has already been running — the yard
+    // handover: they dropped it, a second carrier collects. Their leg is the
+    // run they have already made, so it takes the load's own progress and
+    // history rather than starting again at ASSIGNED, which would put the load
+    // back on their board as work still to do.
+    const primaryId = String(load.assignedFleetOwner?.fleetOwnerId || "");
+    const inheritsLoadProgress = (row, index) =>
+      !(load.assignments || []).length &&
+      index === 0 &&
+      primaryId &&
+      String(row.fleetOwnerId) === primaryId;
+
+    const legs = submitted.map((row, index) => {
       const carrier = carrierById.get(String(row.fleetOwnerId));
-      const previous = row._id ? existingById.get(String(row._id)) : null;
+      const previous = row._id
+        ? existingById.get(String(row._id))
+        : inheritsLoadProgress(row, index)
+          ? {
+              transportStatus: load.transportStatus,
+              transportStatusHistory: (load.transportStatusHistory || []).map((h) => ({
+                status: h.status,
+                changedAt: h.changedAt,
+                changedBy: h.changedBy,
+                note: h.note,
+              })),
+              carrierRate: undefined,
+              assignedAt: load.assignedFleetOwner?.assignedAt,
+            }
+          : null;
 
       const origin = normalizeLegPoint(row.origin, load, "origin");
       const destination = normalizeLegPoint(row.destination, load, "destination");
 
       return {
-        ...(previous ? { _id: previous._id } : {}),
+        ...(previous?._id ? { _id: previous._id } : {}),
         fleetOwnerId: carrier._id,
         fleetOwnerName: carrier.carrierName,
         fleetOwnerCode: carrier.fleetOwnerCode,
         origin,
         destination,
         transportStatus: previous?.transportStatus || "ASSIGNED",
-        transportStatusHistory: previous?.transportStatusHistory || [],
+        // A new leg's timeline opens with its assignment, so the carrier's
+        // first screen does not read as an empty history.
+        transportStatusHistory: previous?.transportStatusHistory || [
+          {
+            status: "ASSIGNED",
+            changedAt: new Date(),
+            changedBy: req.user._id,
+            note: `Assigned to ${carrier.carrierName}`,
+          },
+        ],
         carrierRate:
           row.carrierRate === "" || row.carrierRate === undefined
             ? previous?.carrierRate
@@ -2918,9 +2965,12 @@ const setLoadAssignments = async (req, res) => {
       });
     }
 
-    const previousNames = (load.assignments || [])
-      .map((leg) => leg.fleetOwnerName)
-      .join(", ");
+    // Who had it before — the legs, or the one carrier a load that was never
+    // split was given to. Either way this save is a reassignment.
+    const previousNames =
+      (load.assignments || []).map((leg) => leg.fleetOwnerName).join(", ") ||
+      load.assignedFleetOwner?.fleetOwnerName ||
+      "";
 
     load.assignments = legs;
 
@@ -2935,7 +2985,20 @@ const setLoadAssignments = async (req, res) => {
     };
 
     load.status = "ASSIGNED";
+    const statusBefore = load.transportStatus;
     load.rollupTransportStatus();
+
+    // On the load's own timeline, so the tracking page shows the assignment
+    // or the reassignment next to the moves either side of it.
+    const route = legs.map((leg) => leg.fleetOwnerName).join(" → ");
+    load.transportStatusHistory.push({
+      status: load.transportStatus,
+      changedAt: new Date(),
+      changedBy: req.user._id,
+      note: previousNames
+        ? `Reassigned — ${route}${statusBefore && statusBefore !== load.transportStatus ? ` (was ${statusBefore.replace(/_/g, " ").toLowerCase()})` : ""}`
+        : `Assigned — ${route}`,
+    });
 
     // Direct assignment bypasses bidding, exactly as the single-carrier assign
     // does — otherwise the cron would re-open a bid window on a load that is
@@ -3036,6 +3099,17 @@ const assignFleetOwner = async (req, res) => {
           bidStartTime: "",
           bidEndTime: "",
           winningBid: "",
+        },
+        // The tracking page's timeline shows who the load was given to.
+        $push: {
+          transportStatusHistory: {
+            status: "ASSIGNED",
+            changedAt: new Date(),
+            changedBy: req.user._id,
+            note: previous?.assignedFleetOwner?.fleetOwnerName
+              ? `Reassigned from ${previous.assignedFleetOwner.fleetOwnerName} to ${fleetOwnerName}`
+              : `Assigned to ${fleetOwnerName}`,
+          },
         },
       },
       { returnDocument: "after" },

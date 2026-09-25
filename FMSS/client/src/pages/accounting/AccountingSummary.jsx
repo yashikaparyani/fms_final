@@ -169,7 +169,7 @@ const AccountingSummary = () => {
     <div className={uiStyles.page}>
       <div className={`${uiStyles.cardHeader} flex-col md:flex-row gap-3`}>
         <div>
-          <h1 className="page-title">Invoiced Loads</h1>
+          <h1 className="page-title">Pending Invoices</h1>
           <p className="page-subtitle">
             The loads waiting to be invoiced, and how the period has run.
           </p>

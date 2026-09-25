@@ -123,12 +123,17 @@ const LegPoint = ({ label, value, stops, onChange }) => {
 };
 
 // ─── The dialog ──────────────────────────────────────────────────────────────
+// `handover` is the yard reassign: the carrier on the load has dropped it in a
+// yard, and somebody else collects it from there. The dialog opens with their
+// run as the first leg and a second leg, from the yard to the drop, waiting for
+// a carrier — so the office only has to say where the yard is and who collects.
 const AssignCarrierLegsDialog = ({
   load,
   fleetOwners,
   saving,
   onSave,
   onClose,
+  handover = false,
 }) => {
   const originStops = useMemo(() => stopsOf(load, "origin"), [load]);
   const destStops = useMemo(() => stopsOf(load, "destination"), [load]);
@@ -137,8 +142,21 @@ const AssignCarrierLegsDialog = ({
   // key where it is rendered), so there is no stale state to reset and no
   // effect that has to notice the load changed underneath it.
   const [legs, setLegs] = useState(() => {
+    const dropPoint = stopsOf(load, "destination").length
+      ? { ...BLANK_POINT, source: "STOP", stopIndex: 0 }
+      : { ...BLANK_POINT };
+
+    // The leg that collects from the yard. Its start follows the previous
+    // leg's end until somebody edits it — the yard is typed once.
+    const collectLeg = (from) => ({
+      ...blankLeg(),
+      origin: { ...from },
+      destination: dropPoint,
+      followsPrevious: true,
+    });
+
     if (load?.assignments?.length) {
-      return load.assignments.map((leg) => ({
+      const existing = load.assignments.map((leg) => ({
         _id: leg._id,
         fleetOwnerId: leg.fleetOwnerId?._id || leg.fleetOwnerId || "",
         origin: { ...BLANK_POINT, ...leg.origin },
@@ -146,6 +164,22 @@ const AssignCarrierLegsDialog = ({
         carrierRate: leg.carrierRate ?? "",
         note: leg.note || "",
       }));
+      return handover
+        ? [...existing, collectLeg(existing[existing.length - 1].destination)]
+        : existing;
+    }
+
+    if (handover) {
+      // The run already made: the load's pickup to the yard it was left at.
+      const firstRun = {
+        ...blankLeg(),
+        fleetOwnerId: load?.assignedFleetOwner?.fleetOwnerId || "",
+        origin: stopsOf(load, "origin").length
+          ? { ...BLANK_POINT, source: "STOP", stopIndex: 0 }
+          : { ...BLANK_POINT },
+        destination: { ...BLANK_POINT },
+      };
+      return [firstRun, collectLeg(firstRun.destination)];
     }
 
     // A fresh split starts as the load already reads: its own pickup to its own
@@ -174,7 +208,17 @@ const AssignCarrierLegsDialog = ({
 
   const patchLeg = (index, patch) =>
     setLegs((current) =>
-      current.map((leg, i) => (i === index ? { ...leg, ...patch } : leg)),
+      current.map((leg, i) => {
+        if (i === index) {
+          // Editing a leg's own start stops it following the leg before.
+          return { ...leg, ...patch, ...(patch.origin ? { followsPrevious: false } : {}) };
+        }
+        // The next leg picks up where this one now ends.
+        if (i === index + 1 && patch.destination && leg.followsPrevious) {
+          return { ...leg, origin: { ...patch.destination } };
+        }
+        return leg;
+      }),
     );
 
   const addLeg = () =>
@@ -235,11 +279,12 @@ const AssignCarrierLegsDialog = ({
         <div className="flex items-start justify-between border-b border-gray-200 p-5">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              Assign carriers — {load.loadId}
+              {handover ? "Reassign from the yard" : "Assign carriers"} — {load.loadId}
             </h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              One carrier for the whole load, or split it into legs with a
-              handover point in between.
+              {handover
+                ? "The first leg is the run already made, ending at the yard. Say where the yard is, then who collects it and where they take it."
+                : "One carrier for the whole load, or split it into legs with a handover point in between."}
             </p>
           </div>
           <button

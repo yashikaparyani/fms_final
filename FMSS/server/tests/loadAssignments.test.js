@@ -16,7 +16,7 @@ const { withTenant } = require("../utils/tenantContext");
 const Load = require("../models/Load");
 const FleetOwner = require("../models/FleetOwner");
 const Driver = require("../models/Driver");
-const { carrierLoadFilter } = require("../utils/carrierAccount");
+const { carrierLoadFilter, carrierLoadView } = require("../utils/carrierAccount");
 
 const STAFF_ID = new mongoose.Types.ObjectId();
 
@@ -485,5 +485,105 @@ describe("Taking a split load off its carriers", () => {
 
     const doc = await reload();
     expect(doc.driverAssignments.map((d) => d.driverName)).toEqual(["Other"]);
+  });
+});
+
+describe("Yard handover: a second carrier collects from the yard", () => {
+  // One carrier ran it to the yard and dropped it there.
+  const parkedWithFirstCarrier = () =>
+    seed(async () => {
+      const doc = await Load.findOne({ loadId: "LD-9001" });
+      doc.assignedFleetOwner = {
+        fleetOwnerId: portToYard._id,
+        fleetOwnerName: portToYard.carrierName,
+        assignedAt: new Date(),
+      };
+      doc.status = "ASSIGNED";
+      doc.transportStatus = "LOADED_IN_YARD";
+      doc.transportStatusHistory = [
+        { status: "PICKED_UP", changedAt: new Date() },
+        { status: "LOADED_IN_YARD", changedAt: new Date() },
+      ];
+      await doc.save();
+    });
+
+  it("keeps the first carrier's run as done and puts the load on the second", async () => {
+    await parkedWithFirstCarrier();
+
+    const res = await assign(bodyForTwo());
+    expect(res.statusCode).toEqual(200);
+
+    const [first, second] = res.body.load.assignments;
+    // The run already made is not reset to ASSIGNED.
+    expect(first.transportStatus).toEqual("LOADED_IN_YARD");
+    expect(first.transportStatusHistory.map((h) => h.status)).toEqual([
+      "PICKED_UP",
+      "LOADED_IN_YARD",
+    ]);
+    expect(second.transportStatus).toEqual("ASSIGNED");
+    // The load is waiting on the second carrier.
+    expect(res.body.load.transportStatus).toEqual("ASSIGNED");
+  });
+
+  it("gives the second carrier a leg to update and not the first", async () => {
+    await parkedWithFirstCarrier();
+    await assign(bodyForTwo());
+
+    const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }));
+    expect(doc.legFor(yardToDoor._id).transportStatus).toEqual("ASSIGNED");
+    // The first carrier's leg is finished, so nothing of theirs is still running.
+    expect(Load.LEG_FINISHED).toContain(doc.legFor(portToYard._id).transportStatus);
+  });
+
+  it("shows each carrier their own leg's status", async () => {
+    await parkedWithFirstCarrier();
+    await assign(bodyForTwo());
+
+    const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }).lean());
+    expect(carrierLoadView(doc, portToYard._id).transportStatus).toEqual("LOADED_IN_YARD");
+    expect(carrierLoadView(doc, yardToDoor._id).transportStatus).toEqual("ASSIGNED");
+  });
+});
+
+describe("Each carrier sees their own leg, and the timeline records assignments", () => {
+  it("shows the second carrier the yard as their pickup, not the port", async () => {
+    await assign(bodyForTwo());
+    const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }).lean());
+
+    const second = carrierLoadView(doc, yardToDoor._id);
+    expect(second.pickup.company).toEqual("Sparks Yard");
+    expect(second.pickups).toHaveLength(1);
+    expect(second.drop.company).toEqual("Acme Warehouse");
+
+    const first = carrierLoadView(doc, portToYard._id);
+    expect(first.pickup.company).toEqual("Port of Oakland");
+    expect(first.drop.company).toEqual("Sparks Yard");
+  });
+
+  it("opens a new leg's timeline with its assignment", async () => {
+    const res = await assign(bodyForTwo());
+    const second = res.body.load.assignments[1];
+    expect(second.transportStatusHistory[0].status).toEqual("ASSIGNED");
+    expect(second.transportStatusHistory[0].note).toMatch(/Last Mile Freight/);
+  });
+
+  it("writes the split onto the load's timeline", async () => {
+    const res = await assign(bodyForTwo());
+    const last = res.body.load.transportStatusHistory.slice(-1)[0];
+    expect(last.status).toEqual("ASSIGNED");
+    expect(last.note).toMatch(/Port Drayage LLC → Last Mile Freight/);
+  });
+
+  it("calls a direct assign over another carrier a reassignment on the timeline", async () => {
+    await request(app)
+      .put("/api/loads/LD-9001/assign")
+      .send({ fleetOwnerId: String(portToYard._id), fleetOwnerName: "Port Drayage LLC" });
+    const res = await request(app)
+      .put("/api/loads/LD-9001/assign")
+      .send({ fleetOwnerId: String(yardToDoor._id), fleetOwnerName: "Last Mile Freight" });
+
+    const last = res.body.transportStatusHistory.slice(-1)[0];
+    expect(last.status).toEqual("ASSIGNED");
+    expect(last.note).toEqual("Reassigned from Port Drayage LLC to Last Mile Freight");
   });
 });

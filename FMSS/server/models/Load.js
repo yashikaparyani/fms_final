@@ -1138,7 +1138,17 @@ const LEG_ORDER = [
   "DELIVERED",
 ];
 
-const LEG_FINISHED = ["DELIVERED", "TERMINATED", "STREET_TURN", "EMPTY_IN_YARD"];
+// A leg that ends in a yard or a warehouse is done: that is the handover point,
+// and the next leg's carrier collects from there. Without these the first
+// carrier's leg stayed "open" after the handover and they could keep updating it.
+const LEG_FINISHED = [
+  "DELIVERED",
+  "TERMINATED",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "DROP_IN_WAREHOUSE",
+];
 
 /**
  * Re-derive the load-level transportStatus from its legs.

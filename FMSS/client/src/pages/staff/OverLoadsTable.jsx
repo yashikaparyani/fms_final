@@ -6,10 +6,10 @@ import CarrierCell from "../../components/loads/CarrierCell";
 import YardDays from "../../components/loads/YardDays";
 import UpdateStatusModal from "../../components/loads/UpdateStatusModal";
 import AssignCarrierPicker from "../../components/loads/AssignCarrierPicker";
+import AssignCarrierLegsDialog from "../../components/AssignCarrierLegsDialog";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
-import AssignDriversDialog from "../../components/fleetOwner/AssignDriversDialog";
-import { carrierIdOnLoad, carrierNameOnLoad } from "../../utils/loadCarrier";
+import { carrierNameOnLoad } from "../../utils/loadCarrier";
 import { isAssignedToCarrier, STATUS_LOCKED_REASON } from "../../utils/loadAssignment";
 import { STATUS_BADGE_COLORS, STATUS_ROW_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
@@ -48,12 +48,16 @@ const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 // arrives is still counted under "All", so a status added to the server's
 // completed set but not listed here is missing a sub-tab rather than missing
 // from the screen.
-// Statuses where the load has stopped rather than finished: the box is sitting
-// in a yard or at a warehouse and somebody still has to move it. Reassigning
-// changes which carrier owns it; this changes who actually drives the next
-// stretch, which is usually the only thing that needs to change — the carrier
-// is the same, the driver who dropped it has gone home.
-const AWAITING_A_DRIVER = ["DROP_IN_WAREHOUSE", "LOADED_IN_YARD", "EMPTY_IN_YARD"];
+// A load parked in a yard or at a warehouse is moved on by Reassign, not by
+// adding a driver: whoever collects it from the yard is the next carrier's job,
+// and that carrier names their own driver. There is deliberately no
+// "Assign another driver" here.
+//
+// On these loads Reassign opens the carrier legs in yard-handover form — the
+// run already made up to the yard, and a new leg from the yard onward — so the
+// first carrier is still paid for their stretch and the second has a leg of
+// their own to update.
+const PARKED = ["EMPTY_IN_YARD", "LOADED_IN_YARD", "DROP_IN_WAREHOUSE"];
 
 // A load whose driving is done and whose documents are not. The only rows in
 // this tab where "Transfer to Invoiceable" means anything.
@@ -107,7 +111,9 @@ const OverLoadsTable = () => {
   const [subTab, setSubTab] = useState("");
   const [openRow, setOpenRow] = useState(null); // reassign picker open on this load
   const [statusModal, setStatusModal] = useState(null);
-  const [driverModal, setDriverModal] = useState(null);
+  // The parked load whose yard handover is being set up.
+  const [handoverLoad, setHandoverLoad] = useState(null);
+  const [savingLegs, setSavingLegs] = useState(false);
   // Load id currently being transferred, so its own button says so.
   const [transferring, setTransferring] = useState(null);
 
@@ -141,7 +147,7 @@ const OverLoadsTable = () => {
   // Hold the refresh while a picker or the status modal is open, so a row
   // cannot shift or vanish mid-action.
   useAutoRefresh(() => fetchLoads({ silent: true }), {
-    enabled: !openRow && !saving && !statusModal && !driverModal && !transferring,
+    enabled: !openRow && !saving && !statusModal && !handoverLoad && !transferring,
   });
 
   // Same delivery-date order as the other three tabs, so a load does not change
@@ -230,6 +236,32 @@ const OverLoadsTable = () => {
 
   // Opening a finished load is how its paperwork is read. The desktop table
   // gets this from LoadIdCell; the mobile card has to say it itself.
+  // Parked with a carrier: set up who collects it from the yard. Anything else
+  // (delivered, or never assigned) is a straight change of carrier.
+  const reassign = (row) => {
+    if (isAssignedToCarrier(row) && PARKED.includes(row.transportStatus)) {
+      setHandoverLoad(row);
+    } else {
+      setOpenRow(row.loadId);
+    }
+  };
+
+  const saveHandover = async (assignments) => {
+    setSavingLegs(true);
+    try {
+      const { data } = await api.put(`/loads/${handoverLoad.loadId}/assignments`, {
+        assignments,
+      });
+      setHandoverLoad(null);
+      await fetchLoads();
+      toast.success(data.message || "Reassigned.");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not save that reassignment.");
+    } finally {
+      setSavingLegs(false);
+    }
+  };
+
   const openLoad = (row) =>
     navigate(`/${user?.role || "staff"}/track-load/${row.loadId}`);
 
@@ -278,25 +310,12 @@ const OverLoadsTable = () => {
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
         <button
-          onClick={() => setOpenRow(row.loadId)}
+          onClick={() => reassign(row)}
           disabled={saving}
           className={`${assigned ? "btn-secondary-small" : "btn-primary-small"} disabled:opacity-50`}
         >
           {assigned ? "Reassign" : "Assign Load"}
         </button>
-
-        {/* Only where the load is parked rather than done. Offering it on a
-            delivered or terminated load would be offering to send somebody to
-            collect a box that is not there. */}
-        {assigned && AWAITING_A_DRIVER.includes(row.transportStatus) && (
-          <button
-            onClick={() => setDriverModal(row)}
-            disabled={saving}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition disabled:opacity-50 whitespace-nowrap"
-          >
-            Assign another driver
-          </button>
-        )}
 
         {/* Only on the loads that are actually waiting to be billed. On a
             terminated or street-turned load there is nothing to approve. */}
@@ -442,7 +461,7 @@ const OverLoadsTable = () => {
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={() => setOpenRow(row.loadId)}
+                          onClick={() => reassign(row)}
                           disabled={saving}
                           className="btn-secondary flex-1 py-1.5 disabled:opacity-50"
                         >
@@ -492,17 +511,17 @@ const OverLoadsTable = () => {
         />
       </div>
 
-      <AssignDriversDialog
-        open={Boolean(driverModal)}
-        load={driverModal}
-        fleetOwnerId={carrierIdOnLoad(driverModal)}
-        carrierName={carrierNameOnLoad(driverModal)}
-        onClose={() => setDriverModal(null)}
-        onSaved={async () => {
-          setDriverModal(null);
-          await fetchLoads();
-        }}
-      />
+      {handoverLoad && (
+        <AssignCarrierLegsDialog
+          key={handoverLoad.loadId}
+          load={handoverLoad}
+          fleetOwners={fleetOwners}
+          saving={savingLegs}
+          onSave={saveHandover}
+          onClose={() => setHandoverLoad(null)}
+          handover
+        />
+      )}
 
       {statusModal && (
         <UpdateStatusModal

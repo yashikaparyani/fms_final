@@ -169,6 +169,73 @@ const carrierPayoutFor = (load, fleetOwnerId, bid) => {
   return { amount: null, source: "NOT_SET" };
 };
 
+// Leg statuses that mean the carrier's run is over — mirrors LEG_FINISHED on
+// the Load model, repeated here so this module does not need the model.
+const LEG_DONE = [
+  "DELIVERED",
+  "TERMINATED",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "DROP_IN_WAREHOUSE",
+];
+
+/** The carrier's own leg of a split load: the one still running, else their first. */
+const myLegOf = (load, fleetOwnerId) => {
+  const theirs = (load?.assignments || []).filter(
+    (l) => String(l.fleetOwnerId?._id || l.fleetOwnerId) === String(fleetOwnerId),
+  );
+  return theirs.find((l) => !LEG_DONE.includes(l.transportStatus)) || theirs[0] || null;
+};
+
+/**
+ * One end of a leg, shaped as a stop. A stop picked off the load keeps the
+ * load's own details for it (dates, contact); a typed-in handover point, like
+ * a yard, has only what was typed — the load's pickup date is not the day the
+ * box is collected from the yard.
+ */
+const stopFromLegPoint = (point, loadStops = []) => {
+  if (!point) return null;
+  const base =
+    point.source === "STOP" && Number.isInteger(point.stopIndex)
+      ? loadStops[point.stopIndex] || {}
+      : {};
+  return {
+    ...base,
+    company: point.company || base.company || "",
+    address: point.address || base.address || "",
+    city: point.city || base.city || "",
+    state: point.state || base.state || "",
+    zip: point.zip || base.zip || "",
+  };
+};
+
+/**
+ * A load as one carrier on it should see it.
+ *
+ * On a split load each carrier works their own leg: its own two ends, its own
+ * status and its own history. Showing them the load's original pickup and drop
+ * sent the second carrier to the port the first carrier already collected from.
+ * On a single-carrier load nothing changes.
+ */
+const legView = (load, fleetOwnerId) => {
+  const leg = myLegOf(load, fleetOwnerId);
+  if (!leg) return { myLeg: null };
+
+  const pickups = load.pickups?.length ? load.pickups : [load.pickup].filter(Boolean);
+  const drops = load.drops?.length ? load.drops : [load.drop].filter(Boolean);
+  const pickup = stopFromLegPoint(leg.origin, pickups);
+  const drop = stopFromLegPoint(leg.destination, drops);
+
+  return {
+    myLeg: leg,
+    transportStatus: leg.transportStatus,
+    transportStatusHistory: leg.transportStatusHistory || [],
+    ...(pickup ? { pickup, pickups: [pickup] } : {}),
+    ...(drop ? { drop, drops: [drop] } : {}),
+  };
+};
+
 /** A load with that figure attached, for the carrier-facing endpoints. */
 const carrierLoadView = (load, fleetOwnerId, bid) => {
   const plain = load?.toObject ? load.toObject() : { ...load };
@@ -176,11 +243,9 @@ const carrierLoadView = (load, fleetOwnerId, bid) => {
 
   return {
     ...plain,
+    ...legView(plain, fleetOwnerId),
     carrierPayout: payout.amount,
     carrierPayoutSource: payout.source,
-    myLeg: (plain.assignments || []).find(
-      (l) => String(l.fleetOwnerId) === String(fleetOwnerId),
-    ) || null,
   };
 };
 
@@ -188,6 +253,7 @@ const carrierLoadView = (load, fleetOwnerId, bid) => {
 module.exports = {
   carrierPayoutFor,
   carrierLoadView,
+  legView,
   carrierLoadFilter,
   carrierVisibleLoadFilter,
   CARRIER_HIDDEN_TRANSPORT_STATUSES,

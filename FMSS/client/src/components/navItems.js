@@ -290,7 +290,7 @@ export const navItems = [
     description: "Receivables, payables, margin and the report centre",
     children: [
       {
-        label: "Invoiced Loads",
+        label: "Pending Invoices",
         path: "accounting",
         icon: AccountBalanceWalletOutlinedIcon,
         visible: ["staff", "admin"],
