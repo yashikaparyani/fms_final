@@ -50,6 +50,7 @@ import {
   TOP_INSET as UI_TOP_INSET,
   AppHeader,
   BrandMark,
+  LogoutContext,
   BottomTabs,
   GradientHeader,
   Icon,
@@ -155,38 +156,38 @@ const MAIN_ORDER = [
 const TRANSPORT_STATUS_COLOR = {
   LOAD_PLANNER: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
   NEW_LOAD: { bg: "#E2E2E2", color: "#000000", border: "#CBCBCB" },
-  ASSIGNED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
+  ASSIGNED: { bg: "#E6F2ED", color: "#05944F", border: "#ADDEC9" },
   READY_TO_PICKUP: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
-  PICKED_UP: { bg: "#E2E2E2", color: "#000000", border: "#CBCBCB" },
-  IN_TRANSIT: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  REACHED_DESTINATION: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  DELIVERED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  TERMINATED: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
-  PAPERWORK_PENDING: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  PICKED_UP: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
+  IN_TRANSIT: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
+  REACHED_DESTINATION: { bg: "#E6F2ED", color: "#05944F", border: "#ADDEC9" },
+  DELIVERED: { bg: "#E6F2ED", color: "#05944F", border: "#ADDEC9" },
+  TERMINATED: { bg: "#FFEFED", color: "#E11900", border: "#F1998E" },
+  PAPERWORK_PENDING: { bg: "#FFF2D9", color: "#996F00", border: "#FFE3AC" },
   INVOICED: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
-  STREET_TURN: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
-  EMPTY_IN_YARD: { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" },
-  LOADED_IN_YARD: { bg: "#F6F6F6", color: "#000000", border: "#CBCBCB" },
+  STREET_TURN: { bg: "#E6F2ED", color: "#03703C", border: "#ADDEC9" },
+  EMPTY_IN_YARD: { bg: "#F3F3F3", color: "#6B6B6B", border: "#E8E8E8" },
+  LOADED_IN_YARD: { bg: "#F3F3F3", color: "#000000", border: "#CBCBCB" },
   DRIVER_ON_WAITING: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
-  DROP_IN_WAREHOUSE: { bg: "#F6F6F6", color: "#000000", border: "#CBCBCB" },
+  DROP_IN_WAREHOUSE: { bg: "#F3F3F3", color: "#000000", border: "#CBCBCB" },
 };
 
 const LOAD_STATUS_COLOR = {
-  DRAFT: { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" },
-  PENDING_VERIFICATION: { bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  REQUIRES_CHANGES: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
-  VERIFIED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  ASSIGNED: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  REJECTED: { bg: "#fee2e2", color: "#dc2626", border: "#fca5a5" },
+  DRAFT: { bg: "#F3F3F3", color: "#6B6B6B", border: "#E8E8E8" },
+  PENDING_VERIFICATION: { bg: "#FFF2D9", color: "#996F00", border: "#FFE3AC" },
+  REQUIRES_CHANGES: { bg: "#FFEFED", color: "#E11900", border: "#F1998E" },
+  VERIFIED: { bg: "#E6F2ED", color: "#05944F", border: "#ADDEC9" },
+  ASSIGNED: { bg: "#E6F2ED", color: "#05944F", border: "#ADDEC9" },
+  REJECTED: { bg: "#FFEFED", color: "#E11900", border: "#F1998E" },
 };
 
 const BID_STATUS_COLOR = {
   UPCOMING: { bg: "#EEEEEE", color: "#000000", border: "#CBCBCB" },
-  OPEN: { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0" },
-  CLOSED: { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" },
+  OPEN: { bg: "#E6F2ED", color: "#05944F", border: "#ADDEC9" },
+  CLOSED: { bg: "#F3F3F3", color: "#6B6B6B", border: "#E8E8E8" },
 };
 
-const STATUS_FALLBACK = { bg: "#F4F4F4", color: "#767676", border: "#E8E8E8" };
+const STATUS_FALLBACK = { bg: "#F3F3F3", color: "#6B6B6B", border: "#E8E8E8" };
 
 const uploadableDocumentTypes = [
   // Beside the generated POD: a consignee's own stamped copy.
@@ -225,9 +226,9 @@ const getDocumentUrl = (filePath) => {
 const DocumentChip = ({ label, tone = "default" }) => {
   const palette = {
     default: { backgroundColor: "#EEEEEE", color: colors.muted, borderColor: "#E2E2E2" },
-    success: { backgroundColor: "#dcfce7", color: colors.success, borderColor: "#bbf7d0" },
-    warning: { backgroundColor: "#fef3c7", color: colors.warning, borderColor: "#fde68a" },
-    muted: { backgroundColor: "#F6F6F6", color: "#787878", borderColor: "#E2E2E2" },
+    success: { backgroundColor: "#E6F2ED", color: colors.success, borderColor: "#ADDEC9" },
+    warning: { backgroundColor: "#FFF2D9", color: colors.warning, borderColor: "#FFE3AC" },
+    muted: { backgroundColor: "#F3F3F3", color: "#6B6B6B", borderColor: "#E2E2E2" },
   };
   const style = palette[tone] || palette.default;
 
@@ -311,7 +312,7 @@ const DocumentCard = ({
 const PAPERWORK_BANNER = {
   AWAITING_DOCUMENTS: {
     title: "Paperwork needed",
-    tone: { bg: "#fef9c3", border: "#fde047", color: "#a16207" },
+    tone: { bg: "#FFF2D9", border: "#FFE3AC", color: "#996F00" },
     body: "This load has been delivered. Upload its documents below to send them to the office.",
   },
   IN_REVIEW: {
@@ -321,12 +322,12 @@ const PAPERWORK_BANNER = {
   },
   CHANGES_REQUESTED: {
     title: "Changes requested",
-    tone: { bg: "#fee2e2", border: "#fca5a5", color: "#b91c1c" },
+    tone: { bg: "#FFEFED", border: "#F1998E", color: "#b91c1c" },
     body: null, // the office's own words are used instead
   },
   APPROVED: {
     title: "Approved",
-    tone: { bg: "#dcfce7", border: "#bbf7d0", color: "#15803d" },
+    tone: { bg: "#E6F2ED", border: "#ADDEC9", color: "#05944F" },
     body: "The office has approved this load's paperwork. Its documents are locked and can no longer be changed.",
   },
 };
@@ -460,9 +461,9 @@ const assetToFile = (asset, fallbackName) => ({
 function Pill({ children, tone = "default" }) {
   const toneStyle = {
     default: { backgroundColor: "#EEEEEE", color: colors.muted },
-    success: { backgroundColor: "#dcfce7", color: colors.success },
-    warning: { backgroundColor: "#fef3c7", color: colors.warning },
-    danger: { backgroundColor: "#fee2e2", color: colors.danger },
+    success: { backgroundColor: "#E6F2ED", color: colors.success },
+    warning: { backgroundColor: "#FFF2D9", color: colors.warning },
+    danger: { backgroundColor: "#FFEFED", color: colors.danger },
   }[tone];
 
   return (
@@ -980,7 +981,7 @@ function LoadCard({ load, children, onPress, live }) {
       style={[
         styles.card,
         { borderLeftWidth: 4, borderLeftColor: live ? colors.danger : statusTone.color },
-        live && { backgroundColor: "#FFF7F7" },
+        live && { backgroundColor: "#FFF5F4" },
       ]}
     >
       {live ? <LivePulse color={colors.danger} /> : null}
@@ -1113,7 +1114,7 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
         {offer ? (
           // A counter-offer is a yes-or-no on one number, so it replaces the
           // bid box entirely.
-          <GradientHeader from="#F6F6F6" to="#F6F6F6" style={styles.bbOffer}>
+          <GradientHeader from="#F3F3F3" to="#F3F3F3" style={styles.bbOffer}>
             <Text style={styles.bbOfferTag}>🤝  OFFICE COUNTER-OFFER</Text>
             <Text style={styles.bbOfferAmount}>{money(offer.amount)}</Text>
             {offer.previousAmount ? (
@@ -1441,6 +1442,147 @@ function CarrierDocumentsScreen({ onBack }) {
             </View>
           );
         })}
+
+        <SecondaryButton title="Back" onPress={onBack} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Trucks & equipment ───────────────────────────────────────────────────────
+// The units the carrier listed on Appendix A during onboarding, read back so they
+// can check a plate or a VIN from the cab. Editing reuses the onboarding form;
+// once the office has approved onboarding the server refuses edits and says so.
+function CarrierTrucksScreen({ onBack }) {
+  const [state, setState] = useState({ loading: true, equipment: [] });
+  const [appendix, setAppendix] = useState(null);
+  const [editing, setEditing] = useState(false);
+
+  const load = useCallback(async () => {
+    setState((current) => ({ ...current, loading: true }));
+    try {
+      const [catalogRes, fileRes] = await Promise.all([
+        api.get("/onboarding/catalog"),
+        api.get("/onboarding"),
+      ]);
+      setAppendix(
+        (catalogRes.data?.agreements || []).find((a) => a.appendixA)?.appendixA || null,
+      );
+      setState({
+        loading: false,
+        equipment: fileRes.data?.equipment || [],
+        status: fileRes.data?.status,
+      });
+    } catch {
+      setState({ loading: false, equipment: [], error: true });
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (editing) {
+    return (
+      <CarrierEquipmentScreen
+        appendix={appendix}
+        equipment={state.equipment}
+        onBack={() => setEditing(false)}
+        onSaved={(onboarding) => {
+          setState({
+            loading: false,
+            equipment: onboarding?.equipment || [],
+            status: onboarding?.status,
+          });
+          setEditing(false);
+        }}
+      />
+    );
+  }
+
+  // Fall back to the stored field names if the catalog did not come back.
+  const columns = appendix?.columns?.length
+    ? appendix.columns
+    : [
+        { key: "unitNumber", label: "Unit #" },
+        { key: "equipmentType", label: "Type" },
+        { key: "make", label: "Make" },
+        { key: "model", label: "Model" },
+        { key: "year", label: "Year" },
+        { key: "vin", label: "VIN" },
+        { key: "plate", label: "Plate" },
+        { key: "plateState", label: "Plate state" },
+      ];
+  const approved = state.status === "APPROVED";
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={state.loading} onRefresh={load} />}
+      >
+        <BrandMark compact />
+        <Text style={styles.title}>Trucks & equipment</Text>
+        <Text style={styles.subtitle}>
+          The units on your Appendix A equipment schedule.
+        </Text>
+
+        {!state.loading && state.error && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Could not load your equipment</Text>
+            <Text style={styles.cardBody}>
+              Check your connection and pull down to try again.
+            </Text>
+          </View>
+        )}
+
+        {!state.loading && !state.error && !state.equipment.length && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>No trucks listed yet</Text>
+            <Text style={styles.cardBody}>
+              Add the trucks and trailers you run so the office can put them on
+              your agreement.
+            </Text>
+          </View>
+        )}
+
+        {state.equipment.map((unit, index) => {
+          const heading = [unit.unitNumber && `Unit ${unit.unitNumber}`, unit.equipmentType]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <View key={unit._id || index} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Icon name="truck" size={22} color={colors.text} />
+                <Text style={[styles.cardTitle, { flex: 1, marginLeft: 8 }]}>
+                  {heading || `Unit ${index + 1}`}
+                </Text>
+              </View>
+              {columns
+                .filter((column) => !["unitNumber", "equipmentType"].includes(column.key))
+                .map((column) => (
+                  <DetailRow
+                    key={column.key}
+                    label={column.label}
+                    value={unit[column.key] ? String(unit[column.key]) : "—"}
+                  />
+                ))}
+            </View>
+          );
+        })}
+
+        {!state.loading && !state.error ? (
+          approved ? (
+            <Text style={styles.cardMeta}>
+              Your onboarding is approved. To change a truck, contact the office.
+            </Text>
+          ) : (
+            <PrimaryButton
+              title={state.equipment.length ? "Edit trucks & equipment" : "Add trucks & equipment"}
+              onPress={() => setEditing(true)}
+            />
+          )
+        ) : null}
 
         <SecondaryButton title="Back" onPress={onBack} />
       </ScrollView>
@@ -2743,6 +2885,603 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
     }
   };
 
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={styles.safeContent}>
+        <View style={styles.topBar}>
+          <SecondaryButton title="Back" onPress={onBack} />
+          {loading ? <ActivityIndicator color={colors.primary} /> : <View />}
+        </View>
+
+        {/* Header */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={styles.loadId}>{load.loadId}</Text>
+              <Text style={styles.muted}>
+                {load.pickup?.city || "-"} to {load.drop?.city || "-"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.chipRow}>
+            <StatusChip value={load.transportStatus} />
+            {!!load.status && <StatusChip value={load.status} map={LOAD_STATUS_COLOR} />}
+            {!!load.bidStatus && (
+              <StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />
+            )}
+          </View>
+        </View>
+
+        <DetailSection title="Identification">
+          <DetailRow label="Load ID" value={load.loadId} />
+          <DetailRow
+            label="Assigned Fleet Owner"
+            value={load.assignedFleetOwner?.fleetOwnerName}
+          />
+          <DetailRow
+            label="Assigned On"
+            value={fmtDateTime(load.assignedFleetOwner?.assignedAt)}
+          />
+        </DetailSection>
+
+        <DetailSection title="Container">
+          <DetailRow label="Container #" value={load.containerNo} />
+          <DetailRow label="Container Type" value={load.containerType} />
+          <DetailRow label="Chassis #" value={load.chassisNo} />
+          <DetailRow label="Chassis Company" value={load.chassisCompany} />
+        </DetailSection>
+
+        <DetailSection title={`Origin(s) — ${pickups.length}`}>
+          {pickups.length === 0 ? (
+            <Text style={styles.muted}>No origin added yet.</Text>
+          ) : (
+            pickups.map((p, i) => (
+              <StopBlock key={i} stop={p} index={i} kind="pickup" />
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title={`Destination(s) — ${drops.length}`}>
+          {drops.length === 0 ? (
+            <Text style={styles.muted}>No destination added yet.</Text>
+          ) : (
+            drops.map((d, i) => (
+              <StopBlock key={i} stop={d} index={i} kind="drop" />
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title={`Status Update — ${history.length}`}>
+          {history.length === 0 ? (
+            <Text style={styles.muted}>No status history available.</Text>
+          ) : (
+            history.map((entry, i) => (
+              <View key={i} style={styles.historyRow}>
+                <StatusChip value={entry.status || entry.transportStatus} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.historyTime}>
+                    {fmtDateTime(entry.changedAt || entry.timestamp || entry.updatedAt)}
+                  </Text>
+                  {!!(entry.note || entry.comment) && (
+                    <Text style={styles.muted}>{entry.note || entry.comment}</Text>
+                  )}
+                  {!!entry.location?.address && (
+                    <Text style={styles.muted}>{entry.location.address}</Text>
+                  )}
+                </View>
+              </View>
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title="Live Tracking">
+          <DetailRow
+            label="Status"
+            value={labelize(load.liveTracking?.status || "NOT_STARTED")}
+          />
+          <DetailRow
+            label="Last Location"
+            value={
+              lastLocation
+                ? `${Number(lastLocation.latitude).toFixed(5)}, ${Number(
+                    lastLocation.longitude,
+                  ).toFixed(5)}`
+                : "-"
+            }
+          />
+          <DetailRow
+            label="Last Update"
+            value={fmtDateTime(load.liveTracking?.lastHeartbeatAt)}
+          />
+        </DetailSection>
+
+        <DetailSection title="Financials">
+          <DetailRow
+            label="Your Payout"
+            value={
+              load.carrierPayout != null
+                ? `${money(load.carrierPayout)}${
+                    PAYOUT_LABEL[load.carrierPayoutSource]
+                      ? ` (${PAYOUT_LABEL[load.carrierPayoutSource]})`
+                      : ""
+                  }`
+                : money(load.vendorRate)
+            }
+          />
+          <DetailRow
+            label="Winning Bid"
+            value={load.winningBid?.amount != null ? money(load.winningBid.amount) : "-"}
+          />
+          <DetailRow label="Winning Fleet Owner" value={load.winningBid?.fleetOwnerName} />
+        </DetailSection>
+
+        <DetailSection title="Equipment & Cargo">
+          <DetailRow label="Load Type" value={load.truckType} />
+          <DetailRow label="Driver Requirement" value={load.driverRequirement} />
+          <DetailRow label="Material" value={load.material} />
+          <DetailRow label="Commodity" value={load.commodity} />
+          <DetailRow label="Seal #" value={load.sealNo} />
+          <DetailRow label="Booking #" value={load.bookingNo} />
+          <DetailRow label="Pickup #" value={load.pickupNo} />
+          <DetailRow label="Shipping Line" value={load.shippingLine} />
+          <DetailRow label="Last Free Date" value={fmtDate(load.lastFreeDate)} />
+        </DetailSection>
+
+        <DetailSection title="Routing">
+          <DetailRow label="Pier Termination" value={load.pierTermination} />
+          <DetailRow label="Empty Return" value={load.emptyReturn} />
+          {contactPersons.length === 0 ? (
+            <DetailRow label="Contact Person(s)" value="-" />
+          ) : (
+            contactPersons.map((c, i) => (
+              <View key={i} style={styles.stopBlock}>
+                <Text style={styles.stopCompany}>{c.name || "-"}</Text>
+                {!!c.phone && <Text style={styles.muted}>{c.phone}</Text>}
+                {!!c.email && <Text style={styles.muted}>{c.email}</Text>}
+              </View>
+            ))
+          )}
+        </DetailSection>
+
+        <DetailSection title="Bid & Assignment">
+          <DetailRow
+            label="Bid Status"
+            value={<StatusChip value={load.bidStatus} map={BID_STATUS_COLOR} />}
+          />
+          <DetailRow label="Bid Start" value={fmtDateTime(load.bidStartTime)} />
+          <DetailRow label="Bid End" value={fmtDateTime(load.bidEndTime)} />
+        </DetailSection>
+
+        <DetailSection title="Description & Remarks">
+          <Text style={styles.detailLabel}>Description</Text>
+          <Text style={styles.detailParagraph}>{load.description || "-"}</Text>
+          <Text style={[styles.detailLabel, { marginTop: 10 }]}>Remarks</Text>
+          <Text style={styles.detailParagraph}>{load.remarks || "-"}</Text>
+        </DetailSection>
+
+        <DetailSection title={`Documents — ${documents.length}`}>
+          {documents.length === 0 ? (
+            <Text style={styles.muted}>No documents on this load.</Text>
+          ) : (
+            documents.map((doc, i) => (
+              <Pressable
+                key={i}
+                onPress={() => openDocument(doc.filePath)}
+                style={({ pressed }) => [styles.docRow, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.detailValue}>{doc.documentType}</Text>
+                  <Text style={styles.muted} numberOfLines={1}>
+                    {doc.fileName || "-"}
+                  </Text>
+                  <Text style={styles.muted}>{fmtDate(doc.dateReceived)}</Text>
+                </View>
+                <Text style={styles.docViewLink}>View ›</Text>
+              </Pressable>
+            ))
+          )}
+        </DetailSection>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function TrackingScreen({ load: initialLoad, onBack, documentsOnly = false }) {
+  const [load, setLoad] = useState(initialLoad);
+  const [tracking, setTracking] = useState(null);
+  const [position, setPosition] = useState(null);
+  const [note, setNote] = useState("");
+  const [proofImages, setProofImages] = useState([]);
+  const [signatureData, setSignatureData] = useState("");
+  // Held beside the signature, and for the same reason. Both are captured on
+  // the same sheet, so if only the signature survives a failed save the retry
+  // skips the sheet — the signature is already in hand — and is then rejected
+  // by the server for a name the driver has already typed.
+  const [receivedBy, setReceivedBy] = useState(null);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  // The status picked in the sheet but not yet sent. The panels below it ask
+  // for what that status needs (photos, a signature) and Confirm sends it.
+  const [selectedStatus, setSelectedStatus] = useState(null);
+  const [streetTurnOpen, setStreetTurnOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const watcherRef = useRef(null);
+  const pendingDeliveryStatusRef = useRef(null);
+
+  const isTrackingActive = tracking?.status === "ACTIVE";
+
+  // ── One-way status progression + multi-origin pickup ─────────────────────
+  const originCount = load?.pickups?.length || 1;
+  const pickedUpCount = (load?.transportStatusHistory || []).filter(
+    (h) => h.status === "PICKED_UP",
+  ).length;
+  const canExtraPickup = originCount >= 2 && pickedUpCount < originCount;
+  const currentStatusIdx = MAIN_ORDER.indexOf(load?.transportStatus);
+  const isStatusLocked = (status) => {
+    const idx = MAIN_ORDER.indexOf(status);
+    if (idx === -1) return false; // side statuses always available
+    if (status === "PICKED_UP" && canExtraPickup) return false;
+    return idx <= currentStatusIdx;
+  };
+
+  const fetchLoad = async () => {
+    const res = await api.get(`/loads/${initialLoad.loadId}`);
+    setLoad(res.data);
+  };
+
+  const fetchTracking = async () => {
+    const res = await api.get(`/tracking/${initialLoad.loadId}`);
+    setTracking(res.data);
+  };
+
+  useEffect(() => {
+    fetchLoad().catch(() => null);
+    fetchTracking().catch(() => null);
+
+    return () => {
+      watcherRef.current?.remove?.();
+    };
+  }, [initialLoad.loadId]);
+
+  const requestCurrentPosition = async () => {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== "granted") {
+      throw new Error("Location permission is compulsory to pick up and track this load.");
+    }
+
+    const current = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
+    setPosition(current);
+    return current;
+  };
+
+  const syncPosition = async (current) => {
+    const payload = toLocationPayload(current);
+    await api.post(`/tracking/${load.loadId}/location`, payload);
+    setTracking((prev) => ({
+      ...(prev || {}),
+      status: "ACTIVE",
+      lastLocation: payload,
+      lastHeartbeatAt: payload.recordedAt,
+      recentLocations: [...(prev?.recentLocations || []), payload].slice(-100),
+    }));
+  };
+
+  const startBackgroundTracking = async () => {
+    const backgroundPermission = await Location.requestBackgroundPermissionsAsync();
+    if (backgroundPermission.status !== "granted") {
+      Alert.alert(
+        "Background tracking not enabled",
+        "Live tracking will continue while the app is open. Enable background location in settings for locked-screen tracking.",
+      );
+      return;
+    }
+
+    await AsyncStorage.setItem(ACTIVE_TRACKING_LOAD_KEY, load.loadId);
+    const alreadyRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK);
+    if (!alreadyRunning) {
+      await Location.startLocationUpdatesAsync(LOCATION_TASK, {
+        accuracy: Location.Accuracy.Highest,
+        timeInterval: LOCATION_UPDATE_INTERVAL_MS,
+        distanceInterval: LOCATION_DISTANCE_INTERVAL_METERS,
+        pausesUpdatesAutomatically: false,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: "FMSS live tracking",
+          notificationBody: `Sharing location for ${load.loadId}`,
+        },
+      });
+    }
+  };
+
+  const stopBackgroundTracking = async () => {
+    const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK);
+    if (running) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK);
+    }
+    await AsyncStorage.removeItem(ACTIVE_TRACKING_LOAD_KEY);
+  };
+
+  const startTracking = async () => {
+    try {
+      setSaving(true);
+      const current = await requestCurrentPosition();
+      const payload = toLocationPayload(current);
+      const res = await api.post(`/tracking/${load.loadId}/start`, payload);
+      setTracking(res.data.data);
+      await startBackgroundTracking();
+
+      watcherRef.current?.remove?.();
+      watcherRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Highest,
+          timeInterval: LOCATION_UPDATE_INTERVAL_MS,
+          distanceInterval: LOCATION_DISTANCE_INTERVAL_METERS,
+        },
+        (nextPosition) => {
+          setPosition(nextPosition);
+          syncPosition(nextPosition).catch(() => null);
+        },
+      );
+
+      Alert.alert("Live tracking started", "Keep the app open while the load is in transit.");
+    } catch (error) {
+      Alert.alert("Tracking required", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // `fromGallery` picks existing photos; otherwise the camera opens.
+  const pickProofImages = async (fromGallery = false) => {
+    const permission = fromGallery
+      ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+      : await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert(
+        fromGallery ? "Photo access required" : "Camera permission required",
+        fromGallery
+          ? "Photo library access is required to attach proof photos."
+          : "Camera access is required for proof photos.",
+      );
+      return;
+    }
+
+    const result = fromGallery
+      ? await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsMultipleSelection: true })
+      : await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
+
+    if (!result.canceled && result.assets?.length) {
+      setProofImages((prev) => [...prev, ...result.assets]);
+    }
+  };
+
+  const removeProofImage = (index) =>
+    setProofImages((prev) => prev.filter((_, i) => i !== index));
+
+  const updateStatus = async (
+    status,
+    signatureOverride = signatureData,
+    streetTurnOverride = null,
+    // Captured on the signature sheet at the door — see SignatureModal. Falls
+    // back to what that sheet already gave us, so a retry does not arrive
+    // without it.
+    receiverOverride = receivedBy,
+    // Set by the confirmation below when the driver has said yes to a status
+    // that takes the load off their board.
+    confirmedRemoval = false,
+  ) => {
+    try {
+      // A status that takes the load off their board is worth one question
+      // first — it is not recoverable from the app, and "the load vanished"
+      // is otherwise a support call rather than a decision they made.
+      if (REMOVES_FROM_BOARD.includes(status) && !confirmedRemoval) {
+        Alert.alert(
+          `Mark as ${labelize(status)}?`,
+          "This load will be removed from your list. You will not be able to open it or update it again from the app.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: `Yes, ${labelize(status)}`,
+              style: "destructive",
+              onPress: () =>
+                updateStatus(
+                  status,
+                  signatureOverride,
+                  streetTurnOverride,
+                  receiverOverride,
+                  true,
+                ),
+            },
+          ],
+        );
+        return;
+      }
+
+      // Forward-only: block moving back to an already-passed stage.
+      if (isStatusLocked(status)) {
+        Alert.alert(
+          "Not allowed",
+          `This load has already passed "${labelize(status)}". Status can't move backward.`,
+        );
+        return;
+      }
+
+      // Multi-origin pickup: confirm which origin this pickup is for.
+      if (status === "PICKED_UP" && canExtraPickup && pickedUpCount >= 1) {
+        const originNo = pickedUpCount + 1;
+        const confirmed = await new Promise((resolve) => {
+          Alert.alert(
+            "Confirm origin",
+            `Is this the pickup for origin #${originNo}?`,
+            [
+              { text: "No", style: "cancel", onPress: () => resolve(false) },
+              { text: "Yes", onPress: () => resolve(true) },
+            ],
+            { cancelable: false },
+          );
+        });
+        if (!confirmed) return;
+      }
+
+      if (["PICKED_UP", "IN_TRANSIT"].includes(status) && !isTrackingActive) {
+        Alert.alert("Start live tracking", "Live GPS sharing is compulsory from pickup.");
+        return;
+      }
+
+      if (status === "PICKED_UP" && proofImages.length === 0) {
+        Alert.alert("Pickup proof required", "Capture at least one pickup proof image.");
+        return;
+      }
+
+      // Checked before the signature pad opens, not after: being asked to sign
+      // and only then told a photo is missing means signing twice.
+      if (
+        status === "DELIVERED" &&
+        proofImages.length === 0 &&
+        !(load?.deliveryProof?.images || []).length
+      ) {
+        Alert.alert(
+          "Delivery proof required",
+          "Photograph the container at the drop before completing the delivery.",
+        );
+        return;
+      }
+
+      // Both halves come off the same sheet, so both have to be missing-checked
+      // against it. Testing the signature alone meant a delivery that failed
+      // after signing — no photo, no GPS, a dropped connection — retried with a
+      // signature in hand, skipped the sheet, and was refused by the server for
+      // a name the driver had already given it.
+      if (
+        status === "DELIVERED" &&
+        (!signatureOverride || !receiverOverride?.name)
+      ) {
+        pendingDeliveryStatusRef.current = status;
+        setSignatureOpen(true);
+        return;
+      }
+
+      // A street turn can't be saved until the handover parties are confirmed.
+      if (status === "STREET_TURN" && !streetTurnOverride) {
+        setStreetTurnOpen(true);
+        return;
+      }
+
+      setSaving(true);
+      const current = position || (await requestCurrentPosition());
+      const locationPayload = toLocationPayload(current);
+
+      const formData = new FormData();
+      formData.append("transportStatus", status);
+      formData.append("note", note);
+      formData.append("latitude", String(locationPayload.latitude));
+      formData.append("longitude", String(locationPayload.longitude));
+      formData.append("accuracy", String(locationPayload.accuracy || ""));
+      if (signatureOverride) formData.append("signatureData", signatureOverride);
+      if (receiverOverride?.name) {
+        formData.append("receivedByName", receiverOverride.name);
+        formData.append("receivedByTitle", receiverOverride.title || "");
+      }
+      // Multipart flattens nested objects, so the server parses this back.
+      if (streetTurnOverride) {
+        formData.append("streetTurn", JSON.stringify(streetTurnOverride));
+      }
+      proofImages.forEach((asset, index) => {
+        formData.append("proofImages", assetToFile(asset, `proof-${index + 1}.jpg`));
+      });
+
+      const res = await api.put(`/loads/${load.loadId}/transport-status`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        // Proof uploads and delivery POD generation can take longer than the
+        // normal API timeout, especially on cellular connections.
+        timeout: 60000,
+      });
+      setLoad(res.data.data);
+      setNote("");
+      setSelectedStatus(null);
+      setStreetTurnOpen(false);
+      if (["PICKED_UP", "DELIVERED"].includes(status)) setProofImages([]);
+      if (status === "DELIVERED") {
+        // Landed. Drop what was captured at this door so the next drop starts
+        // from a blank sheet rather than inheriting this consignee's name and
+        // mark — the whole reason the sheet used to clear itself on open.
+        setSignatureData("");
+        setReceivedBy(null);
+        watcherRef.current?.remove?.();
+        watcherRef.current = null;
+        await stopBackgroundTracking().catch(() => null);
+        await fetchTracking().catch(() => null);
+      }
+      Alert.alert("Status updated", `${labelize(status)} synced successfully.`);
+    } catch (error) {
+      Alert.alert("Update failed", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getDocumentByType = (type) =>
+    visibleToDriver(load.documents).find(
+      (doc) =>
+        (doc.documentType === "Invoice" ? "Carrier Invoice" : doc.documentType) === type,
+    );
+
+  const handleViewDocument = async (filePath) => {
+    const url = getDocumentUrl(filePath);
+    if (!url) {
+      Alert.alert("View unavailable", "No file is available for this document.");
+      return;
+    }
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("View failed", "Unable to open the document.");
+    }
+  };
+
+  const uploadDocument = async (type) => {
+    if (load.paperwork?.state === "APPROVED") {
+      Alert.alert(
+        "Documents locked",
+        "The office has approved this load's paperwork, so its documents can no longer be changed. Call the office if something is wrong with them.",
+      );
+      return;
+    }
+
+    if (type === POD_DOCUMENT_TYPE) {
+      Alert.alert("Auto-generated document", "Proof of Delivery is created automatically after delivery.");
+      return;
+    }
+
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled) return;
+
+    const file = result.assets[0];
+    const formData = new FormData();
+    formData.append("documentType", type);
+    formData.append("file", assetToFile(file, file.name || "document.pdf"));
+
+    try {
+      setSaving(true);
+      await api.post(`/loads/${load.loadId}/documents`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      await fetchLoad();
+      Alert.alert("Document uploaded", `${type} added to the load.`);
+    } catch (error) {
+      Alert.alert("Upload failed", error.response?.data?.message || error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const origin = load.pickup || load.pickups?.[0];
   const destination = load.drop || load.drops?.[0];
   const statusTone = TRANSPORT_STATUS_COLOR[load.transportStatus] || STATUS_FALLBACK;
@@ -2826,7 +3565,7 @@ function LoadDetailScreen({ load: initialLoad, onBack }) {
               {/* ── Live location ──────────────────────────────────────── */}
               <View style={styles.trCard}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <View style={[styles.trIconBubble, { backgroundColor: isTrackingActive ? "#DCFCE7" : "#FEF3C7" }]}>
+                  <View style={[styles.trIconBubble, { backgroundColor: isTrackingActive ? "#E6F2ED" : "#FFF2D9" }]}>
                     <Icon name="pin" size={22} color={isTrackingActive ? colors.success : colors.warning} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -3185,7 +3924,7 @@ function LicenseScreen({ onBack, onUpdated }) {
           <>
             <View
               style={{
-                backgroundColor: compliance?.canUpdateLoads ? "#dcfce7" : "#fef3c7",
+                backgroundColor: compliance?.canUpdateLoads ? "#E6F2ED" : "#FFF2D9",
                 borderRadius: 12,
                 padding: 14,
               }}
@@ -4475,6 +5214,7 @@ function FleetHomeScreen({ session, onLogout }) {
   const [showDocuments, setShowDocuments] = useState(false);
   const [showDrivers, setShowDrivers] = useState(false);
   const [showInsurance, setShowInsurance] = useState(false);
+  const [showTrucks, setShowTrucks] = useState(false);
   const [compliance, setCompliance] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -4617,6 +5357,9 @@ function FleetHomeScreen({ session, onLogout }) {
         case "insurance":
           setShowInsurance(true);
           break;
+        case "trucks":
+          setShowTrucks(true);
+          break;
         case "postLoad":
         case "quotes":
         case "payments":
@@ -4636,16 +5379,13 @@ function FleetHomeScreen({ session, onLogout }) {
 
   // Tab sets differ by portal because the work differs. Drivers never bid, so
   // they are not given a Bids tab that would 403.
+  // Alerts and sign-out sit in the header (bell and logout buttons), so the bar
+  // carries only the places people work.
   const tabs = useMemo(() => {
-    const alerts = { key: "alerts", label: "Alerts", icon: "bell", badge: unreadCount };
-    const more = { key: "more", label: "More", icon: "more" };
-
     if (isShipper) {
       return [
         { key: "home", label: "Home", icon: "home" },
         { key: "loads", label: "Shipments", icon: "shipments" },
-        alerts,
-        more,
       ];
     }
     if (isCarrier) {
@@ -4653,17 +5393,13 @@ function FleetHomeScreen({ session, onLogout }) {
         { key: "home", label: "Home", icon: "home" },
         { key: "loads", label: "Loads", icon: "loads" },
         { key: "bids", label: "Bids", icon: "bid" },
-        alerts,
-        more,
       ];
     }
     return [
       { key: "home", label: "Home", icon: "home" },
       { key: "loads", label: "Loads", icon: "loads" },
-      alerts,
-      more,
     ];
-  }, [isShipper, isCarrier, unreadCount]);
+  }, [isShipper, isCarrier]);
 
   // Segmented control inside the Loads tab.
   const loadSegments = useMemo(() => {
@@ -4690,6 +5426,10 @@ function FleetHomeScreen({ session, onLogout }) {
 
   if (showInsurance) {
     return <CarrierInsuranceScreen onBack={() => setShowInsurance(false)} />;
+  }
+
+  if (showTrucks) {
+    return <CarrierTrucksScreen onBack={() => setShowTrucks(false)} />;
   }
 
   if (showNotifications) {
@@ -4843,12 +5583,14 @@ function FleetHomeScreen({ session, onLogout }) {
   }
 
   return (
-    <View style={styles.shell}>
-      <StatusBar style="light" />
-      <UpdateBanner />
-      {body}
-      <BottomTabs tabs={tabs} active={tab} onChange={setTab} accent={theme.accent} />
-    </View>
+    <LogoutContext.Provider value={onLogout}>
+      <View style={styles.shell}>
+        <StatusBar style="dark" />
+        <UpdateBanner />
+        {body}
+        <BottomTabs tabs={tabs} active={tab} onChange={setTab} accent={theme.accent} />
+      </View>
+    </LogoutContext.Provider>
   );
 }
 
@@ -4937,6 +5679,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingTop: ANDROID_TOP_INSET,
   },
+  safeContent: { padding: 16, paddingBottom: 40 },
 
   /* ── Shell ──────────────────────────────────────────────────────────── */
   shell: { flex: 1, backgroundColor: colors.background },
@@ -4981,7 +5724,7 @@ const styles = StyleSheet.create({
   /* ── Segmented control in the Loads tab ─────────────────────────────── */
   segments: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.sm,
     padding: 3,
     marginTop: spacing.md,
@@ -4992,8 +5735,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.xs,
     alignItems: "center",
   },
-  segmentActive: { backgroundColor: colors.surface },
-  segmentText: { fontSize: 14, fontWeight: "700", color: "rgba(255,255,255,0.9)" },
+  segmentActive: { backgroundColor: colors.surface, ...elevation.sm },
+  segmentText: { fontSize: 14, fontWeight: "700", color: colors.muted },
 
   /* ── Driver compliance banner ───────────────────────────────────────── */
   complianceBanner: {
@@ -5195,10 +5938,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardTitle: { fontSize: 17, fontWeight: "700", color: "#000000" },
-  cardMeta: { fontSize: 14, color: "#767676", marginTop: 2 },
+  cardMeta: { fontSize: 14, color: "#6B6B6B", marginTop: 2 },
   cardBody: { fontSize: 15, color: "#444444", marginTop: 6, marginBottom: 10 },
-  signedNote: { fontSize: 15, fontWeight: "600", color: "#16a34a", marginVertical: 8 },
-  gateFooter: { fontSize: 14, color: "#767676", marginVertical: 12, textAlign: "center" },
+  signedNote: { fontSize: 15, fontWeight: "600", color: "#05944F", marginVertical: 8 },
+  gateFooter: { fontSize: 14, color: "#6B6B6B", marginVertical: 12, textAlign: "center" },
   label: { fontSize: 14, fontWeight: "700", color: "#444444", marginTop: 8, marginBottom: 4 },
   ackRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 8 },
   ackBox: { fontSize: 18, marginRight: 8, color: "#000000" },
@@ -5218,10 +5961,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E8E8E8",
   },
-  notifUnread: { borderLeftWidth: 4, borderLeftColor: "#000000", backgroundColor: "#F6F6F6" },
+  notifUnread: { borderLeftWidth: 4, borderLeftColor: "#000000", backgroundColor: "#F3F3F3" },
   notifTitle: { fontSize: 16, fontWeight: "700", color: "#000000" },
   notifBody: { fontSize: 15, color: "#444444", marginTop: 2 },
-  notifMeta: { fontSize: 13, color: "#767676", marginTop: 6 },
+  notifMeta: { fontSize: 13, color: "#6B6B6B", marginTop: 6 },
   empty: {
     color: colors.muted,
     fontWeight: "700",
@@ -5307,7 +6050,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     borderWidth: 1,
     borderColor: "#E2E2E2",
     gap: 6,
@@ -5332,7 +6075,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  bbCardLive: { borderColor: "#FCA5A5" },
+  bbCardLive: { borderColor: "#F1998E" },
   bbHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -5354,12 +6097,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 6,
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  bbClockUrgent: { backgroundColor: "#FEF2F2" },
+  bbClockUrgent: { backgroundColor: "#FFEFED" },
   bbClockText: { color: "#000000", fontSize: 14, fontWeight: "800" },
   routeWrap: { flexDirection: "row", gap: 12 },
   routeRail: { alignItems: "center", paddingTop: 4, width: 14 },
@@ -5374,10 +6117,10 @@ const styles = StyleSheet.create({
   },
   routeTag: { color: "#A6A6A6", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   routeCity: { color: "#000000", fontSize: 19, fontWeight: "800" },
-  routeSub: { color: "#787878", fontSize: 13, fontWeight: "600", marginTop: 1 },
+  routeSub: { color: "#6B6B6B", fontSize: 13, fontWeight: "600", marginTop: 1 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   infoChip: {
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     borderWidth: 1,
     borderColor: "#E2E2E2",
     borderRadius: 10,
@@ -5410,9 +6153,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: "#fff",
     borderWidth: 1.5,
-    borderColor: "#FCA5A5",
+    borderColor: "#F1998E",
   },
-  bbDeclineText: { color: "#DC2626", fontSize: 16, fontWeight: "800" },
+  bbDeclineText: { color: "#E11900", fontSize: 16, fontWeight: "800" },
   bbAccept: {
     flex: 2,
     flexDirection: "row",
@@ -5421,15 +6164,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     paddingVertical: 14,
-    backgroundColor: "#16A34A",
-    shadowColor: "#16A34A",
+    backgroundColor: "#05944F",
+    shadowColor: "#05944F",
     shadowOpacity: 0.35,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
     elevation: 4,
   },
   bbAcceptText: { color: "#fff", fontSize: 17, fontWeight: "900" },
-  bbBidBox: { backgroundColor: "#F8FAFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#EEEEEE" },
+  bbBidBox: { backgroundColor: "#F6F6F6", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#EEEEEE" },
   bbBidTag: { color: "#000000", fontSize: 12, fontWeight: "900", letterSpacing: 1, marginBottom: 8 },
   bbBidRow: { flexDirection: "row", gap: 10 },
   bbInputWrap: {
@@ -5503,8 +6246,8 @@ const styles = StyleSheet.create({
   },
   trGps: { borderRadius: 999 },
   trGpsOn: {},
-  trGpsOff: { backgroundColor: "#FEF3C7", paddingHorizontal: 12, paddingVertical: 5 },
-  trGpsOffText: { color: "#B45309", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  trGpsOff: { backgroundColor: "#FFF2D9", paddingHorizontal: 12, paddingVertical: 5 },
+  trGpsOffText: { color: "#996F00", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
   trEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "800", letterSpacing: 1.5 },
   trLoadId: { color: "#fff", fontSize: 28, fontWeight: "900" },
   trStatus: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
@@ -5525,7 +6268,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   trCardTitle: { color: "#000000", fontSize: 19, fontWeight: "900" },
-  trMuted: { color: "#787878", fontSize: 14, fontWeight: "600" },
+  trMuted: { color: "#6B6B6B", fontSize: 14, fontWeight: "600" },
   trSteps: { flexDirection: "row", marginTop: 4 },
   trStep: { flex: 1, alignItems: "center" },
   trStepDot: {
@@ -5537,21 +6280,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 1,
   },
-  trStepDotDone: { backgroundColor: "#22C55E" },
+  trStepDotDone: { backgroundColor: "#06C167" },
   trStepDotCurrent: { backgroundColor: "#000000", borderWidth: 3, borderColor: "#E2E2E2" },
   trStepLine: { position: "absolute", top: 12, left: "50%", right: "-50%", height: 3, backgroundColor: "#E2E2E2" },
-  trStepLineDone: { backgroundColor: "#22C55E" },
-  trStepLabel: { color: "#787878", fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  trStepLineDone: { backgroundColor: "#06C167" },
+  trStepLabel: { color: "#6B6B6B", fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
   trIconBubble: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   trTrackingOn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#ECFDF3",
+    backgroundColor: "#E6F2ED",
     borderRadius: 12,
     padding: 12,
   },
-  trTrackingOnText: { color: "#15803D", fontSize: 15, fontWeight: "800" },
+  trTrackingOnText: { color: "#05944F", fontSize: 15, fontWeight: "800" },
   trBigBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -5572,21 +6315,21 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#E2E2E2",
-    backgroundColor: "#F8FAFF",
+    backgroundColor: "#F6F6F6",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  trPickerChosen: { borderColor: "#000000", backgroundColor: "#F6F6F6" },
+  trPickerChosen: { borderColor: "#000000", backgroundColor: "#F3F3F3" },
   trPickerLabel: { color: "#000000", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   trPickerValue: { color: "#000000", fontSize: 18, fontWeight: "900", marginTop: 2 },
   trPanel: {
     borderRadius: 16,
     padding: 14,
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     borderWidth: 1,
     borderColor: "#E2E2E2",
   },
-  trPanelDone: { backgroundColor: "#ECFDF3", borderColor: "#BBF7D0" },
+  trPanelDone: { backgroundColor: "#E6F2ED", borderColor: "#ADDEC9" },
   trPanelTitle: { color: "#000000", fontSize: 16, fontWeight: "900", marginBottom: 2 },
   trThumbWrap: { marginRight: 10 },
   trThumb: { width: 76, height: 76, borderRadius: 12, backgroundColor: "#E2E2E2" },
@@ -5597,7 +6340,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: "#DC2626",
+    backgroundColor: "#E11900",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -5619,17 +6362,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E2E2E2",
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     padding: 14,
     minHeight: 70,
     fontSize: 15,
     color: "#000000",
     textAlignVertical: "top",
   },
-  trDocCount: { backgroundColor: "#F6F6F6", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  trDocCount: { backgroundColor: "#F3F3F3", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   trDocCountText: { color: "#000000", fontSize: 14, fontWeight: "900" },
   trProgressTrack: { height: 8, borderRadius: 4, backgroundColor: "#E2E2E2", overflow: "hidden" },
-  trProgressFill: { height: 8, borderRadius: 4, backgroundColor: "#22C55E" },
+  trProgressFill: { height: 8, borderRadius: 4, backgroundColor: "#06C167" },
   regCta: {
     flexDirection: "row",
     alignItems: "center",
@@ -5639,7 +6382,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#E2E2E2",
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
   },
   regCtaTitle: { color: "#000000", fontSize: 16, fontWeight: "900" },
   regCtaSub: { color: "#585858", fontSize: 13, fontWeight: "600", marginTop: 1 },
@@ -5655,22 +6398,22 @@ const styles = StyleSheet.create({
   regTitle: { color: "#fff", fontSize: 24, fontWeight: "900" },
   regSub: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontWeight: "600", marginTop: 2 },
   regTag: { fontSize: 10, fontWeight: "900", letterSpacing: 0.6, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: "hidden" },
-  regTagTodo: { backgroundColor: "#FEF3C7", color: "#92400E" },
-  regTagDone: { backgroundColor: "#DCFCE7", color: "#15803D" },
-  regInputTodo: { borderColor: "#FBBF24", backgroundColor: "#FFFBEB" },
-  regInputError: { borderColor: "#EF4444", borderWidth: 2, backgroundColor: "#FEF2F2" },
-  regError: { color: "#DC2626", fontSize: 14, fontWeight: "800", marginTop: 6 },
+  regTagTodo: { backgroundColor: "#FFF2D9", color: "#674D1B" },
+  regTagDone: { backgroundColor: "#E6F2ED", color: "#05944F" },
+  regInputTodo: { borderColor: "#FFC043", backgroundColor: "#FFFAF0" },
+  regInputError: { borderColor: "#EF4444", borderWidth: 2, backgroundColor: "#FFEFED" },
+  regError: { color: "#E11900", fontSize: 14, fontWeight: "800", marginTop: 6 },
   regChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   regChip: { borderRadius: 999, borderWidth: 1.5, borderColor: "#D6D6D6", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#fff" },
-  regChipOn: { borderColor: "#000000", backgroundColor: "#F6F6F6" },
+  regChipOn: { borderColor: "#000000", backgroundColor: "#F3F3F3" },
   regChipText: { color: "#444444", fontSize: 14, fontWeight: "700" },
   regChipTextOn: { color: "#000000" },
-  regFoot: { color: "#787878", fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 12, lineHeight: 19 },
+  regFoot: { color: "#6B6B6B", fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 12, lineHeight: 19 },
   regDoneIcon: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#16A34A",
+    backgroundColor: "#05944F",
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
@@ -5680,20 +6423,20 @@ const styles = StyleSheet.create({
   regDoneBody: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 10, lineHeight: 22 },
   amountBadge: {
     alignItems: "flex-end",
-    backgroundColor: "#ECFDF3",
-    borderColor: "#BBF7D0",
+    backgroundColor: "#E6F2ED",
+    borderColor: "#ADDEC9",
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
   amountText: {
-    color: "#15803d",
+    color: "#05944F",
     fontSize: 22,
     fontWeight: "900",
   },
   amountLabel: {
-    color: "#15803d",
+    color: "#05944F",
     fontSize: 12,
     fontWeight: "700",
   },
@@ -5774,15 +6517,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   documentUploadButtonLocked: {
-    backgroundColor: "#F4F4F4",
+    backgroundColor: "#F3F3F3",
     borderColor: colors.border,
   },
   documentUploadTextLocked: {
     color: colors.muted,
   },
   documentCardUploaded: {
-    borderColor: "#bbf7d0",
-    backgroundColor: "#f0fdf4",
+    borderColor: "#ADDEC9",
+    backgroundColor: "#E6F2ED",
   },
   documentCardHeader: {
     flexDirection: "row",
@@ -5815,7 +6558,7 @@ const styles = StyleSheet.create({
   },
   documentActionButtonDisabled: {
     borderColor: "#E2E2E2",
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
   },
   documentActionText: {
     color: colors.primary,
@@ -5850,20 +6593,20 @@ const styles = StyleSheet.create({
   capacityNotice: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#fcd34d",
-    backgroundColor: "#fffbeb",
+    borderColor: "#FFCF70",
+    backgroundColor: "#FFFAF0",
     padding: 14,
     marginBottom: 12,
   },
   capacityTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#92400e",
+    color: "#674D1B",
     marginBottom: 4,
   },
   capacityBody: {
     fontSize: 14,
-    color: "#b45309",
+    color: "#996F00",
     lineHeight: 19,
   },
   signatureReceiver: {
@@ -6030,7 +6773,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     borderWidth: 1,
     borderColor: "#E2E2E2",
   },
@@ -6135,7 +6878,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     lineHeight: 19,
-    backgroundColor: "#F6F6F6",
+    backgroundColor: "#F3F3F3",
     borderWidth: 1,
     borderColor: "#EEEEEE",
     borderRadius: 10,
@@ -6149,7 +6892,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 8,
     gap: 3,
-    backgroundColor: "#fbfdff",
+    backgroundColor: "#FFFFFF",
   },
   stopTitle: {
     color: colors.primary,

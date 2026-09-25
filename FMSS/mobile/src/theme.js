@@ -2,9 +2,9 @@
  * S Line Transport — design tokens.
  *
  * One source of truth for colour, elevation, spacing and type across the app.
- * The palette is black and white, Uber style: black for the brand and every
- * action, neutral greys for surfaces and secondary type, and colour only where
- * it carries meaning (green done, red wrong, amber waiting).
+ * The palette is Uber style: a white canvas, black for the brand and every
+ * action, flat greys for chips and secondary type, and colour only where it
+ * carries meaning (green done, red wrong, amber waiting).
  *
  * The ten keys the original theme exported (background, surface, border, text,
  * muted, primary, primaryLight, success, warning, danger) are all still here
@@ -16,21 +16,22 @@
 // when you are expressing intent.
 // ---------------------------------------------------------------------------
 
-// Black-and-white, Uber style: black for brand and actions, neutral greys for
-// everything around it. Green, red and amber stay because they mean something
-// (done, wrong, waiting). The old hue ramps are kept by name, pointing at the
-// greys, so every screen that reaches for one follows the theme.
+// Uber style: a white canvas, black and charcoal for brand and every action,
+// flat grey fills for chips and tiles, and Uber's own green, red and amber only
+// where they mean something (done, wrong, waiting). The old hue
+// ramps are kept by name, pointing at the greys, so every screen that reaches
+// for one follows the theme.
 const mono = {
   900: "#000000",
   800: "#141414",
   700: "#333333",
   600: "#545454",
-  500: "#757575",
+  500: "#6B6B6B",
   400: "#AFAFAF",
   300: "#CBCBCB",
   200: "#E2E2E2",
   100: "#EEEEEE",
-  50: "#F6F6F6",
+  50: "#F3F3F3",
 };
 const accentRamp = { 900: mono[900], 800: mono[900], 700: mono[900], 600: mono[900], 500: mono[800], 400: mono[700], 100: mono[200], 50: mono[50] };
 
@@ -38,10 +39,10 @@ export const palette = {
   mono,
   navy: accentRamp,
   blue: accentRamp,
-  green: { 700: "#12803C", 600: "#16A34A", 500: "#22C55E", 100: "#D6F5E0", 50: "#ECFDF3" },
+  green: { 700: "#03703C", 600: "#05944F", 500: "#06C167", 100: "#ADDEC9", 50: "#E6F2ED" },
   orange: accentRamp,
-  red: { 700: "#B91C1C", 600: "#DC2626", 500: "#EF4444", 100: "#FEE2E2", 50: "#FEF2F2" },
-  amber: { 700: "#B45309", 600: "#D97706", 500: "#F59E0B", 100: "#FEF0C7", 50: "#FFFBEB" },
+  red: { 700: "#AB1300", 600: "#E11900", 500: "#E85C4A", 100: "#FED7D2", 50: "#FFEFED" },
+  amber: { 700: "#674D1B", 600: "#996F00", 500: "#FFC043", 100: "#FFF2D9", 50: "#FFFAF0" },
   purple: accentRamp,
   teal: accentRamp,
   pink: accentRamp,
@@ -55,12 +56,12 @@ export const palette = {
 
 export const colors = {
   // Surfaces
-  background: palette.mono[50],
+  background: palette.white,
   surface: palette.white,
   surfaceAlt: palette.slate[50],
   surfaceSunken: palette.slate[100],
-  border: "#E2E2E2",
-  borderStrong: palette.slate[300],
+  border: palette.slate[100],
+  borderStrong: palette.slate[200],
 
   // Type
   text: palette.slate[900],
@@ -88,9 +89,10 @@ export const colors = {
   danger: palette.red[600],
   dangerLight: palette.red[100],
   dangerFaint: palette.red[50],
-  info: palette.teal[600],
-  infoLight: palette.teal[100],
-  infoFaint: palette.teal[50],
+  // Uber charcoal: the second action colour beside black, and "information".
+  info: palette.mono[600],
+  infoLight: palette.mono[100],
+  infoFaint: palette.mono[50],
 
   // Category accents — the colour-coded action tiles on the dashboards.
   fuel: palette.orange[500],
@@ -112,69 +114,64 @@ export const colors = {
 };
 
 /**
- * Per-role accent. Each portal gets its own identity colour so a driver and a
- * dispatcher never mistake one screen for the other — the colour-coded columns
- * from the product reference, applied as theme rather than as decoration.
+ * Per-role identity. Every portal shares Uber's white app bar and black
+ * accent; the label and tagline tell the portals apart.
  */
 export const roleTheme = {
   driver: {
     key: "driver",
     label: "Driver",
     tagline: "Easy tools for drivers",
-    accent: palette.navy[900],
-    accentDark: palette.navy[900],
-    accentLight: palette.navy[100],
-    accentFaint: palette.navy[50],
-    headerFrom: palette.navy[900],
-    headerTo: palette.mono[700],
+    accent: palette.mono[900],
+    accentDark: palette.mono[900],
+    accentLight: palette.mono[100],
+    accentFaint: palette.mono[50],
+    headerFrom: palette.white,
+    headerTo: palette.white,
   },
   fleetOwner: {
     key: "fleetOwner",
     label: "Owner-Operator",
     tagline: "Find loads and grow your business",
-    accent: palette.blue[600],
-    accentDark: palette.blue[700],
-    accentLight: palette.blue[100],
-    accentFaint: palette.blue[50],
-    headerFrom: palette.navy[800],
-    headerTo: palette.mono[700],
+    accent: palette.mono[900],
+    accentDark: palette.mono[900],
+    accentLight: palette.mono[100],
+    accentFaint: palette.mono[50],
+    headerFrom: palette.white,
+    headerTo: palette.white,
   },
   client: {
     key: "client",
     label: "Shipper",
     tagline: "Ship freight with confidence",
-    accent: palette.teal[600],
-    accentDark: palette.teal[700],
-    accentLight: palette.teal[100],
-    accentFaint: palette.teal[50],
-    headerFrom: palette.teal[700],
-    headerTo: palette.mono[700],
+    accent: palette.mono[900],
+    accentDark: palette.mono[900],
+    accentLight: palette.mono[100],
+    accentFaint: palette.mono[50],
+    headerFrom: palette.white,
+    headerTo: palette.white,
   },
-  // Deep indigo — the same family as admin, a clear step lighter. The two
-  // back-office portals reading as related is deliberate; the red-to-orange this
-  // replaced was the loudest thing on a screen people sit in front of all day,
-  // and it collided with the red the app uses to mean "something is wrong".
   staff: {
     key: "staff",
     label: "Freight Broker",
     tagline: "Find trucks, book loads fast",
-    accent: palette.navy[400],
-    accentDark: palette.navy[600],
-    accentLight: palette.navy[100],
-    accentFaint: palette.navy[50],
-    headerFrom: palette.navy[600],
-    headerTo: palette.mono[700],
+    accent: palette.mono[900],
+    accentDark: palette.mono[900],
+    accentLight: palette.mono[100],
+    accentFaint: palette.mono[50],
+    headerFrom: palette.white,
+    headerTo: palette.white,
   },
   admin: {
     key: "admin",
     label: "Administrator",
     tagline: "Manage your entire fleet",
-    accent: palette.navy[800],
-    accentDark: palette.navy[900],
-    accentLight: palette.blue[100],
-    accentFaint: palette.blue[50],
-    headerFrom: palette.navy[900],
-    headerTo: palette.mono[700],
+    accent: palette.mono[900],
+    accentDark: palette.mono[900],
+    accentLight: palette.mono[100],
+    accentFaint: palette.mono[50],
+    headerFrom: palette.white,
+    headerTo: palette.white,
   },
 };
 
@@ -187,9 +184,9 @@ export const themeForRole = (role) => roleTheme[role] || roleTheme.fleetOwner;
 
 export const shadow = {
   shadowColor: "#000000",
-  shadowOpacity: 0.08,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.06,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
   elevation: 2,
 };
 
@@ -203,41 +200,41 @@ export const elevation = {
   },
   sm: {
     shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   md: shadow,
   lg: {
     shadowColor: "#000000",
-    shadowOpacity: 0.14,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
 };
 
-/** Coloured glow used under primary CTAs so they lift off the page. */
+/** Soft lift under primary CTAs — Uber buttons sit flat, so this stays quiet. */
 export const glow = (color) => ({
   shadowColor: color,
-  shadowOpacity: 0.32,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
-  elevation: 5,
+  shadowOpacity: 0.18,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 3,
 });
 
 // ---------------------------------------------------------------------------
 // Scale
 // ---------------------------------------------------------------------------
 
-export const radius = { xs: 6, sm: 10, md: 14, lg: 18, xl: 24, pill: 999 };
+export const radius = { xs: 6, sm: 8, md: 12, lg: 16, xl: 20, pill: 999 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28 };
 
 export const type = {
-  display: { fontSize: 28, fontWeight: "800", letterSpacing: -0.4 },
-  h1: { fontSize: 22, fontWeight: "800", letterSpacing: -0.2 },
+  display: { fontSize: 28, fontWeight: "800", letterSpacing: -0.6 },
+  h1: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
   h2: { fontSize: 20, fontWeight: "800" },
   h3: { fontSize: 17, fontWeight: "700" },
   body: { fontSize: 16, fontWeight: "500" },

@@ -7,9 +7,10 @@
  * here once.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { createContext, useContext, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -182,6 +183,13 @@ export function BrandMark({ compact = false }) {
 }
 
 /**
+ * Sign-out handler for the signed-in shell. Provided once around the tabs so
+ * every home-level header can show the logout button without each screen
+ * threading it through.
+ */
+export const LogoutContext = createContext(null);
+
+/**
  * Standard screen header. Renders either a greeting (home screens) or a back
  * title (detail screens), plus the bell with its unread dot.
  */
@@ -196,13 +204,20 @@ export function AppHeader({
   right,
   children,
 }) {
+  const onLogout = useContext(LogoutContext);
+  const confirmLogout = () =>
+    Alert.alert("Sign out?", "You will need to sign in again to use the app.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Sign out", style: "destructive", onPress: onLogout },
+    ]);
+
   return (
-    <GradientHeader from={theme.headerFrom} to={theme.headerTo}>
+    <GradientHeader from={theme.headerFrom} to={theme.headerTo} style={s.appHeader}>
       <BrandMark />
       <View style={s.headerRow}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={12} style={s.headerIconBtn}>
-            <Icon name="back" size={22} color={colors.onBrand} />
+            <Icon name="back" size={22} color={colors.text} />
           </Pressable>
         ) : null}
 
@@ -220,9 +235,16 @@ export function AppHeader({
 
         {right}
 
+        {/* Beside the bell on the home-level headers, where More used to hold it. */}
+        {onBell && onLogout ? (
+          <Pressable onPress={confirmLogout} hitSlop={12} style={s.headerIconBtn}>
+            <Icon name="logout" size={22} color={colors.text} />
+          </Pressable>
+        ) : null}
+
         {onBell ? (
           <Pressable onPress={onBell} hitSlop={12} style={s.headerIconBtn}>
-            <Icon name="bell" size={22} color={colors.onBrand} />
+            <Icon name="bell" size={22} color={colors.text} />
             {unread > 0 ? (
               <View style={s.bellDot}>
                 <Text style={s.bellDotText}>{unread > 9 ? "9+" : unread}</Text>
@@ -241,8 +263,8 @@ export function AppHeader({
 export function HeaderChip({ icon, label, tone = "light" }) {
   const dark = tone === "dark";
   return (
-    <View style={[s.headerChip, dark && { backgroundColor: "rgba(0,0,0,0.22)" }]}>
-      {icon ? <Icon name={icon} size={13} color={colors.onBrand} /> : null}
+    <View style={[s.headerChip, dark && { backgroundColor: colors.surfaceSunken }]}>
+      {icon ? <Icon name={icon} size={13} color={colors.text} /> : null}
       <Text style={s.headerChipText}>{label}</Text>
     </View>
   );
@@ -392,7 +414,7 @@ export function StatStrip({ stats, tone = "light" }) {
           <Text style={[s.statValue, dark && { color: colors.onBrand }, stat.color && { color: stat.color }]}>
             {stat.value}
           </Text>
-          <Text style={[s.statLabel, dark && { color: "rgba(255,255,255,0.75)" }]} numberOfLines={1}>
+          <Text style={[s.statLabel, dark && { color: "rgba(255,255,255,0.72)" }]} numberOfLines={1}>
             {stat.label}
           </Text>
         </View>
@@ -600,10 +622,7 @@ const s = StyleSheet.create({
     borderRadius: 7,
     alignItems: "center",
     justifyContent: "center",
-    // Reads as a tile on the gradient without a second colour to maintain.
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    backgroundColor: colors.brand,
   },
   brandTileCompact: { width: 22, height: 22, borderRadius: 6 },
   brandTileText: {
@@ -614,14 +633,14 @@ const s = StyleSheet.create({
   },
   brandTileTextCompact: { fontSize: 12 },
   brandWord: {
-    color: colors.onBrand,
+    color: colors.text,
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 1.2,
   },
   brandWordCompact: { fontSize: 13, letterSpacing: 1 },
   // The second word sits back so the eye lands on "S LINE".
-  brandWordLight: { fontWeight: "600", opacity: 0.75 },
+  brandWordLight: { fontWeight: "600", color: colors.muted },
   gradientHeader: {
     paddingTop: TOP_INSET + spacing.md,
     paddingHorizontal: spacing.lg,
@@ -632,6 +651,13 @@ const s = StyleSheet.create({
     // paint over the rounded bottom corners.
     overflow: "hidden",
   },
+  // The app bar: white, square, a hairline underneath — Uber's, not a banner.
+  appHeader: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -641,14 +667,14 @@ const s = StyleSheet.create({
   headerTitles: { flex: 1 },
   headerEyebrow: {
     ...type.caption,
-    color: "rgba(255,255,255,0.78)",
+    color: colors.muted,
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-  headerTitle: { ...type.h1, color: colors.onBrand },
+  headerTitle: { ...type.h1, fontSize: 26, color: colors.text },
   headerSubtitle: {
     ...type.caption,
-    color: "rgba(255,255,255,0.82)",
+    color: colors.muted,
     marginTop: 2,
   },
   headerIconBtn: {
@@ -657,7 +683,7 @@ const s = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: colors.surfaceAlt,
   },
   bellDot: {
     position: "absolute",
@@ -682,9 +708,9 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.pill,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: colors.surfaceAlt,
   },
-  headerChipText: { ...type.caption, color: colors.onBrand },
+  headerChipText: { ...type.caption, color: colors.text },
 
   body: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
 
@@ -718,15 +744,15 @@ const s = StyleSheet.create({
   },
 
   tileGrid: { flexDirection: "row", flexWrap: "wrap", margin: -spacing.xs },
+  // Flat grey fill, no outline or shadow — Uber's suggestion tiles.
   tile: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.surfaceAlt,
     padding: spacing.md,
     minHeight: 92,
     gap: 6,
-    ...elevation.sm,
   },
   tileIcon: {
     width: 36,
@@ -759,8 +785,9 @@ const s = StyleSheet.create({
     ...elevation.sm,
   },
   statBox: { flex: 1, alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: 4 },
+  // The header's stat tiles: solid black with white figures.
   statBoxDark: {
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: colors.brand,
     borderRadius: radius.sm,
     marginHorizontal: 3,
   },

@@ -27,7 +27,11 @@ jest.mock("../services/auditService", () => ({
   recordAssignment: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { setLoadAssignments } = require("../controllers/loadController");
+const {
+  setLoadAssignments,
+  assignFleetOwner,
+  unassignLoad,
+} = require("../controllers/loadController");
 
 const app = express();
 app.use(express.json());
@@ -36,6 +40,14 @@ app.put("/api/loads/:loadId/assignments", (req, res) => {
   return withTenant({ locationId: TEST_LOCATION_ID }, () =>
     setLoadAssignments(req, res),
   );
+});
+app.put("/api/loads/:loadId/assign", (req, res) => {
+  req.user = { _id: STAFF_ID, role: "staff" };
+  return withTenant({ locationId: TEST_LOCATION_ID }, () => assignFleetOwner(req, res));
+});
+app.put("/api/loads/:loadId/unassign", (req, res) => {
+  req.user = { _id: STAFF_ID, role: "staff" };
+  return withTenant({ locationId: TEST_LOCATION_ID }, () => unassignLoad(req, res));
 });
 
 let load;
@@ -415,5 +427,63 @@ describe("A driver sees only their own runs", () => {
     expect(legOf(first).drop.city).toEqual("Sparks");
     expect(legOf(second).pickup.city).toEqual("Sparks");
     expect(legOf(second).drop.city).toEqual("Reno");
+  });
+});
+
+describe("Taking a split load off its carriers", () => {
+  // Split between two carriers, each with a driver on their own leg.
+  const splitWithDrivers = async () => {
+    await assign(bodyForTwo());
+    await seed(async () => {
+      const doc = await Load.findOne({ loadId: "LD-9001" });
+      doc.driverAssignments = [
+        { driver: new mongoose.Types.ObjectId(), fleetOwnerId: portToYard._id, driverName: "Old" },
+        { driver: new mongoose.Types.ObjectId(), fleetOwnerId: yardToDoor._id, driverName: "Other" },
+      ];
+      await doc.save();
+    });
+  };
+
+  const reload = () => seed(() => Load.findOne({ loadId: "LD-9001" }).lean());
+
+  it("unassign clears the legs and their drivers, not just the primary", async () => {
+    await splitWithDrivers();
+
+    const res = await request(app).put("/api/loads/LD-9001/unassign").send();
+    expect(res.statusCode).toEqual(200);
+
+    const doc = await reload();
+    expect(doc.assignedFleetOwner?.fleetOwnerId).toBeUndefined();
+    expect(doc.assignments).toHaveLength(0);
+    expect(doc.driverAssignments).toHaveLength(0);
+  });
+
+  it("a direct assign replaces the split, so the new carrier holds the whole load", async () => {
+    await splitWithDrivers();
+    const newCarrier = await seed(() => FleetOwner.create({ carrierName: "New Carrier Inc" }));
+
+    const res = await request(app)
+      .put("/api/loads/LD-9001/assign")
+      .send({ fleetOwnerId: String(newCarrier._id), fleetOwnerName: "New Carrier Inc" });
+    expect(res.statusCode).toEqual(200);
+
+    const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }));
+    // No legs left, so the new carrier's status updates are not refused for
+    // want of one, and billing has only the new carrier to list.
+    expect(doc.hasLegs()).toBe(false);
+    expect(String(doc.assignedFleetOwner.fleetOwnerId)).toEqual(String(newCarrier._id));
+    // The old carriers' drivers are off the load.
+    expect(doc.driverAssignments).toHaveLength(0);
+  });
+
+  it("a direct assign keeps the drivers the new carrier already named", async () => {
+    await splitWithDrivers();
+
+    await request(app)
+      .put("/api/loads/LD-9001/assign")
+      .send({ fleetOwnerId: String(yardToDoor._id), fleetOwnerName: "Last Mile Freight" });
+
+    const doc = await reload();
+    expect(doc.driverAssignments.map((d) => d.driverName)).toEqual(["Other"]);
   });
 });

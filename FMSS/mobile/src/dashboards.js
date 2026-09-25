@@ -235,8 +235,8 @@ export function CarrierHome({
       </AppHeader>
 
       <Body {...refresher(refreshing, onRefresh, theme.accent)}>
-        {/* Blue: bidding open right now, straight to the bid board. Green: the
-            loads won and assigned to this carrier. */}
+        {/* Every shortcut is one full-width bar, alternating Uber black and
+            charcoal so neighbouring bars never read as one block. */}
         <BigAction
           icon="bid"
           title="Open Bids"
@@ -249,55 +249,44 @@ export function CarrierHome({
           icon="truck"
           title="Assigned Bids"
           subtitle={`${stats?.activeTrips ?? 0} running`}
-          color={colors.success}
+          color={colors.info}
           onPress={() => onOpen("assigned")}
         />
-
-        <TileGrid columns={3}>
-          <ActionTile
-            icon="check"
-            title="Completed"
-            subtitle={`${stats?.completedTrips ?? 0} done`}
-            color={colors.success}
-            onPress={() => onOpen("over")}
-          />
-          <ActionTile
-            icon="doc"
-            title="Documents"
-            subtitle="Agreements"
-            color={colors.fuel}
-            onPress={() => onOpen("documents")}
-          />
-          <ActionTile
-            icon="doc"
-            title="Insurance"
-            subtitle="Your cover"
-            color={colors.primary}
-            onPress={() => onOpen("insurance")}
-          />
-          <ActionTile
-            icon="drivers"
-            title="Drivers"
-            subtitle="Your team"
-            color={colors.parking}
-            onPress={() => onOpen("drivers")}
-          />
-          <ActionTile
-            icon="bell"
-            title="Alerts"
-            subtitle={unread > 0 ? `${unread} unread` : "Clear"}
-            color={colors.roadside}
-            badge={unread > 0 ? unread : null}
-            onPress={onBell}
-          />
-          <ActionTile
-            icon="more"
-            title="More"
-            subtitle="Account"
-            color={colors.more}
-            onPress={() => onOpen("more")}
-          />
-        </TileGrid>
+        <BigAction
+          icon="check"
+          title="Completed"
+          subtitle={`${stats?.completedTrips ?? 0} done`}
+          color={theme.accent}
+          onPress={() => onOpen("over")}
+        />
+        <BigAction
+          icon="doc"
+          title="Documents"
+          subtitle="Your signed agreements"
+          color={colors.info}
+          onPress={() => onOpen("documents")}
+        />
+        <BigAction
+          icon="doc"
+          title="Insurance"
+          subtitle="Your cover"
+          color={theme.accent}
+          onPress={() => onOpen("insurance")}
+        />
+        <BigAction
+          icon="drivers"
+          title="Drivers"
+          subtitle="Your team"
+          color={colors.info}
+          onPress={() => onOpen("drivers")}
+        />
+        <BigAction
+          icon="truck"
+          title="Trucks"
+          subtitle="Trucks & equipment details"
+          color={theme.accent}
+          onPress={() => onOpen("trucks")}
+        />
 
         <SectionCard
           title="Loads open for bidding"

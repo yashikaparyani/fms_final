@@ -3000,10 +3000,28 @@ const assignFleetOwner = async (req, res) => {
       .select("assignedFleetOwner")
       .lean();
 
+    // A direct assignment puts the whole load on one carrier. Legs left over
+    // from an earlier split would otherwise outrank it: status updates are
+    // routed by leg, so the new carrier and their drivers were refused with
+    // "You do not have a leg of this load", and billing listed the old legs'
+    // carriers beside the new one. Drivers named by any other carrier go too;
+    // rows with no carrier recorded predate legs and are left alone.
+    await Load.updateOne(
+      { loadId: req.params.loadId },
+      {
+        $pull: {
+          driverAssignments: {
+            fleetOwnerId: { $exists: true, $ne: new mongoose.Types.ObjectId(String(fleetOwnerId)) },
+          },
+        },
+      },
+    );
+
     const load = await Load.findOneAndUpdate(
       { loadId: req.params.loadId },
       {
         $set: {
+          assignments: [],
           status: "ASSIGNED",
           "assignedFleetOwner.fleetOwnerId": fleetOwnerId,
           "assignedFleetOwner.fleetOwnerName": fleetOwnerName,
@@ -3049,6 +3067,10 @@ const rebidLoad = async (req, res) => {
           status: "VERIFIED",
           transportStatus: "NEW_LOAD",
           bidStatus: "UPCOMING",
+          // Every carrier comes off, split legs and their drivers included —
+          // see unassignLoad.
+          assignments: [],
+          driverAssignments: [],
         },
         $unset: {
           bidStartTime: "",
@@ -3944,8 +3966,13 @@ const respondToNegotiation = async (req, res) => {
 };
 
 // ========================= UNASSIGN LOAD =========================
-// Removes the fleet owner assignment and resets the load back to
-// NEW_LOAD so it re-appears in Dispatch Management.
+// Removes every carrier from the load and resets it back to NEW_LOAD so it
+// re-appears in Dispatch Management.
+//
+// "Every carrier" includes the legs of a split load and the drivers they named.
+// Clearing only the primary carrier left the old legs behind: the next carrier
+// was refused on status updates for having no leg, the old carrier still saw
+// the load, and billing listed both.
 const unassignLoad = async (req, res) => {
   try {
     const { loadId } = req.params;
@@ -3959,6 +3986,8 @@ const unassignLoad = async (req, res) => {
         $set: {
           transportStatus: "NEW_LOAD",
           status: "VERIFIED",
+          assignments: [],
+          driverAssignments: [],
         },
         $push: {
           transportStatusHistory: {
