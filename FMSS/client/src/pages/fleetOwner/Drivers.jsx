@@ -15,6 +15,7 @@ import CredentialsPanel from "../../components/CredentialsPanel";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { usePermissions } from "../../hooks/usePermissions";
+import { toDateKey } from "../../utils/dates";
 
 // ─── Drivers ──────────────────────────────────────────────────────────────────
 // The carrier's own roster. They add drivers themselves because they are the only
@@ -238,20 +239,42 @@ const Drivers = () => {
   };
 
   const editDriver = async (driver) => {
+    // Full licence and details, editable by the carrier and the office (admin).
+    // The two expiry fields are real date pickers so a date is chosen from a
+    // calendar rather than typed, and pre-filled with what is on file.
+    const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
+    const opt = (v, sel) => `<option value="${v}"${v === sel ? " selected" : ""}>${v || "—"}</option>`;
+    const cls = (driver.licenseClass || "").toUpperCase();
+    const ends = new Set((driver.endorsements || []).map((e) => String(e).toUpperCase()));
+    const fld = (label, inner) =>
+      `<label style="display:block;text-align:left;margin:.5rem .5rem 0;font-size:.8rem;font-weight:600;color:#4b5563">${label}${inner}</label>`;
+
     const { isConfirmed, value } = await Swal.fire({
       title: `Edit ${driver.name}`,
+      width: 640,
       html: `
-        <input id="d-name" class="swal2-input" placeholder="Name" value="${driver.name || ""}">
-        <input id="d-phone" class="swal2-input" placeholder="Phone" value="${driver.phone || ""}">
-        <input id="d-licence" class="swal2-input" placeholder="Licence no." value="${driver.licenseNumber || ""}">
+        ${fld("Name", `<input id="d-name" class="swal2-input" style="margin:.25rem 0 0" placeholder="Name" value="${esc(driver.name)}">`)}
+        ${fld("Phone", `<input id="d-phone" class="swal2-input" style="margin:.25rem 0 0" placeholder="Phone" value="${esc(driver.phone)}">`)}
+        ${fld("Licence no.", `<input id="d-licence" class="swal2-input" style="margin:.25rem 0 0" placeholder="DL-99881" value="${esc(driver.licenseNumber)}">`)}
+        ${fld("Licence state", `<input id="d-state" class="swal2-input" style="margin:.25rem 0 0" maxlength="2" placeholder="CA" value="${esc(driver.licenseState)}">`)}
+        ${fld("Licence class", `<select id="d-class" class="swal2-select" style="margin:.25rem 0 0;width:100%">${["", "A", "B", "C"].map((c) => opt(c, cls)).join("")}</select>`)}
+        ${fld("Licence expiry", `<input id="d-expiry" type="date" class="swal2-input" style="margin:.25rem 0 0" value="${toDateKey(driver.licenseExpiry) || ""}">`)}
+        ${fld("Medical card expiry", `<input id="d-medical" type="date" class="swal2-input" style="margin:.25rem 0 0" value="${toDateKey(driver.medicalCardExpiry) || ""}">`)}
+        ${fld("Endorsements", `<div style="margin:.35rem 0 0;display:flex;flex-wrap:wrap;gap:.75rem;font-weight:500">${["H", "N", "T", "P", "S", "X"].map((e) => `<label style="font-size:.85rem"><input type="checkbox" class="d-end" value="${e}"${ends.has(e) ? " checked" : ""}> ${e}</label>`).join("")}</div>`)}
       `,
       showCancelButton: true,
       confirmButtonText: "Save",
       confirmButtonColor: "#4f46e5",
+      focusConfirm: false,
       preConfirm: () => ({
         name: document.getElementById("d-name").value.trim(),
         phone: document.getElementById("d-phone").value.trim(),
         licenseNumber: document.getElementById("d-licence").value.trim(),
+        licenseState: document.getElementById("d-state").value.trim().toUpperCase(),
+        licenseClass: document.getElementById("d-class").value,
+        licenseExpiry: document.getElementById("d-expiry").value || "",
+        medicalCardExpiry: document.getElementById("d-medical").value || "",
+        endorsements: Array.from(document.querySelectorAll(".d-end:checked")).map((el) => el.value),
       }),
     });
 

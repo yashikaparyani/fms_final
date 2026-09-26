@@ -780,12 +780,36 @@ const updateDriver = async (req, res) => {
   try {
     const driver = await loadDriverForRequest(req);
 
-    for (const field of ["name", "phone", "licenseNumber", "notes"]) {
+    for (const field of ["name", "phone", "licenseNumber", "licenseState", "notes"]) {
       if (req.body[field] !== undefined) driver[field] = trimmed(req.body[field]);
     }
 
+    // Licence class is a fixed set (A/B/C, or blank). An unknown value is a bad
+    // request rather than a save that fails validation deep in Mongoose.
+    if (req.body.licenseClass !== undefined) {
+      const cls = trimmed(req.body.licenseClass).toUpperCase();
+      if (cls && !["A", "B", "C"].includes(cls)) {
+        return res.status(400).json({ message: `"${cls}" is not a valid licence class (A, B or C).` });
+      }
+      driver.licenseClass = cls;
+    }
+
+    // The two dates that ground a driver when they lapse — set, or cleared with
+    // an empty value.
     if (req.body.licenseExpiry !== undefined) {
       driver.licenseExpiry = req.body.licenseExpiry || undefined;
+    }
+    if (req.body.medicalCardExpiry !== undefined) {
+      driver.medicalCardExpiry = req.body.medicalCardExpiry || undefined;
+    }
+
+    // Endorsements come as an array of the fixed codes. Anything outside the set
+    // is dropped rather than allowed to fail the save.
+    if (req.body.endorsements !== undefined) {
+      const allowed = ["H", "N", "T", "P", "S", "X"];
+      driver.endorsements = (Array.isArray(req.body.endorsements) ? req.body.endorsements : [])
+        .map((e) => trimmed(e).toUpperCase())
+        .filter((e) => allowed.includes(e));
     }
 
     if (req.body.email !== undefined) {

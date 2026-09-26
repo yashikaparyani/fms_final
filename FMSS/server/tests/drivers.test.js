@@ -363,3 +363,67 @@ describe("Giving an existing driver a login later", () => {
     expect(String(account.parentAccount)).toBe(String(carrierUser._id));
   });
 });
+
+describe("Admin edits a driver's full licence and details", () => {
+  it("updates licence no., state, class, expiry, medical card and endorsements", async () => {
+    const admin = await User.create({
+      firstName: "Office",
+      email: "admin@fms.com",
+      password: "password123",
+      role: "admin",
+      locations: [ny._id],
+      defaultLocation: ny._id,
+    });
+
+    // A driver on the carrier's roster, added by the carrier.
+    await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Ravi Kumar", phone: "555-0101" }] });
+    const [driver] = await withTenant({ locationId: String(ny._id) }, () => Driver.find());
+
+    const res = await req
+      .put(`/api/drivers/${driver._id}`, admin, ny)
+      .send({
+        licenseNumber: "DL-99881",
+        licenseState: "ca",
+        licenseClass: "a",
+        licenseExpiry: "2027-03-15",
+        medicalCardExpiry: "2026-12-01",
+        endorsements: ["H", "n", "bogus"],
+      });
+
+    expect(res.statusCode).toBe(200);
+
+    const saved = await withTenant({ locationId: String(ny._id) }, () =>
+      Driver.findById(driver._id),
+    );
+    expect(saved.licenseNumber).toBe("DL-99881");
+    expect(saved.licenseState).toBe("CA"); // uppercased
+    expect(saved.licenseClass).toBe("A"); // uppercased
+    expect(saved.licenseExpiry.toISOString().slice(0, 10)).toBe("2027-03-15");
+    expect(saved.medicalCardExpiry.toISOString().slice(0, 10)).toBe("2026-12-01");
+    // "bogus" dropped, the rest kept and uppercased.
+    expect(saved.endorsements).toEqual(["H", "N"]);
+  });
+
+  it("rejects an unknown licence class", async () => {
+    const admin = await User.create({
+      email: "admin2@fms.com",
+      password: "password123",
+      role: "admin",
+      locations: [ny._id],
+      defaultLocation: ny._id,
+    });
+    await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Meera Nair" }] });
+    const [driver] = await withTenant({ locationId: String(ny._id) }, () => Driver.find());
+
+    const res = await req
+      .put(`/api/drivers/${driver._id}`, admin, ny)
+      .send({ licenseClass: "Z" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/licence class/i);
+  });
+});
