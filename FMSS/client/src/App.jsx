@@ -1,6 +1,7 @@
 import "./App.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/dashboard/Dashboard";
 import StaffCreateCustomer from "./pages/staff/StaffCreateCustomer";
@@ -102,6 +103,7 @@ function App() {
     <>
       <Seo />
       <RoleTheme />
+      <ErrorBoundary>
       <Routes>
         {/* Default Route */}
         <Route
@@ -489,6 +491,7 @@ function App() {
 
         <Route path="*" element={<h1>404 Not Found</h1>} />
       </Routes>
+      </ErrorBoundary>
     </>
   );
 }
