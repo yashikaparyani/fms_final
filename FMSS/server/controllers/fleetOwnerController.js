@@ -7,6 +7,7 @@ const {
   carrierVisibleLoadFilter,
   carrierLoadView,
 } = require("../utils/carrierAccount");
+const { createAddressRef } = require("../utils/addressRef");
 const mongoose = require("mongoose");
 
 // Generate random password
@@ -86,7 +87,10 @@ const createFleetOwner = async (req, res) => {
       sendCredentials
     } = req.body;
 
-    // Create Fleet Owner
+    // Create Fleet Owner. Note the address is NOT passed as street/suite/... here:
+    // those are not fields on FleetOwner (its only address field is `addresses`, a
+    // list of Address references), so passing them top-level silently dropped the
+    // carrier's address. It is created as an Address document below and linked in.
     const fleetOwner = await FleetOwner.create({
       carrierName,
       phone,
@@ -96,14 +100,18 @@ const createFleetOwner = async (req, res) => {
       taxId,
       websiteUrl,
       notes,
-      street,
-      suite,
-      city,
-      state,
-      zip,
       contactPersons: contactPersons || [],
       status: 'ACTIVE'
     });
+
+    const addressId = await createAddressRef(
+      { street, suite, city, state, zip },
+      { locationId: fleetOwner.locationId },
+    );
+    if (addressId) {
+      fleetOwner.addresses = [addressId];
+      await fleetOwner.save();
+    }
 
     let userAccount = null;
     let generatedPassword = null;

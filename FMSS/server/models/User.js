@@ -7,10 +7,16 @@ const userSchema = new mongoose.Schema(
     firstName: String,
     lastName: String,
 
+    // Stored lowercased and trimmed, because sign-in lowercases what is typed.
+    // Without this a carrier whose contact email was entered as
+    // "Ravi@SLine.com" was emailed working credentials for an account that
+    // sign-in could never find. See loginUser for the accounts saved before.
     email: {
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+      trim: true,
     },
 
     password: {

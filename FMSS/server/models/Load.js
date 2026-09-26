@@ -322,11 +322,44 @@ const loadSchema = new mongoose.Schema(
             zip: { type: String, trim: true },
           },
 
+          // The relay order of this driver's leg on the load: leg 1 runs the box
+          // to the yard, leg 2 collects it and runs it on. It decides which leg is
+          // "last" when the load's status is rolled up from the legs, and the
+          // order they are shown in.
+          sequence: { type: Number, default: 0 },
+
+          // This driver's own progress along their leg, tracked exactly like a
+          // carrier leg's (see assignmentSchema) so a relay of drivers works the
+          // same way a relay of carriers does: driver 1 can mark their leg
+          // LOADED_IN_YARD (done at the handover) while driver 2's leg is still
+          // ASSIGNED, and the load rolls up to the least advanced of them — see
+          // recomputeTransportStatus. Absent on loads written before driver legs
+          // existed, which is how the load knows to fall back to its own
+          // load-level status for those.
+          transportStatus: { type: String },
+          transportStatusHistory: [
+            {
+              status: String,
+              changedAt: { type: Date, default: Date.now },
+              changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+              note: String,
+              location: {
+                latitude: Number,
+                longitude: Number,
+                address: String,
+                city: String,
+                state: String,
+              },
+              _id: false,
+            },
+          ],
+
           note: { type: String, trim: true },
           assignedAt: { type: Date, default: Date.now },
           assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         },
-        { _id: false },
+        // _id so a single driver's leg can be named for a status update.
+        { _id: true },
       ),
     ],
 
@@ -1162,26 +1195,84 @@ const LEG_FINISHED = [
  * legs have all finished takes the last one's outcome, which is what puts a
  * fully delivered load in the Over tab.
  */
-loadSchema.methods.rollupTransportStatus = function () {
-  if (!this.hasLegs()) return this.transportStatus;
-
-  const running = this.assignments.filter(
-    (leg) => !LEG_FINISHED.includes(leg.transportStatus),
+// The rollup arithmetic, shared by carrier legs and driver legs: a load is only
+// as far along as its *least* advanced still-running segment. `segments` must be
+// in running order, so the last one is the fallback when they have all finished.
+const rollupFromSegments = (segments) => {
+  const running = segments.filter(
+    (seg) => !LEG_FINISHED.includes(seg.transportStatus),
   );
 
   if (running.length) {
-    this.transportStatus = running.reduce((least, leg) => {
+    return running.reduce((least, seg) => {
       const a = LEG_ORDER.indexOf(least.transportStatus);
-      const b = LEG_ORDER.indexOf(leg.transportStatus);
-      if (a === -1) return leg;
+      const b = LEG_ORDER.indexOf(seg.transportStatus);
+      if (a === -1) return seg;
       if (b === -1) return least;
-      return b < a ? leg : least;
+      return b < a ? seg : least;
     }).transportStatus;
-  } else {
-    this.transportStatus =
-      this.assignments[this.assignments.length - 1].transportStatus;
   }
 
+  return segments[segments.length - 1].transportStatus;
+};
+
+loadSchema.methods.rollupTransportStatus = function () {
+  if (!this.hasLegs()) return this.transportStatus;
+  this.transportStatus = rollupFromSegments(this.assignments);
+  return this.transportStatus;
+};
+
+// ─── Driver legs (a relay of drivers within one carrier) ──────────────────────
+// A single carrier can hand a box between its own drivers — one runs it to the
+// yard, another collects it and runs it on. Each of those is a driver leg on
+// `driverAssignments`, with its own status and history, exactly like a carrier
+// leg. This is separate from `assignments`, which splits a load between different
+// *carriers*; a load uses one mechanism or the other.
+
+/** The driver legs, earliest first, that actually carry a status. */
+loadSchema.methods.orderedDriverLegs = function () {
+  return (this.driverAssignments || [])
+    .filter((leg) => !!leg.transportStatus)
+    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+};
+
+/**
+ * True when this load's progress is tracked per driver leg — a driver relay on a
+ * single carrier. Never for a load split into carrier legs (that has its own
+ * rollup) or an older load whose driver rows carry no status.
+ */
+loadSchema.methods.usesDriverLegs = function () {
+  return !this.hasLegs() && this.orderedDriverLegs().length > 0;
+};
+
+/**
+ * The driver leg belonging to a Driver, or null. A driver can hold more than one
+ * leg of the same load, in which case the earliest unfinished one is theirs to
+ * work on — the leg their app is asking about.
+ */
+loadSchema.methods.driverLegFor = function (driverId) {
+  if (!driverId) return null;
+  const wanted = String(driverId);
+  const theirs = (this.driverAssignments || []).filter(
+    (leg) => String(leg.driver) === wanted && !!leg.transportStatus,
+  );
+  if (!theirs.length) return null;
+
+  return (
+    theirs.find((leg) => !LEG_FINISHED.includes(leg.transportStatus)) || theirs[0]
+  );
+};
+
+/**
+ * Re-derive the load-level transportStatus from whichever legs it runs on —
+ * carrier legs if it is split between carriers, driver legs if a single carrier's
+ * drivers are running it in relay, and left as-is for a plain single-driver load.
+ */
+loadSchema.methods.recomputeTransportStatus = function () {
+  if (this.hasLegs()) return this.rollupTransportStatus();
+  if (this.usesDriverLegs()) {
+    this.transportStatus = rollupFromSegments(this.orderedDriverLegs());
+  }
   return this.transportStatus;
 };
 

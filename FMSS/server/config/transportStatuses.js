@@ -73,6 +73,22 @@ const OFF_TRANSIT_TRANSPORT_STATUSES = [
   ...ACCOUNTING_TRANSPORT_STATUSES,
 ];
 
+// ─── Parked, not finished ─────────────────────────────────────────────────────
+// A container waiting in a yard or a warehouse. It counts as "off transit" while
+// it sits there — nothing is moving — but the box has NOT completed its journey:
+// it still has to be collected and driven the rest of the way. So the moment it
+// is handed to a driver again (a straight driver swap, or a new carrier), it goes
+// back onto the transit board rather than staying filed under "done".
+//
+// TERMINATED and DELIVERED are deliberately left out: those are real endings, and
+// naming a driver on a delivered load must not resurrect it. STREET_TURN is out
+// too — it is settled between carriers, not a box parked waiting for a truck.
+const REASSIGNABLE_PARKED_STATUSES = [
+  "LOADED_IN_YARD",
+  "EMPTY_IN_YARD",
+  "DROP_IN_WAREHOUSE",
+];
+
 // What a carrier sees under "Completed". Wider than COMPLETED_TRANSPORT_STATUSES
 // by one: a delivered load that the office has since invoiced is still done from
 // where the carrier is standing, and dropping off their list entirely when we
@@ -104,5 +120,6 @@ module.exports = {
   ACCOUNTING_TRANSPORT_STATUSES,
   OFF_TRANSIT_TRANSPORT_STATUSES,
   CARRIER_FINISHED_STATUSES,
+  REASSIGNABLE_PARKED_STATUSES,
   isCarrierActive,
 };

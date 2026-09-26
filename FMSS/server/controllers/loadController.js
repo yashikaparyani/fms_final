@@ -40,6 +40,7 @@ const {
   carrierLoadFilter,
   isCarrierSide,
   legView,
+  driverLegView,
 } = require("../utils/carrierAccount");
 const whatsapp = require("../services/whatsappEvents");
 const { isValidCharge, money } = require("../config/chargeTypes");
@@ -752,6 +753,7 @@ const {
   OVER_TAB_TRANSPORT_STATUSES,
   ACCOUNTING_TRANSPORT_STATUSES,
   OFF_TRANSIT_TRANSPORT_STATUSES,
+  REASSIGNABLE_PARKED_STATUSES,
 } = require("../config/transportStatuses");
 
 /** Trimmed string, or "" — multipart bodies arrive as strings either way. */
@@ -1283,6 +1285,24 @@ const getLoadById = async (req, res) => {
       }
     }
 
+    // A driver on a single carrier's relay sees their own leg — its ends, status
+    // and timeline — not the load's, so the yard-to-door driver is not shown the
+    // port stretch the first driver already ran. The carrier owner keeps the
+    // whole picture; only the driver sub-account is narrowed to their leg.
+    if (
+      req.user?.role === "driver" &&
+      !load.assignments?.length &&
+      load.driverAssignments?.length
+    ) {
+      const driver = await Driver.findOne({ userId: req.user._id })
+        .select("_id")
+        .lean();
+      if (driver) {
+        const view = driverLegView(load, driver._id);
+        if (view.myDriverLeg) Object.assign(responsePayload, view);
+      }
+    }
+
     // 🔒 Customers (clients) must NOT see bid status/amounts — only the
     // assigned bidder (allotment) and transit updates. Strip bid financials.
     if (req.user?.role === "client") {
@@ -1700,9 +1720,55 @@ const updateTransportStatus = async (req, res) => {
       }
     }
 
+    // ─────────────────────────────────────────────
+    // WHICH DRIVER LEG IS THIS UPDATE ABOUT
+    // ─────────────────────────────────────────────
+    // A single carrier can run a load as a relay of its own drivers — one to the
+    // yard, another onward (see driverAssignments). Each driver leg carries its
+    // own status, so a driver's update lands on their leg, not on the load, and
+    // the load-level status is rolled up from all of them (recomputeTransportStatus).
+    // This is the driver-level twin of the carrier-leg routing above, and only
+    // one of the two is ever in play: a load is split between carriers or run in
+    // relay by one carrier's drivers, not both.
+    let activeDriverLeg = null;
+    if (!activeLeg && load.usesDriverLegs()) {
+      if (role === "driver") {
+        // Resolved from the account so a driver only ever moves their own leg.
+        const driver = await Driver.findOne({ userId: req.user._id }).select("_id");
+        activeDriverLeg = driver ? load.driverLegFor(driver._id) : null;
+        if (!activeDriverLeg) {
+          return res.status(403).json({
+            success: false,
+            message: "You do not have a leg of this load to update.",
+          });
+        }
+      } else if (req.body.driverLegId) {
+        // The office (or a carrier acting for the office) names the exact leg.
+        activeDriverLeg = load.driverAssignments.id(req.body.driverLegId);
+        if (!activeDriverLeg || !activeDriverLeg.transportStatus) {
+          return res.status(404).json({
+            success: false,
+            message: "That driver leg is not on this load.",
+          });
+        }
+      } else {
+        // No leg named: the one the load is actually waiting on — the earliest
+        // unfinished driver leg, which is the one whose driver is moving now.
+        const legs = load.orderedDriverLegs();
+        activeDriverLeg =
+          legs.find(
+            (leg) => !Load.LEG_FINISHED.includes(leg.transportStatus),
+          ) || legs[legs.length - 1];
+      }
+    }
+
     // What the one-way progression rules below are measured against: this leg
     // if the load has legs, the load itself if it does not.
-    const currentStatus = activeLeg ? activeLeg.transportStatus : load.transportStatus;
+    const currentStatus = activeLeg
+      ? activeLeg.transportStatus
+      : activeDriverLeg
+        ? activeDriverLeg.transportStatus
+        : load.transportStatus;
 
     // ─────────────────────────────────────────────
     // STATUSES THAT REQUIRE LIVE LOCATION
@@ -2008,6 +2074,21 @@ const updateTransportStatus = async (req, res) => {
       });
       // The load is only as far along as its least advanced leg.
       load.rollupTransportStatus();
+    } else if (activeDriverLeg) {
+      activeDriverLeg.transportStatus = transportStatus;
+      activeDriverLeg.transportStatusHistory.push({
+        status: transportStatus,
+        changedAt: new Date(),
+        changedBy: req.user._id,
+        note: note || "",
+        ...(parsedLat != null && parsedLng != null
+          ? { location: { latitude: parsedLat, longitude: parsedLng } }
+          : {}),
+      });
+      // The load is only as far along as its least advanced driver leg — so a
+      // box driver 1 has dropped at the yard shows the load waiting on driver 2,
+      // not delivered.
+      load.recomputeTransportStatus();
     } else {
       load.transportStatus = transportStatus;
     }
@@ -2897,8 +2978,22 @@ const setLoadAssignments = async (req, res) => {
     // run they have already made, so it takes the load's own progress and
     // history rather than starting again at ASSIGNED, which would put the load
     // back on their board as work still to do.
+    //
+    // The one exception is a parked box handed straight back to the same one
+    // carrier with nobody collecting from them (a single-leg reassignment out of
+    // LOADED_IN_YARD / EMPTY_IN_YARD / DROP_IN_WAREHOUSE). That is not a handover —
+    // it is the office telling that carrier to move it onward — so the leg starts
+    // fresh at ASSIGNED and the load returns to All Transit, instead of inheriting
+    // the parked status and rolling straight back into it (rollupTransportStatus
+    // treats every parked status as finished, so a lone inherited-parked leg left
+    // the whole load stranded in the yard). A genuine split still inherits: the
+    // collecting leg is running, so the load rolls up to ASSIGNED on its own.
     const primaryId = String(load.assignedFleetOwner?.fleetOwnerId || "");
+    const resumingParkedSolo =
+      submitted.length === 1 &&
+      REASSIGNABLE_PARKED_STATUSES.includes(load.transportStatus);
     const inheritsLoadProgress = (row, index) =>
+      !resumingParkedSolo &&
       !(load.assignments || []).length &&
       index === 0 &&
       primaryId &&
@@ -3265,7 +3360,7 @@ const setLoadDrivers = async (req, res) => {
       (load.driverAssignments || []).map((a) => [String(a.driver), a]),
     );
 
-    const mine = rows.map((row) => {
+    const mine = rows.map((row, index) => {
       const id = String(row.driver || row.driverId);
       const driver = byId.get(id);
       const before = previous.get(id);
@@ -3278,6 +3373,24 @@ const setLoadDrivers = async (req, res) => {
         pickup: stop(row.pickup),
         drop: stop(row.drop),
         note: String(row.note || "").trim(),
+        // The relay order: the first driver runs the box to the yard, the next
+        // collects it. Taken from the order the office listed them in.
+        sequence: index,
+        // A driver already on the load keeps the progress they have made — their
+        // leg may be halfway to the yard, and rebuilding the list because a
+        // *different* driver was added must not send it back to ASSIGNED. A driver
+        // new to the load starts their leg at ASSIGNED with its opening history
+        // entry, so the relay tracks each driver's stretch the way carrier legs
+        // track each carrier's.
+        transportStatus: before?.transportStatus || "ASSIGNED",
+        transportStatusHistory: before?.transportStatusHistory || [
+          {
+            status: "ASSIGNED",
+            changedAt: new Date(),
+            changedBy: req.user._id,
+            note: `Assigned to ${driver.name}`,
+          },
+        ],
         // A driver who was already on the load keeps their original timestamp —
         // editing another driver's leg is not a re-assignment of this one.
         assignedAt: before?.assignedAt || new Date(),
@@ -3299,6 +3412,31 @@ const setLoadDrivers = async (req, res) => {
     );
 
     load.driverAssignments = [...others, ...mine];
+
+    // ─── A parked box handed to a driver is moving again ─────────────────────
+    // A container waiting in a yard or a warehouse (LOADED_IN_YARD,
+    // EMPTY_IN_YARD, DROP_IN_WAREHOUSE) is off the transit board while it sits
+    // there, but its journey is not over. The moment a driver is put on it, it is
+    // going to move — so it goes back to ASSIGNED and returns to All Transit,
+    // instead of being stranded under "done" where dispatch stops watching it.
+    //
+    // Only for a whole-load assignment: a load split into legs carries its status
+    // per leg and is rolled up from them, so it is not force-set here. Guarded on
+    // `mine.length` so clearing the drivers off a load does not resurrect it.
+    if (
+      mine.length &&
+      !load.hasLegs() &&
+      REASSIGNABLE_PARKED_STATUSES.includes(load.transportStatus)
+    ) {
+      const from = load.transportStatus;
+      load.transportStatus = "ASSIGNED";
+      load.transportStatusHistory.push({
+        status: "ASSIGNED",
+        changedAt: new Date(),
+        changedBy: req.user._id,
+        note: `Reassigned from ${from.replace(/_/g, " ").toLowerCase()} — back in transit`,
+      });
+    }
 
     await load.save();
 

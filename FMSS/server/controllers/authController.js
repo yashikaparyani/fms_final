@@ -8,6 +8,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const { getJwtSecret } = require("../utils/jwtSecret");
+const { createAddressRef } = require("../utils/addressRef");
 const { createOneStaff } = require("./staffController");
 
 
@@ -516,13 +517,18 @@ const createFleetOwnerByStaff = async (req, res) => {
 
     const createdUser = Array.isArray(user) ? user[0] : user;
 
+    // FleetOwner.addresses stores Address references, not embedded objects, so
+    // the typed address has to become an Address document first — pushing the
+    // raw object fails with "Cast to [ObjectId] failed".
+    const addressId = await createAddressRef({ street, city, state, zip }, {}, session);
+
     await FleetOwner.create([{
       userId: createdUser._id,
       carrierName: carrierName || email.split("@")[0],
       phone,
       mcLicense,
       dotLicense,
-      addresses: [{ street, city, state, zip }],
+      addresses: addressId ? [addressId] : [],
       contactPersons: contactPersons || []
     }], { session });
 
@@ -554,7 +560,28 @@ const loginUser = async (req, res) => {
     // password was right.
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
-    const user = await User.findOne({ email: normalizedEmail }).select("+password");
+    let user = await User.findOne({ email: normalizedEmail }).select("+password");
+
+    // ── Accounts saved before emails were lowercased ────────────────────────
+    // Older accounts can hold an address with capitals in it, which the
+    // lowercased lookup above never finds. Looked up case-insensitively as a
+    // fallback, and — because two such accounts can differ only by case (the
+    // unique index is case-sensitive) — the one whose password matches is used.
+    if (!user && normalizedEmail) {
+      const escaped = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const candidates = await User.find({
+        email: new RegExp(`^${escaped}$`, "i"),
+      }).select("+password");
+
+      for (const candidate of candidates) {
+        if (candidate.password && (await bcrypt.compare(password || "", candidate.password))) {
+          user = candidate;
+          break;
+        }
+      }
+      // None matched: fall through to the normal wrong-password answer below.
+      if (!user && candidates.length) user = candidates[0];
+    }
 
     if (!user) {
       // Someone who registered and is waiting on the office would otherwise be

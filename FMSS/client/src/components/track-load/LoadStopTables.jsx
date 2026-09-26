@@ -5,6 +5,7 @@ import SectionHeader from "./SectionHeader";
 import api from "../../api";
 import { notify } from "../../utils/swal";
 import { formatDate } from "../../utils/dates";
+import { transportStatusLabel } from "../../utils/transportStatus";
 
 // ─── Load stop and driver tables ──────────────────────────────────────────────
 // Driver Payments, Origin(s) and Destination(s): the three tables that say who
@@ -75,6 +76,10 @@ const driverPaymentRows = (load) => {
       via: leg?.fleetOwnerName || load.assignedFleetOwner?.fleetOwnerName || "",
       pickup: place(assignment.pickup) || place(leg?.origin) || place(load.pickup),
       destination: place(assignment.drop) || place(leg?.destination) || place(load.drop),
+      // This driver's own progress on their leg of the relay, falling back to the
+      // load's status for older rows that were saved before driver legs tracked
+      // their own status.
+      status: assignment.transportStatus || leg?.transportStatus || load.transportStatus,
       amount: isPaidDriver ? payroll.amount : undefined,
       paid: isPaidDriver ? Boolean(payroll.settledAt) : false,
     };
@@ -92,6 +97,7 @@ const driverPaymentRows = (load) => {
         via: "Carrier — no driver named yet",
         pickup: place(leg.origin) || place(load.pickup),
         destination: place(leg.destination) || place(load.drop),
+        status: leg.transportStatus,
         amount: leg.carrierRate,
         paid: payablesPaid,
       });
@@ -110,6 +116,7 @@ const driverPaymentRows = (load) => {
       via: payroll?.driverName ? carrier || "" : "Carrier — no driver named yet",
       pickup: place(load.pickup),
       destination: place(load.drop),
+      status: load.transportStatus,
       amount: payroll?.driverName ? payroll.amount : load.vendorRate,
       paid: payroll?.driverName ? Boolean(payroll.settledAt) : payablesPaid,
     },
@@ -250,6 +257,7 @@ export const DriverPaymentsTable = ({ load, editable = false }) => {
               <th className="px-4 py-3 text-left font-bold">Driver Name</th>
               <th className="px-4 py-3 text-left font-bold">Pickup Location</th>
               <th className="px-4 py-3 text-left font-bold">Destination</th>
+              <th className="px-4 py-3 text-left font-bold">Leg Status</th>
               <th className="px-4 py-3 text-left font-bold w-44">Driver Amount</th>
               <th className="px-4 py-3 text-left font-bold w-48">Payment Status</th>
             </tr>
@@ -257,7 +265,7 @@ export const DriverPaymentsTable = ({ load, editable = false }) => {
           <tbody className="divide-y divide-gray-100">
             {rows.length === 0 && (
               <tr>
-                <td colSpan="5" className="px-4 py-8 text-center text-gray-400 italic">
+                <td colSpan="6" className="px-4 py-8 text-center text-gray-400 italic">
                   Nobody assigned to this load yet
                 </td>
               </tr>
@@ -281,6 +289,16 @@ export const DriverPaymentsTable = ({ load, editable = false }) => {
                     <p className="font-medium text-gray-800">{row.destination?.title || "—"}</p>
                     {row.destination?.sub && (
                       <p className="text-xs text-gray-600">{row.destination.sub}</p>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    {row.status ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 whitespace-nowrap">
+                        {transportStatusLabel(row.status)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
                     )}
                   </td>
 

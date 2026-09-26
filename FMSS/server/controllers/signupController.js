@@ -8,6 +8,7 @@ const FleetOwner = require("../models/FleetOwner");
 const Branch = require("../models/Branch");
 const Address = require("../models/common/Address");
 const { generatePassword } = require("../utils/credentials");
+const { createAddressRef } = require("../utils/addressRef");
 const {
   sendCustomerCredentials,
   sendFleetOwnerCredentials,
@@ -233,6 +234,16 @@ const createCarrierAccount = async (request, password, session) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const address = request.address || {};
 
+  // FleetOwner.addresses holds Address references, not embedded objects — build
+  // the Address document first and store its id, the same way the client path
+  // above does. Pushing the raw object here is what made approval fail with a
+  // "Cast to [ObjectId] failed" error.
+  const addressId = await createAddressRef(
+    address,
+    { locationId: request.locationId },
+    session,
+  );
+
   const [user] = await User.create(
     [
       {
@@ -267,14 +278,7 @@ const createCarrierAccount = async (request, password, session) => {
         phone: request.phone,
         mcLicense: request.mcLicense,
         dotLicense: request.dotLicense,
-        addresses: [
-          {
-            street: address.street,
-            city: address.city,
-            state: address.state,
-            zip: address.zip,
-          },
-        ],
+        addresses: addressId ? [addressId] : [],
         contactPersons: [],
       },
     ],

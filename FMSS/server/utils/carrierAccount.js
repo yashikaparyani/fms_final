@@ -236,6 +236,49 @@ const legView = (load, fleetOwnerId) => {
   };
 };
 
+/** A driver's own leg of a relay, the one still running, else their first. */
+const myDriverLegOf = (load, driverId) => {
+  const theirs = (load?.driverAssignments || []).filter(
+    (l) => String(l.driver?._id || l.driver) === String(driverId) && !!l.transportStatus,
+  );
+  return theirs.find((l) => !LEG_DONE.includes(l.transportStatus)) || theirs[0] || null;
+};
+
+/**
+ * A load as one *driver* on it should see it, when a single carrier runs it as a
+ * relay of its own drivers. Same idea as legView for carrier legs: the driver
+ * sees their own stretch — its two ends, its status and its timeline — not the
+ * load's original ends, so the yard-to-door driver is not sent to the port the
+ * first driver already collected from. A driver-leg pickup/drop is what was typed
+ * for the handover; it has no load stop behind it.
+ */
+const driverLegView = (load, driverId) => {
+  const leg = myDriverLegOf(load, driverId);
+  if (!leg) return { myDriverLeg: null };
+
+  const asStop = (point) =>
+    point && (point.address || point.city || point.state || point.zip)
+      ? {
+          company: point.company || "",
+          address: point.address || "",
+          city: point.city || "",
+          state: point.state || "",
+          zip: point.zip || "",
+        }
+      : null;
+
+  const pickup = asStop(leg.pickup);
+  const drop = asStop(leg.drop);
+
+  return {
+    myDriverLeg: leg,
+    transportStatus: leg.transportStatus,
+    transportStatusHistory: leg.transportStatusHistory || [],
+    ...(pickup ? { pickup, pickups: [pickup] } : {}),
+    ...(drop ? { drop, drops: [drop] } : {}),
+  };
+};
+
 /** A load with that figure attached, for the carrier-facing endpoints. */
 const carrierLoadView = (load, fleetOwnerId, bid) => {
   const plain = load?.toObject ? load.toObject() : { ...load };
@@ -254,6 +297,7 @@ module.exports = {
   carrierPayoutFor,
   carrierLoadView,
   legView,
+  driverLegView,
   carrierLoadFilter,
   carrierVisibleLoadFilter,
   CARRIER_HIDDEN_TRANSPORT_STATUSES,

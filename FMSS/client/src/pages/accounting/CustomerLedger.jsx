@@ -175,6 +175,15 @@ const CustomerLedger = () => {
 
   // ── One customer's account ──────────────────────────────────────────────────
   if (selected) {
+    // A voided invoice is struck from the record — it is not money the customer
+    // owes and must not appear on their statement or in this outstanding list.
+    // The header count and the footer total already exclude VOID (they are built
+    // from the `open`/`live` sets on the server), so the table showed a voided
+    // load with an open balance while the totals ignored it. Drop it here too so
+    // the rows agree with the totals above and below them.
+    const billedInvoices = (ledger?.invoices || []).filter(
+      (invoice) => invoice.status !== "VOID",
+    );
     return (
       <div className={uiStyles.page}>
         <button
@@ -281,7 +290,7 @@ const CustomerLedger = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {!ledger.invoices.length && (
+                    {!billedInvoices.length && (
                       <tr>
                         <td colSpan={6} className="py-8 text-center text-ink-400">
                           Nothing has been billed to this customer yet.
@@ -289,7 +298,7 @@ const CustomerLedger = () => {
                       </tr>
                     )}
 
-                    {ledger.invoices.map((invoice) => (
+                    {billedInvoices.map((invoice) => (
                       <tr
                         key={invoice._id}
                         onClick={() => navigate(`../accounting/invoices/${invoice._id}`)}
@@ -343,7 +352,7 @@ const CustomerLedger = () => {
                     ))}
                   </tbody>
 
-                  {ledger.invoices.length ? (
+                  {billedInvoices.length ? (
                     <tfoot>
                       <tr className="border-t-2 border-ink-400">
                         <td className="py-2 pr-3 font-bold uppercase text-ink-900" colSpan={4}>
@@ -372,7 +381,7 @@ const CustomerLedger = () => {
         <ReceivePaymentDialog
           open={receiving}
           customerName={ledger?.customer?.name || selected.customerName}
-          invoices={ledger?.invoices || []}
+          invoices={billedInvoices}
           onClose={() => setReceiving(false)}
           onRecorded={async () => {
             setPaymentsKey((n) => n + 1);

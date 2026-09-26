@@ -164,6 +164,62 @@ describe("PUT /api/loads/:loadId/assignments", () => {
     expect(res.body.message).toMatch(/at least one carrier/i);
   });
 
+  it("moves a parked load back to transit when its one carrier is reassigned it", async () => {
+    // The carrier dropped the box in the yard, then the office hands the whole
+    // load straight back to that same carrier to move onward. It must leave the
+    // yard status and return to All Transit, not inherit LOADED_IN_YARD and roll
+    // straight back into it — the bug that stranded LD 0008.
+    await seed(async () => {
+      const doc = await Load.findOne({ loadId: "LD-9001" });
+      doc.assignedFleetOwner = {
+        fleetOwnerId: portToYard._id,
+        fleetOwnerName: portToYard.carrierName,
+      };
+      doc.status = "ASSIGNED";
+      doc.transportStatus = "LOADED_IN_YARD";
+      await doc.save();
+    });
+
+    const res = await assign({
+      assignments: [
+        {
+          fleetOwnerId: String(portToYard._id),
+          origin: { source: "STOP", stopIndex: 0 },
+          destination: { source: "CUSTOM", company: "Acme", city: "Reno", state: "NV" },
+        },
+      ],
+    });
+
+    expect(res.statusCode).toEqual(200);
+    expect(res.body.load.transportStatus).toEqual("ASSIGNED");
+    expect(res.body.load.assignments[0].transportStatus).toEqual("ASSIGNED");
+  });
+
+  it("still inherits a parked leg on a genuine handover split", async () => {
+    // Two carriers: the first dropped it at the yard (their leg is done there),
+    // the second collects. The first leg keeps its finished-at-yard status while
+    // the load rolls up to the second, running, leg.
+    await seed(async () => {
+      const doc = await Load.findOne({ loadId: "LD-9001" });
+      doc.assignedFleetOwner = {
+        fleetOwnerId: portToYard._id,
+        fleetOwnerName: portToYard.carrierName,
+      };
+      doc.status = "ASSIGNED";
+      doc.transportStatus = "LOADED_IN_YARD";
+      await doc.save();
+    });
+
+    const res = await assign(bodyForTwo());
+
+    expect(res.statusCode).toEqual(200);
+    // Load moves onto the board because the collecting leg is running.
+    expect(res.body.load.transportStatus).toEqual("ASSIGNED");
+    // The first carrier's leg is still recorded as finished at the yard.
+    expect(res.body.load.assignments[0].transportStatus).toEqual("LOADED_IN_YARD");
+    expect(res.body.load.assignments[1].transportStatus).toEqual("ASSIGNED");
+  });
+
   it("keeps progress on a leg that survives an edit", async () => {
     const first = await assign(bodyForTwo());
     const legs = first.body.load.assignments;
