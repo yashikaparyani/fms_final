@@ -27,10 +27,75 @@
 // zone, and nothing ever reaches a date input via toISOString().
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Where the business keeps its clock. Every instant is shown in this zone, so a
-// dispatcher in Newark and a developer in Pune reading the same audit trail see
-// the same times and can talk about them without converting.
-export const BUSINESS_TIME_ZONE = "America/New_York";
+// ── The clock every instant is shown on ──────────────────────────────────────
+// This is the viewer's own timezone, taken from their device at sign-in — the
+// same thing their computer's clock shows. A dispatcher in California sees
+// Pacific time, one on the East Coast sees Eastern, and the header names which,
+// so "3:00 PM" on a load is never ambiguous. Nothing is hardcoded to one US zone
+// any more: the zone is resolved at runtime and can be set from the account.
+//
+// Calendar dates (a pickup date, a due date — a day with no time) are still read
+// in UTC, deliberately: "15 March" is 15 March everywhere and must not shift by
+// who is looking. Only INSTANTS (a time on the clock — createdAt, a tracking
+// ping, a bid deadline) follow this zone.
+
+// Used only when the device cannot be read (very old browsers) — a sane US
+// default rather than throwing.
+const DEFAULT_TIME_ZONE = "America/New_York";
+
+/** The device's IANA timezone, e.g. "America/Los_Angeles". */
+const deviceTimeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+};
+
+const isValidZone = (tz) => {
+  if (!tz) return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Resolved once at load from what was captured at the last sign-in, falling back
+// to the device. setActiveTimeZone (called on sign-in) keeps it and localStorage
+// in step so a reload shows the same clock before login runs again.
+let activeTimeZone = (() => {
+  try {
+    const saved = localStorage.getItem("timeZone");
+    if (isValidZone(saved)) return saved;
+  } catch {
+    /* private mode / blocked storage */
+  }
+  return deviceTimeZone();
+})();
+
+/** The timezone every instant in the app is currently shown in. */
+export const getActiveTimeZone = () => activeTimeZone;
+
+/** Capture the device's timezone as the active one — call this on sign-in. */
+export const captureDeviceTimeZone = () => setActiveTimeZone(deviceTimeZone());
+
+/** Set the active timezone (validated) and remember it across reloads. */
+export const setActiveTimeZone = (tz) => {
+  if (!isValidZone(tz)) return activeTimeZone;
+  activeTimeZone = tz;
+  try {
+    localStorage.setItem("timeZone", tz);
+  } catch {
+    /* storage may be unavailable; the in-memory value still applies */
+  }
+  return activeTimeZone;
+};
+
+// Back-compat: older imports expect a constant. It now names the *default*, not
+// the active zone — new code calls getActiveTimeZone() instead.
+export const BUSINESS_TIME_ZONE = DEFAULT_TIME_ZONE;
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -63,7 +128,7 @@ export const toDateKey = (value) => {
 
   // en-CA is ISO-ordered — "2026-03-15" — which is what a date input wants.
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: isUtcMidnight ? "UTC" : BUSINESS_TIME_ZONE,
+    timeZone: isUtcMidnight ? "UTC" : getActiveTimeZone(),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -92,7 +157,7 @@ export const calendarDate = (value) => {
 const zoneParts = (date) =>
   Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
-      timeZone: BUSINESS_TIME_ZONE,
+      timeZone: getActiveTimeZone(),
       hourCycle: "h23",
       year: "numeric",
       month: "2-digit",
@@ -213,18 +278,18 @@ export const formatDateShort = (value, { fallback = "—" } = {}) => {
 };
 
 /**
- * An instant on the US business clock: "Mar 15, 2026, 3:42 PM EDT".
+ * An instant on the viewer's own clock: "Mar 15, 2026, 3:42 PM PDT".
  *
- * The zone abbreviation is not decoration. Without it a timestamp is a number
- * two people in different places read as two different moments, which is exactly
- * what pinning the zone was meant to stop.
+ * The zone abbreviation is not decoration — it names which clock the time is on,
+ * so a person on Pacific and one on Eastern reading the same timestamp each know
+ * what it means to them.
  */
 export const formatDateTime = (value, { fallback = "—", seconds = false } = {}) => {
   const date = toDate(value);
   if (!date) return fallback;
 
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: BUSINESS_TIME_ZONE,
+    timeZone: getActiveTimeZone(),
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -235,13 +300,13 @@ export const formatDateTime = (value, { fallback = "—", seconds = false } = {}
   }).format(date);
 };
 
-/** Just the clock part of an instant: "3:42 PM EDT". */
+/** Just the clock part of an instant, on the viewer's zone: "3:42 PM PDT". */
 export const formatTime = (value, { fallback = "—" } = {}) => {
   const date = toDate(value);
   if (!date) return fallback;
 
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: BUSINESS_TIME_ZONE,
+    timeZone: getActiveTimeZone(),
     hour: "numeric",
     minute: "2-digit",
     timeZoneName: "short",

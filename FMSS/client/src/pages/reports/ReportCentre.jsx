@@ -10,7 +10,7 @@ import { notify } from "../../utils/swal";
 import Swal from "sweetalert2";
 import { usePermissions } from "../../hooks/usePermissions";
 import {
-  BUSINESS_TIME_ZONE,
+  getActiveTimeZone,
   todayKey as today,
   startOfMonthKey as startOfMonth,
 } from "../../utils/dates";
@@ -127,10 +127,10 @@ const ReportCentre = () => {
 
   const queryFor = useCallback(() => {
     const accepted = definition?.filters || [];
-    // The dates on the pickers are US business days. Sent so the server cuts
-    // the range on the same midnight whoever runs the report, wherever they are.
+    // The dates on the pickers are the viewer's own days. Sent so the server
+    // cuts the range on the midnight the person running the report actually sees.
     const params = {
-      tz: BUSINESS_TIME_ZONE,
+      tz: getActiveTimeZone(),
     };
 
     if (accepted.includes("dateRange")) {

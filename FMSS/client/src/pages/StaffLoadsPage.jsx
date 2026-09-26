@@ -7,7 +7,7 @@ import AppSelect from "../components/AppSelect";
 import { uiStyles } from "../style/uiStyles";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useDispatchActions } from "../hooks/useDispatchActions";
-import { BUSINESS_TIME_ZONE, formatDate, toDateKey } from "../utils/dates";
+import { getActiveTimeZone, formatDate, toDateKey } from "../utils/dates";
 
 const { LoadIdCell, CustomerCell, AddressCell, DateCell, StatusBadge } =
   LoadTable;
@@ -36,7 +36,7 @@ const StaffLoadsPage = () => {
   const fetchLoads = async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const tz = BUSINESS_TIME_ZONE;
+      const tz = getActiveTimeZone();
       // The LFD, pickup-day, accessorial and unassigned buckets carry their own
       // status scoping server-side, so each is requested on its own — mixing in
       // a transport-status tab would return a subset of the dashboard tile the

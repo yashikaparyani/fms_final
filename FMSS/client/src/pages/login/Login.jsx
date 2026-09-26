@@ -6,6 +6,7 @@ import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import { notify } from "../../utils/swal";
+import { captureDeviceTimeZone } from "../../utils/dates";
 import api from "../../api";
 
 /**
@@ -69,6 +70,11 @@ const Login = ({ allowedRole, showRegister = true, title }) => {
 
       localStorage.setItem("api_token", data.api_token);
       localStorage.setItem("user", JSON.stringify(data.user));
+
+      // Take the timezone from this device now, so every time in the app — the
+      // header clock, load times, the audit trail — is shown on the clock this
+      // person actually reads, whatever zone they are in.
+      captureDeviceTimeZone();
 
       dispatch(
         loginSuccess({
