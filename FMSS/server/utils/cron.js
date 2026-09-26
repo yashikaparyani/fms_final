@@ -12,6 +12,9 @@ const { sendDueReminders } = require("../services/reminderService");
 // Nudges the office about delivered loads nobody has moved on to paperwork —
 // see services/paperworkService.js.
 const { remindDeliveredLoads } = require("../services/paperworkService");
+// Chases the office, carriers and drivers about insurance about to lapse —
+// see services/insuranceReminderService.js.
+const { remindExpiringInsurance } = require("../services/insuranceReminderService");
 
 const startCronJobs = () => {
   // Run every minute.
@@ -191,8 +194,28 @@ const startCronJobs = () => {
     }
   });
 
+  // ── Insurance expiry reminders ────────────────────────────────────────────
+  // Once a day at 09:00, alongside the other daily chasers. A policy inside its
+  // last 10 days is chased every day — the office, the carrier and their drivers
+  // all told in-app — and the reminder turns red inside the final 3 days and
+  // once it has lapsed. Runs unscoped inside the service: insurance spans every
+  // branch and this sweep runs outside any request.
+  cron.schedule("0 9 * * *", async () => {
+    try {
+      const result = await remindExpiringInsurance();
+      if (result.created) {
+        console.log(
+          `Insurance reminders: ${result.created} notification(s) for ${result.carriersNotified} carrier(s) ` +
+            `(of ${result.considered} with insurance on file).`,
+        );
+      }
+    } catch (error) {
+      console.error("Insurance reminder sweep failed:", error.message);
+    }
+  });
+
   console.log(
-    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue, payment reminders, paperwork reminders).",
+    "Cron jobs initialized (auto-open bids, auto-close & select winner, instant dispatch expiry, WhatsApp queue, payment reminders, paperwork reminders, insurance expiry reminders).",
   );
 };
 

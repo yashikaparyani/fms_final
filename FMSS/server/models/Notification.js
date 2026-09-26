@@ -51,8 +51,28 @@ const notificationSchema = new mongoose.Schema(
         // The carrier's insurance agency has filed certificates, or replaced
         // the certificate on file — the office's cue to review the onboarding.
         "INSURANCE_FILED",
+        // A carrier's insurance is within its last 10 days before expiry — the
+        // office, the carrier and their drivers are told to get it revised. Turns
+        // urgent (red) at 3 days. See services/insuranceReminderService.js.
+        "INSURANCE_EXPIRING",
       ],
       required: true,
+    },
+
+    // How loud this notification is. URGENT is shown in red — used for an
+    // insurance policy inside its last 3 days. Everything else is INFO.
+    severity: {
+      type: String,
+      enum: ["INFO", "URGENT"],
+      default: "INFO",
+    },
+
+    // The carrier a non-load notification is about (insurance reminders), so the
+    // same reminder is not raised twice in a day and the recipient can be sent
+    // to the right onboarding file.
+    fleetOwner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FleetOwner",
     },
 
     title: {

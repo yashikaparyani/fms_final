@@ -25,6 +25,11 @@ const TYPE_STYLE = {
   PAPERWORK_SUBMITTED:         { dot: "#1565c0", pill: "bg-blue-100 text-blue-800" },
   PAPERWORK_CHANGES_REQUESTED: { dot: "#be123c", pill: "bg-rose-100 text-rose-800" },
   PAPERWORK_APPROVED:          { dot: "#15803d", pill: "bg-green-100 text-green-800" },
+
+  // Insurance expiry: amber while there is still time, red once urgent — the
+  // urgent colour is driven by severity below, not by the type.
+  INSURANCE_FILED:             { dot: "#1565c0", pill: "bg-blue-100 text-blue-800" },
+  INSURANCE_EXPIRING:          { dot: "#b45309", pill: "bg-amber-100 text-amber-800" },
 };
 
 // The ones that are about one load's documents. Clicking any of them has to
@@ -39,8 +44,15 @@ const PAPERWORK_TYPES = new Set([
   "PAPERWORK_APPROVED",
 ]);
 
-const getStyle = (type) =>
-  TYPE_STYLE[type] || { dot: "#888", pill: "bg-gray-100 text-gray-600" };
+// An URGENT notification (an insurance policy inside its last 3 days, or already
+// lapsed) is shown in red whatever its type — the one state that must not be
+// scrolled past.
+const URGENT_STYLE = { dot: "#dc2626", pill: "bg-red-100 text-red-800" };
+
+const getStyle = (notification) =>
+  notification.severity === "URGENT"
+    ? URGENT_STYLE
+    : TYPE_STYLE[notification.type] || { dot: "#888", pill: "bg-gray-100 text-gray-600" };
 
 const relativeTime = (date) => {
   const diff = Date.now() - new Date(date).getTime();
@@ -187,13 +199,20 @@ const NotificationBell = ({ isOpen, onToggle }) => {
             ) : (
               <>
                 {notifications.map((n) => {
-                  const s = getStyle(n.type);
+                  const s = getStyle(n);
+                  const urgent = n.severity === "URGENT";
                   return (
                     <div
                       key={n._id}
                       onClick={() => handleItemClick(n)}
                       className={`flex gap-3 px-4 py-3 border-b border-gray-50 cursor-pointer transition-colors group
-                        ${n.isRead ? "hover:bg-gray-50" : "bg-blue-50/40 hover:bg-blue-50"}`}
+                        ${
+                          urgent
+                            ? "border-l-4 border-l-red-500 bg-red-50 hover:bg-red-100"
+                            : n.isRead
+                              ? "hover:bg-gray-50"
+                              : "bg-blue-50/40 hover:bg-blue-50"
+                        }`}
                     >
                       {/* Dot */}
                       <div className="pt-1 shrink-0">
@@ -205,7 +224,13 @@ const NotificationBell = ({ isOpen, onToggle }) => {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-[15px] leading-snug mb-0.5 ${n.isRead ? "font-normal text-gray-700" : "font-medium text-gray-900"}`}>
+                        <p className={`text-[15px] leading-snug mb-0.5 ${
+                          urgent
+                            ? "font-semibold text-red-800"
+                            : n.isRead
+                              ? "font-normal text-gray-700"
+                              : "font-medium text-gray-900"
+                        }`}>
                           {n.title}
                         </p>
                         <p className="text-xs text-gray-500 leading-relaxed mb-1.5 line-clamp-2">
