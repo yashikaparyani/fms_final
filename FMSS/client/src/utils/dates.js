@@ -144,7 +144,25 @@ export const calendarDate = (value) => {
     return new Date(`${value}T00:00:00.000Z`);
   }
   const key = toDateKey(value);
-  return key ? new Date(`${key}T00:00:00.000Z`) : null;
+  if (!key) return null;
+  // A date whose year is not four digits (bad data — a load once got year 0002)
+  // formats to a key like "2-09-26", which re-parses to an Invalid Date. Return
+  // null so callers fall back cleanly instead of handing Intl an invalid value,
+  // which throws "RangeError: Invalid time value" and blanks the whole page.
+  const rebuilt = new Date(`${key}T00:00:00.000Z`);
+  return Number.isNaN(rebuilt.getTime()) ? null : rebuilt;
+};
+
+// Format `date` with `fmt`, or return `fallback` if the date is invalid — Intl's
+// `.format()` throws "RangeError: Invalid time value" on an Invalid Date, and a
+// single bad date must never take the whole screen down with it.
+const safeFormat = (fmt, date, fallback) => {
+  if (!date || Number.isNaN(date.getTime?.() ?? NaN)) return fallback;
+  try {
+    return fmt.format(date);
+  } catch {
+    return fallback;
+  }
 };
 
 // ── Date-and-time inputs ──────────────────────────────────────────────────────
@@ -244,12 +262,16 @@ export const formatDate = (value, { fallback = "—" } = {}) => {
   const date = toDate(value);
   if (!date) return fallback;
 
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(calendarDate(date));
+  return safeFormat(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    calendarDate(date),
+    fallback,
+  );
 };
 
 /** "03/15/2026" — the numeric US form, for tables that need the width. */
@@ -257,12 +279,16 @@ export const formatDateNumeric = (value, { fallback = "—" } = {}) => {
   const date = toDate(value);
   if (!date) return fallback;
 
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  }).format(calendarDate(date));
+  return safeFormat(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    }),
+    calendarDate(date),
+    fallback,
+  );
 };
 
 /** "Mar 15" — for dense rows where the year is obvious from context. */
@@ -270,11 +296,15 @@ export const formatDateShort = (value, { fallback = "—" } = {}) => {
   const date = toDate(value);
   if (!date) return fallback;
 
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "short",
-    day: "numeric",
-  }).format(calendarDate(date));
+  return safeFormat(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+    }),
+    calendarDate(date),
+    fallback,
+  );
 };
 
 /**
@@ -288,16 +318,20 @@ export const formatDateTime = (value, { fallback = "—", seconds = false } = {}
   const date = toDate(value);
   if (!date) return fallback;
 
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: getActiveTimeZone(),
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    ...(seconds ? { second: "2-digit" } : {}),
-    timeZoneName: "short",
-  }).format(date);
+  return safeFormat(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: getActiveTimeZone(),
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      ...(seconds ? { second: "2-digit" } : {}),
+      timeZoneName: "short",
+    }),
+    date,
+    fallback,
+  );
 };
 
 /** Just the clock part of an instant, on the viewer's zone: "3:42 PM PDT". */
@@ -305,12 +339,16 @@ export const formatTime = (value, { fallback = "—" } = {}) => {
   const date = toDate(value);
   if (!date) return fallback;
 
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: getActiveTimeZone(),
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
+  return safeFormat(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: getActiveTimeZone(),
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }),
+    date,
+    fallback,
+  );
 };
 
 /**
