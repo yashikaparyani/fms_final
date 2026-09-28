@@ -5,8 +5,7 @@ const FleetOwner = require("../models/FleetOwner");
 const { runUnscoped } = require("../utils/tenantContext");
 const {
   catalog: insuranceCatalog,
-  shortfallsFor,
-  missingRequired,
+  shortfallsForFiling,
   COVERAGE_BY_KEY,
 } = require("../config/insuranceCoverages");
 const {
@@ -374,16 +373,10 @@ const submitPublicInsurance = async (req, res) => {
     policies.forEach((p) => byCoverage.set(p.coverage, p));
     const deduped = [...byCoverage.values()];
 
-    // Shortfalls are recorded, not rejected. An agency filing a genuine policy
-    // that happens to sit below the contractual limit needs the filing to land
-    // so the office can see it and decide; blocking it means the office never
-    // learns the limit is short.
-    const shortfalls = [
-      ...deduped.flatMap((p) => shortfallsFor(p)),
-      ...missingRequired(deduped).map(
-        (label) => `${label}: no policy has been filed for this required cover.`,
-      ),
-    ];
+    // Recorded, never rejected — and now only an expired policy is flagged; see
+    // shortfallsFor. Required cover that has not been filed is not repeated
+    // here: it already shows as an outstanding step on the onboarding file.
+    const shortfalls = shortfallsForFiling(deduped);
 
     onboarding.insurance = onboarding.insurance || {};
     onboarding.insurance.policies = deduped;
@@ -491,7 +484,7 @@ const uploadPublicCertificate = async (req, res) => {
     // keyed, which may have happened days earlier.
     await announceFiling(onboarding, {
       policyCount: (onboarding.insurance.policies || []).length,
-      shortfalls: onboarding.insurance.shortfalls || [],
+      shortfalls: shortfallsForFiling(onboarding.insurance.policies),
       certificateOnly: true,
     });
 

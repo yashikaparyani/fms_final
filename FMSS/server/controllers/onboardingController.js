@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const { getJwtSecret } = require("../utils/jwtSecret");
 const { frontendUrl } = require("../utils/frontendUrl");
-const { runUnscoped } = require("../utils/tenantContext");
+const { runUnscoped, narrowToLocation } = require("../utils/tenantContext");
 
 const CarrierOnboarding = require("../models/CarrierOnboarding");
 const FleetOwner = require("../models/FleetOwner");
@@ -22,6 +22,7 @@ const {
 const {
   catalog: insuranceCatalog,
   missingRequired,
+  shortfallsForFiling,
 } = require("../config/insuranceCoverages");
 // The carrier gets the counterparty's own fifteen-page document with its
 // blanks filled, not a summary of it — see services/agreementOverlayService.
@@ -102,11 +103,15 @@ const resolveCarrier = async (req, requestedId) => {
   }
 
   const carrier = await FleetOwner.findById(id).select(
-    "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId",
+    "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId locationId",
   );
   if (!carrier) {
     throw Object.assign(new Error("Carrier not found at this location."), { status: 404 });
   }
+  // An admin viewing all locations works in this carrier's own branch from here
+  // on, so saving equipment, drivers and licences is not refused — see
+  // narrowToLocation.
+  narrowToLocation(req, carrier.locationId);
   return carrier;
 };
 
@@ -310,7 +315,9 @@ const toPayload = (onboarding, { carrier, drivers }) => ({
     submittedAt: onboarding.insurance?.submittedAt || null,
     submittedByName: onboarding.insurance?.submittedByName || "",
     policies: onboarding.insurance?.policies || [],
-    shortfalls: onboarding.insurance?.shortfalls || [],
+    // Worked out again from the filed policies under the current rules, so a
+    // filing made before the checks were relaxed stops showing the old warnings.
+    shortfalls: shortfallsForFiling(onboarding.insurance?.policies),
     // The certificate of insurance — one document for the filing. Metadata
     // only; the path is never exposed, and /api/insurance/certificate is the
     // only way to the file. Null until the agency attaches one.
@@ -1081,7 +1088,7 @@ const getOnboardingQueue = async (req, res) => {
           insuranceSubmittedAt: file.insurance?.submittedAt || null,
           insuranceAgent: file.insurance?.agencyName || file.insurance?.agentEmail || "",
           policyCount: (file.insurance?.policies || []).length,
-          shortfalls: (file.insurance?.shortfalls || []).length,
+          shortfalls: shortfallsForFiling(file.insurance?.policies).length,
           // Same list the carrier is shown on their own Review step, so the
           // office and the carrier are never looking at different answers to
           // "what is this file waiting on".

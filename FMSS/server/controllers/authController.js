@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const { deleteAccount, SELF_DELETABLE_ROLES } = require("../services/accountDeletion");
 const Customer = require("../models/Customer");
 const Address = require("../models/common/Address");
 const FleetOwner = require("../models/FleetOwner");
@@ -727,6 +728,50 @@ const changePassword = async (req, res) => {
   }
 };
 
+// @desc    Delete (anonymize) the caller's own account
+// @route   POST /api/auth/delete-account
+// @access  Private — customers, carriers and drivers
+//
+// Needs the current password, for the same reason changePassword does: a
+// session left open in a borrowed browser must not be enough to destroy the
+// account. And the word DELETE, so it cannot happen by a stray tap.
+// What it does is described in services/accountDeletion.js.
+const deleteMyAccount = async (req, res) => {
+  try {
+    if (!SELF_DELETABLE_ROLES.includes(req.user.role)) {
+      return res.status(403).json({
+        message: "Staff and admin accounts are removed by an administrator, not deleted from here.",
+      });
+    }
+
+    if (String(req.body.confirm || "").trim().toUpperCase() !== "DELETE") {
+      return res.status(400).json({ message: 'Type DELETE to confirm.' });
+    }
+
+    const password = String(req.body.password || "");
+    if (!password) {
+      return res.status(400).json({ message: "Enter your password to confirm." });
+    }
+
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user?.password || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: "That is not your password." });
+    }
+
+    await deleteAccount(user._id);
+
+    res.json({
+      message: "Your account has been deleted. We are sorry to see you go.",
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      message: error.message,
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.loadId ? { loadId: error.loadId } : {}),
+    });
+  }
+};
+
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
@@ -761,6 +806,7 @@ const getMe = async (req, res) => {
 
 module.exports = {
   changePassword,
+  deleteMyAccount,
   createStaff,
   registerCustomer,
   createCustomerByStaff,

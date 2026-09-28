@@ -458,6 +458,17 @@ const CarrierOnboardingReview = () => {
         icon={LocalShippingOutlinedIcon}
         title="Equipment on Appendix A"
         subtitle="What the carrier is putting into service under the contractor agreement."
+        right={
+          // Trucks and trailers are edited on the carrier's own form, against
+          // this carrier — the Agreements step holds Appendix A.
+          <Link
+            to={`${base}/carrier-onboarding?fleetOwnerId=${fleetOwnerId}&step=agreements`}
+            className="btn-secondary whitespace-nowrap"
+          >
+            <EditOutlinedIcon fontSize="small" />
+            {file.equipment.length ? "Edit equipment" : "Add equipment"}
+          </Link>
+        }
       >
         {file.equipment.length === 0 ? (
           <p className="text-sm text-gray-500 py-4 text-center">
@@ -500,6 +511,26 @@ const CarrierOnboardingReview = () => {
         icon={BadgeOutlinedIcon}
         title="Drivers and licences"
         subtitle="Both agreements warrant every driver is competent and properly licensed. Open each licence and check it against the details typed here."
+        right={
+          <div className="flex flex-wrap gap-2">
+            {/* The Drivers screen, opened on this carrier: add drivers and
+                edit their details and licence numbers. */}
+            <Link
+              to={`${base}/drivers?fleetOwnerId=${fleetOwnerId}`}
+              className="btn-secondary whitespace-nowrap"
+            >
+              <EditOutlinedIcon fontSize="small" />
+              {file.drivers.length ? "Edit drivers" : "Add drivers"}
+            </Link>
+            {/* The licence scans are uploaded on the carrier's own form. */}
+            <Link
+              to={`${base}/carrier-onboarding?fleetOwnerId=${fleetOwnerId}&step=drivers`}
+              className="btn-secondary whitespace-nowrap"
+            >
+              <BadgeOutlinedIcon fontSize="small" /> Upload licences
+            </Link>
+          </div>
+        }
       >
         {file.drivers.length === 0 ? (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -647,7 +678,7 @@ const CarrierOnboardingReview = () => {
         {file.insurance.shortfalls?.length > 0 && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
             <p className="text-sm font-semibold text-red-900 mb-1">
-              Flagged against the contractual minimums when it was filed
+              Expired policy on file
             </p>
             <ul className="text-xs text-red-800 list-disc pl-5 space-y-0.5">
               {file.insurance.shortfalls.map((s) => (

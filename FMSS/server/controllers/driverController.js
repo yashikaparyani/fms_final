@@ -6,6 +6,7 @@ const User = require("../models/User");
 const Load = require("../models/Load");
 const TrackingEvent = require("../models/TrackingEvent");
 const { findCarrierFor } = require("../utils/carrierAccount");
+const { narrowToLocation } = require("../utils/tenantContext");
 const { sendDriverCredentials } = require("../services/emailService");
 const {
   generatePassword,
@@ -109,13 +110,17 @@ const resolveCarrierScope = async (req, { requestedId } = {}) => {
 
   // Tenant-scoped, so this also proves the carrier belongs to the active
   // location — a staff member cannot manage another branch's carrier.
-  const carrier = await FleetOwner.findById(id).select("_id carrierName userId");
+  const carrier = await FleetOwner.findById(id).select("_id carrierName userId locationId");
 
   if (!carrier) {
     throw Object.assign(new Error("Carrier not found at this location."), {
       status: 404,
     });
   }
+
+  // An admin viewing all locations works in this carrier's own branch from
+  // here on, so adding a driver is not refused — see narrowToLocation.
+  narrowToLocation(req, carrier.locationId);
 
   return carrier;
 };

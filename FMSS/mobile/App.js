@@ -5194,9 +5194,105 @@ function LoadListTab({ params, emptyText, onOpenDetail }) {
   );
 }
 
+/**
+ * Delete your own account — carriers and drivers on the app. The server
+ * anonymizes rather than erases (see services/accountDeletion.js): the login
+ * closes and personal details are wiped, while past loads and payments stay in
+ * the records. It asks for the password and the word DELETE, the same as the
+ * website, so it cannot happen by a stray tap.
+ */
+function DeleteAccountModal({ visible, isCarrier, onClose, onDeleted }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const close = () => {
+    setPassword("");
+    setConfirm("");
+    setError("");
+    onClose();
+  };
+
+  const ready = password && confirm.trim().toUpperCase() === "DELETE";
+
+  const submit = async () => {
+    setError("");
+    setSaving(true);
+    try {
+      await api.post("/auth/delete-account", { password, confirm });
+      setPassword("");
+      setConfirm("");
+      Alert.alert("Account deleted", "Your account has been deleted. We are sorry to see you go.");
+      onDeleted();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Could not delete your account.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+      <View style={styles.deleteBackdrop}>
+        <View style={styles.deleteCard}>
+          <Text style={styles.deleteTitle}>Delete your account</Text>
+          <Text style={styles.deleteBody}>
+            This cannot be undone. You will be signed out and will not be able to
+            sign in again. Your name, email, phone and contact details are removed.
+            {isCarrier ? " Your drivers' logins are closed too, and open bids are withdrawn." : ""}
+            {" "}Past loads and payments are kept in our records. A load still in
+            progress has to be finished first.
+          </Text>
+
+          <Text style={styles.deleteLabel}>Your password</Text>
+          <TextInput
+            style={styles.deleteInput}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            editable={!saving}
+          />
+
+          <Text style={styles.deleteLabel}>Type DELETE to confirm</Text>
+          <TextInput
+            style={styles.deleteInput}
+            value={confirm}
+            onChangeText={setConfirm}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            editable={!saving}
+          />
+
+          {error ? <Text style={styles.deleteError}>{error}</Text> : null}
+
+          <View style={styles.deleteActions}>
+            <Pressable onPress={close} disabled={saving} style={styles.deleteCancel}>
+              <Text style={styles.deleteCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={submit}
+              disabled={saving || !ready}
+              style={[styles.deleteConfirm, (saving || !ready) && { opacity: 0.5 }]}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.deleteConfirmText}>Delete my account</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 /** Account screen behind the More tab. */
 function MoreScreen({ session, theme, onLogout, onOpen, isDriver }) {
   const user = session?.user || {};
+  const [deleting, setDeleting] = useState(false);
   return (
     <>
       <AppHeader theme={theme} eyebrow="Account" title="More" subtitle={user.email} />
@@ -5226,11 +5322,25 @@ function MoreScreen({ session, theme, onLogout, onOpen, isDriver }) {
             <Text style={styles.moreRowText}>Notifications</Text>
             <Icon name="chevron" size={16} color={colors.faint} />
           </Pressable>
-          <Pressable style={[styles.moreRow, styles.moreRowLast]} onPress={onLogout}>
+          <Pressable style={styles.moreRow} onPress={onLogout}>
             <Icon name="logout" size={18} color={colors.danger} />
             <Text style={[styles.moreRowText, { color: colors.danger }]}>Sign out</Text>
           </Pressable>
+          <Pressable style={[styles.moreRow, styles.moreRowLast]} onPress={() => setDeleting(true)}>
+            <Icon name="trash" size={18} color={colors.danger} />
+            <Text style={[styles.moreRowText, { color: colors.danger }]}>Delete account</Text>
+          </Pressable>
         </View>
+
+        <DeleteAccountModal
+          visible={deleting}
+          isCarrier={!isDriver}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => {
+            setDeleting(false);
+            onLogout();
+          }}
+        />
 
         <Text style={styles.apiHint}>
           {brand.name}
@@ -5859,6 +5969,41 @@ const styles = StyleSheet.create({
   },
   moreRowLast: { borderBottomWidth: 0 },
   moreRowText: { flex: 1, fontSize: 16, fontWeight: "700", color: colors.text },
+
+  // Delete-account dialog.
+  deleteBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  deleteCard: { backgroundColor: "#fff", borderRadius: 18, padding: 20 },
+  deleteTitle: { fontSize: 19, fontWeight: "900", color: colors.danger, marginBottom: 8 },
+  deleteBody: { fontSize: 14, lineHeight: 20, color: "#374151", marginBottom: 14 },
+  deleteLabel: { fontSize: 13, fontWeight: "700", color: "#4b5563", marginBottom: 6 },
+  deleteInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: "#111827",
+    marginBottom: 12,
+  },
+  deleteError: { color: colors.danger, fontSize: 13, fontWeight: "600", marginBottom: 10 },
+  deleteActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 4 },
+  deleteCancel: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10 },
+  deleteCancelText: { fontSize: 15, fontWeight: "700", color: "#4b5563" },
+  deleteConfirm: {
+    backgroundColor: colors.danger,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minWidth: 150,
+    alignItems: "center",
+  },
+  deleteConfirmText: { fontSize: 15, fontWeight: "800", color: "#fff" },
 
   centered: {
     flex: 1,

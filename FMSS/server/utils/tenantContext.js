@@ -53,4 +53,42 @@ const runUnscoped = (fn) => storage.run({ unscoped: true }, async () => await fn
 /** The active context, or null when running outside any. */
 const getTenantContext = () => storage.getStore() || null;
 
-module.exports = { runWithTenant, withTenant, runUnscoped, getTenantContext };
+/**
+ * Pin an "all locations" request to the one location a record belongs to.
+ *
+ * An admin browsing with no single location picked can read every branch, but
+ * creating anything is refused there — a new row has to be stamped with one
+ * location. When they then open a particular carrier and add a driver or save
+ * equipment, the right location is not in doubt: it is that carrier's. So the
+ * rest of the request runs as if they had picked it.
+ *
+ * Only ever narrows, and only to a location already in the request's own
+ * allowed set — it cannot reach a branch the user could not already see.
+ * Outside "all locations" mode it does nothing.
+ */
+const narrowToLocation = (req, locationId) => {
+  const store = storage.getStore();
+  if (!store?.allLocations || !locationId) return false;
+
+  const id = String(locationId);
+  if (!(store.locationIds || []).map(String).includes(id)) return false;
+
+  store.locationId = id;
+  store.locationIds = [id];
+  store.allLocations = false;
+
+  if (req) {
+    req.locationId = id;
+    req.locationIds = [id];
+    req.allLocations = false;
+  }
+  return true;
+};
+
+module.exports = {
+  runWithTenant,
+  withTenant,
+  runUnscoped,
+  getTenantContext,
+  narrowToLocation,
+};

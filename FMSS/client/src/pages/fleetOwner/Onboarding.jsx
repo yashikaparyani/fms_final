@@ -138,7 +138,12 @@ const Onboarding = () => {
   const [catalog, setCatalog] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState("agreements");
+  // `?step=` opens a given step — the office review page links straight to the
+  // one being corrected.
+  const [step, setStep] = useState(() => {
+    const wanted = searchParams.get("step");
+    return STEPS.some((s) => s.key === wanted) ? wanted : "agreements";
+  });
   const [saving, setSaving] = useState(false);
 
   const [profile, setProfile] = useState({});
@@ -1468,7 +1473,7 @@ const Onboarding = () => {
             {data.insurance.shortfalls?.length > 0 && (
               <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm font-semibold text-red-900 mb-1">
-                  These fall short of what the agreements require
+                  Expired policy on file
                 </p>
                 <ul className="text-xs text-red-800 list-disc pl-5 space-y-0.5">
                   {data.insurance.shortfalls.map((s) => (
@@ -1476,8 +1481,7 @@ const Onboarding = () => {
                   ))}
                 </ul>
                 <p className="text-xs text-red-800 mt-2">
-                  Ask your agency to correct these — your file cannot be approved
-                  until they are resolved.
+                  Ask your agency to file the current policy.
                 </p>
               </div>
             )}

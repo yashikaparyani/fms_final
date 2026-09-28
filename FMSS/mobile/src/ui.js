@@ -49,6 +49,7 @@ const ICONS = {
   filter: [Ionicons, "options-outline"],
   refresh: [Ionicons, "refresh"],
   logout: [Ionicons, "log-out-outline"],
+  trash: [Ionicons, "trash-outline"],
   check: [Ionicons, "checkmark-circle"],
   warning: [Ionicons, "warning"],
   pin: [Ionicons, "location-sharp"],
@@ -214,6 +215,10 @@ export function AppHeader({
   return (
     <GradientHeader from={theme.headerFrom} to={theme.headerTo} style={s.appHeader}>
       <BrandMark />
+      {/* The company tagline, as on the website header. */}
+      <Text style={s.tagline} numberOfLines={1} adjustsFontSizeToFit>
+        We build team &amp; technology to build trust
+      </Text>
       <View style={s.headerRow}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={12} style={s.headerIconBtn}>
@@ -641,6 +646,20 @@ const s = StyleSheet.create({
     letterSpacing: 1.2,
   },
   brandWordCompact: { fontSize: 13, letterSpacing: 1 },
+  // The company tagline under the brand row. Cursive from the system fonts —
+  // Snell Roundhand on iOS, the platform cursive face on Android — so nothing
+  // has to be downloaded or bundled for it.
+  tagline: {
+    color: colors.brand,
+    fontSize: 20,
+    marginTop: -4,
+    marginBottom: 8,
+    ...Platform.select({
+      ios: { fontFamily: "SnellRoundhand-Bold" },
+      android: { fontFamily: "cursive", fontWeight: "700" },
+      default: { fontStyle: "italic", fontWeight: "700" },
+    }),
+  },
   // The second word sits back so the eye lands on "S LINE".
   brandWordLight: { fontWeight: "600", color: colors.muted },
   gradientHeader: {

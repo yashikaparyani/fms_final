@@ -8,6 +8,7 @@ const {
   loginUser,
   getMe,
   changePassword,
+  deleteMyAccount,
 } = require("../controllers/authController");
 const validate = require("../middleware/validate");
 const { userSchemaZod } = require("../validators/userValidator");
@@ -67,5 +68,10 @@ router.get("/me", protect, getMe);
 // customer, carrier and driver alike. No role gate: the route only ever
 // acts on the caller's own record.
 router.put("/change-password", protect, changePassword);
+
+// A customer, carrier or driver deleting their own account. POST rather than
+// DELETE because it carries a body (password + confirmation), which some
+// proxies strip from a DELETE. Staff and admin are refused inside.
+router.post("/delete-account", protect, deleteMyAccount);
 
 module.exports = router;

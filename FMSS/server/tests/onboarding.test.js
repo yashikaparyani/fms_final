@@ -531,9 +531,9 @@ describe("Insurance — the agency's link", () => {
     expect(carrierView.body.insurance.policies).toHaveLength(2);
   });
 
-  it("records a shortfall instead of rejecting the filing", async () => {
-    // An agency filing a real policy below the contractual limit must land, so
-    // the office learns the limit is short. Blocking it means nobody finds out.
+  it("files a low-limit policy without flagging it", async () => {
+    // The limit, rating and loss-payee checks were removed — only an expired
+    // policy is flagged now.
     const res = await request(app)
       .post(`/api/insurance/public/${token}`)
       .send({
@@ -549,9 +549,20 @@ describe("Insurance — the agency's link", () => {
       });
 
     expect(res.statusCode).toBe(201);
-    expect(res.body.shortfalls.join(" ")).toMatch(/limit is \$50,000/);
-    expect(res.body.shortfalls.join(" ")).toMatch(/rated B/);
-    expect(res.body.shortfalls.join(" ")).toMatch(/loss payee/);
+    expect(res.body.shortfalls).toEqual([]);
+  });
+
+  it("records an expired policy instead of rejecting the filing", async () => {
+    const res = await request(app)
+      .post(`/api/insurance/public/${token}`)
+      .send({
+        policies: [
+          { coverage: "cargo", insurerName: "Old Mutual", limit: 100000, expiryDate: "2020-01-01" },
+        ],
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.shortfalls.join(" ")).toMatch(/expired/);
   });
 
   it("treats a second entry for one coverage as an edit, not a duplicate", async () => {
@@ -782,16 +793,23 @@ describe("EIN verification", () => {
 });
 
 describe("Requirement checks", () => {
-  it("flags every way a policy can fall short at once", () => {
+  it("does not flag limits, rating or additional insured", () => {
     const problems = shortfallsFor({
       coverage: "generalLiability",
       limit: 500000,
       aggregateLimit: 1000000,
       amBestRating: "B",
       additionalInsured: false,
+      expiryDate: "2099-01-01",
     });
 
-    expect(problems).toHaveLength(4); // limit, aggregate, rating, additional insured
+    expect(problems).toEqual([]);
+  });
+
+  it("flags an expired policy", () => {
+    expect(
+      shortfallsFor({ coverage: "cargo", expiryDate: "2020-01-01" }).join(" "),
+    ).toMatch(/expired/);
   });
 
   it("accepts a policy that meets the agreement", () => {

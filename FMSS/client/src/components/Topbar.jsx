@@ -8,6 +8,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../redux/authSlice";
 import ChangePasswordDialog from "./ChangePasswordDialog";
+import DeleteAccountDialog, { canDeleteOwnAccount } from "./DeleteAccountDialog";
+import PersonRemoveIcon from "@mui/icons-material/PersonRemove";
 import { visibleNavItems } from "./navItems";
 import NotificationBell from "./NotificationBell"; // 👈 import
 import LocationSwitcher from "./LocationSwitcher";
@@ -21,6 +23,8 @@ const Topbar = () => {
   // carriers and drivers never see one, and they are the accounts most likely to
   // still be on the password the office issued them.
   const [isPasswordOpen, setIsPasswordOpen]     = useState(false);
+  // Customers, carriers and drivers only — see DeleteAccountDialog.
+  const [isDeleteOpen, setIsDeleteOpen]         = useState(false);
   const [isNotificationOpen, setNotificationOpen] = useState(false); // 👈 controlled here
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -137,6 +141,20 @@ const Topbar = () => {
                     Change password
                   </div>
                 </button>
+                {canDeleteOwnAccount(role) && (
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      setIsDeleteOpen(true);
+                    }}
+                    className="w-full text-left"
+                  >
+                    <div className="flex hover:bg-bad-50 hover:text-bad-700 px-3 py-2.5 text-sm font-semibold text-bad-600 items-center gap-2 transition-colors border-t border-hairline">
+                      <PersonRemoveIcon fontSize="small" />
+                      Delete account
+                    </div>
+                  </button>
+                )}
                 <button onClick={handleLogout} className="w-full text-left">
                   <div className="flex hover:bg-bad-50 hover:text-bad-700 px-3 py-2.5 text-sm font-semibold text-ink-800 items-center gap-2 transition-colors border-t border-hairline">
                     <LogoutIcon fontSize="small" />
@@ -239,6 +257,16 @@ const Topbar = () => {
       <ChangePasswordDialog
         open={isPasswordOpen}
         onClose={() => setIsPasswordOpen(false)}
+      />
+
+      <DeleteAccountDialog
+        open={isDeleteOpen}
+        role={role}
+        onClose={() => setIsDeleteOpen(false)}
+        onDeleted={() => {
+          setIsDeleteOpen(false);
+          handleLogout();
+        }}
       />
     </>
   );

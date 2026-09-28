@@ -121,34 +121,20 @@ const InsuranceSubmission = () => {
     });
   };
 
-  /** Live check against the contractual minimum, shown while they type. */
+  /**
+   * Live check while they type. Only an expired policy is flagged — the limit,
+   * aggregate, additional-insured and loss-payee checks were removed; the
+   * minimums stay beside each coverage as guidance. Mirrors shortfallsFor on
+   * the server.
+   */
   const warningFor = (coverage) => {
     const policy = policies[coverage.key];
     if (!policy) return null;
 
-    const problems = [];
-
-    if (coverage.minLimit && policy.limit && Number(policy.limit) < coverage.minLimit) {
-      problems.push(`below the required ${money(coverage.minLimit)}`);
-    }
-    if (
-      coverage.minAggregate &&
-      policy.aggregateLimit &&
-      Number(policy.aggregateLimit) < coverage.minAggregate
-    ) {
-      problems.push(`aggregate below ${money(coverage.minAggregate)}`);
-    }
-    if (coverage.needsAdditionalInsured && !policy.additionalInsured) {
-      problems.push("additional insured not ticked");
-    }
-    if (coverage.needsLossPayee && !policy.lossPayee) {
-      problems.push("loss payee not ticked");
-    }
     if (policy.expiryDate && new Date(policy.expiryDate) < new Date()) {
-      problems.push("policy has already expired");
+      return "policy has already expired";
     }
-
-    return problems.length ? problems.join(" · ") : null;
+    return null;
   };
 
   const submit = async () => {
@@ -476,7 +462,6 @@ const InsuranceSubmission = () => {
                             }
                           >
                             {c.label}
-                            {c.highlight && <span className="text-red-500 ml-0.5">*</span>}
                           </span>
                         </label>
                       ))}
@@ -486,8 +471,7 @@ const InsuranceSubmission = () => {
                     <p className="flex items-start gap-1.5 text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-3">
                       <WarningAmberIcon style={{ fontSize: 16 }} />
                       <span>
-                        {warning}. You can still file it — the broker will be shown
-                        the shortfall.
+                        {warning}. You can still file it — the broker will be told.
                       </span>
                     </p>
                   )}

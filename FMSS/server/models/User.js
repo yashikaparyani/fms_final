@@ -40,6 +40,9 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
+    // When the account holder deleted their own account — see
+    // services/accountDeletion.js. The details above are wiped at that moment.
+    deletedAt: Date,
 
     lastLogin: Date,
 

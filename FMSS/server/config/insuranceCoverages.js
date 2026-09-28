@@ -210,46 +210,19 @@ const meetsAmBest = (actual, minimum) => {
 };
 
 /**
- * Check one submitted policy against what the agreement asks for.
+ * Check one submitted policy for a problem worth flagging.
  *
- * Returns a list of human-readable shortfalls rather than a boolean: the office
- * reviewing a carrier needs to know *what* is short, and "cargo limit is
- * $50,000, the agreement requires $100,000" is the only form of that which is
- * actionable.
+ * Only an expired policy is flagged. The limit, aggregate, AM Best rating,
+ * additional-insured and loss-payee checks were removed at the office's
+ * request: they filled the filing with red warnings the office did not act on,
+ * and the minimums are still shown on the form as guidance. The office reads
+ * the certificate itself when it reviews the carrier.
  */
 const shortfallsFor = (policy = {}) => {
   const spec = COVERAGE_BY_KEY.get(policy.coverage);
-  if (!spec) return [`"${policy.coverage}" is not a coverage this system tracks.`];
+  if (!spec) return [];
 
   const problems = [];
-
-  if (spec.minLimit && Number(policy.limit || 0) < spec.minLimit) {
-    problems.push(
-      `${spec.label}: limit is ${formatMoney(policy.limit)}, the agreement requires ${formatMoney(spec.minLimit)}.`,
-    );
-  }
-
-  if (spec.minAggregate && Number(policy.aggregateLimit || 0) < spec.minAggregate) {
-    problems.push(
-      `${spec.label}: aggregate is ${formatMoney(policy.aggregateLimit)}, the agreement requires ${formatMoney(spec.minAggregate)}.`,
-    );
-  }
-
-  if (spec.minAmBest && !meetsAmBest(policy.amBestRating, spec.minAmBest)) {
-    problems.push(
-      `${spec.label}: insurer is rated ${policy.amBestRating || "unrated"}, the agreement requires at least ${spec.minAmBest}.`,
-    );
-  }
-
-  if (spec.needsAdditionalInsured && !policy.additionalInsured) {
-    problems.push(
-      `${spec.label}: the broker must be named as an additional insured.`,
-    );
-  }
-
-  if (spec.needsLossPayee && !policy.lossPayee) {
-    problems.push(`${spec.label}: the broker must be named as a loss payee.`);
-  }
 
   if (policy.expiryDate && new Date(policy.expiryDate) < new Date()) {
     problems.push(`${spec.label}: the policy expired on ${formatDate(policy.expiryDate)}.`);
@@ -257,6 +230,10 @@ const shortfallsFor = (policy = {}) => {
 
   return problems;
 };
+
+/** Shortfalls for a whole filing, under the current rules. */
+const shortfallsForFiling = (policies = []) =>
+  (policies || []).flatMap((p) => shortfallsFor(p));
 
 /** Which required coverages have not been submitted at all. */
 const missingRequired = (policies = []) => {
@@ -301,6 +278,7 @@ module.exports = {
   AM_BEST_ORDER,
   meetsAmBest,
   shortfallsFor,
+  shortfallsForFiling,
   missingRequired,
   catalog,
   formatMoney,
