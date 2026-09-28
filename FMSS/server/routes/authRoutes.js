@@ -9,6 +9,8 @@ const {
   getMe,
   changePassword,
   deleteMyAccount,
+  forgotPassword,
+  resetPassword,
 } = require("../controllers/authController");
 const validate = require("../middleware/validate");
 const { userSchemaZod } = require("../validators/userValidator");
@@ -19,6 +21,11 @@ const { protect, authorizeRoles } = require("../middleware/auth");
 
 // PUBLIC
 router.post("/login", loginUser);
+
+// PUBLIC — "Forgot password": email a 6-digit code, then set a new password
+// with it. Used by the website and the phone app alike.
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 // PUBLIC
 router.post(

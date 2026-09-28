@@ -650,7 +650,8 @@ const s = StyleSheet.create({
   // Snell Roundhand on iOS, the platform cursive face on Android — so nothing
   // has to be downloaded or bundled for it.
   tagline: {
-    color: colors.brand,
+    // Bright blue: the header is black, and the brand grey disappeared on it.
+    color: "#3B82F6",
     fontSize: 20,
     marginTop: -4,
     marginBottom: 8,

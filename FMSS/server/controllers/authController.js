@@ -1,5 +1,7 @@
 const User = require("../models/User");
 const { deleteAccount, SELF_DELETABLE_ROLES } = require("../services/accountDeletion");
+const crypto = require("crypto");
+const { sendPasswordResetCode } = require("../services/emailService");
 const Customer = require("../models/Customer");
 const Address = require("../models/common/Address");
 const FleetOwner = require("../models/FleetOwner");
@@ -728,6 +730,170 @@ const changePassword = async (req, res) => {
   }
 };
 
+// ─── Forgot password ──────────────────────────────────────────────────────────
+// Two steps, the same on the website and the phone: ask for a code, then use it.
+// A 6-digit code rather than a link because the app has no deep-link set up, and
+// a code works the same in both. Only its hash is stored; it lasts 15 minutes
+// and 5 wrong tries, and a new one cannot be requested within a minute of the
+// last so the form cannot be used to flood somebody's inbox.
+
+const RESET_CODE_MINUTES = 15;
+const RESET_MAX_ATTEMPTS = 5;
+const RESET_RESEND_SECONDS = 60;
+
+const hashResetCode = (code) =>
+  crypto.createHash("sha256").update(String(code)).digest("hex");
+
+/** The account for a typed address — same normalising as loginUser. */
+const findUserByEmail = async (email) => {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  const exact = await User.findOne({ email: normalized }).select("+passwordReset.codeHash");
+  if (exact) return exact;
+
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return User.findOne({ email: new RegExp(`^${escaped}$`, "i") }).select(
+    "+passwordReset.codeHash",
+  );
+};
+
+// @desc    Email a password reset code
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+  try {
+    const email = String(req.body.email || "").trim();
+    if (!email) {
+      return res.status(400).json({ message: "Enter the email address you sign in with." });
+    }
+
+    const user = await findUserByEmail(email);
+
+    // Same wording as sign-in, which already names a missing account — see the
+    // note in loginUser on why. A closed account is treated as not existing.
+    if (!user || user.isDeleted) {
+      return res.status(404).json({
+        message: "No account exists with this email address.",
+        code: "NO_ACCOUNT",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        message: "This account has been deactivated. Contact your administrator.",
+        code: "ACCOUNT_DEACTIVATED",
+      });
+    }
+
+    const lastSent = user.passwordReset?.sentAt;
+    if (lastSent && Date.now() - new Date(lastSent).getTime() < RESET_RESEND_SECONDS * 1000) {
+      return res.status(429).json({
+        message: "A code was just sent. Check your email, or wait a minute and ask again.",
+        code: "RESET_TOO_SOON",
+      });
+    }
+
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+
+    user.passwordReset = {
+      codeHash: hashResetCode(code),
+      expiresAt: new Date(Date.now() + RESET_CODE_MINUTES * 60 * 1000),
+      attempts: 0,
+      sentAt: new Date(),
+    };
+    await user.save();
+
+    const emailStatus = await sendPasswordResetCode({
+      to: user.email,
+      name: user.firstName || "",
+      code,
+      minutes: RESET_CODE_MINUTES,
+    });
+
+    if (!emailStatus?.sent) {
+      // Let them ask again straight away rather than wait out a code nobody got.
+      user.passwordReset = undefined;
+      await user.save();
+      return res.status(502).json({
+        message:
+          "We could not send the email just now. Try again in a few minutes, or contact the office.",
+      });
+    }
+
+    res.json({
+      message: `We have emailed a 6-digit code to ${user.email}. It expires in ${RESET_CODE_MINUTES} minutes.`,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Set a new password with the emailed code
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  try {
+    const code = String(req.body.code || "").trim();
+    const newPassword = String(req.body.newPassword || "");
+
+    if (!code || !newPassword) {
+      return res.status(400).json({ message: "Enter the code from the email and a new password." });
+    }
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        message: `Your new password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      });
+    }
+
+    const user = await findUserByEmail(req.body.email);
+    const reset = user?.passwordReset;
+
+    // One answer for every way a code can fail — none of them should tell a
+    // guesser anything beyond "not that".
+    const invalid = () =>
+      res.status(400).json({
+        message: "That code is not valid or has expired. Ask for a new one.",
+        code: "RESET_CODE_INVALID",
+      });
+
+    if (!user || user.isDeleted || user.isActive === false || !reset?.codeHash) {
+      return invalid();
+    }
+
+    if (!reset.expiresAt || new Date(reset.expiresAt) < new Date()) {
+      return invalid();
+    }
+
+    if ((reset.attempts || 0) >= RESET_MAX_ATTEMPTS) {
+      return invalid();
+    }
+
+    if (hashResetCode(code) !== reset.codeHash) {
+      user.passwordReset.attempts = (reset.attempts || 0) + 1;
+      await user.save();
+      const left = RESET_MAX_ATTEMPTS - user.passwordReset.attempts;
+      return res.status(400).json({
+        message:
+          left > 0
+            ? `That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.`
+            : "Too many wrong codes. Ask for a new one.",
+        code: "RESET_CODE_INVALID",
+      });
+    }
+
+    // Assigned in the clear; the model's pre-save hook hashes it.
+    user.password = newPassword;
+    user.passwordReset = undefined;
+    await user.save();
+
+    res.json({ message: "Your password has been reset. Sign in with the new one." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Delete (anonymize) the caller's own account
 // @route   POST /api/auth/delete-account
 // @access  Private — customers, carriers and drivers
@@ -807,6 +973,8 @@ const getMe = async (req, res) => {
 module.exports = {
   changePassword,
   deleteMyAccount,
+  forgotPassword,
+  resetPassword,
   createStaff,
   registerCustomer,
   createCustomerByStaff,

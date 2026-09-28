@@ -419,6 +419,24 @@ const driverAccountStatement = ({ driverName, rows = [], totals, period }) => {
 const carrierAccountStatement = ({ carrierName, rows = [], totals, period }) =>
   driverAccountStatement({ driverName: carrierName, rows, totals, period });
 
+/** The 6-digit code for "Forgot password". */
+const passwordResetCode = ({ name, code, minutes }) => ({
+  subject: `Your password reset code: ${code}`,
+  text:
+    `Hello ${name || ""}, your code to reset your password is ${code}. ` +
+    `It expires in ${minutes} minutes. If you did not ask to reset your password, ignore this email — your password has not changed.`,
+  html: `
+    <p>Hello ${escapeHtml(name || "")},</p>
+    <p>Use this code to reset your password:</p>
+    <p style="font-size:28px;font-weight:bold;letter-spacing:6px;margin:16px 0">${escapeHtml(code)}</p>
+    <p>It expires in ${minutes} minutes.</p>
+    <p style="font-size:12px;color:#6b7280;margin-top:14px">
+      If you did not ask to reset your password, ignore this email — your
+      password has not changed.
+    </p>
+  `,
+});
+
 /**
  * A customer's accessorial charges, load by load — the Accessorial Loads report
  * for one customer, as an email. Each row carries the customer's own reference
@@ -954,6 +972,7 @@ module.exports = {
   customerCredentials,
   driverCredentials,
   accessorialReport,
+  passwordResetCode,
   carrierAccountStatement,
   driverAccountStatement,
   driverPaymentStatement,

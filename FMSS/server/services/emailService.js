@@ -169,6 +169,9 @@ const sendCarrierAccountStatement = ({ to, carrierName, rows, totals, period }) 
     template: templates.carrierAccountStatement({ carrierName, rows, totals, period }),
   });
 
+const sendPasswordResetCode = ({ to, name, code, minutes }) =>
+  sendTemplate({ to, template: templates.passwordResetCode({ name, code, minutes }) });
+
 // The Accessorial Loads report for one customer, with the same rows attached as
 // a CSV so their accounts team can work from it rather than retype it.
 const sendAccessorialReport = async ({ to, customerName, rows, totals, period, note, csv }) => {
@@ -334,6 +337,7 @@ module.exports = {
   sendDriverPaymentStatement,
   sendDriverAccountStatement,
   sendAccessorialReport,
+  sendPasswordResetCode,
   sendCarrierAccountStatement,
   sendFleetOwnerCredentials,
   sendInsuranceFiled,

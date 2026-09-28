@@ -8,6 +8,7 @@ import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined
 import { notify } from "../../utils/swal";
 import { captureDeviceTimeZone } from "../../utils/dates";
 import api from "../../api";
+import ForgotPasswordDialog from "../../components/ForgotPasswordDialog";
 
 /**
  * The sign-in door.
@@ -34,6 +35,7 @@ const Login = ({ allowedRole, showRegister = true, title }) => {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const labelClass = "block text-sm font-semibold text-ink-700 mb-1.5";
   const inputClass =
@@ -184,6 +186,17 @@ const Login = ({ allowedRole, showRegister = true, title }) => {
                   )}
                 </button>
               </div>
+              <div className="mt-1.5 text-right">
+                <button
+                  type="button"
+                  onClick={() => setForgotOpen(true)}
+                  className="text-xs font-semibold hover:underline"
+                  style={{ color: doorAccent }}
+                  disabled={loading}
+                >
+                  Forgot password?
+                </button>
+              </div>
             </div>
 
             {/* Error Message */}
@@ -221,6 +234,12 @@ const Login = ({ allowedRole, showRegister = true, title }) => {
           </div>
         </div>
       </div>
+
+      <ForgotPasswordDialog
+        open={forgotOpen}
+        initialEmail={email}
+        onClose={() => setForgotOpen(false)}
+      />
     </div>
   );
 };

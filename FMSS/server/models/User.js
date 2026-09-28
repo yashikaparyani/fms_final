@@ -44,6 +44,16 @@ const userSchema = new mongoose.Schema(
     // services/accountDeletion.js. The details above are wiped at that moment.
     deletedAt: Date,
 
+    // "Forgot password": a 6-digit code emailed to the account, good for 15
+    // minutes and 5 tries. Only its hash is stored. Cleared once used. See
+    // forgotPassword / resetPassword in controllers/authController.js.
+    passwordReset: {
+      codeHash: { type: String, select: false },
+      expiresAt: Date,
+      attempts: { type: Number, default: 0 },
+      sentAt: Date,
+    },
+
     lastLogin: Date,
 
     // Devices this account is signed in on, for push notifications. A user has

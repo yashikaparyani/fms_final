@@ -762,8 +762,156 @@ function RegisterCarrierScreen({ onBack }) {
   );
 }
 
+/**
+ * Forgot password — the same two steps as the website: a 6-digit code by email,
+ * then the code with a new password. See forgotPassword / resetPassword on the
+ * server.
+ */
+function ForgotPasswordModal({ visible, initialEmail, onClose }) {
+  const [step, setStep] = useState("email");
+  const [email, setEmail] = useState(initialEmail || "");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+
+  useEffect(() => {
+    if (visible) setEmail(initialEmail || "");
+  }, [visible, initialEmail]);
+
+  const close = () => {
+    setStep("email");
+    setCode("");
+    setPassword("");
+    setError("");
+    setInfo("");
+    onClose();
+  };
+
+  const sendCode = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      const res = await api.post("/auth/forgot-password", { email: email.trim() });
+      setInfo(res.data?.message || "");
+      setStep("code");
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Could not send the code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reset = async () => {
+    setError("");
+    if (password.length < 6) {
+      setError("Your new password must be at least 6 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api.post("/auth/reset-password", {
+        email: email.trim(),
+        code: code.trim(),
+        newPassword: password,
+      });
+      Alert.alert("Password reset", res.data?.message || "Sign in with your new password.");
+      close();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Could not reset your password.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ready = step === "email" ? email.trim() : code.length === 6 && password;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+      <View style={styles.deleteBackdrop}>
+        <View style={styles.deleteCard}>
+          <Text style={[styles.deleteTitle, { color: "#111827" }]}>Forgot password</Text>
+          <Text style={styles.deleteBody}>
+            {step === "email"
+              ? "We will email you a 6-digit code."
+              : info || "Enter the code from the email and a new password."}
+          </Text>
+
+          {step === "email" ? (
+            <>
+              <Text style={styles.deleteLabel}>Email</Text>
+              <TextInput
+                style={styles.deleteInput}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!busy}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.deleteLabel}>6-digit code</Text>
+              <TextInput
+                style={[styles.deleteInput, { letterSpacing: 6, fontSize: 20, textAlign: "center" }]}
+                value={code}
+                onChangeText={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                editable={!busy}
+              />
+              <Text style={styles.deleteLabel}>New password</Text>
+              <TextInput
+                style={styles.deleteInput}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                editable={!busy}
+              />
+              <Pressable onPress={sendCode} disabled={busy} style={{ marginBottom: 10 }}>
+                <Text style={{ color: "#3B82F6", fontWeight: "700" }}>
+                  Didn't get it? Send a new code
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          {error ? <Text style={styles.deleteError}>{error}</Text> : null}
+
+          <View style={styles.deleteActions}>
+            <Pressable onPress={close} disabled={busy} style={styles.deleteCancel}>
+              <Text style={styles.deleteCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={step === "email" ? sendCode : reset}
+              disabled={busy || !ready}
+              style={[
+                styles.deleteConfirm,
+                { backgroundColor: "#2563EB" },
+                (busy || !ready) && { opacity: 0.5 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.deleteConfirmText}>
+                  {step === "email" ? "Send code" : "Reset password"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function LoginScreen({ onLogin }) {
   const [registering, setRegistering] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -846,7 +994,22 @@ function LoginScreen({ onLogin }) {
               secureTextEntry
               placeholder="Password"
             />
+            <Pressable
+              onPress={() => setForgotOpen(true)}
+              hitSlop={8}
+              style={{ alignSelf: "flex-end", marginTop: -4, marginBottom: 12 }}
+            >
+              <Text style={{ color: "#3B82F6", fontWeight: "700", fontSize: 14 }}>
+                Forgot password?
+              </Text>
+            </Pressable>
             <PrimaryButton title={loading ? "Signing in..." : "Sign In"} onPress={submit} disabled={loading} />
+
+            <ForgotPasswordModal
+              visible={forgotOpen}
+              initialEmail={email}
+              onClose={() => setForgotOpen(false)}
+            />
 
             {/* New carriers apply from the phone too — see RegisterCarrierScreen. */}
             <Pressable
