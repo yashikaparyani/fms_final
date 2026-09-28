@@ -79,7 +79,10 @@ const Topbar = () => {
               company tagline beside it. The pair holds the left side. */}
           <div className="flex items-center gap-4 mr-auto min-w-0">
             <USClock />
-            <span className="hidden lg:block truncate text-[15px] font-bold italic tracking-wide text-accent-700">
+            <span
+              className="hidden lg:block truncate text-[28px] leading-none font-bold text-accent-700"
+              style={{ fontFamily: '"Dancing Script", cursive' }}
+            >
               We build team &amp; technology to build trust
             </span>
           </div>
