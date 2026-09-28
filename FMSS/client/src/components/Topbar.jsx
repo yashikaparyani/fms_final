@@ -75,8 +75,14 @@ const Topbar = () => {
         {/* Right section */}
         <div className="flex justify-end px-4 md:px-8 h-full w-full items-center gap-4">
 
-          {/* 🕒 US time — the clock every date in the app is shown on */}
-          <USClock />
+          {/* 🕒 US time — the clock every date in the app is shown on — with the
+              company tagline beside it. The pair holds the left side. */}
+          <div className="flex items-center gap-4 mr-auto min-w-0">
+            <USClock />
+            <span className="hidden lg:block truncate text-[15px] font-bold italic tracking-wide text-accent-700">
+              We build team &amp; technology to build trust
+            </span>
+          </div>
 
           {/* 📍 Active location — renders nothing for single-location users */}
           <LocationSwitcher />

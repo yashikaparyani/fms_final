@@ -627,6 +627,8 @@ const REPORTS = [
     dateField: "createdAt",
     columns: [
       COL.loadId,
+      COL.ref,
+      COL.container,
       COL.customer,
       { key: "accessorialDetail", label: "Charges" },
       { key: "accessorials", label: "Accessorial Total", type: "money" },
@@ -654,7 +656,13 @@ const REPORTS = [
         )
         .join(", ");
 
-      return { ...baseRow(load), ...totals, accessorialDetail: detail };
+      return {
+        ...baseRow(load),
+        ...totals,
+        accessorialDetail: detail,
+        // Who to email it to — see sendAccessorialReport.
+        customer: load.customer ? String(load.customer) : "",
+      };
     },
     // Loads with no accessorials would be empty rows on an accessorials report.
     postFilter: (row) => row.accessorials > 0,

@@ -9,6 +9,7 @@ import { RiLoader5Fill } from "react-icons/ri";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { formatDateTime, formatTime } from "../utils/dates";
+import BidHighlightBadge from "../components/BidHighlightBadge";
 
 // ─── API layer ────────────────────────────────────────────────────────────────
 // All API calls live here. Components just call these functions.
@@ -190,6 +191,13 @@ const LiveBidding = () => {
           </span>
         }
       />
+
+      {/* ── Promo message staff attached to this load ── */}
+      {loadDetails?.bidHighlight && (
+        <div className="mb-4">
+          <BidHighlightBadge text={loadDetails.bidHighlight} size="lg" />
+        </div>
+      )}
 
       {/* ── Countdown banner ── */}
       <div className="flex justify-between align-center gap-2">

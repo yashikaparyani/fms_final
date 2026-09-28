@@ -48,16 +48,23 @@ const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 // arrives is still counted under "All", so a status added to the server's
 // completed set but not listed here is missing a sub-tab rather than missing
 // from the screen.
-// A load parked in a yard or at a warehouse is moved on by Reassign, not by
-// adding a driver: whoever collects it from the yard is the next carrier's job,
-// and that carrier names their own driver. There is deliberately no
-// "Assign another driver" here.
-//
-// On these loads Reassign opens the carrier legs in yard-handover form — the
-// run already made up to the yard, and a new leg from the yard onward — so the
-// first carrier is still paid for their stretch and the second has a leg of
+// A load parked in a yard or at a warehouse is moved on by "Assign Another
+// Driver": it opens the carrier legs in yard-handover form — the run already
+// made up to the yard, and a new leg from the yard onward, each with its own
+// From and To. The first carrier's bill moves to payables as soon as that is
+// saved (see raiseHandoverBills on the server), and the second has a leg of
 // their own to update.
 const PARKED = ["EMPTY_IN_YARD", "LOADED_IN_YARD", "DROP_IN_WAREHOUSE"];
+
+const isParkedWithCarrier = (row) =>
+  isAssignedToCarrier(row) && PARKED.includes(row.transportStatus);
+
+const reassignLabel = (row) =>
+  isParkedWithCarrier(row)
+    ? "Assign Another Driver"
+    : isAssignedToCarrier(row)
+      ? "Reassign"
+      : "Assign Load";
 
 // A load whose driving is done and whose documents are not. The only rows in
 // this tab where "Transfer to Invoiceable" means anything.
@@ -239,7 +246,7 @@ const OverLoadsTable = () => {
   // Parked with a carrier: set up who collects it from the yard. Anything else
   // (delivered, or never assigned) is a straight change of carrier.
   const reassign = (row) => {
-    if (isAssignedToCarrier(row) && PARKED.includes(row.transportStatus)) {
+    if (isParkedWithCarrier(row)) {
       setHandoverLoad(row);
     } else {
       setOpenRow(row.loadId);
@@ -314,7 +321,7 @@ const OverLoadsTable = () => {
           disabled={saving}
           className={`${assigned ? "btn-secondary-small" : "btn-primary-small"} disabled:opacity-50`}
         >
-          {assigned ? "Reassign" : "Assign Load"}
+          {reassignLabel(row)}
         </button>
 
         {/* Only on the loads that are actually waiting to be billed. On a
@@ -465,7 +472,7 @@ const OverLoadsTable = () => {
                           disabled={saving}
                           className="btn-secondary flex-1 py-1.5 disabled:opacity-50"
                         >
-                          {assigned ? "Reassign" : "Assign Load"}
+                          {reassignLabel(row)}
                         </button>
                         <button
                           onClick={() => setStatusModal(row)}
@@ -520,6 +527,8 @@ const OverLoadsTable = () => {
           onSave={saveHandover}
           onClose={() => setHandoverLoad(null)}
           handover
+          title="Assign another driver"
+          subtitle="Leg 1 is the run already made — set the yard or warehouse it ended at. Leg 2 is the new driver: choose them and where they take it. Saving moves the first driver's bill to payables."
         />
       )}
 

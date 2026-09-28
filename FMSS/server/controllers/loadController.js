@@ -259,6 +259,44 @@ const notifyStreetTurn = async (load, streetTurn, actor) => {
 };
 const { buildPodDocument } = require("../services/podDocumentService");
 const deliveryNotice = require("../services/deliveryNotice");
+const invoiceService = require("../services/invoiceService");
+const { chassisRentFor } = require("../utils/chassisRent");
+
+/**
+ * Raise the AP bill for any carrier whose leg ended at a yard or warehouse
+ * handover — see billHandedOverLegs. Runs after the assignment or status change
+ * is saved, and never fails it: the bill can always be raised by hand from the
+ * load's accounting screen. Returns the numbers of any bills it opened.
+ */
+const raiseHandoverBills = async (load, req) => {
+  try {
+    const results = await invoiceService.billHandedOverLegs({ load, user: req.user });
+    const opened = results.filter((r) => r.created).map((r) => r.invoice);
+
+    if (opened.length) {
+      await audit.recordFinancial({
+        load,
+        action: "invoice.generated",
+        summary: `Handover — carrier bill${opened.length === 1 ? "" : "s"} moved to payables: ${opened
+          .map((i) => `${i.invoiceNumber} (${i.party?.name || "carrier"})`)
+          .join(", ")}`,
+        changes: opened.map((invoice) => ({
+          field: `invoice.${invoice.invoiceNumber}`,
+          label: "Carrier Bill",
+          from: "",
+          to: `$${(invoice.total || 0).toLocaleString("en-US")}`,
+        })),
+        user: req.user,
+        req,
+      });
+    }
+
+    return opened.map((i) => i.invoiceNumber);
+  } catch (err) {
+    console.error("Handover carrier bill failed:", err);
+    return [];
+  }
+};
 const { publishTrackingUpdate } = require("../services/trackingBroadcaster");
 const {
   notifyLoadCreated,
@@ -1264,6 +1302,18 @@ const getLoadById = async (req, res) => {
         locked: isPaperworkLocked(load),
       },
     };
+
+    // Chassis rent so far: from the pickup date, at the chassis company's daily
+    // rate for each day — see utils/chassisRent.js. Office only; it is a cost
+    // of the load, not something the customer or the carrier is shown.
+    if (["staff", "admin"].includes(req.user?.role) && load.chassisCompany) {
+      const company = await ChassisCompany.findOne({
+        name: new RegExp(`^${escapeRegex(load.chassisCompany.trim())}$`, "i"),
+      })
+        .select("name dailyRent rateHistory")
+        .lean();
+      responsePayload.chassisRentCalc = chassisRentFor(load, company);
+    }
 
     // Who to contact about this load. A load can carry several drivers, and none
     // of them is that person — see accountPersonFor in utils/carrierAccount.js.
@@ -2293,6 +2343,14 @@ const updateTransportStatus = async (req, res) => {
       changedAt: locationRecordedAt,
     });
 
+    // A carrier leg that has just ended at the yard or warehouse while another
+    // carrier already has the onward leg: their run is done, so their bill goes
+    // to payables now. See raiseHandoverBills.
+    const handoverBills =
+      activeLeg && Load.LEG_FINISHED.includes(transportStatus)
+        ? await raiseHandoverBills(load, req)
+        : [];
+
     if (generatedPodDocument) {
       const podIndex = load.documents.findIndex(
         (doc) => doc.documentType === POD_DOCUMENT_TYPE,
@@ -2378,8 +2436,11 @@ const updateTransportStatus = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Transport status updated successfully",
+      message: handoverBills.length
+        ? `Transport status updated — carrier bill ${handoverBills.join(", ")} moved to payables.`
+        : "Transport status updated successfully",
       data: load,
+      handoverBills,
       ...(streetTurnNotifications
         ? { streetTurnNotifications }
         : {}),
@@ -2398,11 +2459,17 @@ const updateTransportStatus = async (req, res) => {
 // Schedule Bidding
 const scheduleBidding = async (req, res) => {
   try {
-    const { bidStartTime, bidEndTime, targetRate, margin } = req.body;
+    const { bidStartTime, bidEndTime, targetRate, margin, bidHighlight } = req.body;
 
     if (!bidStartTime || !bidEndTime) {
       return res.status(400).json({
         message: "Both start time and end time are required",
+      });
+    }
+
+    if (bidHighlight !== undefined && String(bidHighlight).trim().length > 60) {
+      return res.status(400).json({
+        message: "Bid message must be 60 characters or fewer",
       });
     }
 
@@ -2426,6 +2493,11 @@ const scheduleBidding = async (req, res) => {
 
     load.bidStartTime = start;
     load.bidEndTime = end;
+
+    // An empty string clears the message on a reschedule.
+    if (bidHighlight !== undefined) {
+      load.bidHighlight = String(bidHighlight).trim() || undefined;
+    }
 
     // ✅ MARGIN CALCULATION: Apply margin to targetRate for vendor pricing
     if (targetRate !== undefined) {
@@ -3113,12 +3185,20 @@ const setLoadAssignments = async (req, res) => {
       req,
     });
 
+    // A second carrier collecting from the yard means the first one's run is
+    // done — their bill goes to payables now, not when the load is delivered.
+    const handoverBills = await raiseHandoverBills(load, req);
+
     res.json({
       message:
-        legs.length === 1
+        (legs.length === 1
           ? `Load ${load.loadId} assigned to ${legs[0].fleetOwnerName}.`
-          : `Load ${load.loadId} split across ${legs.length} carriers.`,
+          : `Load ${load.loadId} split across ${legs.length} carriers.`) +
+        (handoverBills.length
+          ? ` ${legs[0].fleetOwnerName}'s bill (${handoverBills.join(", ")}) moved to payables.`
+          : ""),
       load,
+      handoverBills,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });

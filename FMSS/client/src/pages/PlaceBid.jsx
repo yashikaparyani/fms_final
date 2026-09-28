@@ -5,6 +5,7 @@ import api from "../api";
 import { Paper, Typography, Button, TextField } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { toast } from "react-toastify";
+import BidHighlightBadge from "../components/BidHighlightBadge";
 
 const PlaceBid = () => {
   const { loadId } = useParams();
@@ -70,6 +71,12 @@ const PlaceBid = () => {
         <Typography variant="h5" className="mb-4">
           Place Bid - Load #{load.id}
         </Typography>
+
+        {load.bidHighlight && (
+          <div className="mb-4">
+            <BidHighlightBadge text={load.bidHighlight} size="lg" />
+          </div>
+        )}
 
         <div className="mb-6 p-4 bg-gray-50 rounded">
           <Typography variant="subtitle1" className="font-semibold mb-2">

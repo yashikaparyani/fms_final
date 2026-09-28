@@ -127,6 +127,10 @@ const LegPoint = ({ label, value, stops, onChange }) => {
 // yard, and somebody else collects it from there. The dialog opens with their
 // run as the first leg and a second leg, from the yard to the drop, waiting for
 // a carrier — so the office only has to say where the yard is and who collects.
+//
+// "Assign Another Driver" opens it in the same form, with its own heading.
+// Once the first leg is marked Loaded in Yard, Empty in Yard or Drop in
+// Warehouse, the server moves that carrier's bill to payables by itself.
 const AssignCarrierLegsDialog = ({
   load,
   fleetOwners,
@@ -134,6 +138,8 @@ const AssignCarrierLegsDialog = ({
   onSave,
   onClose,
   handover = false,
+  title,
+  subtitle,
 }) => {
   const originStops = useMemo(() => stopsOf(load, "origin"), [load]);
   const destStops = useMemo(() => stopsOf(load, "destination"), [load]);
@@ -171,8 +177,11 @@ const AssignCarrierLegsDialog = ({
 
     if (handover) {
       // The run already made: the load's pickup to the yard it was left at.
+      // Its rate starts at what that carrier was already due on the load, so
+      // the bill raised for their leg is not a $0 one.
       const firstRun = {
         ...blankLeg(),
+        carrierRate: load?.vendorRate ?? "",
         fleetOwnerId: load?.assignedFleetOwner?.fleetOwnerId || "",
         origin: stopsOf(load, "origin").length
           ? { ...BLANK_POINT, source: "STOP", stopIndex: 0 }
@@ -279,12 +288,13 @@ const AssignCarrierLegsDialog = ({
         <div className="flex items-start justify-between border-b border-gray-200 p-5">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {handover ? "Reassign from the yard" : "Assign carriers"} — {load.loadId}
+              {title || (handover ? "Reassign from the yard" : "Assign carriers")} — {load.loadId}
             </h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {handover
-                ? "The first leg is the run already made, ending at the yard. Say where the yard is, then who collects it and where they take it."
-                : "One carrier for the whole load, or split it into legs with a handover point in between."}
+              {subtitle ||
+                (handover
+                  ? "The first leg is the run already made, ending at the yard. Say where the yard is, then who collects it and where they take it."
+                  : "One carrier for the whole load, or split it into legs with a handover point in between.")}
             </p>
           </div>
           <button

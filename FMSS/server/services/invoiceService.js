@@ -478,8 +478,13 @@ const payableGroups = (load) => {
  * the same reason a sent customer invoice is: a carrier holding a settlement
  * statement must not find it says something different next week.
  */
-const buildCarrierBills = async ({ load, user, terms }) => {
-  const groups = payableGroups(load);
+const buildCarrierBills = async ({ load, user, terms, legIds, createOnly = false }) => {
+  // `legIds` narrows the run to those legs — the handover bill below raises the
+  // finished leg's bill without touching the leg still on the road.
+  const wanted = legIds ? new Set(legIds.map(String)) : null;
+  const groups = payableGroups(load).filter(
+    (group) => !wanted || (group.legId && wanted.has(String(group.legId))),
+  );
   if (!groups.length) return [];
 
   const issuer = await issuerFor(load);
@@ -497,6 +502,13 @@ const buildCarrierBills = async ({ load, user, terms }) => {
         };
 
     let invoice = await Invoice.findOne(query);
+
+    // An automatic run only ever opens a bill. Whatever accounting has since
+    // done to one that already exists is theirs, and stays as they left it.
+    if (invoice && createOnly) {
+      results.push({ invoice, created: false, refreshed: false, skipped: "exists" });
+      continue;
+    }
 
     if (invoice?.status === "VOID") {
       results.push({ invoice, created: false, refreshed: false, skipped: "void" });
@@ -558,6 +570,32 @@ const buildCarrierBills = async ({ load, user, terms }) => {
   }
 
   return results;
+};
+
+/**
+ * Carrier bills for the legs of a handover that are already run.
+ *
+ * When a box is left in a yard or a warehouse (LOADED_IN_YARD, EMPTY_IN_YARD,
+ * DROP_IN_WAREHOUSE) and a second carrier is given the rest of the move, the
+ * first carrier's work is finished. Their bill should not wait for the second
+ * carrier to deliver, so it is raised into AP the moment both are true: the leg
+ * has ended and somebody else is carrying the load on from there.
+ *
+ * Only the legs before the last one are considered — the last leg is the one
+ * that delivers, and it is billed in the ordinary way once the load is done.
+ * Bills that already exist are left untouched (see createOnly).
+ */
+const billHandedOverLegs = async ({ load, user }) => {
+  const legs = load.assignments || [];
+  if (legs.length < 2) return [];
+
+  const finished = legs
+    .slice(0, -1)
+    .filter((leg) => Load.LEG_FINISHED.includes(leg.transportStatus))
+    .map((leg) => leg._id);
+  if (!finished.length) return [];
+
+  return buildCarrierBills({ load, user, legIds: finished, createOnly: true });
 };
 
 /**
@@ -719,6 +757,7 @@ module.exports = {
   syncInvoicePayments,
   buildCustomerInvoice,
   buildCarrierBills,
+  billHandedOverLegs,
   buildDriverBill,
   generateForLoad,
   positionForLoad,

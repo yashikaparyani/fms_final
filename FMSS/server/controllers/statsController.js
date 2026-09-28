@@ -492,7 +492,7 @@ const getStats = async (req, res) => {
           })
             .sort({ bidEndTime: 1 })
             .limit(5)
-            .select("loadId customer customerName pickup drop amount bidEndTime");
+            .select("loadId customer customerName pickup drop amount bidEndTime bidHighlight");
 
       // =========================
       // MY RECENT BIDS

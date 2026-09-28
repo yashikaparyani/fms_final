@@ -252,6 +252,27 @@ const DetailedLoadInfo = ({ load, canEditFlags = false, showDriverPayments = fal
                      <p className="text-sm text-gray-900">
                         Chassis Rent: {load.chassisRent ? "Yes" : "No"}
                      </p>
+                     {/* Worked out on the server from the chassis company's
+                         daily rent, from the pickup date — see chassisRent.js. */}
+                     {load.chassisRentCalc && (
+                        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2">
+                           <p className="text-sm font-bold text-amber-900">
+                              {money(load.chassisRentCalc.amount)}{" "}
+                              <span className="font-medium text-amber-800">
+                                 · {load.chassisRentCalc.days} day{load.chassisRentCalc.days === 1 ? "" : "s"}
+                              </span>
+                           </p>
+                           <p className="text-[12px] text-amber-800">
+                              From {fmt(load.chassisRentCalc.from)} to{" "}
+                              {load.chassisRentCalc.running ? "today (still out)" : fmt(load.chassisRentCalc.to)}
+                           </p>
+                           {load.chassisRentCalc.breakdown?.map((part) => (
+                              <p key={part.from} className="text-[12px] text-amber-800">
+                                 {part.days} × {money(part.dailyRent)}/day = {money(part.amount)}
+                              </p>
+                           ))}
+                        </div>
+                     )}
                   </div>
                </div>
 

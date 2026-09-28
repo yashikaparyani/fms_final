@@ -118,6 +118,70 @@ h4 {
   animation-play-state: paused;
 }
 
+/* ── Bid highlight ribbon ───────────────────────────────────────────────── */
+/* The promo line on a load's bid (see BidHighlightBadge.jsx). A gradient that
+   keeps flowing, a white sheen sweeping across it, a soft pulsing glow and a
+   bouncing emoji — loud on purpose, so the load catches a carrier's eye. */
+@keyframes bid-highlight-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes bid-highlight-shine {
+  0%        { transform: translateX(-120%) skewX(-20deg); }
+  60%, 100% { transform: translateX(260%) skewX(-20deg); }
+}
+
+@keyframes bid-highlight-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--bh-via) 55%, transparent); }
+  50%      { box-shadow: 0 0 14px 3px color-mix(in srgb, var(--bh-via) 55%, transparent); }
+}
+
+@keyframes bid-highlight-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  25%      { transform: translateY(-2px) rotate(-12deg) scale(1.15); }
+  50%      { transform: translateY(0) rotate(10deg) scale(1.05); }
+}
+
+.bid-highlight {
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  background: linear-gradient(110deg, var(--bh-from), var(--bh-via), var(--bh-to), var(--bh-via), var(--bh-from));
+  background-size: 300% 300%;
+  animation:
+    bid-highlight-flow 4s ease infinite,
+    bid-highlight-glow 1.8s ease-in-out infinite;
+}
+
+.bid-highlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  animation: bid-highlight-shine 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.bid-highlight-emoji {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  animation: bid-highlight-bounce 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bid-highlight,
+  .bid-highlight::after,
+  .bid-highlight-emoji {
+    animation: none;
+  }
+}
+
 /* Someone who asks for less motion gets the text held still rather than
    moving, and the duplicate copy hidden so it does not read as a stutter. */
 @media (prefers-reduced-motion: reduce) {

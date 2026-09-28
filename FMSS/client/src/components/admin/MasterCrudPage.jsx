@@ -14,8 +14,11 @@ import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 // managed through identical add/edit/delete screens. This component holds that
 // screen once; each master supplies only its labels, endpoint and fields.
 //
-// A `field` is { name, label, placeholder?, required?, type? }. `name` is
-// always rendered first and is always required, so it must not be listed.
+// A `field` is { name, label, placeholder?, required?, type?, hint?, render?,
+// formOnly? }. `name` is always rendered first and is always required, so it
+// must not be listed. `render(row)` draws the table cell; `formOnly` keeps a
+// field out of the table (an effective date only means something while editing).
+// `config.modalExtra(initial)` adds a block under the form fields.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const buildEmptyForm = (fields) => ({
@@ -23,6 +26,9 @@ const buildEmptyForm = (fields) => ({
   ...Object.fromEntries(fields.map((f) => [f.name, ""])),
   isActive: true,
 });
+
+const cellText = (field, row) =>
+  field.render ? field.render(row) : row[field.name] || "—";
 
 const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
   const { singular, endpoint, fields, namePlaceholder } = config;
@@ -33,7 +39,13 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
   useEffect(() => {
     if (!isShow) return;
     const empty = buildEmptyForm(fields);
-    setForm(initial ? { ...empty, ...initial } : empty);
+    // Stored values come back as numbers or nulls; the inputs want strings.
+    const seeded = initial
+      ? Object.fromEntries(
+          fields.map((f) => [f.name, initial[f.name] == null ? "" : String(initial[f.name])]),
+        )
+      : {};
+    setForm(initial ? { ...empty, ...initial, ...seeded } : empty);
   }, [isShow, initial, fields]);
 
   const handleSubmit = async () => {
@@ -122,6 +134,8 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
               )}
             </div>
           ))}
+
+          {config.modalExtra?.(initial)}
 
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input
@@ -222,7 +236,7 @@ const MasterCrudPage = ({ config }) => {
 
   const term = search.toLowerCase();
   const filtered = rows.filter((row) =>
-    [row.name, ...fields.map((f) => row[f.name])].some((value) =>
+    [row.name, ...fields.filter((f) => !f.formOnly).map((f) => row[f.name])].some((value) =>
       String(value || "").toLowerCase().includes(term),
     ),
   );
@@ -233,13 +247,15 @@ const MasterCrudPage = ({ config }) => {
       header: singular,
       render: (row) => <p className="font-medium text-sm">{row.name}</p>,
     },
-    ...fields.map((field) => ({
-      key: field.name,
-      header: field.label,
-      render: (row) => (
-        <p className="text-xs text-gray-600">{row[field.name] || "—"}</p>
-      ),
-    })),
+    ...fields
+      .filter((field) => !field.formOnly)
+      .map((field) => ({
+        key: field.name,
+        header: field.label,
+        render: (row) => (
+          <div className="text-xs text-gray-600">{cellText(field, row)}</div>
+        ),
+      })),
     {
       key: "isActive",
       header: "Status",
@@ -293,11 +309,13 @@ const MasterCrudPage = ({ config }) => {
             >
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{row.name}</p>
-                {fields.map((field) => (
-                  <p key={field.name} className="text-xs text-gray-500 truncate">
-                    {row[field.name] || "—"}
-                  </p>
-                ))}
+                {fields
+                  .filter((field) => !field.formOnly)
+                  .map((field) => (
+                    <div key={field.name} className="text-xs text-gray-500 truncate">
+                      {cellText(field, row)}
+                    </div>
+                  ))}
                 <span className="inline-block mt-1">
                   <StatusPill active={row.isActive} />
                 </span>

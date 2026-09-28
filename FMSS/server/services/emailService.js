@@ -169,6 +169,22 @@ const sendCarrierAccountStatement = ({ to, carrierName, rows, totals, period }) 
     template: templates.carrierAccountStatement({ carrierName, rows, totals, period }),
   });
 
+// The Accessorial Loads report for one customer, with the same rows attached as
+// a CSV so their accounts team can work from it rather than retype it.
+const sendAccessorialReport = async ({ to, customerName, rows, totals, period, note, csv }) => {
+  const template = templates.accessorialReport({ customerName, rows, totals, period, note });
+  const result = await sendEmail({
+    to,
+    subject: template.subject,
+    text: template.text,
+    html: template.html,
+    attachments: csv
+      ? [{ filename: "accessorial-charges.csv", content: csv, contentType: "text/csv; charset=utf-8" }]
+      : undefined,
+  });
+  return toEmailStatus(result);
+};
+
 const sendLoadRequiresChanges = ({ load, client, changesNote }) =>
   sendTemplate({
     to: client.email,
@@ -317,6 +333,7 @@ module.exports = {
   sendDriverCredentials,
   sendDriverPaymentStatement,
   sendDriverAccountStatement,
+  sendAccessorialReport,
   sendCarrierAccountStatement,
   sendFleetOwnerCredentials,
   sendInsuranceFiled,

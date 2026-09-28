@@ -1067,6 +1067,66 @@ function InfoChip({ label, value }) {
   );
 }
 
+// The promo line staff attach when scheduling a bid, keyed to the same presets
+// as the web (client/src/utils/bidHighlights.js). Anything else is custom text.
+const BID_HIGHLIGHT_LOOK = {
+  "premium load": { emoji: "💎", color: "#db2777" },
+  "most rewarding": { emoji: "💰", color: "#059669" },
+  "shorter wait time": { emoji: "⚡", color: "#0284c7" },
+  "longer wait time": { emoji: "⏳", color: "#d97706" },
+  "best delivery available": { emoji: "🚚", color: "#4f46e5" },
+  "weekly best offer": { emoji: "🏆", color: "#ea580c" },
+  "hot lane": { emoji: "🔥", color: "#dc2626" },
+  "top priority load": { emoji: "⭐", color: "#7c3aed" },
+  "quick pay": { emoji: "💵", color: "#16a34a" },
+  "limited time offer": { emoji: "⏰", color: "#e11d48" },
+};
+
+/** A pulsing, glowing ribbon so a promoted load jumps out of the board. */
+function BidHighlightRibbon({ text }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!text) return undefined;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 650, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 650, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, text]);
+
+  if (!text) return null;
+  const look = BID_HIGHLIGHT_LOOK[text.trim().toLowerCase()] || { emoji: "✨", color: "#9333ea" };
+
+  return (
+    <Animated.View
+      style={[
+        styles.bbHighlight,
+        {
+          backgroundColor: look.color,
+          shadowColor: look.color,
+          transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) }],
+        },
+      ]}
+    >
+      <Animated.Text
+        style={[
+          styles.bbHighlightEmoji,
+          { transform: [{ rotate: pulse.interpolate({ inputRange: [0, 1], outputRange: ["-10deg", "10deg"] }) }] },
+        ]}
+      >
+        {look.emoji}
+      </Animated.Text>
+      <Text style={styles.bbHighlightText} numberOfLines={1}>
+        {text.toUpperCase()}
+      </Text>
+    </Animated.View>
+  );
+}
+
 function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onBid, onRespond }) {
   const origin = load.pickup || load.pickups?.[0];
   const destination = load.drop || load.drops?.[0];
@@ -1095,6 +1155,8 @@ function BidBoardCard({ load, live, onOpen, offer, saving, amount, onAmount, onB
       </GradientHeader>
 
       <View style={styles.bbBody}>
+        <BidHighlightRibbon text={load.bidHighlight} />
+
         {/* The clock: how long is left to act. */}
         <View style={[styles.bbClock, clock.urgent && styles.bbClockUrgent]}>
           <Icon name="clock" size={16} color={clock.urgent ? colors.danger : "#000000"} />
@@ -6093,6 +6155,28 @@ const styles = StyleSheet.create({
   bbRateLabel: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
   bbRate: { color: "#fff", fontSize: 28, fontWeight: "900" },
   bbBody: { padding: 18, gap: 16 },
+  bbHighlight: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  bbHighlightEmoji: { fontSize: 18 },
+  bbHighlightText: {
+    flexShrink: 1,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
   bbClock: {
     flexDirection: "row",
     alignItems: "center",

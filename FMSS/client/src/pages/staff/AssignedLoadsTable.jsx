@@ -5,6 +5,8 @@ import MobileCard from "../../components/MobileCard";
 import CarrierCell from "../../components/loads/CarrierCell";
 import UpdateStatusModal from "../../components/loads/UpdateStatusModal";
 import AssignCarrierPicker from "../../components/loads/AssignCarrierPicker";
+import AssignCarrierLegsDialog from "../../components/AssignCarrierLegsDialog";
+import { notify } from "../../utils/swal";
 import { LfdCell, UrgencyBadge } from "../../components/UrgencyCells";
 import LoadColorModeToggle from "../../components/LoadColorModeToggle";
 import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
@@ -44,6 +46,9 @@ const AssignedLoadsTable = () => {
   const [fleetOwners, setFleetOwners]     = useState([]);
   const [openRow, setOpenRow]             = useState(null);      // reassign inline open
   const [statusModal, setStatusModal]     = useState(null);      // load object for status modal
+  // The load a second driver is being added to — opens the From / To modal.
+  const [anotherLoad, setAnotherLoad]     = useState(null);
+  const [savingLegs, setSavingLegs]       = useState(false);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
@@ -76,12 +81,30 @@ const AssignedLoadsTable = () => {
   // Hold the refresh while a reassign picker or the status modal is open, so a
   // row cannot shift or vanish mid-action.
   useAutoRefresh(() => fetchLoads({ silent: true }), {
-    enabled: !openRow && !saving && !statusModal,
+    enabled: !openRow && !saving && !statusModal && !anotherLoad,
   });
 
   const handleAssign = async (loadId, ownerId, owners) => {
     const done = await assign(loadId, ownerId, owners);
     if (done) setOpenRow(null);
+  };
+
+  // Every leg in one call — the first driver's run to the handover point and
+  // the second driver's run on from it. See setLoadAssignments on the server.
+  const saveAnotherDriver = async (assignments) => {
+    setSavingLegs(true);
+    try {
+      const { data } = await api.put(`/loads/${anotherLoad.loadId}/assignments`, {
+        assignments,
+      });
+      setAnotherLoad(null);
+      await fetchLoads();
+      notify.success(data.message || "Second driver assigned.");
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not assign the second driver.");
+    } finally {
+      setSavingLegs(false);
+    }
   };
 
   // ── Desktop columns ──────────────────────────────────────────
@@ -132,6 +155,18 @@ const AssignedLoadsTable = () => {
         >
           {assigned ? "Reassign" : "Assign Load"}
         </button>
+
+        {/* Assign Another Driver — hand the load over partway. Opens the From /
+            To modal: where the first driver stops, and where the second takes it. */}
+        {isStaffOrAdmin && assigned && (
+          <button
+            onClick={() => setAnotherLoad(row)}
+            disabled={saving}
+            className="w-full text-sm font-semibold px-3 py-2 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:border-violet-300 transition disabled:opacity-50 whitespace-nowrap"
+          >
+            Assign Another Driver
+          </button>
+        )}
 
         {/* Update Status — staff/admin only, and only once somebody is carrying
             it. An unassigned load has no carrier for a status to be about. */}
@@ -223,6 +258,9 @@ const AssignedLoadsTable = () => {
                 ]}
                 actions={[
                   ...(!isOpen ? [{ label: assigned ? "Reassign" : "Assign Load", color: assigned ? "#f59e0b" : "#2563eb", onClick: () => setOpenRow(row.loadId) }] : []),
+                  ...(isStaffOrAdmin && assigned && !isOpen
+                    ? [{ label: "Assign Another Driver", color: "#7c3aed", onClick: () => setAnotherLoad(row) }]
+                    : []),
                   ...(isStaffOrAdmin && assigned
                     ? [{ label: "Update Status", color: "#2563eb", onClick: () => setStatusModal(row) }]
                     : []),
@@ -258,6 +296,21 @@ const AssignedLoadsTable = () => {
           large
         />
       </div>
+
+      {/* Assign Another Driver — From / To modal */}
+      {anotherLoad && (
+        <AssignCarrierLegsDialog
+          key={anotherLoad.loadId}
+          load={anotherLoad}
+          fleetOwners={fleetOwners}
+          saving={savingLegs}
+          onSave={saveAnotherDriver}
+          onClose={() => setAnotherLoad(null)}
+          handover
+          title="Assign another driver"
+          subtitle="Leg 1 is the current driver — set where they stop (the yard or warehouse). Then choose the second driver and where they take it from there. When leg 1 is marked Loaded in Yard, Empty in Yard or Drop in Warehouse, the first driver's bill moves to payables automatically."
+        />
+      )}
 
       {/* Update Status Modal */}
       {statusModal && (

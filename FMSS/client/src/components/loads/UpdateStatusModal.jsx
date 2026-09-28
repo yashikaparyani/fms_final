@@ -18,8 +18,34 @@ import {
 // pre-dispatch pair: those are written by the system, never chosen.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Legs that are over — the yard and warehouse statuses end a leg, because that
+// is the handover point. Mirrors LEG_FINISHED on the server.
+const LEG_FINISHED = [
+  "DELIVERED",
+  "TERMINATED",
+  "STREET_TURN",
+  "EMPTY_IN_YARD",
+  "LOADED_IN_YARD",
+  "DROP_IN_WAREHOUSE",
+];
+
+const legLabel = (leg, index) => {
+  const to = [leg.destination?.company, leg.destination?.city].filter(Boolean).join(", ");
+  return `Leg ${index + 1} · ${leg.fleetOwnerName || "Carrier"}${to ? ` → ${to}` : ""} (${transportStatusLabel(leg.transportStatus)})`;
+};
+
 const UpdateStatusModal = ({ load, onClose, onSaved }) => {
-  const [status, setStatus] = useState(load.transportStatus || "");
+  // On a load with more than one driver, the status belongs to one leg. It
+  // starts on the first leg still running — the driver actually on the road —
+  // so marking the first driver "Loaded in Yard" is the default, not a hunt.
+  const legs = load.assignments || [];
+  const hasLegs = legs.length > 1;
+  const firstOpen = legs.find((leg) => !LEG_FINISHED.includes(leg.transportStatus)) || legs[0];
+  const [legId, setLegId] = useState(hasLegs ? String(firstOpen?._id || "") : "");
+
+  const [status, setStatus] = useState(
+    (hasLegs ? firstOpen?.transportStatus : load.transportStatus) || "",
+  );
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   // A street turn needs the handover details before it can be saved.
@@ -28,13 +54,18 @@ const UpdateStatusModal = ({ load, onClose, onSaved }) => {
   const save = async (streetTurn) => {
     setSaving(true);
     try {
-      await api.put(`/loads/${load.loadId}/transport-status`, {
+      const { data } = await api.put(`/loads/${load.loadId}/transport-status`, {
         transportStatus: status,
         note,
         source: "web",
+        ...(legId ? { legId } : {}),
         ...(streetTurn ? { streetTurn } : {}),
       });
-      notify.success(`Status updated to "${transportStatusLabel(status)}"`);
+      notify.success(
+        data?.handoverBills?.length
+          ? data.message
+          : `Status updated to "${transportStatusLabel(status)}"`,
+      );
       setShowStreetTurn(false);
       onSaved();
     } catch (err) {
@@ -75,6 +106,25 @@ const UpdateStatusModal = ({ load, onClose, onSaved }) => {
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
+          {hasLegs && (
+            <div className="relative">
+              <AppSelect
+                options={legs.map((leg, index) => ({
+                  value: String(leg._id),
+                  label: legLabel(leg, index),
+                }))}
+                value={legId}
+                onChange={(value) => {
+                  setLegId(value);
+                  const leg = legs.find((l) => String(l._id) === String(value));
+                  if (leg) setStatus(leg.transportStatus || "");
+                }}
+                placeholder="Which driver…"
+                isDisabled={saving}
+              />
+              <label className="input-label">Driver / Leg <span className="text-red-400">*</span></label>
+            </div>
+          )}
           <div className="relative">
             <AppSelect
               options={TRANSPORT_STATUS_OPTIONS}

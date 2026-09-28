@@ -288,6 +288,56 @@ const ReportCentre = () => {
     }
   };
 
+  // ── Emailing a customer their accessorial charges ──────────────────────────
+  // On the Accessorial Loads report, per customer group: exactly the rows on
+  // screen for that customer, with Reference # and Container #, as an email
+  // with the list attached as a spreadsheet. Changes nothing.
+  const emailAccessorials = async (group) => {
+    const customerId = group.rows.find((r) => r.customer)?.customer;
+    if (!customerId) {
+      notify.warning("These loads are not linked to a customer account, so the report cannot be emailed.");
+      return;
+    }
+
+    const customer = options.customers.find(
+      (c) => String(c.user || c._id) === String(customerId),
+    );
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: `Email ${group.name} their accessorial charges?`,
+      html:
+        `<p style="font-size:13px;color:#6b7280;text-align:left;">` +
+        `${group.count} load(s) · accessorials <strong>$${Number(group.totals.accessorials || 0).toLocaleString("en-US")}</strong>. ` +
+        `Each line shows the load, reference # and container #, and the same list is attached as a spreadsheet. ` +
+        `Leave the address as it is to use their accessorial-charges email.</p>`,
+      input: "email",
+      inputValue:
+        customer?.emails?.accChargesEmail ||
+        customer?.contact?.email ||
+        customer?.email ||
+        "",
+      inputPlaceholder: "accounts@customer.com",
+      showCancelButton: true,
+      confirmButtonText: "Send",
+      confirmButtonColor: "#4f46e5",
+      inputValidator: (v) => (!v ? "An email address is needed." : undefined),
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const { data } = await api.post("/reports/accessorials/email", {
+        ...queryFor(),
+        customer: customerId,
+        to: value,
+        loadIds: group.rows.map((r) => r.loadId),
+      });
+      notify.success(data.message);
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not email the report");
+    }
+  };
+
   // ── Sending a driver their statement ───────────────────────────────────────
   // Changes nothing — the same figures as the sheet on screen, emailed. For the
   // driver who rings asking what they are owed, which is most of them, and who
@@ -637,6 +687,15 @@ const ReportCentre = () => {
                         })}
                       </p>
                     </div>
+
+                    {report.key === "accessorialsByCustomer" && (
+                      <button
+                        onClick={() => emailAccessorials(group)}
+                        className="btn-secondary whitespace-nowrap"
+                      >
+                        <MailOutlineIcon fontSize="small" /> Mail to customer
+                      </button>
+                    )}
 
                     {/* Paying is only offered on the driver report, where it is
                         the action the report exists to lead to. */}

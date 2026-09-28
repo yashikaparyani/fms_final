@@ -686,6 +686,10 @@ const loadSchema = new mongoose.Schema(
     margin: Number, // Vendor margin to apply
     vendorRate: Number, // Calculated: targetRate + margin (for display to vendors)
 
+    // A short promo line staff attach when scheduling ("Premium Load", "Shorter
+    // Wait Time", or their own words). Shown to carriers on the bid board.
+    bidHighlight: { type: String, trim: true, maxlength: 60 },
+
     // ═══════════════════════════════════════════════════════════
     // SECTION 6 — BID RESULT (auto-set when bidding window closes)
     // ═══════════════════════════════════════════════════════════

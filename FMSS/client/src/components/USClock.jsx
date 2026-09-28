@@ -38,7 +38,7 @@ const USClock = () => {
 
   return (
     <div
-      className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-1.5 mr-auto"
+      className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-1.5"
       title={`All dates and times in this app are shown in your timezone (${tz})`}
     >
       <AccessTimeIcon fontSize="small" className="text-ink-500" />

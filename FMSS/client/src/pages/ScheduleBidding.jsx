@@ -4,6 +4,10 @@ import { notify } from "../utils/swal";
 import { uiStyles } from "../style/uiStyles";
 import { CircularProgress } from "@mui/material";
 import { fromDateTimeInput, toDateTimeInput } from "../utils/dates";
+import { BID_HIGHLIGHT_MAX, BID_HIGHLIGHT_PRESETS } from "../utils/bidHighlights";
+import BidHighlightBadge from "../components/BidHighlightBadge";
+
+const CUSTOM = "__custom__";
 
 const EMPTY_FORM = {
   bidStartTime: "",
@@ -12,10 +16,23 @@ const EMPTY_FORM = {
   // Amount we pay the fleet owner (what the vendor sees). Margin is derived
   // from this on submit: margin = targetRate - fleetOwnerAmount.
   fleetOwnerAmount: "",
+  // The promo line carriers see on the load: "" (none), a preset's text, or
+  // CUSTOM with the words in customHighlight.
+  highlightChoice: "",
+  customHighlight: "",
 };
 
 // The bid window is typed and shown on the US business clock, whoever types it.
 const toLocalDateTimeInput = (value) => toDateTimeInput(value);
+
+// Splits a stored message back into the dropdown choice and the custom text.
+const highlightFields = (text) => {
+  if (!text) return { highlightChoice: "", customHighlight: "" };
+  const preset = BID_HIGHLIGHT_PRESETS.find((p) => p.text === text);
+  return preset
+    ? { highlightChoice: preset.text, customHighlight: "" }
+    : { highlightChoice: CUSTOM, customHighlight: text };
+};
 
 const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
   const [loadDetails, setLoadDetails] = useState(null);
@@ -36,6 +53,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
       bidEndTime: toLocalDateTimeInput(load.bidEndTime),
       targetRate: load.targetRate ?? load.amount ?? "",
       fleetOwnerAmount: load.vendorRate ?? load.targetRate ?? load.amount ?? "",
+      ...highlightFields(load.bidHighlight),
     });
 
     const fetchLoadDetails = async () => {
@@ -52,6 +70,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
           bidEndTime: toLocalDateTimeInput(data.bidEndTime),
           targetRate: data.targetRate || data.amount || "",
           fleetOwnerAmount: data.vendorRate ?? data.targetRate ?? data.amount ?? "",
+          ...highlightFields(data.bidHighlight),
         });
       } catch (err) {
         if (!isCurrentRequest) return;
@@ -83,9 +102,19 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const bidHighlight =
+    formData.highlightChoice === CUSTOM
+      ? formData.customHighlight.trim()
+      : formData.highlightChoice;
+
   const handleSchedule = async () => {
     if (!formData.bidStartTime || !formData.bidEndTime) {
       notify.error("Please select both start and end times");
+      return;
+    }
+
+    if (formData.highlightChoice === CUSTOM && !bidHighlight) {
+      notify.error("Type your custom message or pick one from the list");
       return;
     }
 
@@ -108,6 +137,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
         bidEndTime: endTime.toISOString(),
         targetRate,
         margin: targetRate - fleetOwnerAmount,
+        bidHighlight,
       });
       notify.success("Bidding scheduled! Fleet owners have been notified.");
       refreshLoads();
@@ -154,7 +184,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className={`${uiStyles.card} w-full max-w-[580px] p-6 rounded-2xl bg-white shadow-2xl relative`}>
+      <div className={`${uiStyles.card} w-full max-w-[580px] max-h-[90vh] overflow-y-auto p-6 rounded-2xl bg-white shadow-2xl relative`}>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -198,8 +228,8 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                 <p className="font-bold text-xs text-slate-700 truncate">{loadDetails.pickup?.city} → {loadDetails.drop?.city}</p>
               </div>
               <div className="space-y-0.5">
-                <span className="text-[11px] font-bold text-slate-400 uppercase text-emerald-500">Rate</span>
-                <p className="font-black text-xs text-emerald-600">${loadDetails.amount?.toLocaleString()}</p>
+                <span className="text-[12px] font-bold uppercase text-emerald-500">Rate</span>
+                <p className="font-black text-2xl leading-none text-emerald-600">${loadDetails.amount?.toLocaleString()}</p>
               </div>
             </div>
 
@@ -233,7 +263,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">Base Rate ($)</label>
-                  <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-bold text-slate-500">
+                  <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xl font-black text-slate-600">
                     {Number(formData.targetRate || 0).toLocaleString()}
                   </div>
                 </div>
@@ -248,9 +278,57 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="0"
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xl font-black focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                   />
                 </div>
+              </div>
+
+              {/* Promo message carriers see on this load */}
+              <div>
+                <label className="text-[13px] font-bold text-gray-500 uppercase mb-1 block">
+                  Message for Fleet Owners
+                </label>
+                <select
+                  name="highlightChoice"
+                  value={formData.highlightChoice}
+                  onChange={handleChange}
+                  disabled={loading}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                >
+                  <option value="">No message</option>
+                  {BID_HIGHLIGHT_PRESETS.map((p) => (
+                    <option key={p.text} value={p.text}>
+                      {p.emoji} {p.text}
+                    </option>
+                  ))}
+                  <option value={CUSTOM}>✏️ Customize…</option>
+                </select>
+
+                {formData.highlightChoice === CUSTOM && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      name="customHighlight"
+                      value={formData.customHighlight}
+                      onChange={handleChange}
+                      disabled={loading}
+                      maxLength={BID_HIGHLIGHT_MAX}
+                      placeholder="Type your own message, e.g. Fuel bonus included"
+                      autoFocus
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                    />
+                    <p className="mt-1 text-right text-[11px] text-gray-400">
+                      {formData.customHighlight.length}/{BID_HIGHLIGHT_MAX}
+                    </p>
+                  </div>
+                )}
+
+                {bidHighlight && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase text-gray-400">Preview</span>
+                    <BidHighlightBadge text={bidHighlight} />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -260,7 +338,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
                 <span className="text-[11px] font-black uppercase opacity-80">Fleet Owner Gets</span>
                 <p className="text-[12px] opacity-90 leading-tight">Amount displayed to fleet owners</p>
               </div>
-              <div className="text-xl font-black text-white tracking-tight">
+              <div className="text-3xl font-black text-white tracking-tight">
                 ${Number(formData.fleetOwnerAmount || 0).toLocaleString()}
               </div>
             </div>

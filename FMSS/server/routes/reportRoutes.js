@@ -7,6 +7,7 @@ const {
   payDriver,
   sendDriverStatement,
   sendCarrierStatement,
+  sendAccessorialReport,
 } = require("../controllers/reportController");
 const { protect, authorizeRoles } = require("../middleware/auth");
 const { requirePermission } = require("../middleware/permissions");
@@ -46,6 +47,14 @@ router.post(
   ...office,
   requirePermission("reports.view"),
   sendCarrierStatement,
+);
+
+// The Accessorial Loads report, emailed to the customer it is about.
+router.post(
+  "/accessorials/email",
+  ...office,
+  requirePermission("reports.view"),
+  sendAccessorialReport,
 );
 
 router.get("/:key/export", ...office, requirePermission("reports.export"), exportReport);

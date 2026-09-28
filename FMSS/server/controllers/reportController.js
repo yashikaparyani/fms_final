@@ -2,6 +2,7 @@ const Load = require("../models/Load");
 const Driver = require("../models/Driver");
 const FleetOwner = require("../models/FleetOwner");
 const User = require("../models/User");
+const Customer = require("../models/Customer");
 const {
   REPORT_BY_KEY,
   catalog,
@@ -11,6 +12,7 @@ const {
   sendDriverPaymentStatement,
   sendDriverAccountStatement,
   sendCarrierAccountStatement,
+  sendAccessorialReport: sendAccessorialReportEmail,
 } = require("../services/emailService");
 const audit = require("../services/auditService");
 const { BUSINESS_TIME_ZONE, formatDateNumeric, formatDateTime, todayKey } = require("../utils/dates");
@@ -530,7 +532,92 @@ const sendCarrierStatement = async (req, res) => {
   }
 };
 
+// @desc    Email a customer their Accessorial Loads report
+// @route   POST /api/reports/accessorials/email
+// @access  Private (staff, admin)
+//
+// The report's own rows for this customer and these filters — the ones on
+// screen — with Reference # and Container # on every line, and the same list
+// attached as a CSV. Changes nothing.
+const sendAccessorialReport = async (req, res) => {
+  try {
+    const customerId = trimmed(req.body.customer);
+    if (!customerId) {
+      return res.status(400).json({ message: "Choose the customer to email." });
+    }
+
+    const params = paramsFrom({ ...req.body, customer: customerId });
+    const result = await runReport("accessorialsByCustomer", params);
+
+    const loadIds = Array.isArray(req.body.loadIds) ? req.body.loadIds.map(String) : [];
+    const rows = loadIds.length
+      ? result.rows.filter((row) => loadIds.includes(row.loadId))
+      : result.rows;
+
+    const customerRecord = await Customer.findOne({ user: customerId })
+      .select("customerName emails")
+      .lean();
+    const customerUser = await User.findById(customerId).select("email").lean();
+    const customerName =
+      customerRecord?.customerName || rows[0]?.customerName || "Customer";
+
+    if (!rows.length) {
+      return res
+        .status(400)
+        .json({ message: `${customerName} has no accessorial charges on this report to send.` });
+    }
+
+    // The accessorial-charges address is the one the customer gave for exactly
+    // this; the login address is the fallback.
+    const to =
+      trimmed(req.body.to) ||
+      customerRecord?.emails?.accChargesEmail ||
+      customerUser?.email ||
+      "";
+
+    if (!to) {
+      return res.status(400).json({
+        message: `${customerName} has no email address on file, so the report cannot be sent.`,
+      });
+    }
+
+    const totals = {
+      accessorials: money(rows.reduce((acc, row) => acc + (Number(row.accessorials) || 0), 0)),
+      total: money(rows.reduce((acc, row) => acc + (Number(row.total) || 0), 0)),
+      count: rows.length,
+    };
+
+    const emailStatus = await sendAccessorialReportEmail({
+      to,
+      customerName,
+      rows,
+      totals,
+      period: { from: params.from || "", to: params.to || "" },
+      note: trimmed(req.body.note),
+      csv: `﻿${toCsv({ ...result, rows, totals })}`,
+    });
+
+    if (!emailStatus?.sent) {
+      return res.status(502).json({
+        message: emailStatus?.message || "The report could not be emailed.",
+        emailStatus,
+      });
+    }
+
+    res.json({
+      message: `Accessorial report sent to ${customerName} (${to}) — ${rows.length} load${
+        rows.length === 1 ? "" : "s"
+      }, $${totals.accessorials.toLocaleString("en-US")}.`,
+      totals,
+      emailStatus,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
+  sendAccessorialReport,
   sendCarrierStatement,
   sendDriverStatement,
   getCatalog,

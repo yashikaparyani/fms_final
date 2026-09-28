@@ -7,6 +7,7 @@ import LoadTable from "../components/LoadTable";
 import { useSelector } from "react-redux";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import UnassignedNote from "../components/UnassignedNote";
+import BidHighlightBadge from "../components/BidHighlightBadge";
 
 const { LoadIdCell, CustomerCell, AddressCell, StatusBadge } = LoadTable;
 
@@ -76,7 +77,7 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
     {
       key: "load",
       header: "Load",
-      width: "130px",
+      width: "160px",
       render: (row) => (
         <div className="space-y-1">
           <LoadIdCell
@@ -87,6 +88,7 @@ const LoadsWithBiddingTable = ({ bidStatus = "OPEN" }) => {
             }}
           />
           <NegotiatedBadge row={row} />
+          <BidHighlightBadge text={row.bidHighlight} className="max-w-[220px]" />
         </div>
       ),
     },

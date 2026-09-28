@@ -16,12 +16,16 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * @param {string}   options.label          Human name used in messages, e.g. "Delivery partner"
  * @param {string[]} options.textFields     Optional trimmed string fields, e.g. ["code", "email"]
  * @param {string[]} options.requiredFields Subset of textFields that may not be blank
+ * @param {Function} options.apply          Optional (row, body, req, { isNew }) => error message | null.
+ *                                          Sets anything that is not a plain text field — the chassis
+ *                                          master's daily rent and its effective date, for one.
  */
 const createMasterController = ({
   Model,
   label,
   textFields = [],
   requiredFields = [],
+  apply,
 }) => {
   const findByName = (name, excludeId) => {
     const query = { name: new RegExp(`^${escapeRegex(name)}$`, "i") };
@@ -82,7 +86,12 @@ const createMasterController = ({
         doc[field] = String(body[field] || "").trim();
       }
 
-      res.status(201).json(await Model.create(doc));
+      const row = new Model(doc);
+      const problem = apply ? apply(row, body, req, { isNew: true }) : null;
+      if (problem) return res.status(400).json({ message: problem });
+
+      await row.save();
+      res.status(201).json(row);
     } catch (err) {
       if (err.code === 11000) {
         return res.status(409).json({ message: `${label} already exists` });
@@ -119,6 +128,9 @@ const createMasterController = ({
         }
       }
       if (isActive !== undefined) row.isActive = Boolean(isActive);
+
+      const problem = apply ? apply(row, body, req, { isNew: false }) : null;
+      if (problem) return res.status(400).json({ message: problem });
 
       await row.save();
       res.json(row);

@@ -419,6 +419,77 @@ const driverAccountStatement = ({ driverName, rows = [], totals, period }) => {
 const carrierAccountStatement = ({ carrierName, rows = [], totals, period }) =>
   driverAccountStatement({ driverName: carrierName, rows, totals, period });
 
+/**
+ * A customer's accessorial charges, load by load — the Accessorial Loads report
+ * for one customer, as an email. Each row carries the customer's own reference
+ * and the container number, which is what they look a load up by.
+ */
+const accessorialReport = ({ customerName, rows = [], totals, period, note }) => {
+  const asMoney = (value) =>
+    `$${Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const window =
+    period?.from || period?.to
+      ? ` for ${period.from || "the start"} to ${period.to || "today"}`
+      : "";
+
+  return {
+    subject: `Accessorial charges${window} — ${rows.length} load${rows.length === 1 ? "" : "s"}, ${asMoney(totals.accessorials)}`,
+    text:
+      `Hello ${customerName}, here are the accessorial charges on your loads${window}. ` +
+      rows
+        .map(
+          (row) =>
+            `${row.loadId}` +
+            `${row.refNo ? ` (Ref ${row.refNo})` : ""}` +
+            `${row.containerNo ? ` [${row.containerNo}]` : ""}: ` +
+            `${row.accessorialDetail || "—"} = ${asMoney(row.accessorials)}`,
+        )
+        .join("; ") +
+      `. Total accessorials ${asMoney(totals.accessorials)}.`,
+    html: `
+    <p>Hello ${escapeHtml(customerName)},</p>
+    <p>Here are the accessorial charges on your loads${escapeHtml(window)}.</p>
+    ${note ? `<p style="white-space:pre-line">${escapeHtml(note)}</p>` : ""}
+
+    <table cellpadding="6" cellspacing="0" border="1"
+           style="border-collapse:collapse;font-size:13px;margin-top:12px">
+      <tr style="background:#f3f4f6">
+        <th align="left">Load</th>
+        <th align="left">Reference #</th>
+        <th align="left">Container #</th>
+        <th align="left">Charges</th>
+        <th align="right">Accessorial Total</th>
+      </tr>
+      ${rows
+        .map(
+          (row) => `
+        <tr>
+          <td>${escapeHtml(row.loadId)}</td>
+          <td>${escapeHtml(row.refNo || "—")}</td>
+          <td>${escapeHtml(row.containerNo || "—")}</td>
+          <td>${escapeHtml(row.accessorialDetail || "—")}</td>
+          <td align="right">${escapeHtml(asMoney(row.accessorials))}</td>
+        </tr>`,
+        )
+        .join("")}
+      <tr style="background:#f9fafb;font-weight:bold">
+        <td colspan="4" align="right">Total</td>
+        <td align="right">${escapeHtml(asMoney(totals.accessorials))}</td>
+      </tr>
+    </table>
+
+    <p style="font-size:12px;color:#6b7280;margin-top:14px">
+      The same list is attached as a spreadsheet. If anything here does not look
+      right, reply to this email quoting the load or reference number.
+    </p>
+  `,
+  };
+};
+
 const loadRequiresChanges = ({ load, client, changesNote }) => ({
   subject: `Updates Required for Load ${load.loadId}`,
   text: `Hello ${client.firstName || "Customer"}, your load ${load.loadId} requires changes: ${changesNote}. Please log in and update your load.`,
@@ -882,6 +953,7 @@ module.exports = {
   bidWon,
   customerCredentials,
   driverCredentials,
+  accessorialReport,
   carrierAccountStatement,
   driverAccountStatement,
   driverPaymentStatement,

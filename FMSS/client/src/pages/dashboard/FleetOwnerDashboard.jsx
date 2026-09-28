@@ -14,6 +14,7 @@ import {
   Cancel,
 } from "@mui/icons-material";
 import { uiStyles } from "../../style/uiStyles";
+import BidHighlightBadge from "../../components/BidHighlightBadge";
 import {
   StatCard,
   SummaryCard,
@@ -289,6 +290,7 @@ const FleetOwnerDashboard = () => {
                 >
                   <div className="min-w-0 flex-1 mr-2">
                     <p className="text-sm font-medium">{load.loadId}</p>
+                    <BidHighlightBadge text={load.bidHighlight} className="my-1" />
                     <p className="text-muted-md truncate">
                       {load.pickup?.city} → {load.drop?.city}
                     </p>
