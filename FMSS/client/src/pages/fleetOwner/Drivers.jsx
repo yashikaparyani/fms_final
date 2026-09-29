@@ -16,6 +16,7 @@ import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
 import { usePermissions } from "../../hooks/usePermissions";
 import { toDateKey } from "../../utils/dates";
+import { postCredentials } from "../../utils/sendCredentials";
 
 // ─── Drivers ──────────────────────────────────────────────────────────────────
 // The carrier's own roster. They add drivers themselves because they are the only
@@ -216,10 +217,11 @@ const Drivers = () => {
 
     try {
       setBusyId(driver._id);
-      const { data } = await api.post(`/drivers/${driver._id}/send-credentials`, {
+      const data = await postCredentials(`/drivers/${driver._id}/send-credentials`, {
         channel: sendEmail ? "email" : "manual",
         email: driver.email || value,
       });
+      if (!data) return;
 
       setIssued([
         {

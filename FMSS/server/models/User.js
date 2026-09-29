@@ -54,6 +54,12 @@ const userSchema = new mongoose.Schema(
       sentAt: Date,
     },
 
+    // When the office last issued this account a generated password (the
+    // "send credentials" buttons). Every issue replaces the password, so a
+    // second click minutes later sends a second email and the first password
+    // stops working — see claimCredentialIssue in utils/credentials.js.
+    credentialsSentAt: Date,
+
     lastLogin: Date,
 
     // Devices this account is signed in on, for push notifications. A user has

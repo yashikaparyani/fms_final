@@ -24,6 +24,37 @@ export const findCarrier = (fleetOwners = [], id) => {
 };
 
 /**
+ * A carrier's phone: their own number, else their primary contact's — plenty of
+ * carriers were entered with the number only against the contact person.
+ */
+export const carrierPhone = (owner) => {
+  if (!owner) return null;
+  if (owner.phone) return owner.phone;
+  const contacts = owner.contactPersons || [];
+  const contact = contacts.find((c) => c.isPrimary && c.phone) || contacts.find((c) => c.phone);
+  return contact?.phone || null;
+};
+
+/** The phone for a carrier id on a load, from the roster. */
+export const phoneForCarrier = (fleetOwners, id) =>
+  carrierPhone(findCarrier(fleetOwners, id));
+
+/**
+ * Every carrier on a load as `{ name, phone }`, in running order — each leg of
+ * a split load, otherwise the one carrier. Empty when nobody is on it.
+ */
+export const carriersOnLoad = (load, fleetOwners = []) => {
+  if (load?.assignments?.length) {
+    return load.assignments.map((leg) => ({
+      name: leg.fleetOwnerName,
+      phone: phoneForCarrier(fleetOwners, leg.fleetOwnerId),
+    }));
+  }
+  const one = carrierOnLoad(load, fleetOwners);
+  return one ? [one] : [];
+};
+
+/**
  * The primary carrier on a load as `{ name, phone }`, or null.
  *
  * `fleetOwners` is optional: without it the name still resolves for an assigned
@@ -34,7 +65,7 @@ export const carrierOnLoad = (load, fleetOwners = []) => {
   if (assigned?.fleetOwnerName) {
     return {
       name: assigned.fleetOwnerName,
-      phone: findCarrier(fleetOwners, assigned.fleetOwnerId)?.phone || null,
+      phone: phoneForCarrier(fleetOwners, assigned.fleetOwnerId),
     };
   }
 
@@ -44,12 +75,12 @@ export const carrierOnLoad = (load, fleetOwners = []) => {
   if (firstLeg?.fleetOwnerName) {
     return {
       name: firstLeg.fleetOwnerName,
-      phone: findCarrier(fleetOwners, firstLeg.fleetOwnerId)?.phone || null,
+      phone: phoneForCarrier(fleetOwners, firstLeg.fleetOwnerId),
     };
   }
 
   const winner = findCarrier(fleetOwners, load?.winningBid?.fleetOwnerId);
-  if (winner) return { name: winner.carrierName, phone: winner.phone || null };
+  if (winner) return { name: winner.carrierName, phone: carrierPhone(winner) };
 
   return null;
 };

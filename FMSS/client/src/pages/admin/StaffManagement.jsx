@@ -14,6 +14,7 @@ import BulkEntryTable from "../../components/BulkEntryTable";
 import CredentialsPanel from "../../components/CredentialsPanel";
 import { uiStyles } from "../../style/uiStyles";
 import { notify } from "../../utils/swal";
+import { postCredentials } from "../../utils/sendCredentials";
 
 // ─── Staff ────────────────────────────────────────────────────────────────────
 // Admin-only. Adding people to the system, one at a time or a whole team at
@@ -241,9 +242,10 @@ const StaffManagement = () => {
 
     try {
       setBusyId(member._id);
-      const { data } = await api.post(`/staff/${member._id}/send-credentials`, {
+      const data = await postCredentials(`/staff/${member._id}/send-credentials`, {
         channel: "email",
       });
+      if (!data) return;
       setIssued([
         {
           name: [member.firstName, member.lastName].filter(Boolean).join(" "),

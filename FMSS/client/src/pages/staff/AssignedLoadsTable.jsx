@@ -10,7 +10,7 @@ import { notify } from "../../utils/swal";
 import { LfdCell, UrgencyBadge } from "../../components/UrgencyCells";
 import LoadColorModeToggle from "../../components/LoadColorModeToggle";
 import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
-import { carrierOnLoad } from "../../utils/loadCarrier";
+import { carriersOnLoad } from "../../utils/loadCarrier";
 import {
   STATUS_ROW_COLORS,
   rowColorFor,
@@ -216,7 +216,7 @@ const AssignedLoadsTable = () => {
           <p className="text-center text-gray-500 py-10">Loading...</p>
         ) : sortedRows.length > 0 ? (
           sortedRows.map((row) => {
-            const carrier = carrierOnLoad(row, fleetOwners);
+            const carriers = carriersOnLoad(row, fleetOwners);
             const assigned = isAssignedToCarrier(row);
             const isOpen = openRow === row.loadId;
             return (
@@ -251,8 +251,10 @@ const AssignedLoadsTable = () => {
                   { label: "Status",  value: STATUS_LABEL(row.transportStatus) },
                   {
                     label: "Carrier",
-                    value: carrier
-                      ? `${carrier.name}${carrier.phone ? ` (${carrier.phone})` : ""}`
+                    value: carriers.length
+                      ? carriers
+                          .map((c) => `${c.name}${c.phone ? ` (${c.phone})` : ""}`)
+                          .join(" → ")
                       : "Not assigned",
                   },
                 ]}

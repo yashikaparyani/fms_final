@@ -9,6 +9,11 @@ const {
 } = require("../utils/carrierAccount");
 const { createAddressRef } = require("../utils/addressRef");
 const mongoose = require("mongoose");
+const {
+  claimCredentialIssue,
+  releaseCredentialIssue,
+  recentlySentResponse,
+} = require("../utils/credentials");
 
 // Generate random password
 const generatePassword = () => {
@@ -345,6 +350,16 @@ const sendCredentialsToFleetOwner = async (req, res) => {
       user = byEmail || null;
     }
 
+    // One password per send - see claimCredentialIssue. A brand-new account has
+    // nothing to protect yet and is stamped as it is created.
+    let claim = { ok: true, previous: null };
+    if (user) {
+      claim = await claimCredentialIssue(user._id, { force: req.body?.force === true });
+      if (!claim.ok) {
+        return recentlySentResponse(res, { email: user.email, sentAt: claim.sentAt });
+      }
+    }
+
     const generatedPassword = generatePassword();
 
     if (!user) {
@@ -360,6 +375,7 @@ const sendCredentialsToFleetOwner = async (req, res) => {
         // request — see resolveLocation. Same rule as createFleetOwner.
         locations: [fleetOwner.locationId],
         defaultLocation: fleetOwner.locationId,
+        credentialsSentAt: new Date(),
       });
 
       fleetOwner.userId = user._id;
@@ -392,6 +408,10 @@ const sendCredentialsToFleetOwner = async (req, res) => {
             password: generatedPassword,
           })
         : skippedManualEmailStatus(channel);
+
+    if (channel === "email" && !emailStatus.sent) {
+      await releaseCredentialIssue(user._id, claim.previous);
+    }
 
     res.json({
       message: emailStatus.sent

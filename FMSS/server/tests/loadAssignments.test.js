@@ -599,6 +599,60 @@ describe("Yard handover: a second carrier collects from the yard", () => {
     expect(carrierLoadView(doc, portToYard._id).transportStatus).toEqual("LOADED_IN_YARD");
     expect(carrierLoadView(doc, yardToDoor._id).transportStatus).toEqual("ASSIGNED");
   });
+
+  describe("unassigning only some of the legs", () => {
+    // Parked by the first carrier, collected by the second, each with a driver.
+    const handedOver = async () => {
+      await parkedWithFirstCarrier();
+      const res = await assign(bodyForTwo());
+      await seed(async () => {
+        const doc = await Load.findOne({ loadId: "LD-9001" });
+        doc.driverAssignments = [
+          { driver: new mongoose.Types.ObjectId(), fleetOwnerId: portToYard._id, driverName: "First" },
+          { driver: new mongoose.Types.ObjectId(), fleetOwnerId: yardToDoor._id, driverName: "Second" },
+        ];
+        await doc.save();
+      });
+      return res.body.load.assignments.map((leg) => String(leg._id));
+    };
+
+    it("taking off the second carrier puts the load back where the first left it", async () => {
+      const [, secondLeg] = await handedOver();
+
+      const res = await request(app)
+        .put("/api/loads/LD-9001/unassign")
+        .send({ legIds: [secondLeg] });
+      expect(res.statusCode).toEqual(200);
+
+      const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }).lean());
+      expect(doc.transportStatus).toEqual("LOADED_IN_YARD");
+      expect(doc.status).toEqual("ASSIGNED");
+      expect(doc.assignments.map((leg) => leg.fleetOwnerName)).toEqual(["Port Drayage LLC"]);
+      expect(String(doc.assignedFleetOwner.fleetOwnerId)).toEqual(String(portToYard._id));
+      expect(doc.driverAssignments.map((d) => d.driverName)).toEqual(["First"]);
+    });
+
+    it("taking off both sends it back to Dispatch Management", async () => {
+      const legIds = await handedOver();
+
+      const res = await request(app).put("/api/loads/LD-9001/unassign").send({ legIds });
+      expect(res.statusCode).toEqual(200);
+
+      const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }).lean());
+      expect(doc.transportStatus).toEqual("NEW_LOAD");
+      expect(doc.status).toEqual("VERIFIED");
+      expect(doc.assignments).toHaveLength(0);
+      expect(doc.driverAssignments).toHaveLength(0);
+    });
+
+    it("refuses a leg that is not on the load", async () => {
+      await handedOver();
+      const res = await request(app)
+        .put("/api/loads/LD-9001/unassign")
+        .send({ legIds: [String(new mongoose.Types.ObjectId())] });
+      expect(res.statusCode).toEqual(400);
+    });
+  });
 });
 
 describe("Each carrier sees their own leg, and the timeline records assignments", () => {

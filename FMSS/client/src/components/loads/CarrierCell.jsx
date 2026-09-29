@@ -1,4 +1,4 @@
-import { carrierOnLoad } from "../../utils/loadCarrier";
+import { carrierOnLoad, phoneForCarrier } from "../../utils/loadCarrier";
 
 // ─── Who is on this load ──────────────────────────────────────────────────────
 // A load split between carriers is shown as its legs, in running order. Naming
@@ -30,17 +30,25 @@ export const WhatsAppButton = ({ phone }) => {
   );
 };
 
-const CarrierLegs = ({ load }) => (
+const CarrierLegs = ({ load, fleetOwners }) => (
   <div className="space-y-1.5">
-    {load.assignments.map((leg, index) => (
+    {load.assignments.map((leg, index) => {
+      // Every carrier on the load with their number, not just the first —
+      // dispatch rings whichever leg the question is about.
+      const phone = phoneForCarrier(fleetOwners, leg.fleetOwnerId);
+      return (
       <div key={leg._id || index} className="leading-tight">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-bold text-white bg-indigo-600 rounded px-1 py-px flex-shrink-0">
             {index + 1}
           </span>
-          <span className="text-xs font-bold text-green-800 truncate">
+          <span className="text-xs font-bold text-green-800">
             {leg.fleetOwnerName}
+            {phone && (
+              <span className="font-semibold text-green-700"> ({phone})</span>
+            )}
           </span>
+          <WhatsAppButton phone={phone} />
         </div>
         <p className="text-[12px] text-gray-500 pl-5 truncate">
           {[leg.origin?.city, leg.destination?.city].filter(Boolean).join(" → ") ||
@@ -50,12 +58,13 @@ const CarrierLegs = ({ load }) => (
             : ""}
         </p>
       </div>
-    ))}
+      );
+    })}
   </div>
 );
 
 const CarrierCell = ({ load, fleetOwners = [] }) => {
-  if (load.assignments?.length) return <CarrierLegs load={load} />;
+  if (load.assignments?.length) return <CarrierLegs load={load} fleetOwners={fleetOwners} />;
 
   const carrier = carrierOnLoad(load, fleetOwners);
   if (!carrier) {

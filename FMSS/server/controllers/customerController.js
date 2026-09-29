@@ -3,6 +3,11 @@ const Customer = require("../models/Customer");
 const Address = require("../models/common/Address");
 const { sendCustomerCredentials } = require("../services/emailService");
 const mongoose = require("mongoose");
+const {
+  claimCredentialIssue,
+  releaseCredentialIssue,
+  recentlySentResponse,
+} = require("../utils/credentials");
 
 // Generate random password
 const generatePassword = () => {
@@ -630,6 +635,12 @@ const sendCredentialsToCustomer = async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });
     }
 
+    // One password per send - see claimCredentialIssue.
+    const claim = await claimCredentialIssue(customer._id, { force: req.body?.force === true });
+    if (!claim.ok) {
+      return recentlySentResponse(res, { email: customer.email, sentAt: claim.sentAt });
+    }
+
     const generatedPassword = generatePassword();
     customer.password = generatedPassword;
     await customer.save();
@@ -638,6 +649,10 @@ const sendCredentialsToCustomer = async (req, res) => {
       channel === "email"
         ? await sendCustomerCredentials({ customer, password: generatedPassword })
         : skippedManualEmailStatus(channel);
+
+    if (channel === "email" && !emailStatus.sent) {
+      await releaseCredentialIssue(customer._id, claim.previous);
+    }
 
     res.json({
       message: emailStatus.sent

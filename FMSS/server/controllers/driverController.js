@@ -11,6 +11,9 @@ const { sendDriverCredentials } = require("../services/emailService");
 const {
   generatePassword,
   skippedManualEmailStatus,
+  claimCredentialIssue,
+  releaseCredentialIssue,
+  recentlySentResponse,
 } = require("../utils/credentials");
 
 // ─── Drivers & their sub-accounts ─────────────────────────────────────────────
@@ -964,6 +967,11 @@ const sendCredentialsToDriver = async (req, res) => {
       driver.fleetOwner?._id || driver.fleetOwner,
     ).select("carrierName userId");
 
+    // One password per send - see claimCredentialIssue. Kept so a failed email
+    // can hand the claim back; a new account is stamped as it is created.
+    let claim = { ok: true, previous: null };
+    let accountId = null;
+
     if (driver.userId) {
       const account = await User.findById(driver.userId._id || driver.userId);
       if (!account) {
@@ -971,6 +979,16 @@ const sendCredentialsToDriver = async (req, res) => {
           .status(404)
           .json({ message: "This driver's login account is missing." });
       }
+
+      // A change of address is a different mailbox, so the earlier email is
+      // not one they can go and find.
+      claim = await claimCredentialIssue(account._id, {
+        force: body.force === true || normalizeEmail(account.email) !== email,
+      });
+      if (!claim.ok) {
+        return recentlySentResponse(res, { email: account.email, sentAt: claim.sentAt });
+      }
+      accountId = account._id;
 
       account.email = email;
       account.password = password; // hashed by the model hook
@@ -1004,9 +1022,11 @@ const sendCredentialsToDriver = async (req, res) => {
         locations: driver.locationId ? [driver.locationId] : [],
         defaultLocation: driver.locationId || undefined,
         addedBy: req.user._id,
+        credentialsSentAt: new Date(),
       });
 
       driver.userId = account._id;
+      accountId = account._id;
     }
 
     if (driver.email !== email) driver.email = email;
@@ -1021,6 +1041,10 @@ const sendCredentialsToDriver = async (req, res) => {
             carrierName: carrier?.carrierName,
           })
         : skippedManualEmailStatus(channel);
+
+    if (channel === "email" && !emailStatus.sent && accountId) {
+      await releaseCredentialIssue(accountId, claim.previous);
+    }
 
     await driver.populate("userId", "email isActive lastLogin");
 

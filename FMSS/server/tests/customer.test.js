@@ -218,5 +218,33 @@ describe("Customer API", () => {
       expect(res.body).toHaveProperty("password");
       expect(res.body.password.length).toBeGreaterThan(0);
     });
+
+    it("refuses a second send soon after the first unless forced", async () => {
+      const customer = await User.create({
+        firstName: "Twice",
+        lastName: "Clicked",
+        email: "twice@test.com",
+        password: "oldpassword",
+        role: "client"
+      });
+      const url = `/api/customers/${customer._id}/send-credentials`;
+
+      // WhatsApp rather than email: mail is off in tests, and a failed email
+      // hands the claim back so the office can retry.
+      const first = await request(app).post(url).set("role", "staff").send({ channel: "whatsapp" });
+      expect(first.statusCode).toEqual(200);
+
+      const second = await request(app).post(url).set("role", "staff").send({ channel: "whatsapp" });
+      expect(second.statusCode).toEqual(409);
+      expect(second.body.code).toEqual("CREDENTIALS_RECENTLY_SENT");
+      expect(second.body).not.toHaveProperty("password");
+
+      const forced = await request(app)
+        .post(url)
+        .set("role", "staff")
+        .send({ channel: "whatsapp", force: true });
+      expect(forced.statusCode).toEqual(200);
+      expect(forced.body.password).not.toEqual(first.body.password);
+    });
   });
 });

@@ -12,6 +12,7 @@ import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
 import { uiStyles } from "../../style/uiStyles";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import { postCredentials } from "../../utils/sendCredentials";
 
 const StaffCustomers = () => {
   const [customers, setCustomers] = useState([]);
@@ -49,9 +50,11 @@ const StaffCustomers = () => {
 
     setSendingCredentials(id);
     try {
-      const res = await api.post(`/customers/${id}/send-credentials`, {
+      const data = await postCredentials(`/customers/${id}/send-credentials`, {
         channel: "email",
       });
+      if (!data) return;
+      const res = { data };
       notify.success(res.data.message || `Credentials processed for ${res.data.email}`);
     } catch {
       notify.error("Failed to send credentials");
@@ -65,9 +68,11 @@ const StaffCustomers = () => {
 
     setSendingCredentials(id);
     try {
-      const res = await api.post(`/customers/${id}/send-credentials`, {
+      const data = await postCredentials(`/customers/${id}/send-credentials`, {
         channel: "whatsapp",
       });
+      if (!data) return;
+      const res = { data };
       const message = `Login: ${window.location.origin}/client-login\nEmail: ${res.data.email}\nPassword: ${res.data.password}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`);
     } catch {

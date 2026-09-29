@@ -10,6 +10,9 @@ const { sendStaffCredentials } = require("../services/emailService");
 const {
   generatePassword,
   skippedManualEmailStatus,
+  claimCredentialIssue,
+  releaseCredentialIssue,
+  recentlySentResponse,
 } = require("../utils/credentials");
 
 // ─── Staff & permission administration ────────────────────────────────────────
@@ -706,6 +709,12 @@ const sendCredentialsToStaff = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "Staff member not found" });
 
+    // One password per send - see claimCredentialIssue.
+    const claim = await claimCredentialIssue(user._id, { force: req.body?.force === true });
+    if (!claim.ok) {
+      return recentlySentResponse(res, { email: user.email, sentAt: claim.sentAt });
+    }
+
     const password = generatePassword();
     user.password = password; // hashed by the model hook
     await user.save();
@@ -719,6 +728,10 @@ const sendCredentialsToStaff = async (req, res) => {
             locationNames: (user.locations || []).map((l) => l.name),
           })
         : skippedManualEmailStatus(channel);
+
+    if (channel === "email" && !emailStatus.sent) {
+      await releaseCredentialIssue(user._id, claim.previous);
+    }
 
     res.json({
       message: emailStatus.sent

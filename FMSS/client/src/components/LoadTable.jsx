@@ -168,7 +168,7 @@ const DateCell = ({ value, showExpiry, time }) => {
     return (
       <div className="leading-tight">
         <span className="text-gray-400">-</span>
-        <div className="text-[12px] font-medium text-gray-500 tabular-nums">{time}</div>
+        <div className="text-xs font-semibold text-gray-600 mt-0.5">{time}</div>
       </div>
     );
   }
@@ -181,7 +181,7 @@ const DateCell = ({ value, showExpiry, time }) => {
         {fmtDate(value)}
       </span>
       {time && (
-        <div className="text-[12px] font-medium text-gray-500 tabular-nums">
+        <div className="text-xs font-semibold text-gray-600 mt-0.5">
           {time}
         </div>
       )}

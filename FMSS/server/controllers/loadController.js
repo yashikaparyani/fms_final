@@ -4265,11 +4265,101 @@ const respondToNegotiation = async (req, res) => {
 // Clearing only the primary carrier left the old legs behind: the next carrier
 // was refused on status updates for having no leg, the old carrier still saw
 // the load, and billing listed both.
+//
+// Taking off only some legs. On a load run by two carriers (or two drivers of
+// one carrier) the office usually wants just the second one off — the box is
+// sitting in the yard and somebody else will collect it. `legIds` names the
+// legs to remove; the load keeps the rest and its status is re-rolled from
+// them, so it falls back to where the remaining leg left it (Loaded in Yard,
+// say) rather than to NEW_LOAD. Naming every leg is the same as the full
+// unassign below.
+const unassignLegs = async (load, legIds, req, res) => {
+  const wanted = new Set(legIds.map(String));
+  const byCarrier = load.hasLegs();
+  const legs = byCarrier ? load.assignments || [] : load.orderedDriverLegs();
+
+  const removed = legs.filter((leg) => wanted.has(String(leg._id)));
+  if (removed.length !== wanted.size) {
+    return res.status(400).json({
+      message: "One of those legs is no longer on this load. Refresh and try again.",
+    });
+  }
+
+  const label = (leg) =>
+    byCarrier ? leg.fleetOwnerName : leg.driverName || "driver";
+  const removedNames = removed.map(label).join(", ");
+  const statusBefore = load.transportStatus;
+
+  if (byCarrier) {
+    load.assignments = legs.filter((leg) => !wanted.has(String(leg._id)));
+
+    // Drivers named by a carrier that is no longer on the load go with it.
+    const stillOn = new Set(load.assignments.map((leg) => String(leg.fleetOwnerId)));
+    load.driverAssignments = (load.driverAssignments || []).filter(
+      (d) => !d.fleetOwnerId || stillOn.has(String(d.fleetOwnerId)),
+    );
+
+    // The first remaining leg is the primary carrier — see setLoadAssignments.
+    const first = load.assignments[0];
+    load.assignedFleetOwner = {
+      fleetOwnerId: first.fleetOwnerId,
+      fleetOwnerName: first.fleetOwnerName,
+      assignedAt: first.assignedAt,
+    };
+  } else {
+    load.driverAssignments = (load.driverAssignments || []).filter(
+      (d) => !wanted.has(String(d._id)),
+    );
+  }
+
+  load.recomputeTransportStatus();
+
+  load.transportStatusHistory.push({
+    status: load.transportStatus,
+    changedBy: req.user._id,
+    changedAt: new Date(),
+    note:
+      `Unassigned ${removedNames} by staff/admin` +
+      (statusBefore !== load.transportStatus
+        ? ` — back to ${String(load.transportStatus).replace(/_/g, " ").toLowerCase()}`
+        : ""),
+  });
+
+  await load.save();
+
+  await audit.recordAssignment({
+    load,
+    carrierName: byCarrier
+      ? load.assignments.map((leg) => leg.fleetOwnerName).join(" → ")
+      : load.assignedFleetOwner?.fleetOwnerName,
+    previousName: removedNames,
+    user: req.user,
+    req,
+  });
+
+  return res.json({
+    message: `${removedNames} unassigned from ${load.loadId}.`,
+    load,
+  });
+};
+
 const unassignLoad = async (req, res) => {
   try {
     const { loadId } = req.params;
     const load = await Load.findOne({ loadId });
     if (!load) return res.status(404).json({ message: "Load not found" });
+
+    const legIds = Array.isArray(req.body?.legIds) ? req.body.legIds : [];
+    if (legIds.length) {
+      const legCount = load.hasLegs()
+        ? (load.assignments || []).length
+        : load.orderedDriverLegs().length;
+
+      // Anything short of every leg keeps the load assigned.
+      if (legIds.length < legCount) {
+        return await unassignLegs(load, legIds, req, res);
+      }
+    }
 
     const updated = await Load.findOneAndUpdate(
       { loadId },
@@ -4284,8 +4374,8 @@ const unassignLoad = async (req, res) => {
         $push: {
           transportStatusHistory: {
             status: "NEW_LOAD",
-            updatedBy: req.user._id,
-            updatedAt: new Date(),
+            changedBy: req.user._id,
+            changedAt: new Date(),
             note: "Unassigned by staff/admin — returned to Dispatch Management",
           },
         },

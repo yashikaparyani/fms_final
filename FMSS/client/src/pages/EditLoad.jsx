@@ -9,6 +9,7 @@ import { uiStyles } from "../style/uiStyles";
 import api from "../api";
 import AppSelect from "../components/AppSelect";
 import AddressFields from "../components/AddressFields";
+import BaseAmountDialog from "../components/accounting/BaseAmountDialog";
 import { toDateInput } from "../utils/dates";
 
 // ─── Add Company Modal ────────────────────────────────────────────────────────
@@ -525,6 +526,17 @@ const EditLoad = () => {
   const [pickups,      setPickups]      = useState([{ ...emptyStop }]);
   const [drops,        setDrops]        = useState([{ ...emptyStop }]);
 
+  // The charge breakdown behind the base amount — the same dialog the create
+  // form uses. Lines are only read back when somebody actually itemised the
+  // load; a load that only ever had a typed figure opens the dialog fresh.
+  // `breakdownChanged` keeps a save that never touched the dialog from
+  // rewriting the receivables ledger.
+  const [showBreakdown,    setShowBreakdown]    = useState(false);
+  const [receivableLines,  setReceivableLines]  = useState([]);
+  const [receivablesMeta,  setReceivablesMeta]  = useState({});
+  const [breakdownChanged, setBreakdownChanged] = useState(false);
+  const mayBreakDownAmount = role === "admin" || role === "staff";
+
   // ── Multi-stop helpers (shared by origins & destinations) ────────────────
   const updateStop = (list, setList, index, next) =>
     setList(list.map((s, i) => (i === index ? next : s)));
@@ -536,7 +548,7 @@ const EditLoad = () => {
   const containerTypeOptions = ["40 Std", "40 HC", "45", "20"];
   const commodityOptions     = ["Chilled", "Dry", "Other", "Produce", "Frozen"];
 
-  const { register, handleSubmit, watch, reset, control, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, reset, control, setValue, formState: { errors } } = useForm({
     resolver: zodResolver(loadSchema),
     defaultValues: {
       customer: "", refNo: "", singleType: "Pick",
@@ -663,6 +675,26 @@ const EditLoad = () => {
           remarks:         load.remarks         || "",
           driverRequirement: load.driverRequirement || "Solo Driver",
         });
+
+        if (role === "admin" || role === "staff") {
+          try {
+            const { data: acc } = await api.get(`/accounting/loads/${loadId}`);
+            const r = acc.receivables || {};
+            if (!r.derived && r.lines?.length) setReceivableLines(r.lines);
+            // Sent back unchanged on save — the ledger endpoint replaces the
+            // whole side, invoice details included.
+            setReceivablesMeta({
+              currency: "USD",
+              invoiceNumber: r.invoiceNumber || undefined,
+              invoicedAt: r.invoicedAt || undefined,
+              dueDate: r.dueDate || undefined,
+              paidAt: r.paidAt || undefined,
+              notes: r.notes || undefined,
+            });
+          } catch {
+            // No breakdown to show; the amount field still works on its own.
+          }
+        }
       } catch {
         toast.error("Failed to load order details");
         navigate(-1);
@@ -696,6 +728,15 @@ const EditLoad = () => {
         pickups: pickups.map(toStopPayload(true)),
         drops: drops.map(toStopPayload(false)),
       });
+      // Through the ledger endpoint rather than the load update: that one
+      // assigns whatever it is sent, and an `accounting` object there would
+      // replace the payables along with the receivables.
+      if (mayBreakDownAmount && breakdownChanged) {
+        await api.put(`/accounting/loads/${loadId}/receivables`, {
+          ...receivablesMeta,
+          lines: receivableLines,
+        });
+      }
       const isInternal = role === "admin" || role === "staff";
       toast.success(
         isInternal
@@ -726,6 +767,16 @@ const EditLoad = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-0 md:px-4">
+      <BaseAmountDialog
+        open={mayBreakDownAmount && showBreakdown}
+        onClose={() => setShowBreakdown(false)}
+        initialLines={receivableLines}
+        onApply={({ lines, total }) => {
+          setReceivableLines(lines);
+          setBreakdownChanged(true);
+          setValue("amount", String(total), { shouldValidate: true });
+        }}
+      />
       <div className="max-w-4xl mx-auto">
 
         {/* ── Header ── */}
@@ -855,7 +906,24 @@ const EditLoad = () => {
                 <div className="relative">
                   <input type="number" step="0.01" min="0" inputMode="decimal" className={cx("amount")} placeholder="0.00" {...register("amount")} disabled={submitting} />
                   <label className="input-label">Base Amount <span className="text-red-400">*</span></label>
+                  {mayBreakDownAmount && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBreakdown(true)}
+                      disabled={submitting}
+                      className="absolute right-2 top-2 text-[13px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-1"
+                    >
+                      {receivableLines.length ? `${receivableLines.length} charges` : "Break down"}
+                    </button>
+                  )}
                   {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount.message}</p>}
+                  {mayBreakDownAmount && receivableLines.length > 0 && (
+                    <p className="text-[13px] text-gray-500 mt-1">
+                      Built from {receivableLines.length} charge
+                      {receivableLines.length === 1 ? "" : "s"} — the receivables
+                      ledger is saved with the load.
+                    </p>
+                  )}
                 </div>
 
                 {/* Last Free Date */}

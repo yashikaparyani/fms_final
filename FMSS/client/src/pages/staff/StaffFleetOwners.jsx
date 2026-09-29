@@ -15,6 +15,7 @@ import { uiStyles } from "../../style/uiStyles";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { fleetOwnerCode } from "../../utils/fleetOwner";
 import { usePermissions } from "../../hooks/usePermissions";
+import { postCredentials } from "../../utils/sendCredentials";
 
 const StaffFleetOwners = () => {
   const [fleetOwners, setFleetOwners] = useState([]);
@@ -87,11 +88,15 @@ const StaffFleetOwners = () => {
   const isActiveCarrier = (row) => row.active !== false && row.isActive !== false;
 
   const handleSendCredentials = async (id) => {
+    if (sendingCredentials) return;
+
     setSendingCredentials(id);
     try {
-      const res = await api.post(`/fleet-owners/${id}/send-credentials`, {
+      const data = await postCredentials(`/fleet-owners/${id}/send-credentials`, {
         channel: "email",
       });
+      if (!data) return;
+      const res = { data };
       notify.success(res.data.message || `Credentials processed for ${res.data.email}`);
     } catch {
       notify.error("Failed to send");
@@ -101,11 +106,15 @@ const StaffFleetOwners = () => {
   };
 
   const handleShareWhatsApp = async (id) => {
+    if (sendingCredentials) return;
+
     setSendingCredentials(id);
     try {
-      const res = await api.post(`/fleet-owners/${id}/send-credentials`, {
+      const data = await postCredentials(`/fleet-owners/${id}/send-credentials`, {
         channel: "whatsapp",
       });
+      if (!data) return;
+      const res = { data };
       const message = `Login: ${window.location.origin}/vendor-login\nEmail: ${res.data.email}\nPassword: ${res.data.password}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`);
     } catch {
