@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LandingPage from "./pages/LandingPage";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import Support from "./pages/legal/Support";
 import Dashboard from "./pages/dashboard/Dashboard";
 import StaffCreateCustomer from "./pages/staff/StaffCreateCustomer";
 import StaffCustomers from "./pages/staff/StaffCustomers";
@@ -110,6 +112,12 @@ function App() {
           path="/"
           element={<LandingPage />}
         />
+
+        {/* PUBLIC LEGAL/SUPPORT PAGES.
+            No login: these are the Privacy Policy and Support URLs the App
+            Store listing points at, so Apple has to be able to open them. */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/support" element={<Support />} />
 
         {/* ONE SIGN-IN DOOR.
             There were four, one per role, and anyone who picked the wrong one

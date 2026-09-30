@@ -139,7 +139,13 @@ function ArrowLink({ children, to = "#" }) {
 }
 
 function getFooterLink(item) {
+  // Real destinations where we have one; in-page anchors otherwise. Anything
+  // returning a "/" path is rendered as a router <Link> by the footer.
   if (item === "Fleet Login") return "/login";
+  if (item === "Contact") return "/support";
+  if (item === "Home") return "#home";
+  if (item === "Company") return "#company";
+  if (item === "Services") return "#services";
   return "#home";
 }
 
@@ -284,7 +290,7 @@ function LandingPage() {
             <div className="landing-footer__column" key={column.title}>
               <h3>{column.title}</h3>
               {column.items.map((item) => (
-                item === "Fleet Login" ? (
+                getFooterLink(item).startsWith("/") ? (
                   <Link to={getFooterLink(item)} key={item}>{item}</Link>
                 ) : (
                   <a href={getFooterLink(item)} key={item}>{item}</a>
@@ -312,8 +318,9 @@ function LandingPage() {
         <div className="landing-footer__bottom">
           <span>© 2024 Thynk Unlimited. All rights reserved.</span>
           <span>
-            <a href="#home">Privacy Policy</a>
-            <a href="#home">Terms & Conditions</a>
+            <Link to="/privacy">Privacy Policy</Link>
+            <Link to="/support">Support</Link>
+            <Link to="/login">Fleet Login</Link>
           </span>
         </div>
       </footer>
