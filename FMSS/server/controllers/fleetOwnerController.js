@@ -8,6 +8,7 @@ const {
   carrierLoadView,
 } = require("../utils/carrierAccount");
 const { createAddressRef } = require("../utils/addressRef");
+const Address = require("../models/common/Address");
 const mongoose = require("mongoose");
 const {
   claimCredentialIssue,
@@ -63,6 +64,21 @@ const getFleetOwnerById = async (req, res) => {
       return res.status(404).json({ message: "Fleet owner not found" });
     }
 
+    // The payment address is stored as a referenced Address document, while the
+    // edit form reads flat street/suite/city/state/zip — flatten the first one.
+    const result = fleetOwner.toObject();
+    const addressId = fleetOwner.addresses?.[0];
+    const address = addressId ? await Address.findById(addressId).lean() : null;
+    if (address) {
+      Object.assign(result, {
+        street: address.street,
+        suite: address.suite,
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+      });
+    }
+
     // Carriers approved from a registration used to be saved with no contact
     // persons — their email lived only on the login account. Offer that account
     // as the primary contact so the edit form shows it; saving the form stores it.
@@ -70,7 +86,7 @@ const getFleetOwnerById = async (req, res) => {
       const account = await User.findById(fleetOwner.userId).select("email phone").lean();
       if (account?.email) {
         return res.json({
-          ...fleetOwner.toObject(),
+          ...result,
           contactPersons: [
             {
               name: fleetOwner.carrierName || account.email.split("@")[0],
@@ -83,7 +99,7 @@ const getFleetOwnerById = async (req, res) => {
       }
     }
 
-    res.json(fleetOwner);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -233,14 +249,43 @@ const updateFleetOwner = async (req, res) => {
     // detected below.
     const before = await FleetOwner.findById(req.params.id).select("contactPersons userId").lean();
 
+    // street/suite/city/state/zip are not FleetOwner fields — the address lives
+    // in a referenced Address document, so it is split off and written there.
+    // `addresses` is never taken from the body, so the reference cannot be swapped.
+    const { street, suite, city, state, zip, addresses, ...updates } = req.body;
+
     const fleetOwner = await FleetOwner.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updates,
       { returnDocument: "after", runValidators: true }
     );
 
     if (!fleetOwner) {
       return res.status(404).json({ message: "Fleet owner not found" });
+    }
+
+    const addressFields = { street, suite, city, state, zip };
+    if (Object.values(addressFields).some((v) => v !== undefined)) {
+      const existingId = fleetOwner.addresses?.[0];
+      const existing = existingId ? await Address.findById(existingId) : null;
+      if (existing) {
+        Object.assign(existing, {
+          street: street || "",
+          suite: suite || "",
+          city: city || "",
+          state: state || "",
+          zip: zip || "",
+        });
+        await existing.save();
+      } else {
+        const addressId = await createAddressRef(addressFields, {
+          locationId: fleetOwner.locationId,
+        });
+        if (addressId) {
+          fleetOwner.addresses = [addressId, ...(fleetOwner.addresses || [])];
+          await fleetOwner.save();
+        }
+      }
     }
 
     // ─── Keep the sign-in address with the contact address ──────────────────
