@@ -62,6 +62,27 @@ const getFleetOwnerById = async (req, res) => {
     if (!fleetOwner) {
       return res.status(404).json({ message: "Fleet owner not found" });
     }
+
+    // Carriers approved from a registration used to be saved with no contact
+    // persons — their email lived only on the login account. Offer that account
+    // as the primary contact so the edit form shows it; saving the form stores it.
+    if (!fleetOwner.contactPersons?.length && fleetOwner.userId) {
+      const account = await User.findById(fleetOwner.userId).select("email phone").lean();
+      if (account?.email) {
+        return res.json({
+          ...fleetOwner.toObject(),
+          contactPersons: [
+            {
+              name: fleetOwner.carrierName || account.email.split("@")[0],
+              phone: account.phone || fleetOwner.phone,
+              email: account.email,
+              isPrimary: true,
+            },
+          ],
+        });
+      }
+    }
+
     res.json(fleetOwner);
   } catch (error) {
     res.status(500).json({ message: error.message });

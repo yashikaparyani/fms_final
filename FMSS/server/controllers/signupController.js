@@ -279,7 +279,16 @@ const createCarrierAccount = async (request, password, session) => {
         mcLicense: request.mcLicense,
         dotLicense: request.dotLicense,
         addresses: addressId ? [addressId] : [],
-        contactPersons: [],
+        // The registration's email is the carrier's contact address too — the
+        // edit form and every carrier mail read it from here, not from the User.
+        contactPersons: [
+          {
+            name: request.carrierName || request.email.split("@")[0],
+            phone: request.phone,
+            email: request.email,
+            isPrimary: true,
+          },
+        ],
       },
     ],
     { session },
