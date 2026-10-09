@@ -424,6 +424,32 @@ const toLocationPayload = (position) => ({
   platform: Platform.OS,
 });
 
+/**
+ * Prominent disclosure for background location.
+ *
+ * Google Play's Location Permissions policy will not accept the store listing
+ * or the privacy policy as the place a driver learns this: the app itself has
+ * to say, before the system prompt, what is collected, that it keeps going when
+ * the app is closed, and what it is for — and the driver has to accept it by a
+ * deliberate action rather than by dismissing it.
+ *
+ * Resolves true only on "Continue", so a cancel leaves the system prompt
+ * unasked and foreground tracking still working.
+ */
+const confirmBackgroundLocationDisclosure = () =>
+  new Promise((resolve) => {
+    Alert.alert(
+      "Share your location in the background?",
+      "FMSS Fleet collects location data to show the office and the customer where this load is, and to record where it was picked up and delivered — even when the app is closed or not in use.\n\n" +
+        "Location is shared only while a load you have picked up is in transit, and stops at delivery.",
+      [
+        { text: "Not now", style: "cancel", onPress: () => resolve(false) },
+        { text: "Continue", onPress: () => resolve(true) },
+      ],
+      { cancelable: false },
+    );
+  });
+
 TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
   if (error) return;
   const locations = data?.locations || [];
@@ -3396,6 +3422,20 @@ function TrackingScreen({ load: initialLoad, onBack, documentsOnly = false }) {
   };
 
   const startBackgroundTracking = async () => {
+    // Google Play's Location Permissions policy requires a prominent in-app
+    // disclosure BEFORE the background-location prompt — naming the data, saying
+    // it continues when the app is closed, and why — accepted by an affirmative
+    // action. The store listing and the privacy policy do not satisfy this on
+    // their own, and shipping without it is the usual rejection for driver apps.
+    const accepted = await confirmBackgroundLocationDisclosure();
+    if (!accepted) {
+      Alert.alert(
+        "Background tracking not enabled",
+        "Live tracking will continue while the app is open. You can enable background location later from this screen.",
+      );
+      return;
+    }
+
     const backgroundPermission = await Location.requestBackgroundPermissionsAsync();
     if (backgroundPermission.status !== "granted") {
       Alert.alert(
