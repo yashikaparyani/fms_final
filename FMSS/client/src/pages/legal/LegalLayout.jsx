@@ -35,7 +35,7 @@ function LegalLayout({ eyebrow, title, intro, updated, children }) {
       <div className="legal-body">{children}</div>
 
       <footer className="legal-footer">
-        <span>© {new Date().getFullYear()} S Line Transport. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} S Line Brokerage Inc. All rights reserved.</span>
         <span className="legal-footer__links">
           <Link to="/">Home</Link>
           <Link to="/privacy">Privacy Policy</Link>

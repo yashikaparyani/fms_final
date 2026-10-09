@@ -12,7 +12,7 @@ function PrivacyPolicy() {
     <LegalLayout
       eyebrow="LEGAL"
       title="Privacy Policy"
-      intro="How the S Line Transport / Bestloaders platform and the FMSS Fleet mobile app collect and use information."
+      intro="How S Line Brokerage Inc. (Bestloaders) and the FMSS Fleet mobile app collect and use information."
       updated="30 September 2026"
     >
       <p>
@@ -112,7 +112,7 @@ function PrivacyPolicy() {
 
       <h2>Contact</h2>
       <p>
-        S Line Transport · <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+        S Line Brokerage Inc. · <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
       </p>
     </LegalLayout>
   );
