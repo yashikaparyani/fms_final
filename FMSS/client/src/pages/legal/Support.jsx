@@ -1,6 +1,6 @@
 import LegalLayout from "./LegalLayout";
 
-const SUPPORT_EMAIL = "support@bestloaders.com";
+const SUPPORT_EMAIL = "ravi@slinetransport.com";
 
 const FAQS = [
   {
@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: "Why does the app need my location?",
-    a: "Live GPS is required from pickup through delivery so the office and the customer can see the freight’s position and ETA. Location is only shared while a load you have picked up is in transit — never before pickup or after delivery.",
+    a: "Live GPS is required from pickup through delivery so the office and the customer can see the freight’s position and ETA. Sharing starts when you tap Start live tracking for an assigned load that is ready for pickup, continues during transport, and stops when you complete delivery or sign out in the app.",
   },
   {
     q: "How do I complete onboarding?",

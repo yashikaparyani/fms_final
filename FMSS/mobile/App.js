@@ -441,7 +441,7 @@ const confirmBackgroundLocationDisclosure = () =>
     Alert.alert(
       "Share your location in the background?",
       "FMSS Fleet collects location data to show the office and the customer where this load is, and to record where it was picked up and delivered — even when the app is closed or not in use.\n\n" +
-        "Location is shared only while a load you have picked up is in transit, and stops at delivery.",
+        "Location sharing starts when you tap Start live tracking for an assigned load that is ready for pickup, continues during transport, and stops when you complete delivery or sign out.",
       [
         { text: "Not now", style: "cancel", onPress: () => resolve(false) },
         { text: "Continue", onPress: () => resolve(true) },

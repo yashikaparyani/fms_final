@@ -11,8 +11,8 @@
       "bundleIdentifier": "com.bestloaders.fmssfleet",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "FMSS needs your live location while a picked-up load is in transit.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "FMSS needs background location while a picked-up load is in transit.",
+        "NSLocationWhenInUseUsageDescription": "FMSS shares your location when you start tracking an assigned load for pickup and transport, until you complete delivery.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FMSS shares your location in the background when you start tracking an assigned load for pickup and transport, until you complete delivery.",
         "NSCameraUsageDescription": "FMSS needs camera access for pickup proof and delivery documents.",
         "NSPhotoLibraryUsageDescription": "FMSS needs photo access for pickup proof and delivery documents.",
         "UIBackgroundModes": [
@@ -35,6 +35,18 @@
         "READ_EXTERNAL_STORAGE"
       ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationWhenInUsePermission": "FMSS shares your location when you start tracking an assigned load for pickup and transport, until you complete delivery.",
+          "locationAlwaysAndWhenInUsePermission": "FMSS shares your location in the background when you start tracking an assigned load for pickup and transport, until you complete delivery."
+        }
+      ]
+    ],
     "extra": {
       "apiUrl": "https://bestloaders.com/api",
       "eas": {

@@ -1,6 +1,6 @@
 import LegalLayout from "./LegalLayout";
 
-const SUPPORT_EMAIL = "support@bestloaders.com";
+const SUPPORT_EMAIL = "ravi@slinetransport.com";
 
 /**
  * Public privacy policy. Apple requires a reachable Privacy Policy URL for the
@@ -13,7 +13,7 @@ function PrivacyPolicy() {
       eyebrow="LEGAL"
       title="Privacy Policy"
       intro="How S Line Brokerage Inc. (Bestloaders) and the FMSS Fleet mobile app collect and use information."
-      updated="30 September 2026"
+      updated="12 October 2026"
     >
       <p>
         This policy covers the Bestloaders web platform at{" "}
@@ -26,13 +26,16 @@ function PrivacyPolicy() {
       <ul>
         <li>
           <strong>Account information</strong> — your name, email address, phone number and
-          company details, used to sign you in and identify your carrier account.
+          account identifiers and company details, used to sign you in and identify your
+          carrier account. Carrier onboarding also collects tax identifiers (EIN or SSN)
+          for agreements and compliance.
         </li>
         <li>
-          <strong>Precise location</strong> — GPS location, including in the background, but{" "}
-          <strong>only while a load you have picked up is in transit</strong>. It powers live
-          shipment tracking for the broker and the customer. Tracking is not active before
-          pickup or after delivery.
+          <strong>Location</strong> — precise GPS location, or approximate location when that
+          is what your device permission allows, including in the background. Sharing starts
+          when you choose <em>Start live tracking</em> for an assigned load that is ready for
+          pickup, continues during transport, and stops when you complete delivery or sign
+          out in the app. It powers shipment tracking for the broker and the customer.
         </li>
         <li>
           <strong>Photos and documents</strong> — pickup and delivery proof photos, proof of
@@ -41,7 +44,12 @@ function PrivacyPolicy() {
         </li>
         <li>
           <strong>Delivery signature</strong> — a signature captured on your device from the
-          person receiving the freight.
+          person receiving the freight, carrier agreement signatures, and shipment notes
+          that you submit.
+        </li>
+        <li>
+          <strong>Freight bid information</strong> — the amounts you offer to haul loads,
+          used to manage bidding and the agreed carrier rate.
         </li>
         <li>
           <strong>Push notification token</strong> — a device identifier used to alert you when

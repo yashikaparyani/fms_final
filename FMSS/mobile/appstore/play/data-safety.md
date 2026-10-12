@@ -1,54 +1,55 @@
-# Google Play — Data safety form
+# Google Play Data safety — saved 12 October 2026
 
-Must match https://bestloaders.com/privacy. The app has **no third-party analytics,
-advertising or tracking SDKs** (only Expo, axios to our own API, expo-location,
-expo-image-picker / document-picker, expo-notifications).
+These answers are saved in Play Console for Bestloaders FMS. Changes await review.
+The declaration must stay consistent with https://bestloaders.com/privacy and all
+versions distributed on Play. No analytics, advertising, or cross-app tracking is used.
 
-## Overview answers
-| Question | Answer |
-|---|---|
-| Does your app collect or share any of the required user data types? | **Yes** |
-| Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS) |
-| Do you provide a way for users to request that their data be deleted? | **Yes** — in-app "Delete account", plus email request |
+## Account and security
 
-## Data types to declare
-| Data type | Collected | Shared¹ | Processed ephemerally | Required | Purpose |
-|---|---|---|---|---|---|
-| Personal info → **Name** | Yes | **Yes** | No | Required | App functionality, Account management |
-| Personal info → **Email address** | Yes | No | No | Required | App functionality, Account management |
-| Personal info → **Phone number** | Yes | No | No | Required | App functionality, Account management |
-| Personal info → **Address** | Yes | No | No | Optional | App functionality (carrier business address) |
-| Location → **Precise location** | Yes | **Yes** | No | Required | App functionality |
-| Photos and videos → **Photos** | Yes | **Yes** | No | Optional | App functionality (pickup/delivery proof) |
-| Files and docs → **Files and docs** | Yes | **Yes** | No | Optional | App functionality (licence, insurance, POD) |
-| App info and performance → **Crash logs** | No | – | – | – | – |
-| Device or other IDs → **Device or other IDs** | Yes | No | No | Optional | App functionality (push notification token) |
+- Collects or shares required user-data types: Yes.
+- Encrypted in transit: Yes (HTTPS).
+- Account creation: Username and password; carrier sign-up is approved by the office.
+- Account-deletion resource: https://bestloaders.com/privacy.
+- Optional separate data-deletion answer: left unanswered.
 
-**Do NOT tick**: Financial info, Health, Messages, Contacts, Calendar, Search history,
-Installed apps, Web browsing, or anything under *Advertising or marketing*.
+## Saved data types
 
-## ¹ The "Shared" decision — ✅ CONFIRMED: declare as Shared
-Google defines **Shared** as transferring data to a *third party*. The broker is the app
-operator, but **a load's customer/shipper is a separate company and can see that load's
-live tracking and POD** — so that transfer is sharing.
+All listed data is collected and retained (not processed ephemerally).
+Shared data is used for App functionality by shipment parties. Shared does not
+mean advertising tracking. Google has sharing exemptions; this declaration
+conservatively includes shipment-party transfers.
 
-**Tick "Shared" for:**
+| Data type | Shared | Required / optional | Collection purposes |
+|---|---|---|---|
+| Name | Yes | Required | App functionality, Account management |
+| Email address | No | Required | App functionality, Account management |
+| User IDs | No | Required | App functionality, Account management |
+| Address | No | Optional | App functionality, Account management |
+| Phone number | No | Required | App functionality, Account management |
+| Other personal info (EIN/SSN) | No | Required | App functionality, Account management, Fraud prevention/security/compliance |
+| Other financial info (freight bids/rates) | No | Optional | App functionality |
+| Approximate location | Yes | Optional | App functionality |
+| Precise location | Yes | Optional | App functionality |
+| Photos | Yes | Optional | App functionality |
+| Files and docs | Yes | Optional | App functionality |
+| Other user-generated content (signatures/notes) | Yes | Optional | App functionality |
+| Device or other IDs (push token) | No | Optional | App functionality |
 
-| Data type | Shared with | Purpose |
-|---|---|---|
-| Personal info → Name | the customer/shipper on that load | App functionality |
-| Location → Precise location | the customer/shipper on that load | App functionality |
-| Photos and videos → Photos | the customer/shipper on that load | App functionality |
-| Files and docs | the customer/shipper on that load | App functionality |
+Location is optional for general app use; pickup and tracking features require it.
+Approximate permission grants are accepted by the current app. Onboarding collects
+tax identifiers, and bids submitted from the phone carry financial amounts.
+The earlier blanket instruction to exclude all financial information was removed.
 
-**Leave "Shared" unticked for:** Email address, Phone number, Address, Device ID — these
-stay with the operator and are not shown to the customer.
+No independent security-review or UPI badge was claimed. No health, advertising,
+contacts, calendar, audio, browsing, or analytics data was selected.
 
-This matches the privacy policy, which already states: *"Load and tracking information is
-shared with the parties to that shipment — the broker and the customer whose freight you
-are moving."*
+## Release checks
 
-## Security practices
-- ✅ Data is encrypted in transit
-- ✅ Users can request data deletion (in-app Delete account → `POST /auth/delete-account`)
-- Independent security review: No
+- Public support email: ravi@slinetransport.com.
+- Local privacy/support source updated to this email, the collected data above,
+  and actual tracking timing. Deployed and verified on 12 October 2026.
+- Background-location demo link supplied by user:
+  https://drive.google.com/file/d/1WX0pkj7mZ-MgJCQjLjpoFrmUAluJ5DZy/view
+  Drive confirms anyone with the link can view. Local inspection shows the old
+  missing-foreground-service-permissions failure at about 51 seconds. Record
+  the demonstration again on corrected build 1.0.0 (6) before submission.

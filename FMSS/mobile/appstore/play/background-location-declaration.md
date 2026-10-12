@@ -13,8 +13,9 @@ Shown **before** the system permission prompt, requiring an affirmative tap
 > is, and to record where it was picked up and delivered — even when the app is closed
 > or not in use.
 >
-> Location is shared only while a load you have picked up is in transit, and stops at
-> delivery.
+> Location sharing starts when you tap Start live tracking for an assigned load that
+> is ready for pickup, continues during transport, and stops when you complete delivery
+> or sign out.
 >
 > [ Not now ]   [ Continue ]
 
@@ -37,10 +38,10 @@ navigation. Foreground-only location would produce a tracking record with multi-
 which defeats the feature and breaks the delivery record we are contractually required to
 keep.
 
-Location is collected ONLY while a load the driver has picked up is in transit. It starts
-when the driver taps "Start live tracking" after pickup and stops automatically at
-delivery. It is never collected before pickup, after delivery, or when the driver has no
-active load.
+Location starts when the driver taps "Start live tracking" for an assigned load that
+is ready for pickup. It continues during pickup and transport, and stops when the
+driver completes delivery or signs out in the app. It is not enabled for loads
+that are not assigned to the signed-in carrier or driver.
 ```
 
 **Is there a less intrusive alternative?**
@@ -70,9 +71,26 @@ disclosure. Suggested script (~60–90 s):
 6. Background the app (home button) and show the persistent tracking notification.
 7. Change status to **Delivered** and show that tracking stops.
 
-Narrate that location is only shared while a picked-up load is in transit.
+Narrate that tracking starts for an assigned load ready for pickup and continues
+through transport until delivery or sign-out.
 
 ## 4. Also required
 - Privacy policy must state background collection → ✅ https://bestloaders.com/privacy
 - The foreground-service notification is already configured
   (`foregroundService: { notificationTitle: "FMSS live tracking", ... }`)
+
+## Supplied video — 12 October 2026
+
+https://drive.google.com/file/d/1WX0pkj7mZ-MgJCQjLjpoFrmUAluJ5DZy/view
+
+Drive shows anyone with the link can view. The MP4 is HEVC, 1080×2406, about
+183 seconds. Local inspection confirms the disclosure and Android permission
+flow are shown. However, at approximately 51 seconds it displays:
+
+> Couldn’t start the foreground service. Foreground service permissions were not found in the manifest.
+
+The recording therefore demonstrates the old background-tracking failure. It
+should be replaced using corrected build 1.0.0 (6). Show the foreground-service
+notification, background the app and demonstrate continued updates, then
+complete delivery and show that tracking stops. The old link has been removed
+from reviewer instructions; it has not been submitted as the permission video.

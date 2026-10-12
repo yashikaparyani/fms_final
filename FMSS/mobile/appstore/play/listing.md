@@ -18,9 +18,9 @@ Play limits differ from Apple's. Counts shown in `[]`.
 Bestloaders FMS
 ```
 
-**Short description** [79/80]
+**Short description** [64/80]
 ```
-Find loads, bid, track every trip live and capture proof of delivery — in the cab.
+Find loads, bid, track trips live and capture proof of delivery.
 ```
 
 **Full description** [~1,850 / 4,000]
@@ -48,7 +48,7 @@ GET SET UP ONCE
 • Keep your drivers and trucks on file
 
 ABOUT LOCATION
-This app collects location data to show the office and the customer where a load is, and to record where it was picked up and delivered — even when the app is closed or not in use. Location is shared only while a load you have picked up is in transit, and it stops at delivery. You are asked before it starts and can turn it off at any time in your device settings.
+This app collects location data to show the office and the customer where a load is, and to record where it was picked up and delivered — even when the app is closed or not in use. Location sharing starts when you tap Start live tracking for an assigned load that is ready for pickup, continues during transport, and stops when you complete delivery. You are asked before it starts and can turn it off at any time in your device settings.
 
 WHO IT IS FOR
 Any licensed motor carrier can apply from the sign-in screen. The app is free; carriers are paid for the loads they haul and are never charged to use it.
@@ -59,7 +59,7 @@ Any licensed motor carrier can apply from the sign-in screen. The app is free; c
 - **Feature graphic**: `feature-graphic.png` (1024 × 500, no alpha) ✅ in this folder
 - **Phone screenshots**: `screenshots/01-06` (1080 × 1920, no alpha) ✅ — min 2, max 8
 - **App category**: Business · **Tags**: Business, Productivity
-- **Contact details**: email `<<PLACEHOLDER: support@bestloaders.com>>`, website `https://bestloaders.com`
+- **Contact details**: email `ravi@slinetransport.com`, website `https://bestloaders.com`
 - **Privacy policy**: `https://bestloaders.com/privacy` ✅ live
 
 ## App content declarations
