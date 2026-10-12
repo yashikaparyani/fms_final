@@ -79,6 +79,16 @@ and Shares Location. The separate target audience remains 18 and over.
   displays the old error: foreground service permissions were not found in
   the manifest. It was excluded from reviewer instructions and not submitted
   as the location-permission video. Use corrected build 6 to record again.
+- Yashika's 12 October replacement recording:
+  https://drive.google.com/file/d/1MBNiA-pDcj3u6A4szNZIvlzR1yv0th6i/view
+  Reviewed in the Drive player (2:25). It shows the in-app disclosure (~0:41),
+  Android "Allow all the time" (~0:45), active live GPS without the prior
+  foreground-service error (~0:53), and GPS off after delivery (~2:18).
+  It does not show the ongoing FMSS tracking notification or prove updates
+  while the app is backgrounded or the phone is locked. It is therefore not
+  sufficient evidence for the two pending sensitive-permission declarations.
+  Yashika was asked on WhatsApp for a revised browser-playable video showing
+  those scenes during an active trip.
 - Initial availability saved: United States (the stated default for the US
   freight service; broader preference was not supplied).
 - No production review submission or rollout has been performed.
