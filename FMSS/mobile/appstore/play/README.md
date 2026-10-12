@@ -11,8 +11,8 @@ available directly).
 | `feature-graphic.png` | Feature graphic | 1024×500, no alpha | ✅ |
 | `screenshots/01-06*.png` | Phone screenshots | 1080×1920, no alpha | ✅ 6 (min 2, max 8) |
 | `listing.md` | Name, short + full description, declarations | — | ✅ |
-| `data-safety.md` | Data safety form | — | ⚠️ confirm the "Shared" call |
-| `background-location-declaration.md` | Sensitive-permission form + video script | — | ⚠️ video still to record |
+| `data-safety.md` | Data safety form | — | ✅ saved in Play Console |
+| `background-location-declaration.md` | Sensitive-permission form + video script | — | ⚠️ replace video recorded on old broken build |
 
 > Screenshots are 1080×1920 (16:9). The iOS set in `../screenshots/` is 1320×2868
 > (2.17:1) which **exceeds Play's 2:1 max aspect ratio** — do not reuse it here.
@@ -49,3 +49,11 @@ only an *upload* key and losing it is recoverable.
 Note Yashika's own EAS project has a **different** keystore from her client-test APKs.
 Do not mix them: once Play has accepted one upload key, uploads signed with the other
 are rejected.
+
+## Latest setup — 12 October 2026
+
+See [CONSOLE_SETUP_STATUS.md](CONSOLE_SETUP_STATUS.md) for the live Console
+app ID, verified AAB/APK version 6 links, saved declarations and remaining
+IARC/video requirements. Initial production availability is United States.
+The supplied old video shows the missing-foreground-service-permission error
+at about 51 seconds, so it must be recorded again on corrected build 6.

@@ -43,8 +43,13 @@
 - App disclosure and iOS usage strings corrected to match ready-for-pickup
   tracking timing. Background sharing stops when delivery is completed or the
   user signs out in the app.
-- Companion production-apk build requested for direct device installation.
-  Its profile now uses autoIncrement:false to keep the same remote versionCode.
+- Companion APK build ID: b386604f-bcea-4f5b-b7a9-e56e1fce8b67.
+  https://expo.dev/accounts/bestloaders/projects/bestloaders-fms/builds/b386604f-bcea-4f5b-b7a9-e56e1fce8b67
+  Finished successfully with versionCode 6. Its profile uses autoIncrement:false.
+- Installable APK: https://expo.dev/artifacts/eas/jrjVAkvf3dnZy9_tqcyKypYaT4WGB7_mSeEvos9kQhw.apk
+  Install this corrected build to record the replacement demonstration. APK ZIP
+  integrity, package ID and all three background/foreground-service permissions
+  were verified in the compiled manifest.
 
 ## Live legal pages
 
@@ -53,6 +58,8 @@ readback verified the support email, EIN/SSN, account IDs, freight bid informati
 signature/notes and actual tracking timing. Client production build passed.
 The server web index rollback copy is /tmp/fmss-before-play-legal-20261012.html;
 old web assets were preserved. Backend services were not restarted.
+
+Play Console dashboard verified: **10 of 11 initial setup tasks complete**.
 
 ## Pending / blockers
 
@@ -67,9 +74,23 @@ old web assets were preserved. Backend services were not restarted.
   displays the old error: foreground service permissions were not found in
   the manifest. It was excluded from reviewer instructions and not submitted
   as the location-permission video. Use corrected build 6 to record again.
-- Initial release-country preference asked; United States is the stated default
-  for this US freight service if the user does not choose broader availability.
+- Initial availability saved: United States (the stated default for the US
+  freight service; broader preference was not supplied).
 - No production review submission or rollout has been performed.
+- Demo login and read-only assigned-load/onboarding endpoints verified; three
+  assigned loads are accessible (IN_TRANSIT / DELIVERED).
+- Release-source commit e330384 pushed to the existing project branch and
+  fast-forwarded on the server without changing its pre-existing deploy-script
+  edits or backup files.
 
 Saved metadata awaits review. A release draft and accepted bundle do not mean
 that the app is published or that on-device background tracking is verified.
+
+## Replacement video checklist
+
+Use the corrected APK above. Show the in-app location disclosure, Android
+permission choice, working FMSS tracking notification, location updates while
+the app is backgrounded/phone locked, then delivery or sign-out stopping
+tracking. Avoid presenting the old error recording as proof of background
+functionality. A browser-compatible MP4 or unlisted YouTube link is easier
+for reviewers to play than the supplied HEVC file.
