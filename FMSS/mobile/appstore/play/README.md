@@ -54,6 +54,7 @@ are rejected.
 
 See [CONSOLE_SETUP_STATUS.md](CONSOLE_SETUP_STATUS.md) for the live Console
 app ID, verified AAB/APK version 6 links, saved declarations and remaining
-IARC/video requirements. Initial production availability is United States.
+video requirements. Content ratings are saved (ESRB Everyone; Users Interact
+and Shares Location). Initial production availability is United States.
 The supplied old video shows the missing-foreground-service-permission error
 at about 51 seconds, so it must be recorded again on corrected build 6.

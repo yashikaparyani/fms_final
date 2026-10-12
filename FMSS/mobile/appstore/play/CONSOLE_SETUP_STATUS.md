@@ -59,12 +59,17 @@ signature/notes and actual tracking timing. Client production build passed.
 The server web index rollback copy is /tmp/fmss-before-play-legal-20261012.html;
 old web assets were preserved. Backend services were not restarted.
 
-Play Console dashboard verified: **10 of 11 initial setup tasks complete**.
+All initial app setup declarations are saved. The dashboard now shows the
+release/test tasks instead of the initial setup checklist. Content ratings saved:
+ESRB Everyone, PEGI 3, USK 16+, IARC 3+; interactive elements Users Interact
+and Shares Location. The separate target audience remains 18 and over.
 
 ## Pending / blockers
 
-- Content-rating category/contact prepared. Accepting the separate IARC Terms
-  of Use requires user confirmation; question is pending in this chat.
+- IARC Terms accepted by the user on 12 October 2026; questionnaire completed
+  and final ratings saved. Online freight listings, user content sharing and
+  precise location sharing declared. No adult/violent/substance content, digital
+  purchases or reward features declared.
 - Background-location and foreground-service permission explanations prepared.
   Both require a replacement video link showing working background tracking.
 - Supplied video:
@@ -85,6 +90,11 @@ Play Console dashboard verified: **10 of 11 initial setup tasks complete**.
 
 Saved metadata awaits review. A release draft and accepted bundle do not mean
 that the app is published or that on-device background tracking is verified.
+
+## Replacement video handoff
+
+Recording instructions for Yashika are in YASHIKA_VIDEO_REQUEST.md. Use the
+corrected installable APK, not the AAB or the earlier client-test APK.
 
 ## Replacement video checklist
 
