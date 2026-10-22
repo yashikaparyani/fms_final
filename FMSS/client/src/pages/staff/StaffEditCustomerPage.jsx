@@ -23,7 +23,9 @@ const EditCustomerPage = () => {
       const addr = data.addresses?.[0] || {};
 
       setInitialData({
-        customerName: data.customerName,
+        customerName:
+          data.customerName ||
+          [data.firstName, data.lastName].filter(Boolean).join(" ").trim(),
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,

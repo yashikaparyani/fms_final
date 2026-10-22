@@ -28,6 +28,11 @@ const skippedManualEmailStatus = (channel) => ({
   message: `Email not requested for ${channel} credential sharing.`,
 });
 
+const customerNameFromUser = (user) =>
+  [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+  user?.email ||
+  "";
+
 // @desc    Get all customers (clients)
 // @route   GET /api/customers
 // @access  Private (Staff/Admin)
@@ -154,8 +159,7 @@ const getCustomers = async (req, res) => {
         createdAt: user.createdAt,
 
         // Customer
-        customerName:
-          profile?.customerName || `${user.firstName} ${user.lastName}`,
+        customerName: profile?.customerName || customerNameFromUser(user),
         active: profile?.active ?? true,
 
         contact: profile?.contact || {},
@@ -204,7 +208,9 @@ const getCustomerById = async (req, res) => {
     // ✅ 3. MERGE DATA (important for frontend)
     const response = {
       ...user,
-      ...customer,
+      ...(customer || {}),
+      customerName:
+        customer?.customerName || customerNameFromUser(user),
     };
 
     res.json(response);
@@ -505,17 +511,40 @@ const editCustomerByStaff = async (req, res) => {
     );
 
     // ✅ FIND CUSTOMER VIA USER
-    const customer = await Customer.findOne({ user: id }).session(session);
-    if (!customer) throw new Error("Customer not found");
+    let customer = await Customer.findOne({ user: id }).session(session);
+    const resolvedCustomerName =
+      String(customerName || "").trim() ||
+      customer?.customerName ||
+      customerNameFromUser({
+        firstName: firstName || user.firstName,
+        lastName: lastName || user.lastName,
+        email: user.email,
+      });
+
+    // Legacy client accounts can exist without a Customer profile. Recreate
+    // the profile from the account data so editing the account remains usable.
+    if (!customer) {
+      const [createdCustomer] = await Customer.create(
+        [
+          {
+            user: id,
+            customerName: resolvedCustomerName,
+            locationId:
+              req.locationId || user.defaultLocation || user.locations?.[0],
+            addresses: [],
+          },
+        ],
+        { session },
+      );
+      customer = createdCustomer;
+    }
 
     // ✅ UPDATE CUSTOMER — no .save()
     const updatedCustomer = await Customer.findByIdAndUpdate(
       customer._id,
       {
         $set: {
-          customerName:
-            customerName ||
-            (firstName && lastName ? `${firstName} ${lastName}` : customer.customerName),
+          customerName: resolvedCustomerName,
           contact:     { phone: phone || "", fax: fax || "", email: email || "", website: website || "" },
           emails:      { podEmail: podEmail || "", accChargesEmail: accChargesEmail || "", deliveryEmail: deliveryEmail || "" },
           preferences: {
