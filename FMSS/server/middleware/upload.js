@@ -1,7 +1,8 @@
 const multer = require("multer");
 const path = require("path");
+const { runWithTenant } = require("../utils/tenantContext");
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
   },
@@ -11,8 +12,8 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
+const rawMulter = multer({
+  storage: diskStorage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB per file
     // Base64 signatures are sent as a text field; the busboy default is only
@@ -27,4 +28,44 @@ const upload = multer({
   },
 });
 
-module.exports = upload;
+// Multer processes streams asynchronously, which unwinds the execution stack
+// and breaks Node's AsyncLocalStorage context before calling next().
+// This wrapper re-enters the active tenant context so downstream controllers
+// and Mongoose queries run with tenant isolation intact.
+const wrapWithTenantContext = (multerMiddleware) => (req, res, next) => {
+  multerMiddleware(req, res, (err) => {
+    if (err) return next(err);
+
+    const ctx =
+      req.tenantContext ||
+      (req.locationId || req.locationIds?.length || req.allLocations || req.noLocations
+        ? {
+            locationId: req.locationId,
+            locationIds: req.locationIds,
+            allLocations: req.allLocations,
+            noLocations: req.noLocations,
+          }
+        : null);
+
+    if (ctx) {
+      return runWithTenant(ctx, () => next());
+    }
+
+    next();
+  });
+};
+
+const upload = new Proxy(rawMulter, {
+  get(target, prop) {
+    const val = target[prop];
+    if (typeof val === "function" && ["single", "array", "fields", "none", "any"].includes(prop)) {
+      return (...args) => wrapWithTenantContext(val.apply(target, args));
+    }
+    return val;
+  },
+  apply(target, thisArg, args) {
+    return wrapWithTenantContext(target(...args));
+  },
+});
+
+module.exports = upload;

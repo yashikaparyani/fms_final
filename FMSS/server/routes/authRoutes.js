@@ -27,6 +27,11 @@ router.post("/login", loginUser);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 
+// PUBLIC — IC Agreement Admin Panel OTP Login
+const { sendAdminOtp, verifyAdminOtp } = require("../controllers/icAdminOtpController");
+router.post("/ic-admin/send-otp", sendAdminOtp);
+router.post("/ic-admin/verify-otp", verifyAdminOtp);
+
 // PUBLIC
 router.post(
   "/customer/register",

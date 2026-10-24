@@ -11,25 +11,35 @@ const Bid         = require("./models/bidSchema");
 const Counter     = require("./models/Counter.model");
 const EmailConfig = require("./models/EmailConfig");
 
+const { runUnscoped } = require("./utils/tenantContext");
+const Branch      = require("./models/Branch");
+
 const seed = async () => {
   try {
     await mongoose.connect("mongodb://127.0.0.1:27017/fms");
     console.log("🔗 Connected to MongoDB\n");
 
-    // ─── CLEAR ALL COLLECTIONS ────────────────────────────────
-    console.log("🗑️  Clearing existing data...");
-    await Promise.all([
-      User.deleteMany({}),
-      Customer.deleteMany({}),
-      FleetOwner.deleteMany({}),
-      Company.deleteMany({}),
-      Address.deleteMany({}),
-      Load.deleteMany({}),
-      Bid.deleteMany({}),
-      Counter.deleteMany({}),
-      EmailConfig.deleteMany({}),
-    ]);
-    console.log("   Done.\n");
+    await runUnscoped(async () => {
+      let branch = await Branch.findOne({ active: true });
+      if (!branch) {
+        branch = await Branch.create({ name: "Los Angeles", code: "LA" });
+        console.log("📍 Created default branch:", branch.code);
+      }
+
+      // ─── CLEAR ALL COLLECTIONS ────────────────────────────────
+      console.log("🗑️  Clearing existing data...");
+      await Promise.all([
+        User.deleteMany({}),
+        Customer.deleteMany({}),
+        FleetOwner.deleteMany({}),
+        Company.deleteMany({}),
+        Address.deleteMany({}),
+        Load.deleteMany({}),
+        Bid.deleteMany({}),
+        Counter.deleteMany({}),
+        EmailConfig.deleteMany({}),
+      ]);
+      console.log("   Done.\n");
 
     // ─── USERS ────────────────────────────────────────────────
     // Pre-save hash hook is commented out in User.js — must hash manually.
@@ -503,8 +513,25 @@ const seed = async () => {
     console.log(`    VERIFIED/UPCM:  ${await Load.countDocuments({ status: "VERIFIED", bidStatus: "UPCOMING" })}`);
     console.log(`    VERIFIED/OPEN:  ${await Load.countDocuments({ status: "VERIFIED", bidStatus: "OPEN" })}`);
     console.log(`    ASSIGNED/CLSD:  ${await Load.countDocuments({ status: "ASSIGNED", bidStatus: "CLOSED" })}`);
-    console.log(`  Bids (collection):${await Bid.countDocuments()}`);
+    // Assign location to tenant models
+    const TENANT_MODELS = [Load, Customer, FleetOwner, Company, Bid, Address];
+    for (const Model of TENANT_MODELS) {
+      await Model.updateMany(
+        { $or: [{ locationId: { $exists: false } }, { locationId: null }] },
+        { $set: { locationId: branch._id } }
+      );
+    }
 
+    // Grant non-admin users access to the branch
+    await User.updateMany(
+      { role: { $ne: "admin" }, $or: [{ locations: { $size: 0 } }, { locations: { $exists: false } }] },
+      { $set: { locations: [branch._id], defaultLocation: branch._id } }
+    );
+
+    console.log(`  Bids (collection):${await Bid.countDocuments()}`);
+    });
+
+    console.log("\n✅ Comprehensive seed completed successfully.");
     process.exit(0);
   } catch (err) {
     console.error("❌ Seed error:", err.message);

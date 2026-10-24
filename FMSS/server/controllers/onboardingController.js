@@ -79,7 +79,10 @@ const isOffice = (user) => ["staff", "admin"].includes(user?.role);
  */
 const resolveCarrier = async (req, requestedId) => {
   if (["fleetOwner", "driver"].includes(req.user.role)) {
-    const carrier = await findCarrierFor(req.user, "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId");
+    const carrier = await findCarrierFor(
+      req.user,
+      "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId locationId",
+    );
     if (!carrier) {
       throw Object.assign(
         new Error(
@@ -87,6 +90,9 @@ const resolveCarrier = async (req, requestedId) => {
         ),
         { status: 404 },
       );
+    }
+    if (carrier.locationId) {
+      narrowToLocation(req, carrier.locationId);
     }
     return carrier;
   }
@@ -102,9 +108,14 @@ const resolveCarrier = async (req, requestedId) => {
     throw Object.assign(new Error("Not a valid carrier id."), { status: 400 });
   }
 
-  const carrier = await FleetOwner.findById(id).select(
+  const carrierQuery = FleetOwner.findById(id).select(
     "_id carrierName fleetOwnerCode userId phone mcLicense dotLicense taxId locationId",
   );
+  if (req.user.role === "admin") {
+    carrierQuery.setOptions({ skipTenantScope: true });
+  }
+  const carrier = await carrierQuery;
+
   if (!carrier) {
     throw Object.assign(new Error("Carrier not found at this location."), { status: 404 });
   }

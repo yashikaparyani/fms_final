@@ -4,75 +4,195 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>IC Agreement Form</title>
+<title>IC Agreement Form &amp; Admin Panel</title>
 <link rel="icon" href="data:,">
 <style>
   :root {
     --bg: #f4f5f7; --panel: #ffffff; --ink: #1b2330; --muted: #5d6878; --line: #d9dee5;
     --accent: #1f4e8c; --accent-ink: #ffffff; --soft: #eef3fa; --warn: #a1361f;
+    --success: #1b7a42; --success-soft: #eaf6ee; --card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
-  body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
-  header h1 { font-size: 16px; margin: 0; }
-  header p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+  
+  /* Header */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-shrink: 0; z-index: 10; }
+  .header-left h1 { font-size: 16px; margin: 0; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .header-left p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  
+  /* View Switcher Tabs */
+  .view-tabs { display: flex; background: var(--bg); padding: 3px; border-radius: 8px; border: 1px solid var(--line); gap: 2px; }
+  .view-tab-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; font-weight: 600; border: none; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; transition: all 0.15s ease; }
+  .view-tab-btn:hover { color: var(--ink); }
+  .view-tab-btn.active { background: var(--panel); color: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .badge { display: inline-flex; align-items: center; justify-content: center; padding: 1px 6px; font-size: 11px; font-weight: 700; border-radius: 10px; background: var(--soft); color: var(--accent); min-width: 18px; }
+  .view-tab-btn.active .badge { background: var(--accent); color: #fff; }
+  
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; transition: all 0.15s ease; font-weight: 500; }
+  button:hover { background: #f8fafc; border-color: #c5cbd3; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.primary:hover { background: #163d70; }
+  button.success-btn { background: var(--success); border-color: var(--success); color: #fff; }
+  button.success-btn:hover { background: #146134; }
   button.small { padding: 3px 8px; font-size: 12px; }
   button:disabled { opacity: .5; cursor: default; }
-  main { display: grid; grid-template-columns: minmax(360px, 480px) 1fr; height: calc(100vh - 62px); }
-  form { overflow-y: auto; padding: 16px 20px 60px; border-right: 1px solid var(--line); }
+
+  /* Main Form View */
+  #formView { display: grid; grid-template-columns: minmax(360px, 480px) 1fr; height: calc(100vh - 61px); overflow: hidden; }
+  form { overflow-y: auto; padding: 16px 20px 60px; border-right: 1px solid var(--line); height: 100%; }
   fieldset { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin: 0 0 14px; padding: 12px 14px 14px; }
-  legend { font-weight: 600; padding: 0 6px; }
+  legend { font-weight: 600; padding: 0 6px; color: var(--ink); }
   .hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
   .grid .full { grid-column: 1 / -1; }
-  label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); font-weight: 500; }
   label .req { color: var(--warn); }
   input, select { font: inherit; color: var(--ink); padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; width: 100%; }
   input:focus, select:focus { outline: 2px solid var(--soft); border-color: var(--accent); }
   input.missing { border-color: var(--warn); background: #fff6f4; }
-  .check { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); }
+  .check { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); cursor: pointer; }
   .check input { width: auto; }
   .sig { border: 1px dashed var(--line); border-radius: 6px; background: #fbfcfd; }
   .sig canvas { width: 100%; height: 110px; display: block; touch-action: none; cursor: crosshair; }
   .sig-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 8px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); }
   .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
-  .tabs button.on { background: var(--soft); border-color: var(--accent); color: var(--accent); }
+  .tabs button.on { background: var(--soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
   table.rows { width: 100%; border-collapse: collapse; }
   table.rows th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 0 4px 4px; }
   table.rows td { padding: 2px 4px; }
   table.rows td:last-child { width: 1%; }
-  .preview { display: flex; flex-direction: column; min-width: 0; }
+  .preview { display: flex; flex-direction: column; min-width: 0; height: 100%; background: #2f343b; }
   .preview-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
   .preview iframe { flex: 1; width: 100%; border: 0; background: #525659; }
-  .status.err { color: var(--warn); }
+  .status.err { color: var(--warn); font-weight: 600; }
+
+  /* Admin Panel View */
+  #adminView { flex: 1; overflow-y: auto; padding: 20px 28px 60px; height: calc(100vh - 61px); display: none; }
+  .admin-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .admin-title h2 { margin: 0 0 4px; font-size: 20px; font-weight: 700; color: var(--ink); }
+  .admin-title p { margin: 0; color: var(--muted); font-size: 13px; }
+  
+  /* Metrics Bar */
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .metric-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; box-shadow: var(--card-shadow); }
+  .metric-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .metric-value { font-size: 24px; font-weight: 800; color: var(--ink); display: flex; align-items: baseline; gap: 6px; }
+  .metric-sub { font-size: 12px; color: var(--muted); font-weight: normal; }
+
+  /* Toolbar */
+  .admin-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; background: var(--panel); padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; }
+  .search-box { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 240px; position: relative; }
+  .search-box input { padding-left: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+  .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Data Table */
+  .table-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: var(--card-shadow); }
+  .entries-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+  .entries-table th { background: #f8fafc; color: var(--muted); font-weight: 600; font-size: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); text-transform: uppercase; letter-spacing: 0.5px; }
+  .entries-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--ink); vertical-align: middle; }
+  .entries-table tr:last-child td { border-bottom: none; }
+  .entries-table tr:hover td { background: #fafbfc; }
+  .contractor-name { font-weight: 600; color: var(--accent); margin: 0 0 2px; }
+  .contractor-sub { font-size: 12px; color: var(--muted); }
+  .tag { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag-success { background: var(--success-soft); color: var(--success); }
+  .tag-info { background: var(--soft); color: var(--accent); }
+  .row-actions { display: flex; gap: 6px; align-items: center; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty-state svg { margin-bottom: 12px; color: #94a3b8; }
+  .empty-state h3 { font-size: 16px; margin: 0 0 6px; color: var(--ink); }
+  .empty-state p { font-size: 13px; margin: 0 0 16px; }
+
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(2px); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal-content { background: #fff; width: 100%; max-width: 680px; max-height: 90vh; border-radius: 10px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden; animation: popIn 0.15s ease-out; }
+  @keyframes popIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #f8fafc; }
+  .modal-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); }
+  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); background: #f8fafc; }
+  .detail-section { margin-bottom: 18px; }
+  .detail-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 10px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 13px; }
+  .detail-item { display: flex; flex-direction: column; gap: 2px; }
+  .detail-label { font-size: 11px; color: var(--muted); }
+  .detail-val { font-weight: 500; color: var(--ink); }
+
+  /* Toast Notification */
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); z-index: 100; opacity: 0; transform: translateY(10px); transition: all 0.2s ease; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Admin Login Modal & Auth Styles */
+  .auth-modal-content { max-width: 420px; }
+  .auth-icon-circle { width: 52px; height: 52px; border-radius: 50%; background: #eff6ff; color: var(--accent); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+  .otp-input-field { font-size: 24px; letter-spacing: 8px; text-align: center; font-weight: 700; font-family: monospace; padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; }
+  .otp-input-field:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+  .auth-notice { font-size: 13px; line-height: 1.4; padding: 10px 14px; border-radius: 6px; margin: 12px 0; text-align: left; }
+  .auth-notice.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .auth-notice.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .auth-notice.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .admin-user-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; background: #e0f2fe; color: #0369a1; border-radius: 20px; border: 1px solid #bae6fd; }
+  .btn-logout { background: #fff; border: 1px solid var(--line); color: var(--muted); padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s; font-weight: 500; }
+  .btn-logout:hover { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+
   @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; height: auto; }
+    #formView { grid-template-columns: 1fr; height: auto; }
     form { border-right: 0; overflow: visible; padding: 16px 16px 24px; }
     .preview iframe { height: 75vh; flex: none; }
-    header { flex-wrap: wrap; padding: 10px 16px; }
+    header { flex-wrap: wrap; padding: 10px 14px; }
+    .metrics-grid { grid-template-columns: 1fr 1fr; }
   }
-  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    .grid { grid-template-columns: 1fr; }
+    .metrics-grid { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
+
 <header>
-  <div>
-    <h1>Independent Contractor Transportation Agreement</h1>
-    <p>Empire Transportation (USDOT # 2207543) &middot; 49 CFR Part 376 &middot; 15 pages</p>
+  <div class="header-left">
+    <h1>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      Empire Transportation &mdash; IC Agreement
+    </h1>
+    <p>USDOT # 2207543 &middot; 49 CFR Part 376 &middot; 15-Page Agreement</p>
   </div>
+
+  <!-- View Switcher -->
+  <div class="view-tabs">
+    <button type="button" class="view-tab-btn active" id="btnTabForm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Agreement Form
+    </button>
+    <button type="button" class="view-tab-btn" id="btnTabAdmin">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Admin Panel
+      <span class="badge" id="badgeCount">0</span>
+    </button>
+  </div>
+
+  <div id="adminUserSection" style="display:none; align-items:center;">
+    <button type="button" class="btn-logout" id="btnLogoutAdmin" title="Logout from Admin Panel">🔒 Logout</button>
+  </div>
+
   <div class="actions">
-    <button type="button" id="btnReset">Clear form</button>
-    <button type="button" id="btnPreview">Refresh preview</button>
-    <button type="button" id="btnOpen">Open in new tab</button>
+    <button type="button" id="btnReset" title="Clear form fields">Clear</button>
+    <button type="button" id="btnPreview" title="Re-render PDF">Refresh preview</button>
+    <button type="button" id="btnOpen" title="Open PDF in a new browser tab">Open tab</button>
+    <button type="button" class="success-btn" id="btnSaveRecord" title="Save entry into Admin Panel">💾 Save Entry</button>
     <button type="button" class="primary" id="btnDownload">Download PDF</button>
   </div>
 </header>
 
-<main>
+<!-- ==================== VIEW 1: AGREEMENT FORM ==================== -->
+<main id="formView">
 <form id="f" autocomplete="off" onsubmit="return false">
 
   <fieldset>
@@ -88,13 +208,13 @@
     <legend>Contractor</legend>
     <p class="hint">Printed on page 1 and again in the &sect;30 Notice block on page 9.</p>
     <div class="grid">
-      <label class="full">Contractor legal name <span class="req">*</span><input name="name" required></label>
-      <label class="full">Street address <span class="req">*</span><input name="street" required></label>
-      <label>City <span class="req">*</span><input name="city" required></label>
-      <label>State <span class="req">*</span><input name="state" maxlength="20" required></label>
-      <label>ZIP <span class="req">*</span><input name="zip" maxlength="10" required></label>
+      <label class="full">Contractor legal name <span class="req">*</span><input name="name" required placeholder="e.g. Acme Hauling LLC"></label>
+      <label class="full">Street address <span class="req">*</span><input name="street" required placeholder="123 Trucker Way"></label>
+      <label>City <span class="req">*</span><input name="city" required placeholder="Long Beach"></label>
+      <label>State <span class="req">*</span><input name="state" maxlength="20" required placeholder="CA"></label>
+      <label>ZIP <span class="req">*</span><input name="zip" maxlength="10" required placeholder="90802"></label>
       <label>EIN (page 13) <span class="req">*</span><input name="ein" placeholder="12-3456789" required></label>
-      <label>Driver license no. (page 13)<input name="dl"></label>
+      <label>Driver license no. (page 13)<input name="dl" placeholder="DL1234567"></label>
       <label>Contractor initials <span class="req">*</span><input name="initials" maxlength="5" required placeholder="auto"></label>
     </div>
     <p class="hint" style="margin-top:8px">The initials are printed in the footer of all 15 pages, at &sect;30 (page 9) and on the &sect;35 arbitration / class-action waiver (page 10).</p>
@@ -106,8 +226,8 @@
       <label class="full check"><input type="checkbox" name="sameExec" checked> Executed on the effective date &amp; time</label>
       <label>Execution date<input type="date" name="exeDate" disabled></label>
       <label>Execution time<input type="time" name="exeTime" disabled></label>
-      <label>Signer name <span class="req">*</span><input name="signerName" required></label>
-      <label>Signer title<input name="signerTitle" placeholder="Owner"></label>
+      <label>Signer name <span class="req">*</span><input name="signerName" required placeholder="John Doe"></label>
+      <label>Signer title<input name="signerTitle" placeholder="Owner / President"></label>
       <div class="full">
         <label style="margin-bottom:4px">Contractor's signature <span class="req">*</span></label>
         <div class="sig-wrap" data-sig="contractor"></div>
@@ -118,8 +238,8 @@
   <fieldset>
     <legend>Carrier (Empire Transportation)</legend>
     <div class="grid">
-      <label>Representative name<input name="carrierName"></label>
-      <label>Title<input name="carrierTitle"></label>
+      <label>Representative name<input name="carrierName" placeholder="Authorized Officer"></label>
+      <label>Title<input name="carrierTitle" placeholder="Safety Director"></label>
       <label>Carrier initials (page 9)<input name="carrierInitials" maxlength="5" placeholder="auto"></label>
       <div class="full">
         <label style="margin-bottom:4px">Carrier's signature</label>
@@ -158,10 +278,152 @@
 </form>
 
 <section class="preview">
-  <div class="preview-bar"><span id="status">Preparing preview&hellip;</span><span>Everything is filled in this browser. Nothing you type is sent to the server.</span></div>
+  <div class="preview-bar"><span id="status">Preparing preview&hellip;</span><span>Client-side PDF compilation &bull; Zero latency</span></div>
   <iframe id="frame" title="Agreement preview"></iframe>
 </section>
 </main>
+
+<!-- ==================== VIEW 2: ADMIN PANEL ==================== -->
+<div id="adminView">
+  <div class="admin-header">
+    <div class="admin-title">
+      <h2>IC Agreement Submissions &amp; Entries</h2>
+      <p>Central repository of all contractor agreements, signatures, and compiled PDF packages.</p>
+    </div>
+    <div class="admin-actions">
+      <button type="button" id="btnAdminNew" class="primary">+ New Agreement</button>
+      <button type="button" id="btnLoadSampleHeader" title="Add a sample agreement to test">🧪 Sample Entry</button>
+      <button type="button" id="btnExportCSV">📥 Export CSV</button>
+      <button type="button" id="btnExportJSON">📥 Backup JSON</button>
+      <button type="button" id="btnClearAll" style="color:var(--warn)">🗑️ Clear All</button>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Total Submissions</div>
+      <div class="metric-value"><span id="mTotal">0</span> <span class="metric-sub">agreements</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Unique Contractors</div>
+      <div class="metric-value"><span id="mContractors">0</span> <span class="metric-sub">carriers</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Equipment Units</div>
+      <div class="metric-value"><span id="mUnits">0</span> <span class="metric-sub">tractors</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Latest Submission</div>
+      <div class="metric-value" style="font-size:18px"><span id="mLatest">None</span></div>
+    </div>
+  </div>
+
+  <!-- Search & Filter Toolbar -->
+  <div class="admin-toolbar">
+    <div class="search-box">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="adminSearch" placeholder="Search contractor name, signer, EIN, city, state...">
+    </div>
+    <div style="font-size:13px; color:var(--muted)">
+      Showing <strong id="filterCount">0</strong> entries
+    </div>
+  </div>
+
+  <!-- Table Card -->
+  <div class="table-card">
+    <table class="entries-table" id="entriesTable">
+      <thead>
+        <tr>
+          <th>ID / Date</th>
+          <th>Contractor</th>
+          <th>Signer / Title</th>
+          <th>Location</th>
+          <th>EIN / DL</th>
+          <th>Units</th>
+          <th>Signatures</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="entriesBody">
+        <!-- Rendered by JS -->
+      </tbody>
+    </table>
+    <div id="tableEmpty" class="empty-state" style="display:none">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <h3>No agreement submissions yet</h3>
+      <p>Entries will appear here as soon as agreements are saved or downloaded.</p>
+      <div style="display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap">
+        <button type="button" class="primary small" id="btnEmptyNew">Fill an Agreement</button>
+        <button type="button" class="small" id="btnLoadSample">🧪 Load Sample Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: ENTRY DETAILS ==================== -->
+<div id="entryModal" class="modal-backdrop" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalTitle">Agreement Details</h3>
+      <button type="button" class="small" id="btnModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- Injected by JS -->
+    </div>
+    <div class="modal-footer">
+      <button type="button" id="btnModalLoad" class="small">✏️ Load into Form</button>
+      <button type="button" id="btnModalDownload" class="primary small">📄 Download PDF</button>
+      <button type="button" id="btnModalClose2" class="small">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: ADMIN CREDENTIALS LOGIN ==================== -->
+<div id="adminLoginModal" class="modal-backdrop" style="display:none">
+  <div class="modal-content auth-modal-content">
+    <div class="modal-header">
+      <h3 style="display:flex; align-items:center; gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Admin Panel Access
+      </h3>
+      <button type="button" class="small" id="btnAuthClose">✕</button>
+    </div>
+    <div class="modal-body" style="text-align:center; padding: 24px;">
+      <div class="auth-icon-circle">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h4 style="margin: 0 0 6px; font-size: 17px; color: var(--ink);">Administrator Sign In</h4>
+      <p style="margin: 0 0 16px; font-size: 13px; color: var(--muted); line-height: 1.4;">
+        Enter your Admin credentials to unlock and view contractor submissions.
+      </p>
+
+      <div id="authNotice" class="auth-notice info" style="display:none"></div>
+
+      <form id="adminLoginForm" onsubmit="return false" style="text-align:left;">
+        <div style="margin-bottom: 12px;">
+          <label style="margin-bottom: 6px; font-weight:600; display:block; font-size:13px;">Email ID / Username</label>
+          <input type="email" id="authEmail" placeholder="admin@empiretrans.com" value="admin@empiretrans.com" required style="width:100%; font-size:14px; padding:10px;">
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <label style="margin-bottom: 6px; font-weight:600; display:block; font-size:13px;">Password</label>
+          <div style="position:relative;">
+            <input type="password" id="authPassword" placeholder="Enter Admin Password" required style="width:100%; font-size:14px; padding:10px 40px 10px 10px;">
+            <button type="button" id="btnTogglePassword" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px;" title="Show/Hide Password">👁️</button>
+          </div>
+        </div>
+
+        <button type="submit" class="primary" id="btnLoginSubmit" style="width:100%; justify-content:center; padding:11px; font-size:14px; font-weight:600;">
+          🔐 Sign In to Admin Panel
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast">Entry saved successfully</div>
 
 <script src="pdf-lib.min.js"></script>
 <script>
@@ -170,17 +432,108 @@
   const $ = (s, el = document) => el.querySelector(s);
   const form = $("#f");
 
-  // ─── Where each value goes ────────────────────────────────────────────────
-  // Measured from template.pdf (595 × 842 pt) with PyMuPDF. Measurements are
-  // top-origin like the extractor; pdf-lib is bottom-origin, so `rule(y)` puts
-  // text just above a printed underline at y and `base(y)` sits on a text
-  // baseline at y. `max` is the blank's width; longer values shrink to fit.
+  // ─── Storage Service (IndexedDB with LocalStorage fallback) ───────────────
+  const DB_NAME = "ICA_DB", STORE = "submissions", DB_VER = 1;
+  let dbInstance = null;
+
+  function openDB() {
+    return new Promise((resolve) => {
+      if (!window.indexedDB) return resolve(null);
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          const store = db.createObjectStore(STORE, { keyPath: "id" });
+          store.createIndex("createdAt", "createdAt", { unique: false });
+          store.createIndex("name", "name", { unique: false });
+        }
+      };
+      req.onsuccess = () => { dbInstance = req.result; resolve(dbInstance); };
+      req.onerror = () => resolve(null);
+    });
+  }
+
+  const Storage = {
+    async getAll() {
+      if (dbInstance) {
+        return new Promise((res) => {
+          const tx = dbInstance.transaction(STORE, "readonly");
+          const req = tx.objectStore(STORE).getAll();
+          req.onsuccess = () => res((req.result || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)));
+          req.onerror = () => res(Storage.getAllLS());
+        });
+      }
+      return Storage.getAllLS();
+    },
+    async save(item) {
+      if (dbInstance) {
+        return new Promise((res) => {
+          const tx = dbInstance.transaction(STORE, "readwrite");
+          tx.objectStore(STORE).put(item);
+          tx.oncomplete = () => { Storage.syncLSCount(); res(true); };
+          tx.onerror = () => { Storage.saveLS(item); res(true); };
+        });
+      }
+      return Storage.saveLS(item);
+    },
+    async delete(id) {
+      if (dbInstance) {
+        return new Promise((res) => {
+          const tx = dbInstance.transaction(STORE, "readwrite");
+          tx.objectStore(STORE).delete(id);
+          tx.oncomplete = () => { Storage.syncLSCount(); res(true); };
+          tx.onerror = () => { Storage.deleteLS(id); res(true); };
+        });
+      }
+      return Storage.deleteLS(id);
+    },
+    async clear() {
+      if (dbInstance) {
+        return new Promise((res) => {
+          const tx = dbInstance.transaction(STORE, "readwrite");
+          tx.objectStore(STORE).clear();
+          tx.oncomplete = () => { localStorage.removeItem("ica_meta"); res(true); };
+          tx.onerror = () => { localStorage.removeItem("ica_meta"); res(true); };
+        });
+      }
+      localStorage.removeItem("ica_meta");
+    },
+    // Fallback LS
+    getAllLS() {
+      try { return JSON.parse(localStorage.getItem("ica_meta") || "[]"); } catch { return []; }
+    },
+    saveLS(item) {
+      const list = Storage.getAllLS().filter((x) => x.id !== item.id);
+      list.unshift(item);
+      try { localStorage.setItem("ica_meta", JSON.stringify(list)); } catch (e) { console.warn("LS quota", e); }
+      return true;
+    },
+    deleteLS(id) {
+      const list = Storage.getAllLS().filter((x) => x.id !== id);
+      localStorage.setItem("ica_meta", JSON.stringify(list));
+      return true;
+    },
+    syncLSCount() {
+      Storage.getAll().then((list) => {
+        $("#badgeCount").textContent = list.length;
+      });
+    }
+  };
+
+  // ─── Toast System ─────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2800);
+  }
+
+  // ─── Where each value goes (Template Overlay Mapping) ─────────────────────
   const H = 842;
   const rule = (y) => H - y + 2.5;
   const base = (y) => H - y;
 
   const FIELDS = [
-    // Page 1 — "effective as of this ____ day of ____, 20__, at __:__ (am/pm) by and between ____"
     { p: 1, x: 236, y: rule(241.8), v: "effDayOrd", max: 86 },
     { p: 1, x: 357, y: rule(241.8), v: "effMonth", max: 150 },
     { p: 1, x: 82, y: rule(263.3), v: "effYear2", max: 37 },
@@ -189,7 +542,6 @@
     { p: 1, x: 346, y: rule(263.3), v: "name", max: 156 },
     { p: 1, x: 307, y: rule(276.6), v: "street", max: 201 },
     { p: 1, x: 72, y: rule(289.3), v: "cityStateZip", max: 319 },
-    // Page 9 — §30 Notice block, contractor column
     { p: 9, x: 143, y: rule(307.8), v: "name", max: 134 },
     { p: 9, x: 108, y: rule(328.6), v: "street", max: 143 },
     { p: 9, x: 108, y: rule(350.6), v: "city", max: 145 },
@@ -197,9 +549,7 @@
     { p: 9, x: 108, y: rule(403.6), v: "zip", max: 143 },
     { p: 9, x: 189, y: rule(446.6), v: "initials", max: 79 },
     { p: 9, x: 408, y: rule(446.6), v: "carrierInitials", max: 85 },
-    // Page 10 — §35 arbitration / class-action waiver initials
     { p: 10, x: 351, y: rule(459.4), v: "initials", max: 79 },
-    // Page 13 — "IN WITNESS WHEREOF ... this __day of ____ , 20__, at ____ (am/pm)"
     { p: 13, x: 413.4, y: base(378.6), v: "exeDay", max: 8.8 },
     { p: 13, x: 451, y: base(378.6), v: "exeMonth", max: 46 },
     { p: 13, x: 121.1, y: base(391.9), v: "exeYear2", max: 7.6 },
@@ -209,34 +559,24 @@
     { p: 13, x: 265.5, y: base(542.7), v: "dl", max: 46 },
     { p: 13, x: 350, y: base(521.7), v: "carrierName", max: 205 },
     { p: 13, x: 345, y: base(542.7), v: "carrierTitle", max: 210 },
-    // Page 14 — Appendix A acknowledgement date / time, under the printed labels
     { p: 14, x: 378, y: base(349.6) - 11, v: "ackDate", max: 44, size: 9 },
     { p: 14, x: 424, y: base(349.6) - 11, v: "ackTime", max: 62, size: 9 },
     { p: 14, x: 386, y: base(468.2) - 11, v: "ackDate", max: 40, size: 9 },
     { p: 14, x: 428, y: base(468.2) - 11, v: "ackTime", max: 62, size: 9 },
   ];
   const FOOTER_INITIALS = { x: 177, y: rule(770), v: "initials", max: 55, size: 9 };
-
-  // Signature lines: left edge, the rule's y, the room on it, and how tall the
-  // ink may stand before it reaches the printed row above (21pt apart on page 13).
   const SIGNATURES = [
     { p: 13, who: "contractor", x: 164, y: 564.7, w: 129, h: 17 },
     { p: 13, who: "carrier", x: 394, y: 564.7, w: 92, h: 17 },
     { p: 14, who: "carrier", x: 248, y: 350.9, w: 140, h: 20 },
     { p: 14, who: "contractor", x: 121, y: 469.4, w: 274, h: 26 },
   ];
-
-  // Appendix A rows sit below "Tractor Description (Make/Model/Year)   VIN".
-  // Two rows fill the gap above the carrier's line; a longer list is noted beside the header.
   const EQUIP = { p: 14, firstY: base(307.6) - 14, step: 13.5, rows: 2, desc: { x: 70, max: 172 }, vin: { x: 247, max: 290 }, note: { x: 272, y: base(307.6) } };
-
-  // Appendix B: the printed header row spans these column rules; new rows hang below it.
   const RATES = { p: 15, cols: [164.2, 223.75, 291.5, 361.5, 431.8], top: 258.45, rowH: 16, maxRows: 28 };
-
   const BODY = 10.5;
   const INK = rgb(0.05, 0.1, 0.25);
 
-  // ─── Form state ───────────────────────────────────────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────────────────────
   const val = (n) => (form.elements[n]?.value || "").trim();
   const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const ordinal = (n) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
@@ -245,6 +585,7 @@
   const h12 = (t) => String(t.h % 12 || 12);
   const ampm = (t) => (t.h < 12 ? "AM" : "PM");
   const initialsOf = (s) => s.split(/\s+/).filter(Boolean).slice(0, 3).map((w) => w[0].toUpperCase()).join("");
+  const rowsOf = (sel) => Array.from(document.querySelectorAll(`${sel} tbody tr`)).map((tr) => Array.from(tr.querySelectorAll("input")).map((i) => i.value.trim())).filter((r) => r.some(Boolean));
 
   function context() {
     const eff = parseDate(val("effDate")), effT = parseTime(val("effTime"));
@@ -256,6 +597,14 @@
     const ackT = sameAck ? exeT : parseTime(val("ackTime"));
     const signer = val("signerName"), title = val("signerTitle");
     return {
+      effDateRaw: val("effDate"),
+      effTimeRaw: val("effTime"),
+      sameExec: same,
+      exeDateRaw: val("exeDate"),
+      exeTimeRaw: val("exeTime"),
+      sameAck: sameAck,
+      ackDateRaw: val("ackDate"),
+      ackTimeRaw: val("ackTime"),
       effDayOrd: eff ? ordinal(eff.d) : "",
       effMonth: eff ? MONTHS[eff.m - 1] : "",
       effYear2: eff ? String(eff.y).slice(-2) : "",
@@ -273,6 +622,8 @@
       exeMonth: exe ? MONTHS[exe.m - 1] : "",
       exeYear2: exe ? String(exe.y).slice(-2) : "",
       exeTime: exeT ? `${h12(exeT)}:${exeT.min} ${ampm(exeT)}` : "",
+      signerName: signer,
+      signerTitle: title,
       signerNameTitle: [signer, title].filter(Boolean).join(" / "),
       ein: val("ein"),
       dl: val("dl"),
@@ -288,34 +639,26 @@
     };
   }
 
-  function rowsOf(sel) {
-    return [...document.querySelectorAll(`${sel} tbody tr`)]
-      .map((tr) => [...tr.querySelectorAll("input")].map((i) => i.value.trim()))
-      .filter((cells) => cells.some(Boolean));
-  }
-
-  // ─── Building the PDF ─────────────────────────────────────────────────────
+  // ─── PDF Generation ───────────────────────────────────────────────────────
   let templateBytes = null;
   const template = async () => {
     if (!templateBytes) {
       const res = await fetch("template.pdf", { cache: "no-cache" });
-      if (!res.ok) throw new Error(`Could not load the agreement template (HTTP ${res.status}).`);
+      if (!res.ok) throw new Error(`Could not load template.pdf (HTTP ${res.status}).`);
       templateBytes = await res.arrayBuffer();
     }
     return templateBytes;
   };
 
-  // The standard Times fonts only cover WinAnsi; drop anything outside it rather than fail the build.
   const clean = (s) => String(s || "").replace(/[^\x20-\x7E -ÿ‘’“”–—•€]/g, "").trim();
-
   const fit = (font, text, size, max) => {
     let s = size;
     while (max && s > 5 && font.widthOfTextAtSize(text, s) > max) s -= 0.25;
     return s;
   };
 
-  async function build() {
-    const ctx = context();
+  async function build(ctxObj = null) {
+    const ctx = ctxObj || context();
     const pdf = await PDFDocument.load(await template());
     const pages = pdf.getPages();
     const font = await pdf.embedFont(StandardFonts.TimesRoman);
@@ -331,11 +674,12 @@
     FIELDS.forEach((f) => text(pages[f.p - 1], ctx[f.v], f.x, f.y, f));
     pages.forEach((page) => text(page, ctx[FOOTER_INITIALS.v], FOOTER_INITIALS.x, FOOTER_INITIALS.y, FOOTER_INITIALS));
 
-    // Signatures: the drawn image if there is one, otherwise the typed name in italics.
     const images = {};
     for (const who of ["contractor", "carrier"]) {
-      const png = pads[who].png();
-      if (png) images[who] = await pdf.embedPng(png);
+      const png = ctxObj?.sigs?.[who] || pads[who].png();
+      if (png) {
+        try { images[who] = await pdf.embedPng(png); } catch (e) { console.warn("Sig embed", e); }
+      }
     }
     SIGNATURES.forEach((s) => {
       const page = pages[s.p - 1];
@@ -343,12 +687,11 @@
       if (img) {
         const scale = Math.min(s.w / img.width, s.h / img.height);
         page.drawImage(img, { x: s.x, y: rule(s.y) - 1.5, width: img.width * scale, height: img.height * scale });
-      } else if (pads[s.who].mode === "type") {
+      } else if ((ctxObj?.sigModes?.[s.who] || pads[s.who].mode) === "type") {
         text(page, ctx.typed[s.who], s.x + 2, rule(s.y), { size: 14, max: s.w - 4, face: italic });
       }
     });
 
-    // Appendix A equipment.
     const p14 = pages[EQUIP.p - 1];
     ctx.equipment.slice(0, EQUIP.rows).forEach(([desc, vin], i) => {
       const y = EQUIP.firstY - i * EQUIP.step;
@@ -361,7 +704,6 @@
         EQUIP.note.x, EQUIP.note.y, { size: 9, face: italic, max: 250 });
     }
 
-    // Appendix B: replace location / effective date only when they were changed.
     const p15 = pages[RATES.p - 1];
     const heading = (raw, baseTop, boxTop, boxBottom) => {
       const t = clean(raw);
@@ -370,10 +712,9 @@
       const size = fit(bold, t, 13.5, 310);
       p15.drawText(t, { x: 297.5 - bold.widthOfTextAtSize(t, size) / 2, y: base(baseTop), size, font: bold, color: rgb(0, 0, 0) });
     };
-    if (ctx.rateLocation.toUpperCase() !== "LONG BEACH, CA.") heading(`LOCATION: ${ctx.rateLocation}`, 193.8, 182.2, 196.6);
-    if (ctx.rateEffective !== "1/1/23") heading(ctx.rateEffective ? `Effective ${ctx.rateEffective}` : "", 209.3, 197.4, 212.4);
+    if (ctx.rateLocation && ctx.rateLocation.toUpperCase() !== "LONG BEACH, CA.") heading(`LOCATION: ${ctx.rateLocation}`, 193.8, 182.2, 196.6);
+    if (ctx.rateEffective && ctx.rateEffective !== "1/1/23") heading(ctx.rateEffective ? `Effective ${ctx.rateEffective}` : "", 209.3, 197.4, 212.4);
 
-    // Rate rows, ruled to match the printed header.
     const rows = ctx.rates.slice(0, RATES.maxRows);
     const [left, right] = [RATES.cols[0], RATES.cols[RATES.cols.length - 1]];
     rows.forEach((cells, r) => {
@@ -390,12 +731,12 @@
       });
     });
 
-    pdf.setTitle(`Independent Contractor Transportation Agreement${ctx.name ? " — " + clean(ctx.name) : ""}`);
-    pdf.setProducer("IC Agreement Form");
+    pdf.setTitle(`IC Agreement — ${clean(ctx.name || "Contractor")}`);
+    pdf.setProducer("Empire Transportation IC Form");
     return pdf.save();
   }
 
-  // ─── Preview / download ───────────────────────────────────────────────────
+  // ─── Preview & Filename ───────────────────────────────────────────────────
   const status = $("#status"), frame = $("#frame");
   let url = null, timer = null, seq = 0;
 
@@ -417,7 +758,7 @@
       return null;
     }
   }
-  const schedule = () => { clearTimeout(timer); timer = setTimeout(render, 700); };
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(render, 600); };
 
   function fileName() {
     const slug = val("name").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "contractor";
@@ -435,19 +776,685 @@
     return out;
   }
 
+  // ─── Save Record Functionality ────────────────────────────────────────────
+  async function saveRecord(auto = false) {
+    const ctx = context();
+    if (!ctx.name) {
+      if (!auto) alert("Please enter Contractor legal name before saving.");
+      return null;
+    }
+
+    const id = "ICA-" + Date.now().toString(36).toUpperCase();
+    const entry = {
+      id,
+      createdAt: new Date().toISOString(),
+      name: ctx.name,
+      signerName: ctx.signerName,
+      signerTitle: ctx.signerTitle,
+      street: ctx.street,
+      city: ctx.city,
+      state: ctx.state,
+      zip: ctx.zip,
+      ein: ctx.ein,
+      dl: ctx.dl,
+      initials: ctx.initials,
+      carrierName: ctx.carrierName,
+      carrierTitle: ctx.carrierTitle,
+      carrierInitials: ctx.carrierInitials,
+      effDate: ctx.effDateRaw,
+      effTime: ctx.effTimeRaw,
+      sameExec: ctx.sameExec,
+      exeDate: ctx.exeDateRaw,
+      exeTime: ctx.exeTimeRaw,
+      sameAck: ctx.sameAck,
+      ackDate: ctx.ackDateRaw,
+      ackTime: ctx.ackTimeRaw,
+      rateLocation: ctx.rateLocation,
+      rateEffective: ctx.rateEffective,
+      equipment: ctx.equipment,
+      rates: ctx.rates,
+      sigModes: {
+        contractor: pads.contractor.mode,
+        carrier: pads.carrier.mode
+      },
+      sigs: {
+        contractor: pads.contractor.png(),
+        carrier: pads.carrier.png()
+      },
+      fileName: fileName()
+    };
+
+    await Storage.save(entry);
+    showToast(`Saved agreement for "${entry.name}"!`);
+    refreshAdminPanel();
+    return entry;
+  }
+
+  $("#btnSaveRecord").addEventListener("click", () => saveRecord(false));
+
   $("#btnDownload").addEventListener("click", async () => {
     const gaps = missing();
     if (gaps.length && !confirm(`These required fields are empty:\n\n• ${gaps.join("\n• ")}\n\nDownload anyway?`)) return;
     const bytes = await render();
     if (!bytes) return;
+
+    // Auto-save to Admin panel on download
+    await saveRecord(true);
+
     const a = document.createElement("a");
     a.href = url; a.download = fileName();
     document.body.appendChild(a); a.click(); a.remove();
   });
+
   $("#btnPreview").addEventListener("click", render);
   $("#btnOpen").addEventListener("click", async () => { if (await render()) window.open(url, "_blank"); });
 
-  // ─── Form wiring ──────────────────────────────────────────────────────────
+  // ─── View Switcher (Form vs Admin) with OTP Auth ─────────────────────────
+  const formView = $("#formView"), adminView = $("#adminView");
+  const btnTabForm = $("#btnTabForm"), btnTabAdmin = $("#btnTabAdmin");
+
+  // ─── Admin Authentication (Email + Password) ──────────────────────────────
+  const API_BASE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:5001/api"
+    : "/api";
+
+  const adminLoginModal = $("#adminLoginModal");
+  const authNotice = $("#authNotice");
+  const authEmail = $("#authEmail");
+  const authPassword = $("#authPassword");
+  const btnLoginSubmit = $("#btnLoginSubmit");
+  const btnAuthClose = $("#btnAuthClose");
+  const btnTogglePassword = $("#btnTogglePassword");
+  const adminUserSection = $("#adminUserSection");
+  const btnLogoutAdmin = $("#btnLogoutAdmin");
+
+  function getAdminSession() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem("ica_admin_session") || "null");
+      if (!s || !s.token) return null;
+      return s;
+    } catch {
+      return null;
+    }
+  }
+
+  function updateAdminHeaderAuth() {
+    const session = getAdminSession();
+    if (session) {
+      adminUserSection.style.display = "inline-flex";
+    } else {
+      adminUserSection.style.display = "none";
+    }
+  }
+
+  function showAuthNotice(msg, type = "info") {
+    authNotice.style.display = "block";
+    authNotice.className = `auth-notice ${type}`;
+    authNotice.textContent = msg;
+  }
+  function hideAuthNotice() {
+    authNotice.style.display = "none";
+  }
+
+  function openAdminLogin() {
+    hideAuthNotice();
+    authPassword.value = "";
+    adminLoginModal.style.display = "flex";
+    setTimeout(() => authPassword.focus(), 100);
+  }
+
+  function closeAdminLogin() {
+    adminLoginModal.style.display = "none";
+    hideAuthNotice();
+  }
+
+  btnAuthClose.addEventListener("click", closeAdminLogin);
+
+  if (btnTogglePassword) {
+    btnTogglePassword.addEventListener("click", () => {
+      authPassword.type = authPassword.type === "password" ? "text" : "password";
+    });
+  }
+
+  async function handleAdminLogin() {
+    const email = (authEmail.value || "").trim().toLowerCase();
+    const password = (authPassword.value || "");
+
+    if (!email) {
+      showAuthNotice("Please enter your Admin email address.", "error");
+      return;
+    }
+    if (!password) {
+      showAuthNotice("Please enter your password.", "error");
+      return;
+    }
+
+    btnLoginSubmit.disabled = true;
+    btnLoginSubmit.textContent = "Verifying...";
+    hideAuthNotice();
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.api_token) {
+        showAuthNotice(data.message || "Invalid email or password.", "error");
+        btnLoginSubmit.disabled = false;
+        btnLoginSubmit.textContent = "🔐 Sign In to Admin Panel";
+        return;
+      }
+
+      if (data.user?.role !== "admin" && data.user?.role !== "staff") {
+        showAuthNotice("Access denied. Only Admin accounts can access the Admin Panel.", "error");
+        btnLoginSubmit.disabled = false;
+        btnLoginSubmit.textContent = "🔐 Sign In to Admin Panel";
+        return;
+      }
+
+      // Valid session! Store in sessionStorage
+      sessionStorage.setItem("ica_admin_session", JSON.stringify({
+        token: data.api_token,
+        user: data.user
+      }));
+      closeAdminLogin();
+      updateAdminHeaderAuth();
+      showToast(`Welcome back, ${data.user.firstName || "Admin"}!`);
+      setView("admin");
+    } catch (err) {
+      console.error("Login error:", err);
+      showAuthNotice("Server connection error. Make sure FMS server is running.", "error");
+    } finally {
+      btnLoginSubmit.disabled = false;
+      btnLoginSubmit.textContent = "🔐 Sign In to Admin Panel";
+    }
+  }
+
+  btnLoginSubmit.addEventListener("click", handleAdminLogin);
+  authPassword.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleAdminLogin();
+  });
+  authEmail.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") authPassword.focus();
+  });
+
+  btnLogoutAdmin.addEventListener("click", () => {
+    sessionStorage.removeItem("ica_admin_session");
+    updateAdminHeaderAuth();
+    setView("form");
+    showToast("Logged out from Admin Panel.");
+  });
+
+  function setView(view) {
+    if (view === "admin") {
+      if (!getAdminSession()) {
+        openAdminLogin();
+        return;
+      }
+      formView.style.display = "none";
+      adminView.style.display = "block";
+      btnTabAdmin.classList.add("active");
+      btnTabForm.classList.remove("active");
+      updateAdminHeaderAuth();
+      refreshAdminPanel();
+    } else {
+      adminView.style.display = "none";
+      formView.style.display = "grid";
+      btnTabForm.classList.add("active");
+      btnTabAdmin.classList.remove("active");
+      updateAdminHeaderAuth();
+      render();
+    }
+  }
+
+  btnTabForm.addEventListener("click", () => setView("form"));
+  btnTabAdmin.addEventListener("click", () => setView("admin"));
+  $("#btnAdminNew").addEventListener("click", () => setView("form"));
+  $("#btnEmptyNew").addEventListener("click", () => setView("form"));
+  updateAdminHeaderAuth();
+
+  async function addSampleEntry() {
+    const id = "ICA-" + Date.now().toString(36).toUpperCase();
+    const now = new Date();
+    const entry = {
+      id,
+      createdAt: now.toISOString(),
+      name: "Apex Global Freight LLC",
+      signerName: "Michael R. Scott",
+      signerTitle: "Managing Director",
+      street: "742 Evergreen Terrace",
+      city: "Long Beach",
+      state: "CA",
+      zip: "90802",
+      ein: "95-1234567",
+      dl: "C4819203",
+      initials: "MS",
+      carrierName: "Empire Transportation",
+      carrierTitle: "Safety Director",
+      carrierInitials: "ET",
+      effDate: now.toISOString().split("T")[0],
+      effTime: "09:00",
+      sameExec: true,
+      exeDate: now.toISOString().split("T")[0],
+      exeTime: "09:00",
+      equipment: [
+        ["2023 Freightliner Cascadia (Tractor)", "1FUJGLDR8PL123456"],
+        ["2022 Kenworth T680", "1XKDDB9X1NJ654321"]
+      ],
+      sigContractor: true,
+      sigCarrier: true,
+      sigModes: { contractor: "type", carrier: "type" },
+      formData: {
+        name: "Apex Global Freight LLC",
+        street: "742 Evergreen Terrace",
+        city: "Long Beach",
+        state: "CA",
+        zip: "90802",
+        ein: "95-1234567",
+        dl: "C4819203",
+        initials: "MS",
+        signerName: "Michael R. Scott",
+        signerTitle: "Managing Director",
+        carrierName: "Empire Transportation",
+        carrierTitle: "Safety Director",
+        carrierInitials: "ET",
+        effDate: now.toISOString().split("T")[0],
+        effTime: "09:00",
+        sameExec: true,
+      }
+    };
+    await Storage.save(entry);
+    await refreshAdminPanel();
+    showToast("Sample entry added successfully!");
+  }
+
+  const btnSample = $("#btnLoadSample");
+  if (btnSample) btnSample.addEventListener("click", addSampleEntry);
+  const btnSampleH = $("#btnLoadSampleHeader");
+  if (btnSampleH) btnSampleH.addEventListener("click", addSampleEntry);
+
+  // ─── Admin Panel Logic ────────────────────────────────────────────────────
+  let cachedEntries = [];
+
+  async function refreshAdminPanel() {
+    cachedEntries = await Storage.getAll();
+    $("#badgeCount").textContent = cachedEntries.length;
+    renderMetrics(cachedEntries);
+    renderTable();
+  }
+
+  function renderMetrics(entries) {
+    $("#mTotal").textContent = entries.length;
+    const names = new Set(entries.map((e) => e.name.toLowerCase().trim()).filter(Boolean));
+    $("#mContractors").textContent = names.size;
+    const units = entries.reduce((acc, cur) => acc + (cur.equipment ? cur.equipment.length : 0), 0);
+    $("#mUnits").textContent = units;
+    if (entries.length > 0) {
+      const dt = new Date(entries[0].createdAt);
+      $("#mLatest").textContent = dt.toLocaleDateString() + " " + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else {
+      $("#mLatest").textContent = "None";
+    }
+  }
+
+  function renderTable() {
+    const q = ($("#adminSearch").value || "").trim().toLowerCase();
+    const filtered = cachedEntries.filter((e) => {
+      if (!q) return true;
+      return (
+        (e.name || "").toLowerCase().includes(q) ||
+        (e.signerName || "").toLowerCase().includes(q) ||
+        (e.ein || "").toLowerCase().includes(q) ||
+        (e.dl || "").toLowerCase().includes(q) ||
+        (e.city || "").toLowerCase().includes(q) ||
+        (e.state || "").toLowerCase().includes(q)
+      );
+    });
+
+    $("#filterCount").textContent = filtered.length;
+    const tbody = $("#entriesBody");
+    tbody.innerHTML = "";
+
+    if (!filtered.length) {
+      $("#tableEmpty").style.display = "block";
+      $("#entriesTable").style.display = "none";
+      return;
+    }
+
+    $("#tableEmpty").style.display = "none";
+    $("#entriesTable").style.display = "table";
+
+    filtered.forEach((e) => {
+      const tr = document.createElement("tr");
+      const dt = new Date(e.createdAt);
+      const dateStr = dt.toLocaleDateString() + " " + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const unitCount = (e.equipment || []).length;
+      const hasContractorSig = !!(e.sigs?.contractor || e.sigModes?.contractor === "type");
+      const hasCarrierSig = !!(e.sigs?.carrier || e.sigModes?.carrier === "type");
+
+      tr.innerHTML = `
+        <td>
+          <div style="font-weight:600; font-family:monospace; color:var(--muted)">${e.id}</div>
+          <div style="font-size:11px; color:var(--muted)">${dateStr}</div>
+        </td>
+        <td>
+          <div class="contractor-name">${clean(e.name || "Untitled")}</div>
+          <div class="contractor-sub">${clean(e.street || "-")}</div>
+        </td>
+        <td>
+          <div>${clean(e.signerName || "-")}</div>
+          <div class="contractor-sub">${clean(e.signerTitle || "Contractor")}</div>
+        </td>
+        <td>
+          <div>${clean([e.city, e.state, e.zip].filter(Boolean).join(", ") || "-")}</div>
+        </td>
+        <td>
+          <div>EIN: ${clean(e.ein || "-")}</div>
+          <div class="contractor-sub">DL: ${clean(e.dl || "-")}</div>
+        </td>
+        <td>
+          <span class="tag tag-info">${unitCount} Unit${unitCount === 1 ? "" : "s"}</span>
+        </td>
+        <td>
+          <span class="tag ${hasContractorSig ? "tag-success" : "tag-info"}" style="margin-right:2px">
+            ${hasContractorSig ? "✓ Contractor" : "No Sig"}
+          </span>
+          <span class="tag ${hasCarrierSig ? "tag-success" : ""}">
+            ${hasCarrierSig ? "✓ Carrier" : "Draft"}
+          </span>
+        </td>
+        <td style="text-align:right">
+          <div class="row-actions" style="justify-content:flex-end">
+            <button type="button" class="small btn-pdf" title="Generate & Download PDF">📄 PDF</button>
+            <button type="button" class="small btn-view" title="View details">👁️ Details</button>
+            <button type="button" class="small btn-load" title="Load into Agreement Form">✏️ Load</button>
+            <button type="button" class="small btn-del" style="color:var(--warn)" title="Delete entry">🗑️</button>
+          </div>
+        </td>
+      `;
+
+      // Actions
+      tr.querySelector(".btn-pdf").addEventListener("click", () => downloadSavedEntryPDF(e));
+      tr.querySelector(".btn-view").addEventListener("click", () => openEntryModal(e));
+      tr.querySelector(".btn-load").addEventListener("click", () => loadEntryIntoForm(e));
+      tr.querySelector(".btn-del").addEventListener("click", async () => {
+        if (confirm(`Delete entry for "${e.name}" (${e.id})?`)) {
+          await Storage.delete(e.id);
+          showToast("Entry deleted");
+          refreshAdminPanel();
+        }
+      });
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  $("#adminSearch").addEventListener("input", renderTable);
+
+  // ─── Modal Details View ───────────────────────────────────────────────────
+  let activeModalEntry = null;
+
+  function openEntryModal(entry) {
+    activeModalEntry = entry;
+    $("#modalTitle").textContent = `${entry.name} (${entry.id})`;
+    const dt = new Date(entry.createdAt).toLocaleString();
+    const equipRows = (entry.equipment || []).map(([desc, vin]) => `<tr><td>${clean(desc)}</td><td>${clean(vin)}</td></tr>`).join("") || '<tr><td colspan="2" style="color:var(--muted)">No equipment listed</td></tr>';
+
+    $("#modalBody").innerHTML = `
+      <div class="detail-section">
+        <div class="detail-title">Contractor Details</div>
+        <div class="detail-grid">
+          <div class="detail-item"><span class="detail-label">Legal Name</span><span class="detail-val">${clean(entry.name)}</span></div>
+          <div class="detail-item"><span class="detail-label">EIN</span><span class="detail-val">${clean(entry.ein)}</span></div>
+          <div class="detail-item"><span class="detail-label">Address</span><span class="detail-val">${clean(entry.street)}</span></div>
+          <div class="detail-item"><span class="detail-label">City, State ZIP</span><span class="detail-val">${clean([entry.city, entry.state, entry.zip].filter(Boolean).join(", "))}</span></div>
+          <div class="detail-item"><span class="detail-label">Driver License</span><span class="detail-val">${clean(entry.dl || "-")}</span></div>
+          <div class="detail-item"><span class="detail-label">Initials</span><span class="detail-val">${clean(entry.initials || "-")}</span></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-title">Signer &amp; Execution</div>
+        <div class="detail-grid">
+          <div class="detail-item"><span class="detail-label">Signer Name / Title</span><span class="detail-val">${clean(entry.signerName)} (${clean(entry.signerTitle || "Owner")})</span></div>
+          <div class="detail-item"><span class="detail-label">Effective Date</span><span class="detail-val">${entry.effDate || "-"} ${entry.effTime || ""}</span></div>
+          <div class="detail-item"><span class="detail-label">Execution Date</span><span class="detail-val">${entry.exeDate || (entry.sameExec ? "Same as effective" : "-")} ${entry.exeTime || ""}</span></div>
+          <div class="detail-item"><span class="detail-label">Carrier Representative</span><span class="detail-val">${clean(entry.carrierName || "Empire Transportation")} (${clean(entry.carrierTitle || "-")})</span></div>
+          <div class="detail-item"><span class="detail-label">Submission Date</span><span class="detail-val">${dt}</span></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-title">Registered Equipment (Appendix A)</div>
+        <table class="rows" style="font-size:12px">
+          <thead><tr><th>Tractor Description</th><th>VIN</th></tr></thead>
+          <tbody>${equipRows}</tbody>
+        </table>
+      </div>
+
+      ${entry.sigs?.contractor ? `
+        <div class="detail-section">
+          <div class="detail-title">Contractor Signature</div>
+          <div style="background:#fff; border:1px solid var(--line); border-radius:6px; padding:8px; display:inline-block">
+            <img src="${entry.sigs.contractor}" alt="Signature" style="max-height:60px; max-width:260px; display:block">
+          </div>
+        </div>
+      ` : ""}
+    `;
+
+    $("#entryModal").style.display = "flex";
+  }
+
+  function closeModal() {
+    $("#entryModal").style.display = "none";
+    activeModalEntry = null;
+  }
+
+  $("#btnModalClose").addEventListener("click", closeModal);
+  $("#btnModalClose2").addEventListener("click", closeModal);
+  $("#entryModal").addEventListener("click", (e) => { if (e.target === $("#entryModal")) closeModal(); });
+
+  $("#btnModalLoad").addEventListener("click", () => {
+    if (activeModalEntry) {
+      loadEntryIntoForm(activeModalEntry);
+      closeModal();
+    }
+  });
+
+  $("#btnModalDownload").addEventListener("click", () => {
+    if (activeModalEntry) {
+      downloadSavedEntryPDF(activeModalEntry);
+    }
+  });
+
+  // ─── Load Saved Entry into Form ───────────────────────────────────────────
+  function loadEntryIntoForm(entry) {
+    form.reset();
+    document.querySelectorAll(".rows tbody").forEach((tb) => (tb.innerHTML = ""));
+    Object.values(pads).forEach((p) => p.clear());
+
+    form.elements.effDate.value = entry.effDate || "";
+    form.elements.effTime.value = entry.effTime || "";
+    form.elements.sameExec.checked = !!entry.sameExec;
+    form.elements.exeDate.value = entry.exeDate || "";
+    form.elements.exeTime.value = entry.exeTime || "";
+    form.elements.sameAck.checked = !!entry.sameAck;
+    form.elements.ackDate.value = entry.ackDate || "";
+    form.elements.ackTime.value = entry.ackTime || "";
+
+    form.elements.name.value = entry.name || "";
+    form.elements.street.value = entry.street || "";
+    form.elements.city.value = entry.city || "";
+    form.elements.state.value = entry.state || "";
+    form.elements.zip.value = entry.zip || "";
+    form.elements.ein.value = entry.ein || "";
+    form.elements.dl.value = entry.dl || "";
+    form.elements.initials.value = entry.initials || "";
+
+    form.elements.signerName.value = entry.signerName || "";
+    form.elements.signerTitle.value = entry.signerTitle || "";
+    form.elements.carrierName.value = entry.carrierName || "";
+    form.elements.carrierTitle.value = entry.carrierTitle || "";
+    form.elements.carrierInitials.value = entry.carrierInitials || "";
+
+    form.elements.rateLocation.value = entry.rateLocation || "LONG BEACH, CA.";
+    form.elements.rateEffective.value = entry.rateEffective || "1/1/23";
+
+    // Equipment
+    if (entry.equipment && entry.equipment.length) {
+      entry.equipment.forEach(([desc, vin]) => addRow("#equipRows", EQUIP_COLS, [desc, vin]));
+    } else {
+      addRow("#equipRows", EQUIP_COLS);
+    }
+
+    // Rates
+    if (entry.rates && entry.rates.length) {
+      entry.rates.forEach((r) => addRow("#rateRows", RATE_COLS, r));
+    } else {
+      addRow("#rateRows", RATE_COLS);
+    }
+
+    // Signatures
+    if (entry.sigs?.contractor) {
+      const im = new Image();
+      im.onload = () => {
+        const c = $("canvas", document.querySelector('[data-sig="contractor"]'));
+        const ctx = c.getContext("2d");
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        pads.contractor.dirty = true;
+        schedule();
+      };
+      im.src = entry.sigs.contractor;
+    }
+    if (entry.sigs?.carrier) {
+      const im = new Image();
+      im.onload = () => {
+        const c = $("canvas", document.querySelector('[data-sig="carrier"]'));
+        const ctx = c.getContext("2d");
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        pads.carrier.dirty = true;
+        schedule();
+      };
+      im.src = entry.sigs.carrier;
+    }
+
+    form.elements.sameExec.dispatchEvent(new Event("change"));
+    form.elements.sameAck.dispatchEvent(new Event("change"));
+    updatePlaceholders();
+
+    setView("form");
+    showToast(`Loaded "${entry.name}" into form!`);
+    render();
+  }
+
+  // ─── Download Saved Entry PDF ─────────────────────────────────────────────
+  async function downloadSavedEntryPDF(entry) {
+    showToast(`Generating PDF for ${entry.name}...`);
+    try {
+      const eff = parseDate(entry.effDate), effT = parseTime(entry.effTime);
+      const exe = entry.sameExec ? eff : parseDate(entry.exeDate);
+      const exeT = entry.sameExec ? effT : parseTime(entry.exeTime);
+      const ack = entry.sameAck ? exe : parseDate(entry.ackDate);
+      const ackT = entry.sameAck ? exeT : parseTime(entry.ackTime);
+
+      const ctxObj = {
+        effDayOrd: eff ? ordinal(eff.d) : "",
+        effMonth: eff ? MONTHS[eff.m - 1] : "",
+        effYear2: eff ? String(eff.y).slice(-2) : "",
+        effHour: effT ? h12(effT) : "",
+        effMinAmPm: effT ? `${effT.min} ${ampm(effT)}` : "",
+        name: entry.name,
+        street: entry.street,
+        city: entry.city,
+        state: entry.state,
+        zip: entry.zip,
+        cityStateZip: [entry.city, entry.state, entry.zip].filter(Boolean).join(", "),
+        initials: (entry.initials || initialsOf(entry.signerName || entry.name)).toUpperCase(),
+        carrierInitials: (entry.carrierInitials || initialsOf(entry.carrierName)).toUpperCase(),
+        exeDay: exe ? String(exe.d) : "",
+        exeMonth: exe ? MONTHS[exe.m - 1] : "",
+        exeYear2: exe ? String(exe.y).slice(-2) : "",
+        exeTime: exeT ? `${h12(exeT)}:${exeT.min} ${ampm(exeT)}` : "",
+        signerNameTitle: [entry.signerName, entry.signerTitle].filter(Boolean).join(" / "),
+        ein: entry.ein,
+        dl: entry.dl,
+        carrierName: entry.carrierName,
+        carrierTitle: entry.carrierTitle,
+        ackDate: ack ? `${ack.m}/${ack.d}/${ack.y}` : "",
+        ackTime: ackT ? `${h12(ackT)}:${ackT.min} ${ampm(ackT)}` : "",
+        typed: { contractor: entry.signerName, carrier: entry.carrierName },
+        equipment: entry.equipment || [],
+        rates: entry.rates || [],
+        rateLocation: entry.rateLocation || "LONG BEACH, CA.",
+        rateEffective: entry.rateEffective || "1/1/23",
+        sigs: entry.sigs || {},
+        sigModes: entry.sigModes || {}
+      };
+
+      const bytes = await build(ctxObj);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = dlUrl;
+      a.download = entry.fileName || `IC-Agreement-${entry.name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(dlUrl), 3000);
+    } catch (err) {
+      alert("Error generating PDF: " + err.message);
+    }
+  }
+
+  // ─── Export CSV & JSON ────────────────────────────────────────────────────
+  $("#btnExportCSV").addEventListener("click", () => {
+    if (!cachedEntries.length) return alert("No entries to export.");
+    const headers = ["ID", "Submission Date", "Contractor Legal Name", "Signer Name", "Signer Title", "EIN", "DL", "Street", "City", "State", "ZIP", "Equipment Units", "Carrier Name"];
+    const rows = cachedEntries.map((e) => [
+      e.id,
+      e.createdAt,
+      `"${(e.name || "").replace(/"/g, '""')}"`,
+      `"${(e.signerName || "").replace(/"/g, '""')}"`,
+      `"${(e.signerTitle || "").replace(/"/g, '""')}"`,
+      `"${(e.ein || "")}"`,
+      `"${(e.dl || "")}"`,
+      `"${(e.street || "").replace(/"/g, '""')}"`,
+      `"${(e.city || "").replace(/"/g, '""')}"`,
+      `"${(e.state || "").replace(/"/g, '""')}"`,
+      `"${(e.zip || "")}"`,
+      (e.equipment || []).length,
+      `"${(e.carrierName || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encoded = encodeURI(csvContent);
+    const a = document.createElement("a");
+    a.href = encoded;
+    a.download = `IC-Agreements-Export-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+
+  $("#btnExportJSON").addEventListener("click", () => {
+    if (!cachedEntries.length) return alert("No entries to export.");
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cachedEntries, null, 2));
+    const a = document.createElement("a");
+    a.href = dataStr;
+    a.download = `IC-Agreements-Backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+
+  $("#btnClearAll").addEventListener("click", async () => {
+    if (confirm("Are you sure you want to delete ALL saved agreement entries? This cannot be undone.")) {
+      await Storage.clear();
+      showToast("All entries cleared.");
+      refreshAdminPanel();
+    }
+  });
+
+  // ─── Form Wiring ──────────────────────────────────────────────────────────
   const pad2 = (n) => String(n).padStart(2, "0");
   $("#btnNow").addEventListener("click", () => {
     const d = new Date();
@@ -490,7 +1497,7 @@
   $("#addEquip").addEventListener("click", () => addRow("#equipRows", EQUIP_COLS));
   $("#addRate").addEventListener("click", () => addRow("#rateRows", RATE_COLS));
 
-  // ─── Signature pads (draw or type) ────────────────────────────────────────
+  // ─── Signature Pads ───────────────────────────────────────────────────────
   const pads = {};
   document.querySelectorAll(".sig-wrap").forEach((wrap) => {
     const who = wrap.dataset.sig;
@@ -530,7 +1537,6 @@
       note.textContent = pad.mode === "draw" ? "Sign with mouse, finger or stylus" : `Typed name will be used: "${who === "contractor" ? val("signerName") || "(signer name)" : val("carrierName") || "(representative name)"}"`;
       schedule();
     }));
-    // Trim to the inked area so the signature scales to its line, not to the empty box.
     pad.png = () => {
       if (pad.mode !== "draw" || !pad.dirty) return null;
       const { width: w, height: h } = canvas;
@@ -564,7 +1570,11 @@
   }
   $("#btnReset").addEventListener("click", () => { if (confirm("Clear every field and signature?")) reset(); });
 
-  reset();
+  // Init DB and load initial state
+  openDB().then(() => {
+    Storage.syncLSCount();
+    reset();
+  });
 })();
 </script>
 </body>
