@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>IC Agreement Form</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #1b2330; --muted: #5d6878; --line: #d9dee5;
+    --accent: #1f4e8c; --accent-ink: #ffffff; --soft: #eef3fa; --warn: #a1361f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.small { padding: 3px 8px; font-size: 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+  main { display: grid; grid-template-columns: minmax(360px, 480px) 1fr; height: calc(100vh - 62px); }
+  form { overflow-y: auto; padding: 16px 20px 60px; border-right: 1px solid var(--line); }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin: 0 0 14px; padding: 12px 14px 14px; }
+  legend { font-weight: 600; padding: 0 6px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .grid .full { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  label .req { color: var(--warn); }
+  input, select { font: inherit; color: var(--ink); padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; width: 100%; }
+  input:focus, select:focus { outline: 2px solid var(--soft); border-color: var(--accent); }
+  input.missing { border-color: var(--warn); background: #fff6f4; }
+  .check { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); }
+  .check input { width: auto; }
+  .sig { border: 1px dashed var(--line); border-radius: 6px; background: #fbfcfd; }
+  .sig canvas { width: 100%; height: 110px; display: block; touch-action: none; cursor: crosshair; }
+  .sig-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 8px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+  .tabs button.on { background: var(--soft); border-color: var(--accent); color: var(--accent); }
+  table.rows { width: 100%; border-collapse: collapse; }
+  table.rows th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 0 4px 4px; }
+  table.rows td { padding: 2px 4px; }
+  table.rows td:last-child { width: 1%; }
+  .preview { display: flex; flex-direction: column; min-width: 0; }
+  .preview-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .preview iframe { flex: 1; width: 100%; border: 0; background: #525659; }
+  .status.err { color: var(--warn); }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; height: auto; }
+    form { border-right: 0; overflow: visible; padding: 16px 16px 24px; }
+    .preview iframe { height: 75vh; flex: none; }
+    header { flex-wrap: wrap; padding: 10px 16px; }
+  }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Independent Contractor Transportation Agreement</h1>
+    <p>Empire Transportation (USDOT # 2207543) &middot; 49 CFR Part 376 &middot; 15 pages</p>
+  </div>
+  <div class="actions">
+    <button type="button" id="btnReset">Clear form</button>
+    <button type="button" id="btnPreview">Refresh preview</button>
+    <button type="button" id="btnOpen">Open in new tab</button>
+    <button type="button" class="primary" id="btnDownload">Download PDF</button>
+  </div>
+</header>
+
+<main>
+<form id="f" autocomplete="off" onsubmit="return false">
+
+  <fieldset>
+    <legend>Effective date &amp; time (page 1)</legend>
+    <div class="grid">
+      <label>Date <span class="req">*</span><input type="date" name="effDate" required></label>
+      <label>Time <span class="req">*</span><input type="time" name="effTime" required></label>
+      <div class="full"><button type="button" class="small" id="btnNow">Use current date &amp; time</button></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Contractor</legend>
+    <p class="hint">Printed on page 1 and again in the &sect;30 Notice block on page 9.</p>
+    <div class="grid">
+      <label class="full">Contractor legal name <span class="req">*</span><input name="name" required></label>
+      <label class="full">Street address <span class="req">*</span><input name="street" required></label>
+      <label>City <span class="req">*</span><input name="city" required></label>
+      <label>State <span class="req">*</span><input name="state" maxlength="20" required></label>
+      <label>ZIP <span class="req">*</span><input name="zip" maxlength="10" required></label>
+      <label>EIN (page 13) <span class="req">*</span><input name="ein" placeholder="12-3456789" required></label>
+      <label>Driver license no. (page 13)<input name="dl"></label>
+      <label>Contractor initials <span class="req">*</span><input name="initials" maxlength="5" required placeholder="auto"></label>
+    </div>
+    <p class="hint" style="margin-top:8px">The initials are printed in the footer of all 15 pages, at &sect;30 (page 9) and on the &sect;35 arbitration / class-action waiver (page 10).</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Execution (page 13)</legend>
+    <div class="grid">
+      <label class="full check"><input type="checkbox" name="sameExec" checked> Executed on the effective date &amp; time</label>
+      <label>Execution date<input type="date" name="exeDate" disabled></label>
+      <label>Execution time<input type="time" name="exeTime" disabled></label>
+      <label>Signer name <span class="req">*</span><input name="signerName" required></label>
+      <label>Signer title<input name="signerTitle" placeholder="Owner"></label>
+      <div class="full">
+        <label style="margin-bottom:4px">Contractor's signature <span class="req">*</span></label>
+        <div class="sig-wrap" data-sig="contractor"></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Carrier (Empire Transportation)</legend>
+    <div class="grid">
+      <label>Representative name<input name="carrierName"></label>
+      <label>Title<input name="carrierTitle"></label>
+      <label>Carrier initials (page 9)<input name="carrierInitials" maxlength="5" placeholder="auto"></label>
+      <div class="full">
+        <label style="margin-bottom:4px">Carrier's signature</label>
+        <div class="sig-wrap" data-sig="carrier"></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Appendix A &mdash; Contractor's equipment (page 14)</legend>
+    <p class="hint">Two units fit on the page. Any extra units are noted on the page, and the form asks for an additional copy of Appendix A for them.</p>
+    <table class="rows" id="equipRows">
+      <thead><tr><th>Tractor (Make / Model / Year)</th><th>VIN</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" class="small" id="addEquip" style="margin-top:6px">+ Add unit</button>
+    <div class="grid" style="margin-top:12px">
+      <label class="full check"><input type="checkbox" name="sameAck" checked> Acknowledged on the execution date &amp; time</label>
+      <label>Acknowledgement date<input type="date" name="ackDate" disabled></label>
+      <label>Acknowledgement time<input type="time" name="ackTime" disabled></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Appendix B &mdash; Rate schedule (page 15)</legend>
+    <div class="grid">
+      <label>Location<input name="rateLocation" value="LONG BEACH, CA."></label>
+      <label>Effective<input name="rateEffective" value="1/1/23"></label>
+    </div>
+    <table class="rows" id="rateRows" style="margin-top:10px">
+      <thead><tr><th>Miles</th><th>Loaded move</th><th>Empty move</th><th>Bobtail move</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" class="small" id="addRate" style="margin-top:6px">+ Add rate row</button>
+  </fieldset>
+</form>
+
+<section class="preview">
+  <div class="preview-bar"><span id="status">Preparing preview&hellip;</span><span>Everything is filled in this browser. Nothing you type is sent to the server.</span></div>
+  <iframe id="frame" title="Agreement preview"></iframe>
+</section>
+</main>
+
+<script src="pdf-lib.min.js"></script>
+<script>
+(() => {
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const $ = (s, el = document) => el.querySelector(s);
+  const form = $("#f");
+
+  // ─── Where each value goes ────────────────────────────────────────────────
+  // Measured from template.pdf (595 × 842 pt) with PyMuPDF. Measurements are
+  // top-origin like the extractor; pdf-lib is bottom-origin, so `rule(y)` puts
+  // text just above a printed underline at y and `base(y)` sits on a text
+  // baseline at y. `max` is the blank's width; longer values shrink to fit.
+  const H = 842;
+  const rule = (y) => H - y + 2.5;
+  const base = (y) => H - y;
+
+  const FIELDS = [
+    // Page 1 — "effective as of this ____ day of ____, 20__, at __:__ (am/pm) by and between ____"
+    { p: 1, x: 236, y: rule(241.8), v: "effDayOrd", max: 86 },
+    { p: 1, x: 357, y: rule(241.8), v: "effMonth", max: 150 },
+    { p: 1, x: 82, y: rule(263.3), v: "effYear2", max: 37 },
+    { p: 1, x: 139, y: rule(263.3), v: "effHour", max: 33 },
+    { p: 1, x: 180, y: rule(263.3), v: "effMinAmPm", max: 51 },
+    { p: 1, x: 346, y: rule(263.3), v: "name", max: 156 },
+    { p: 1, x: 307, y: rule(276.6), v: "street", max: 201 },
+    { p: 1, x: 72, y: rule(289.3), v: "cityStateZip", max: 319 },
+    // Page 9 — §30 Notice block, contractor column
+    { p: 9, x: 143, y: rule(307.8), v: "name", max: 134 },
+    { p: 9, x: 108, y: rule(328.6), v: "street", max: 143 },
+    { p: 9, x: 108, y: rule(350.6), v: "city", max: 145 },
+    { p: 9, x: 108, y: rule(383.4), v: "state", max: 143 },
+    { p: 9, x: 108, y: rule(403.6), v: "zip", max: 143 },
+    { p: 9, x: 189, y: rule(446.6), v: "initials", max: 79 },
+    { p: 9, x: 408, y: rule(446.6), v: "carrierInitials", max: 85 },
+    // Page 10 — §35 arbitration / class-action waiver initials
+    { p: 10, x: 351, y: rule(459.4), v: "initials", max: 79 },
+    // Page 13 — "IN WITNESS WHEREOF ... this __day of ____ , 20__, at ____ (am/pm)"
+    { p: 13, x: 413.4, y: base(378.6), v: "exeDay", max: 8.8 },
+    { p: 13, x: 451, y: base(378.6), v: "exeMonth", max: 46 },
+    { p: 13, x: 121.1, y: base(391.9), v: "exeYear2", max: 7.6 },
+    { p: 13, x: 144.6, y: base(391.9), v: "exeTime", max: 30 },
+    { p: 13, x: 128, y: base(468.2), v: "signerNameTitle", max: 182 },
+    { p: 13, x: 191, y: base(521.7), v: "ein", max: 118 },
+    { p: 13, x: 265.5, y: base(542.7), v: "dl", max: 46 },
+    { p: 13, x: 350, y: base(521.7), v: "carrierName", max: 205 },
+    { p: 13, x: 345, y: base(542.7), v: "carrierTitle", max: 210 },
+    // Page 14 — Appendix A acknowledgement date / time, under the printed labels
+    { p: 14, x: 378, y: base(349.6) - 11, v: "ackDate", max: 44, size: 9 },
+    { p: 14, x: 424, y: base(349.6) - 11, v: "ackTime", max: 62, size: 9 },
+    { p: 14, x: 386, y: base(468.2) - 11, v: "ackDate", max: 40, size: 9 },
+    { p: 14, x: 428, y: base(468.2) - 11, v: "ackTime", max: 62, size: 9 },
+  ];
+  const FOOTER_INITIALS = { x: 177, y: rule(770), v: "initials", max: 55, size: 9 };
+
+  // Signature lines: left edge, the rule's y, the room on it, and how tall the
+  // ink may stand before it reaches the printed row above (21pt apart on page 13).
+  const SIGNATURES = [
+    { p: 13, who: "contractor", x: 164, y: 564.7, w: 129, h: 17 },
+    { p: 13, who: "carrier", x: 394, y: 564.7, w: 92, h: 17 },
+    { p: 14, who: "carrier", x: 248, y: 350.9, w: 140, h: 20 },
+    { p: 14, who: "contractor", x: 121, y: 469.4, w: 274, h: 26 },
+  ];
+
+  // Appendix A rows sit below "Tractor Description (Make/Model/Year)   VIN".
+  // Two rows fill the gap above the carrier's line; a longer list is noted beside the header.
+  const EQUIP = { p: 14, firstY: base(307.6) - 14, step: 13.5, rows: 2, desc: { x: 70, max: 172 }, vin: { x: 247, max: 290 }, note: { x: 272, y: base(307.6) } };
+
+  // Appendix B: the printed header row spans these column rules; new rows hang below it.
+  const RATES = { p: 15, cols: [164.2, 223.75, 291.5, 361.5, 431.8], top: 258.45, rowH: 16, maxRows: 28 };
+
+  const BODY = 10.5;
+  const INK = rgb(0.05, 0.1, 0.25);
+
+  // ─── Form state ───────────────────────────────────────────────────────────
+  const val = (n) => (form.elements[n]?.value || "").trim();
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const ordinal = (n) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  const parseDate = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); return m ? { y: +m[1], m: +m[2], d: +m[3] } : null; };
+  const parseTime = (s) => { const m = /^(\d{2}):(\d{2})/.exec(s); return m ? { h: +m[1], min: m[2] } : null; };
+  const h12 = (t) => String(t.h % 12 || 12);
+  const ampm = (t) => (t.h < 12 ? "AM" : "PM");
+  const initialsOf = (s) => s.split(/\s+/).filter(Boolean).slice(0, 3).map((w) => w[0].toUpperCase()).join("");
+
+  function context() {
+    const eff = parseDate(val("effDate")), effT = parseTime(val("effTime"));
+    const same = form.elements.sameExec.checked;
+    const exe = same ? eff : parseDate(val("exeDate"));
+    const exeT = same ? effT : parseTime(val("exeTime"));
+    const sameAck = form.elements.sameAck.checked;
+    const ack = sameAck ? exe : parseDate(val("ackDate"));
+    const ackT = sameAck ? exeT : parseTime(val("ackTime"));
+    const signer = val("signerName"), title = val("signerTitle");
+    return {
+      effDayOrd: eff ? ordinal(eff.d) : "",
+      effMonth: eff ? MONTHS[eff.m - 1] : "",
+      effYear2: eff ? String(eff.y).slice(-2) : "",
+      effHour: effT ? h12(effT) : "",
+      effMinAmPm: effT ? `${effT.min} ${ampm(effT)}` : "",
+      name: val("name"),
+      street: val("street"),
+      city: val("city"),
+      state: val("state"),
+      zip: val("zip"),
+      cityStateZip: [val("city"), val("state"), val("zip")].filter(Boolean).join(", "),
+      initials: (val("initials") || initialsOf(signer || val("name"))).toUpperCase(),
+      carrierInitials: (val("carrierInitials") || initialsOf(val("carrierName"))).toUpperCase(),
+      exeDay: exe ? String(exe.d) : "",
+      exeMonth: exe ? MONTHS[exe.m - 1] : "",
+      exeYear2: exe ? String(exe.y).slice(-2) : "",
+      exeTime: exeT ? `${h12(exeT)}:${exeT.min} ${ampm(exeT)}` : "",
+      signerNameTitle: [signer, title].filter(Boolean).join(" / "),
+      ein: val("ein"),
+      dl: val("dl"),
+      carrierName: val("carrierName"),
+      carrierTitle: val("carrierTitle"),
+      ackDate: ack ? `${ack.m}/${ack.d}/${ack.y}` : "",
+      ackTime: ackT ? `${h12(ackT)}:${ackT.min} ${ampm(ackT)}` : "",
+      typed: { contractor: signer, carrier: val("carrierName") },
+      equipment: rowsOf("#equipRows"),
+      rates: rowsOf("#rateRows"),
+      rateLocation: val("rateLocation"),
+      rateEffective: val("rateEffective"),
+    };
+  }
+
+  function rowsOf(sel) {
+    return [...document.querySelectorAll(`${sel} tbody tr`)]
+      .map((tr) => [...tr.querySelectorAll("input")].map((i) => i.value.trim()))
+      .filter((cells) => cells.some(Boolean));
+  }
+
+  // ─── Building the PDF ─────────────────────────────────────────────────────
+  let templateBytes = null;
+  const template = async () => {
+    if (!templateBytes) {
+      const res = await fetch("template.pdf", { cache: "no-cache" });
+      if (!res.ok) throw new Error(`Could not load the agreement template (HTTP ${res.status}).`);
+      templateBytes = await res.arrayBuffer();
+    }
+    return templateBytes;
+  };
+
+  // The standard Times fonts only cover WinAnsi; drop anything outside it rather than fail the build.
+  const clean = (s) => String(s || "").replace(/[^\x20-\x7E -ÿ‘’“”–—•€]/g, "").trim();
+
+  const fit = (font, text, size, max) => {
+    let s = size;
+    while (max && s > 5 && font.widthOfTextAtSize(text, s) > max) s -= 0.25;
+    return s;
+  };
+
+  async function build() {
+    const ctx = context();
+    const pdf = await PDFDocument.load(await template());
+    const pages = pdf.getPages();
+    const font = await pdf.embedFont(StandardFonts.TimesRoman);
+    const bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+    const italic = await pdf.embedFont(StandardFonts.TimesRomanItalic);
+
+    const text = (page, raw, x, y, { size = BODY, max, face = font } = {}) => {
+      const t = clean(raw);
+      if (!t) return;
+      page.drawText(t, { x, y, size: fit(face, t, size, max), font: face, color: INK });
+    };
+
+    FIELDS.forEach((f) => text(pages[f.p - 1], ctx[f.v], f.x, f.y, f));
+    pages.forEach((page) => text(page, ctx[FOOTER_INITIALS.v], FOOTER_INITIALS.x, FOOTER_INITIALS.y, FOOTER_INITIALS));
+
+    // Signatures: the drawn image if there is one, otherwise the typed name in italics.
+    const images = {};
+    for (const who of ["contractor", "carrier"]) {
+      const png = pads[who].png();
+      if (png) images[who] = await pdf.embedPng(png);
+    }
+    SIGNATURES.forEach((s) => {
+      const page = pages[s.p - 1];
+      const img = images[s.who];
+      if (img) {
+        const scale = Math.min(s.w / img.width, s.h / img.height);
+        page.drawImage(img, { x: s.x, y: rule(s.y) - 1.5, width: img.width * scale, height: img.height * scale });
+      } else if (pads[s.who].mode === "type") {
+        text(page, ctx.typed[s.who], s.x + 2, rule(s.y), { size: 14, max: s.w - 4, face: italic });
+      }
+    });
+
+    // Appendix A equipment.
+    const p14 = pages[EQUIP.p - 1];
+    ctx.equipment.slice(0, EQUIP.rows).forEach(([desc, vin], i) => {
+      const y = EQUIP.firstY - i * EQUIP.step;
+      text(p14, desc, EQUIP.desc.x, y, EQUIP.desc);
+      text(p14, vin, EQUIP.vin.x, y, EQUIP.vin);
+    });
+    const extra = ctx.equipment.length - EQUIP.rows;
+    if (extra > 0) {
+      text(p14, `(+ ${extra} further unit${extra === 1 ? "" : "s"} on an additional copy of Appendix A)`,
+        EQUIP.note.x, EQUIP.note.y, { size: 9, face: italic, max: 250 });
+    }
+
+    // Appendix B: replace location / effective date only when they were changed.
+    const p15 = pages[RATES.p - 1];
+    const heading = (raw, baseTop, boxTop, boxBottom) => {
+      const t = clean(raw);
+      p15.drawRectangle({ x: 140, y: H - boxBottom, width: 320, height: boxBottom - boxTop, color: rgb(1, 1, 1) });
+      if (!t) return;
+      const size = fit(bold, t, 13.5, 310);
+      p15.drawText(t, { x: 297.5 - bold.widthOfTextAtSize(t, size) / 2, y: base(baseTop), size, font: bold, color: rgb(0, 0, 0) });
+    };
+    if (ctx.rateLocation.toUpperCase() !== "LONG BEACH, CA.") heading(`LOCATION: ${ctx.rateLocation}`, 193.8, 182.2, 196.6);
+    if (ctx.rateEffective !== "1/1/23") heading(ctx.rateEffective ? `Effective ${ctx.rateEffective}` : "", 209.3, 197.4, 212.4);
+
+    // Rate rows, ruled to match the printed header.
+    const rows = ctx.rates.slice(0, RATES.maxRows);
+    const [left, right] = [RATES.cols[0], RATES.cols[RATES.cols.length - 1]];
+    rows.forEach((cells, r) => {
+      const top = RATES.top + r * RATES.rowH, bottom = top + RATES.rowH;
+      p15.drawLine({ start: { x: left, y: H - bottom }, end: { x: right, y: H - bottom }, thickness: 0.75, color: rgb(0, 0, 0) });
+      RATES.cols.forEach((cx) => p15.drawLine({ start: { x: cx, y: H - top }, end: { x: cx, y: H - bottom }, thickness: 0.75, color: rgb(0, 0, 0) }));
+      cells.forEach((c, i) => {
+        const t = clean(c);
+        if (!t) return;
+        const w = RATES.cols[i + 1] - RATES.cols[i] - 6;
+        const size = fit(font, t, 10, w);
+        const cx = (RATES.cols[i] + RATES.cols[i + 1]) / 2;
+        p15.drawText(t, { x: cx - font.widthOfTextAtSize(t, size) / 2, y: H - bottom + 4.5, size, font, color: INK });
+      });
+    });
+
+    pdf.setTitle(`Independent Contractor Transportation Agreement${ctx.name ? " — " + clean(ctx.name) : ""}`);
+    pdf.setProducer("IC Agreement Form");
+    return pdf.save();
+  }
+
+  // ─── Preview / download ───────────────────────────────────────────────────
+  const status = $("#status"), frame = $("#frame");
+  let url = null, timer = null, seq = 0;
+
+  async function render() {
+    const mine = ++seq;
+    status.className = "status"; status.textContent = "Updating preview…";
+    try {
+      const bytes = await build();
+      if (mine !== seq) return null;
+      const next = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      frame.src = next + "#view=FitH";
+      if (url) setTimeout(((old) => () => URL.revokeObjectURL(old))(url), 4000);
+      url = next;
+      status.textContent = `Preview updated ${new Date().toLocaleTimeString()}`;
+      return bytes;
+    } catch (e) {
+      status.className = "status err"; status.textContent = e.message;
+      console.error(e);
+      return null;
+    }
+  }
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(render, 700); };
+
+  function fileName() {
+    const slug = val("name").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "contractor";
+    return `IC-Agreement-${slug}-${val("effDate") || "undated"}.pdf`;
+  }
+
+  function missing() {
+    const out = [];
+    form.querySelectorAll("[required]").forEach((el) => {
+      const empty = !el.disabled && !el.value.trim() && !(el.name === "initials" && context().initials);
+      el.classList.toggle("missing", empty);
+      if (empty) out.push(el.closest("label").childNodes[0].textContent.trim());
+    });
+    if (!pads.contractor.has()) out.push("Contractor's signature");
+    return out;
+  }
+
+  $("#btnDownload").addEventListener("click", async () => {
+    const gaps = missing();
+    if (gaps.length && !confirm(`These required fields are empty:\n\n• ${gaps.join("\n• ")}\n\nDownload anyway?`)) return;
+    const bytes = await render();
+    if (!bytes) return;
+    const a = document.createElement("a");
+    a.href = url; a.download = fileName();
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  $("#btnPreview").addEventListener("click", render);
+  $("#btnOpen").addEventListener("click", async () => { if (await render()) window.open(url, "_blank"); });
+
+  // ─── Form wiring ──────────────────────────────────────────────────────────
+  const pad2 = (n) => String(n).padStart(2, "0");
+  $("#btnNow").addEventListener("click", () => {
+    const d = new Date();
+    form.elements.effDate.value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    form.elements.effTime.value = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    schedule();
+  });
+
+  const linkToggle = (box, a, b) => {
+    const sync = () => { const on = form.elements[box].checked; form.elements[a].disabled = on; form.elements[b].disabled = on; };
+    form.elements[box].addEventListener("change", sync); sync();
+  };
+  linkToggle("sameExec", "exeDate", "exeTime");
+  linkToggle("sameAck", "ackDate", "ackTime");
+
+  const updatePlaceholders = () => {
+    form.elements.initials.placeholder = initialsOf(val("signerName") || val("name")) || "auto";
+    form.elements.carrierInitials.placeholder = initialsOf(val("carrierName")) || "auto";
+  };
+  form.addEventListener("input", (e) => { e.target.classList?.remove("missing"); updatePlaceholders(); schedule(); });
+  form.addEventListener("change", schedule);
+
+  function addRow(tableSel, names, values = []) {
+    const tr = document.createElement("tr");
+    names.forEach((ph, i) => {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.placeholder = ph; input.value = values[i] || "";
+      td.appendChild(input); tr.appendChild(td);
+    });
+    const td = document.createElement("td");
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "small"; del.textContent = "✕"; del.title = "Remove row";
+    del.addEventListener("click", () => { tr.remove(); schedule(); });
+    td.appendChild(del); tr.appendChild(td);
+    $(`${tableSel} tbody`).appendChild(tr);
+  }
+  const EQUIP_COLS = ["2020 Freightliner Cascadia", "1FUJGLDR0LL..."];
+  const RATE_COLS = ["0-10", "$", "$", "$"];
+  $("#addEquip").addEventListener("click", () => addRow("#equipRows", EQUIP_COLS));
+  $("#addRate").addEventListener("click", () => addRow("#rateRows", RATE_COLS));
+
+  // ─── Signature pads (draw or type) ────────────────────────────────────────
+  const pads = {};
+  document.querySelectorAll(".sig-wrap").forEach((wrap) => {
+    const who = wrap.dataset.sig;
+    wrap.innerHTML = `
+      <div class="tabs"><button type="button" class="small on" data-m="draw">Draw</button><button type="button" class="small" data-m="type">Use typed name</button></div>
+      <div class="sig"><canvas></canvas><div class="sig-bar"><span class="sig-note">Sign with mouse, finger or stylus</span><button type="button" class="small">Clear</button></div></div>`;
+    const canvas = $("canvas", wrap), ctx2d = canvas.getContext("2d");
+    const note = $(".sig-note", wrap);
+    const pad = { mode: "draw", dirty: false };
+    const size = () => {
+      const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      if (!r.width) return;
+      const keep = pad.dirty ? canvas.toDataURL() : null;
+      canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+      ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx2d.lineWidth = 2.2; ctx2d.lineCap = "round"; ctx2d.lineJoin = "round"; ctx2d.strokeStyle = "#0d1a40";
+      if (keep) { const im = new Image(); im.onload = () => ctx2d.drawImage(im, 0, 0, r.width, r.height); im.src = keep; }
+    };
+    new ResizeObserver(size).observe(canvas);
+    let last = null;
+    const pt = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    canvas.addEventListener("pointerdown", (e) => { if (pad.mode !== "draw") return; canvas.setPointerCapture(e.pointerId); last = pt(e); });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!last) return;
+      const p = pt(e);
+      ctx2d.beginPath(); ctx2d.moveTo(last.x, last.y); ctx2d.lineTo(p.x, p.y); ctx2d.stroke();
+      last = p; pad.dirty = true;
+    });
+    const end = () => { if (last) { last = null; schedule(); } };
+    canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end);
+    pad.clear = () => { ctx2d.clearRect(0, 0, canvas.width, canvas.height); pad.dirty = false; };
+    $(".sig-bar button", wrap).addEventListener("click", () => { pad.clear(); schedule(); });
+    wrap.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+      pad.mode = b.dataset.m;
+      wrap.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+      $(".sig", wrap).style.opacity = pad.mode === "draw" ? 1 : 0.35;
+      note.textContent = pad.mode === "draw" ? "Sign with mouse, finger or stylus" : `Typed name will be used: "${who === "contractor" ? val("signerName") || "(signer name)" : val("carrierName") || "(representative name)"}"`;
+      schedule();
+    }));
+    // Trim to the inked area so the signature scales to its line, not to the empty box.
+    pad.png = () => {
+      if (pad.mode !== "draw" || !pad.dirty) return null;
+      const { width: w, height: h } = canvas;
+      const data = ctx2d.getImageData(0, 0, w, h).data;
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      if (x1 < 0) return null;
+      const m = 4, out = document.createElement("canvas");
+      x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(w - 1, x1 + m); y1 = Math.min(h - 1, y1 + m);
+      out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+      out.getContext("2d").drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+      return out.toDataURL("image/png");
+    };
+    pad.has = () => (pad.mode === "draw" ? pad.dirty : !!(who === "contractor" ? val("signerName") : val("carrierName")));
+    pads[who] = pad;
+  });
+
+  function reset() {
+    form.reset();
+    document.querySelectorAll(".rows tbody").forEach((tb) => (tb.innerHTML = ""));
+    addRow("#equipRows", EQUIP_COLS);
+    addRow("#rateRows", RATE_COLS);
+    Object.values(pads).forEach((p) => p.clear());
+    form.querySelectorAll(".missing").forEach((el) => el.classList.remove("missing"));
+    form.elements.sameExec.dispatchEvent(new Event("change"));
+    form.elements.sameAck.dispatchEvent(new Event("change"));
+    updatePlaceholders();
+    render();
+  }
+  $("#btnReset").addEventListener("click", () => { if (confirm("Clear every field and signature?")) reset(); });
+
+  reset();
+})();
+</script>
+</body>
+</html>
