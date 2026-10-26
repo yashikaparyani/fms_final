@@ -32,7 +32,7 @@ const findCarrierFor = async (user, select) => {
   const userId = carrierUserIdFor(user);
   if (!userId) return null;
 
-  const query = FleetOwner.findOne({ userId });
+  const query = FleetOwner.findOne({ userId }).setOptions({ skipTenantScope: true });
   return select ? query.select(select) : query;
 };
 

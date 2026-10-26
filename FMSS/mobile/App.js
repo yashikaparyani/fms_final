@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -5493,12 +5494,12 @@ function DeleteAccountModal({ visible, isCarrier, onClose, onDeleted }) {
 }
 
 /** Account screen behind the More tab. */
-function MoreScreen({ session, theme, onLogout, onOpen, isDriver }) {
+function MoreScreen({ session, theme, onLogout, onOpen, isDriver, onBack }) {
   const user = session?.user || {};
   const [deleting, setDeleting] = useState(false);
   return (
     <>
-      <AppHeader theme={theme} eyebrow="Account" title="More" subtitle={user.email} />
+      <AppHeader theme={theme} eyebrow="Account" title="More" subtitle={user.email} onBack={onBack} />
       <ScrollView contentContainerStyle={styles.moreBody} showsVerticalScrollIndicator={false}>
         <View style={styles.moreProfile}>
           <View style={[styles.moreAvatar, { backgroundColor: colors.brand }]}>
@@ -5600,6 +5601,63 @@ function FleetHomeScreen({ session, onLogout }) {
   const [available, setAvailable] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [booted, setBooted] = useState(false);
+
+  // Android hardware back button handler: closes active overlays or returns to home tab
+  useEffect(() => {
+    const onBackPress = () => {
+      if (selectedLoad) {
+        setSelectedLoad(null);
+        setSelectedLoadMode(null);
+        return true;
+      }
+      if (detailLoad) {
+        setDetailLoad(null);
+        return true;
+      }
+      if (showDocuments) {
+        setShowDocuments(false);
+        return true;
+      }
+      if (showInsurance) {
+        setShowInsurance(false);
+        return true;
+      }
+      if (showDrivers) {
+        setShowDrivers(false);
+        return true;
+      }
+      if (showTrucks) {
+        setShowTrucks(false);
+        return true;
+      }
+      if (showLicense) {
+        setShowLicense(false);
+        return true;
+      }
+      if (showNotifications) {
+        setShowNotifications(false);
+        return true;
+      }
+      if (tab !== "home") {
+        setTab("home");
+        return true;
+      }
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [
+    selectedLoad,
+    detailLoad,
+    showDocuments,
+    showInsurance,
+    showDrivers,
+    showTrucks,
+    showLicense,
+    showNotifications,
+    tab,
+  ]);
 
   // Polled on the same cadence the rest of the app refreshes at. Cheap: the
   // endpoint counts rather than lists.
@@ -5881,12 +5939,20 @@ function FleetHomeScreen({ session, onLogout }) {
         isDriver={isDriver}
         onLogout={onLogout}
         onOpen={open}
+        onBack={() => setTab("home")}
       />
     );
   } else if (tab === "bids") {
     body = (
       <>
-        <AppHeader theme={theme} eyebrow="Bidding" title="My Bids" onBell={bell} unread={unreadCount} />
+        <AppHeader
+          theme={theme}
+          eyebrow="Bidding"
+          title="My Bids"
+          onBack={() => setTab("home")}
+          onBell={bell}
+          unread={unreadCount}
+        />
         <BidsTab onOpenDetail={setDetailLoad} />
       </>
     );
@@ -5897,6 +5963,7 @@ function FleetHomeScreen({ session, onLogout }) {
           theme={theme}
           eyebrow={isShipper ? "Your freight" : "Load board"}
           title={isShipper ? "Shipments" : "Loads"}
+          onBack={() => setTab("home")}
           onBell={bell}
           unread={unreadCount}
         >

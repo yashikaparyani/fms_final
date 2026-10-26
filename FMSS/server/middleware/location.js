@@ -60,7 +60,8 @@ const resolveLocation = async (req, res, next) => {
         req.locationIds = [];
         req.allLocations = false;
         req.noLocations = true;
-        return runWithTenant({ locationIds: [], noLocations: true }, next);
+        req.tenantContext = { locationIds: [], noLocations: true };
+        return runWithTenant(req.tenantContext, next);
       }
 
       return res.status(403).json({
@@ -84,7 +85,8 @@ const resolveLocation = async (req, res, next) => {
       req.locationId = null;
       req.locationIds = allowed;
       req.allLocations = true;
-      return runWithTenant({ locationIds: allowed, allLocations: true }, next);
+      req.tenantContext = { locationIds: allowed, allLocations: true };
+      return runWithTenant(req.tenantContext, next);
     }
 
     if (requested && !allowed.includes(requested)) {
@@ -106,8 +108,9 @@ const resolveLocation = async (req, res, next) => {
     req.locationId = active;
     req.locationIds = [active];
     req.allLocations = false;
+    req.tenantContext = { locationId: active };
 
-    return runWithTenant({ locationId: active }, next);
+    return runWithTenant(req.tenantContext, next);
   } catch (err) {
     next(err);
   }

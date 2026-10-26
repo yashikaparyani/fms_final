@@ -84,7 +84,7 @@ const toListItem = (driver, { carrierName } = {}) => {
  */
 const resolveCarrierScope = async (req, { requestedId } = {}) => {
   if (["fleetOwner", "driver"].includes(req.user.role)) {
-    const carrier = await findCarrierFor(req.user, "_id carrierName userId");
+    const carrier = await findCarrierFor(req.user, "_id carrierName userId locationId");
 
     if (!carrier) {
       throw Object.assign(
@@ -93,6 +93,9 @@ const resolveCarrierScope = async (req, { requestedId } = {}) => {
         ),
         { status: 404 },
       );
+    }
+    if (carrier.locationId) {
+      narrowToLocation(req, carrier.locationId);
     }
 
     return carrier;
@@ -113,7 +116,11 @@ const resolveCarrierScope = async (req, { requestedId } = {}) => {
 
   // Tenant-scoped, so this also proves the carrier belongs to the active
   // location — a staff member cannot manage another branch's carrier.
-  const carrier = await FleetOwner.findById(id).select("_id carrierName userId locationId");
+  const carrierQuery = FleetOwner.findById(id).select("_id carrierName userId locationId");
+  if (req.user.role === "admin") {
+    carrierQuery.setOptions({ skipTenantScope: true });
+  }
+  const carrier = await carrierQuery;
 
   if (!carrier) {
     throw Object.assign(new Error("Carrier not found at this location."), {
