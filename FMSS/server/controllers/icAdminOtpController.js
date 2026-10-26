@@ -8,6 +8,10 @@ const OTP_EXPIRY_MINUTES = 10;
 const OTP_RESEND_COOLDOWN_SECONDS = 30;
 const MAX_ATTEMPTS = 5;
 
+// The code goes back in the response, and to the log, only off production. On
+// the live server a failed mail must not hand the OTP to whoever asked for it.
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
 const hashCode = (code) =>
   crypto.createHash("sha256").update(String(code).trim()).digest("hex");
 
@@ -105,19 +109,23 @@ const sendAdminOtp = async (req, res) => {
       `,
     });
 
-    console.log(`[IC Admin OTP] Generated OTP for ${rawEmail}: ${code} | Mail status: ${mailResult?.reason || "SENT"}`);
+    console.log(
+      `[IC Admin OTP] Generated OTP for ${rawEmail}${IS_PRODUCTION ? "" : `: ${code}`} | Mail status: ${mailResult?.reason || "SENT"}`
+    );
 
     // If mail was sent or skipped in dev mode
     const responsePayload = {
       success: true,
       message: mailResult?.sent
         ? `A 6-digit OTP has been sent to ${rawEmail}.`
-        : `OTP generated for ${rawEmail}. (Dev mode active: ${code})`,
+        : IS_PRODUCTION
+          ? "The OTP email could not be sent. Please try again later."
+          : `OTP generated for ${rawEmail}. (Dev mode active: ${code})`,
       expiresInMinutes: OTP_EXPIRY_MINUTES,
     };
 
     // If mail sending was skipped/failed due to no SMTP config on localhost, provide devOtp for testing convenience
-    if (!mailResult?.sent) {
+    if (!mailResult?.sent && !IS_PRODUCTION) {
       responsePayload.devOtp = code;
       responsePayload.note = "Live SMTP is not configured in local database; code provided for local testing.";
     }
