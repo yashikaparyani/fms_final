@@ -504,26 +504,10 @@
   margin-bottom: 18px;
 }
 
-.landing-socials {
-  display: flex;
-  gap: 16px;
-  margin-top: 18px;
-}
 
-.landing-socials a {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #ffffff;
-  color: var(--ink);
-  text-decoration: none;
-}
 
 .landing-footer__column,
-.landing-footer__contact,
-.landing-newsletter {
+.landing-footer__contact {
   display: grid;
   align-content: start;
   gap: 11px;
@@ -548,32 +532,33 @@
   font-size: 14px;
 }
 
-.landing-newsletter form {
-  display: flex;
-  margin-top: 8px;
+.landing-footer p svg {
+  flex-shrink: 0;
+  margin-top: 3px;
 }
 
-.landing-newsletter input {
-  min-width: 0;
-  flex: 1;
-  height: 48px;
-  border: 1px solid var(--line);
-  border-radius: 6px 0 0 6px;
-  padding: 0 14px;
-  font: inherit;
+.landing-office > span {
+  display: grid;
+  gap: 2px;
+  line-height: 1.45;
+}
+
+.landing-office strong {
+  font-size: 13px;
+}
+
+.landing-licensing {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.landing-licensing p {
   font-size: 12px;
 }
 
-.landing-newsletter button {
-  display: grid;
-  place-items: center;
-  width: 54px;
-  border: 0;
-  border-radius: 0 6px 6px 0;
-  background: var(--accent);
-  color: #ffffff;
-  cursor: pointer;
-}
+
+
 
 .landing-footer__bottom {
   display: flex;

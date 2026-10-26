@@ -6,11 +6,10 @@ import {
   FaClock,
   FaCompactDisc,
   FaEnvelope,
-  FaFacebookF,
+  FaFax,
   FaGlobe,
   FaHeadset,
-  FaInstagram,
-  FaLinkedinIn,
+  FaIdCard,
   FaMapMarkerAlt,
   FaMicrochip,
   FaPhoneAlt,
@@ -18,7 +17,6 @@ import {
   FaShieldAlt,
   FaTools,
   FaTruck,
-  FaTwitter,
   FaUser,
   FaUserPlus,
   FaUsers,
@@ -28,9 +26,24 @@ import {
 import { Link } from "react-router-dom";
 import "./LandingPage.css";
 
+// Legal entities and their registrations, as they appear on the signed carrier
+// agreements (server/config/carrierAgreements.js).
+const BROKERAGE = "S Line Brokerage Inc.";
+const CARRIER = "S Line Transportation Inc.";
+
+// Office contact details, as published on slinetransport.com.
+const HEADQUARTERS = { region: "California", lines: ["780 A West Grand Ave", "Oakland, CA 94612"] };
+const BRANCH_OFFICES = [
+  { region: "California", lines: ["2450 Atlantic Blvd, Suite 203", "Commerce, CA 90040"] },
+  { region: "Seattle", lines: ["3605 Talbot Road S", "Renton, WA 98055"] },
+];
+const PHONE = "(510) 625-0396";
+const FAX = "(510) 625-0635";
+const CONTACT_EMAIL = "info@slinetransport.com";
+
 const featureBadges = [
   { icon: FaMapMarkerAlt, label: "Real-Time Tracking" },
-  { icon: FaProjectDiagram, label: "AI Optimised Routing" },
+  { icon: FaProjectDiagram, label: "AI Optimized Routing" },
   { icon: FaClock, label: "On-Time Delivery" },
   { icon: FaShieldAlt, label: "Secure & Insured" },
 ];
@@ -39,8 +52,9 @@ const actionCards = [
   {
     icon: FaBuilding,
     title: "Company Details",
-    text: "Thynk Unlimited is a full-service logistics and supply chain management company.",
-    link: "Learn More",
+    text: `${BROKERAGE} (MC-1496045) brokers your freight and ${CARRIER} (USDOT 1106322) hauls it — one team from quote to delivery.`,
+    link: "Contact Us",
+    to: "#contact",
   },
   {
     icon: FaUser,
@@ -51,7 +65,7 @@ const actionCards = [
   },
   {
     icon: FaUserPlus,
-    title: "Join Thynk",
+    title: "Join S Line",
     text: "Create your free account and get access to powerful logistics tools and services.",
     link: "Join Now",
     to: "/client/register",
@@ -59,8 +73,9 @@ const actionCards = [
   {
     icon: FaShieldAlt,
     title: "Our Promise",
-    text: "Optimised Load Carriage, Guaranteed On-Time Delivery, Transparent Pricing, 24/7 Support.",
-    link: "Learn More",
+    text: "Optimized Load Carriage, Guaranteed On-Time Delivery, Transparent Pricing, 24/7 Support.",
+    link: "Why Choose Us",
+    to: "#resources",
     promise: true,
   },
 ];
@@ -117,25 +132,44 @@ const footerColumns = [
 
 function Logo() {
   return (
-    <Link className="landing-logo" to="/" aria-label="Thynk Unlimited home">
+    <Link className="landing-logo" to="/" aria-label="S Line Transport home">
       <span className="landing-logo__mark">
         <FaTruck />
       </span>
       <span>
-        <strong>THYNK</strong>
-        <strong>UNLIMITED</strong>
+        <strong>S LINE</strong>
+        <strong>TRANSPORT</strong>
       </span>
     </Link>
   );
 }
 
-function ArrowLink({ children, to = "#" }) {
+function Office({ label, office }) {
   return (
-    <Link className="landing-arrow-link" to={to}>
+    <p className="landing-office">
+      <FaMapMarkerAlt aria-hidden="true" />
+      <span>
+        <strong>{label ? `${label} · ${office.region}` : office.region}</strong>
+        {office.lines.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </span>
+    </p>
+  );
+}
+
+function ArrowLink({ children, to = "#" }) {
+  const content = (
+    <>
       {children}
       <FaArrowRight aria-hidden="true" />
-    </Link>
+    </>
   );
+  // In-page anchors need a plain <a>; the router <Link> would drop the hash.
+  if (to.startsWith("#")) {
+    return <a className="landing-arrow-link" href={to}>{content}</a>;
+  }
+  return <Link className="landing-arrow-link" to={to}>{content}</Link>;
 }
 
 function getFooterLink(item) {
@@ -171,7 +205,7 @@ function LandingPage() {
       <section className="landing-hero" id="home">
         <div className="landing-hero__content">
           <p className="landing-eyebrow">SMART LOGISTICS. STRONGER CONNECTIONS.</p>
-          <h1>AI OPTIMISING LOAD CARRIAGE. GUARANTEED DELIVERY.</h1>
+          <h1>AI-OPTIMIZED LOAD CARRIAGE. GUARANTEED DELIVERY.</h1>
           <p className="landing-hero__copy">
             End-to-end logistics and supply chain solutions designed to move
             your business forward.
@@ -233,7 +267,7 @@ function LandingPage() {
         <div className="landing-partner-strip">
           <span>
             <FaGlobe aria-hidden="true" />
-            Trusted RSA Partner Links (19)
+            Trusted Partner Links (19)
           </span>
           <ArrowLink>View All Partners</ArrowLink>
         </div>
@@ -252,7 +286,7 @@ function LandingPage() {
 
       <section className="landing-section landing-why" id="resources">
         <div className="landing-why__intro">
-          <h2>Why Choose<br />Thynk Unlimited?</h2>
+          <h2>Why Choose<br />S Line Transportation Inc.?</h2>
           <p>
             Technology, experience and a customer-first approach make us the
             trusted logistics partner.
@@ -279,11 +313,9 @@ function LandingPage() {
             <Logo />
             <p>Smart logistics. Stronger connections.</p>
             <p>On-time, every time.</p>
-            <div className="landing-socials" aria-label="Social links">
-              <a href="#contact"><FaFacebookF /></a>
-              <a href="#contact"><FaLinkedinIn /></a>
-              <a href="#contact"><FaTwitter /></a>
-              <a href="#contact"><FaInstagram /></a>
+            <div className="landing-licensing">
+              <p><FaIdCard /> {BROKERAGE} — MC-1496045</p>
+              <p><FaTruck /> {CARRIER} — USDOT 1106322</p>
             </div>
           </div>
           {footerColumns.map((column) => (
@@ -300,23 +332,20 @@ function LandingPage() {
           ))}
           <div className="landing-footer__contact">
             <h3>Contact Us</h3>
-            <p><FaMapMarkerAlt /> 123 Anywhere St., Any City, ST 12345</p>
-            <p><FaPhoneAlt /> +27 12 345 6789</p>
-            <p><FaEnvelope /> info@thynkunlimited.com</p>
+            <Office label="Headquarters" office={HEADQUARTERS} />
+            <p><FaPhoneAlt /> <a href={`tel:${PHONE.replace(/\D/g, "")}`}>{PHONE}</a></p>
+            <p><FaFax /> {FAX}</p>
+            <p><FaEnvelope /> <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
-          <div className="landing-newsletter">
-            <h3>Newsletter</h3>
-            <p>Subscribe to get updates and latest news.</p>
-            <form>
-              <input type="email" placeholder="Enter your email" aria-label="Email address" />
-              <button type="submit" aria-label="Subscribe">
-                <FaArrowRight />
-              </button>
-            </form>
+          <div className="landing-footer__contact">
+            <h3>Branch Offices</h3>
+            {BRANCH_OFFICES.map((office) => (
+              <Office office={office} key={office.lines[1]} />
+            ))}
           </div>
         </div>
         <div className="landing-footer__bottom">
-          <span>© 2024 Thynk Unlimited. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} {BROKERAGE} &amp; {CARRIER} All rights reserved.</span>
           <span>
             <Link to="/privacy">Privacy Policy</Link>
             <Link to="/support">Support</Link>
