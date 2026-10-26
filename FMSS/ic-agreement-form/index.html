@@ -292,10 +292,9 @@
     </div>
     <div class="admin-actions">
       <button type="button" id="btnAdminNew" class="primary">+ New Agreement</button>
-      <button type="button" id="btnLoadSampleHeader" title="Add a sample agreement to test">🧪 Sample Entry</button>
+      <button type="button" id="btnAdminRefresh">↻ Refresh</button>
       <button type="button" id="btnExportCSV">📥 Export CSV</button>
       <button type="button" id="btnExportJSON">📥 Backup JSON</button>
-      <button type="button" id="btnClearAll" style="color:var(--warn)">🗑️ Clear All</button>
     </div>
   </div>
 
@@ -355,7 +354,6 @@
       <p>Entries will appear here as soon as agreements are saved or downloaded.</p>
       <div style="display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap">
         <button type="button" class="primary small" id="btnEmptyNew">Fill an Agreement</button>
-        <button type="button" class="small" id="btnLoadSample">🧪 Load Sample Entry</button>
       </div>
     </div>
   </div>
@@ -395,27 +393,25 @@
       </div>
       <h4 style="margin: 0 0 6px; font-size: 17px; color: var(--ink);">Administrator Sign In</h4>
       <p style="margin: 0 0 16px; font-size: 13px; color: var(--muted); line-height: 1.4;">
-        Enter your Admin credentials to unlock and view contractor submissions.
+        Enter your admin email. We'll send a 6-digit code to it.
       </p>
 
       <div id="authNotice" class="auth-notice info" style="display:none"></div>
 
       <form id="adminLoginForm" onsubmit="return false" style="text-align:left;">
         <div style="margin-bottom: 12px;">
-          <label style="margin-bottom: 6px; font-weight:600; display:block; font-size:13px;">Email ID / Username</label>
-          <input type="email" id="authEmail" placeholder="admin@empiretrans.com" value="admin@empiretrans.com" required style="width:100%; font-size:14px; padding:10px;">
+          <label style="margin-bottom: 6px; font-weight:600; display:block; font-size:13px;">Admin email</label>
+          <input type="email" id="authEmail" placeholder="name@empiretpt.com" autocomplete="email" required style="width:100%; font-size:14px; padding:10px;">
         </div>
 
-        <div style="margin-bottom: 18px;">
-          <label style="margin-bottom: 6px; font-weight:600; display:block; font-size:13px;">Password</label>
-          <div style="position:relative;">
-            <input type="password" id="authPassword" placeholder="Enter Admin Password" required style="width:100%; font-size:14px; padding:10px 40px 10px 10px;">
-            <button type="button" id="btnTogglePassword" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px;" title="Show/Hide Password">👁️</button>
-          </div>
+        <div id="otpStep" style="display:none; margin-bottom: 18px;">
+          <label style="margin-bottom: 6px; font-weight:600; display:block; font-size:13px;">6-digit code</label>
+          <input type="text" id="authOtp" class="otp-input-field" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" style="width:100%;">
+          <button type="button" id="btnResendOtp" class="small" style="margin-top:8px; border:none; background:none; color:var(--accent); padding:0;">Resend code</button>
         </div>
 
         <button type="submit" class="primary" id="btnLoginSubmit" style="width:100%; justify-content:center; padding:11px; font-size:14px; font-weight:600;">
-          🔐 Sign In to Admin Panel
+          Send code
         </button>
       </form>
     </div>
@@ -432,93 +428,62 @@
   const $ = (s, el = document) => el.querySelector(s);
   const form = $("#f");
 
-  // ─── Storage Service (IndexedDB with LocalStorage fallback) ───────────────
-  const DB_NAME = "ICA_DB", STORE = "submissions", DB_VER = 1;
-  let dbInstance = null;
+  // ─── Server API ───────────────────────────────────────────────────────────
+  // Submissions are saved on the FMSS server, not in this browser, so the admin
+  // panel sees what every contractor saved from any device. Requests go to
+  // bestloaders.com over HTTPS even though this page is served from the bare IP,
+  // so the EIN, license number and signatures are never sent unencrypted.
+  const API_BASE = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+    ? "http://localhost:5001/api"
+    : "https://bestloaders.com/api";
 
-  function openDB() {
-    return new Promise((resolve) => {
-      if (!window.indexedDB) return resolve(null);
-      const req = indexedDB.open(DB_NAME, DB_VER);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(STORE)) {
-          const store = db.createObjectStore(STORE, { keyPath: "id" });
-          store.createIndex("createdAt", "createdAt", { unique: false });
-          store.createIndex("name", "name", { unique: false });
-        }
-      };
-      req.onsuccess = () => { dbInstance = req.result; resolve(dbInstance); };
-      req.onerror = () => resolve(null);
-    });
+  const SESSION_KEY = "ica_admin_session";
+
+  function getAdminSession() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+      if (!s || !s.token || new Date(s.expiresAt) < new Date()) return null;
+      return s;
+    } catch {
+      return null;
+    }
   }
 
-  const Storage = {
-    async getAll() {
-      if (dbInstance) {
-        return new Promise((res) => {
-          const tx = dbInstance.transaction(STORE, "readonly");
-          const req = tx.objectStore(STORE).getAll();
-          req.onsuccess = () => res((req.result || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)));
-          req.onerror = () => res(Storage.getAllLS());
-        });
-      }
-      return Storage.getAllLS();
-    },
-    async save(item) {
-      if (dbInstance) {
-        return new Promise((res) => {
-          const tx = dbInstance.transaction(STORE, "readwrite");
-          tx.objectStore(STORE).put(item);
-          tx.oncomplete = () => { Storage.syncLSCount(); res(true); };
-          tx.onerror = () => { Storage.saveLS(item); res(true); };
-        });
-      }
-      return Storage.saveLS(item);
-    },
-    async delete(id) {
-      if (dbInstance) {
-        return new Promise((res) => {
-          const tx = dbInstance.transaction(STORE, "readwrite");
-          tx.objectStore(STORE).delete(id);
-          tx.oncomplete = () => { Storage.syncLSCount(); res(true); };
-          tx.onerror = () => { Storage.deleteLS(id); res(true); };
-        });
-      }
-      return Storage.deleteLS(id);
-    },
-    async clear() {
-      if (dbInstance) {
-        return new Promise((res) => {
-          const tx = dbInstance.transaction(STORE, "readwrite");
-          tx.objectStore(STORE).clear();
-          tx.oncomplete = () => { localStorage.removeItem("ica_meta"); res(true); };
-          tx.onerror = () => { localStorage.removeItem("ica_meta"); res(true); };
-        });
-      }
-      localStorage.removeItem("ica_meta");
-    },
-    // Fallback LS
-    getAllLS() {
-      try { return JSON.parse(localStorage.getItem("ica_meta") || "[]"); } catch { return []; }
-    },
-    saveLS(item) {
-      const list = Storage.getAllLS().filter((x) => x.id !== item.id);
-      list.unshift(item);
-      try { localStorage.setItem("ica_meta", JSON.stringify(list)); } catch (e) { console.warn("LS quota", e); }
-      return true;
-    },
-    deleteLS(id) {
-      const list = Storage.getAllLS().filter((x) => x.id !== id);
-      localStorage.setItem("ica_meta", JSON.stringify(list));
-      return true;
-    },
-    syncLSCount() {
-      Storage.getAll().then((list) => {
-        $("#badgeCount").textContent = list.length;
-      });
+  async function api(path, { method = "GET", body, auth = false } = {}) {
+    const headers = {};
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (auth) headers.Authorization = `Bearer ${getAdminSession()?.token || ""}`;
+
+    let res;
+    try {
+      res = await fetch(`${API_BASE}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch {
+      throw new Error("Could not reach the server. Check your internet connection and try again.");
     }
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && auth) {
+      sessionStorage.removeItem(SESSION_KEY);
+      updateAdminHeaderAuth();
+    }
+    if (!res.ok) {
+      const err = new Error(data.message || `Request failed (HTTP ${res.status}).`);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  const Submissions = {
+    create: (entry) => api("/ic-agreements", { method: "POST", body: entry }),
+    list: async () => (await api("/ic-agreements", { auth: true })).agreements,
+    get: async (id) => (await api(`/ic-agreements/${encodeURIComponent(id)}`, { auth: true })).agreement,
+    remove: (id) => api(`/ic-agreements/${encodeURIComponent(id)}`, { method: "DELETE", auth: true }),
   };
+
+  // Everything a contractor typed is untrusted once it comes back from the
+  // server, so it is escaped before it goes anywhere near innerHTML.
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const isPng = (s) => typeof s === "string" && /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(s);
 
   // ─── Toast System ─────────────────────────────────────────────────────────
   function showToast(msg) {
@@ -777,17 +742,22 @@
   }
 
   // ─── Save Record Functionality ────────────────────────────────────────────
+  // Downloading saves too, so the same agreement downloaded twice must not be
+  // filed twice: an unchanged form is not sent again. An agreement an admin
+  // opened from the panel is already on file, so downloading it as-is is not a
+  // new submission either.
+  let lastSaved = null;        // { key, id } of the last payload sent
+  let loadedEntryId = null;    // set while the form shows a saved agreement, unedited
+
   async function saveRecord(auto = false) {
     const ctx = context();
     if (!ctx.name) {
       if (!auto) alert("Please enter Contractor legal name before saving.");
       return null;
     }
+    if (auto && loadedEntryId) return null;
 
-    const id = "ICA-" + Date.now().toString(36).toUpperCase();
     const entry = {
-      id,
-      createdAt: new Date().toISOString(),
       name: ctx.name,
       signerName: ctx.signerName,
       signerTitle: ctx.signerTitle,
@@ -824,10 +794,27 @@
       fileName: fileName()
     };
 
-    await Storage.save(entry);
-    showToast(`Saved agreement for "${entry.name}"!`);
-    refreshAdminPanel();
-    return entry;
+    const key = JSON.stringify(entry);
+    if (lastSaved?.key === key) {
+      if (!auto) showToast(`Already saved as ${lastSaved.id}.`);
+      return lastSaved;
+    }
+
+    const btn = $("#btnSaveRecord");
+    btn.disabled = true;
+    try {
+      const saved = await Submissions.create(entry);
+      lastSaved = { key, id: saved.id };
+      showToast(`Saved agreement for "${entry.name}" (${saved.id}).`);
+      refreshAdminPanel();
+      return lastSaved;
+    } catch (err) {
+      if (auto) showToast(`The PDF downloaded, but the agreement was not saved: ${err.message}`);
+      else alert(`The agreement was not saved: ${err.message}`);
+      return null;
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   $("#btnSaveRecord").addEventListener("click", () => saveRecord(false));
@@ -838,12 +825,12 @@
     const bytes = await render();
     if (!bytes) return;
 
-    // Auto-save to Admin panel on download
-    await saveRecord(true);
-
     const a = document.createElement("a");
     a.href = url; a.download = fileName();
     document.body.appendChild(a); a.click(); a.remove();
+
+    // Saved to the server as well, so the office has it on file.
+    await saveRecord(true);
   });
 
   $("#btnPreview").addEventListener("click", render);
@@ -853,38 +840,23 @@
   const formView = $("#formView"), adminView = $("#adminView");
   const btnTabForm = $("#btnTabForm"), btnTabAdmin = $("#btnTabAdmin");
 
-  // ─── Admin Authentication (Email + Password) ──────────────────────────────
-  const API_BASE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-    ? "http://localhost:5001/api"
-    : "/api";
-
+  // ─── Admin Authentication (Email + one-time code) ─────────────────────────
   const adminLoginModal = $("#adminLoginModal");
   const authNotice = $("#authNotice");
   const authEmail = $("#authEmail");
-  const authPassword = $("#authPassword");
+  const authOtp = $("#authOtp");
+  const otpStep = $("#otpStep");
   const btnLoginSubmit = $("#btnLoginSubmit");
+  const btnResendOtp = $("#btnResendOtp");
   const btnAuthClose = $("#btnAuthClose");
-  const btnTogglePassword = $("#btnTogglePassword");
   const adminUserSection = $("#adminUserSection");
   const btnLogoutAdmin = $("#btnLogoutAdmin");
-
-  function getAdminSession() {
-    try {
-      const s = JSON.parse(sessionStorage.getItem("ica_admin_session") || "null");
-      if (!s || !s.token) return null;
-      return s;
-    } catch {
-      return null;
-    }
-  }
+  let codeSent = false;
 
   function updateAdminHeaderAuth() {
-    const session = getAdminSession();
-    if (session) {
-      adminUserSection.style.display = "inline-flex";
-    } else {
-      adminUserSection.style.display = "none";
-    }
+    const signedIn = !!getAdminSession();
+    adminUserSection.style.display = signedIn ? "inline-flex" : "none";
+    if (!signedIn) $("#badgeCount").textContent = "–";
   }
 
   function showAuthNotice(msg, type = "info") {
@@ -896,11 +868,19 @@
     authNotice.style.display = "none";
   }
 
+  function setLoginStep(sent) {
+    codeSent = sent;
+    otpStep.style.display = sent ? "block" : "none";
+    authEmail.readOnly = sent;
+    btnLoginSubmit.textContent = sent ? "🔐 Verify & Sign In" : "Send code";
+  }
+
   function openAdminLogin() {
     hideAuthNotice();
-    authPassword.value = "";
+    authOtp.value = "";
+    setLoginStep(false);
     adminLoginModal.style.display = "flex";
-    setTimeout(() => authPassword.focus(), 100);
+    setTimeout(() => authEmail.focus(), 100);
   }
 
   function closeAdminLogin() {
@@ -910,79 +890,56 @@
 
   btnAuthClose.addEventListener("click", closeAdminLogin);
 
-  if (btnTogglePassword) {
-    btnTogglePassword.addEventListener("click", () => {
-      authPassword.type = authPassword.type === "password" ? "text" : "password";
-    });
+  async function requestCode() {
+    const email = (authEmail.value || "").trim().toLowerCase();
+    if (!email) return showAuthNotice("Please enter your admin email address.", "error");
+
+    btnLoginSubmit.disabled = true;
+    hideAuthNotice();
+    try {
+      const data = await api("/auth/ic-admin/send-otp", { method: "POST", body: { email } });
+      setLoginStep(true);
+      showAuthNotice(data.message, "success");
+      authOtp.focus();
+    } catch (err) {
+      showAuthNotice(err.message, "error");
+    } finally {
+      btnLoginSubmit.disabled = false;
+    }
   }
 
-  async function handleAdminLogin() {
+  async function verifyCode() {
     const email = (authEmail.value || "").trim().toLowerCase();
-    const password = (authPassword.value || "");
-
-    if (!email) {
-      showAuthNotice("Please enter your Admin email address.", "error");
-      return;
-    }
-    if (!password) {
-      showAuthNotice("Please enter your password.", "error");
-      return;
-    }
+    const code = (authOtp.value || "").replace(/\D/g, "");
+    if (code.length !== 6) return showAuthNotice("Enter the 6-digit code from the email.", "error");
 
     btnLoginSubmit.disabled = true;
     btnLoginSubmit.textContent = "Verifying...";
     hideAuthNotice();
-
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.api_token) {
-        showAuthNotice(data.message || "Invalid email or password.", "error");
-        btnLoginSubmit.disabled = false;
-        btnLoginSubmit.textContent = "🔐 Sign In to Admin Panel";
-        return;
-      }
-
-      if (data.user?.role !== "admin" && data.user?.role !== "staff") {
-        showAuthNotice("Access denied. Only Admin accounts can access the Admin Panel.", "error");
-        btnLoginSubmit.disabled = false;
-        btnLoginSubmit.textContent = "🔐 Sign In to Admin Panel";
-        return;
-      }
-
-      // Valid session! Store in sessionStorage
-      sessionStorage.setItem("ica_admin_session", JSON.stringify({
-        token: data.api_token,
-        user: data.user
-      }));
+      const data = await api("/auth/ic-admin/verify-otp", { method: "POST", body: { email, code } });
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: data.token, expiresAt: data.expiresAt, email: data.user.email }));
       closeAdminLogin();
       updateAdminHeaderAuth();
-      showToast(`Welcome back, ${data.user.firstName || "Admin"}!`);
+      showToast(`Signed in as ${data.user.email}`);
       setView("admin");
     } catch (err) {
-      console.error("Login error:", err);
-      showAuthNotice("Server connection error. Make sure FMS server is running.", "error");
+      showAuthNotice(err.message, "error");
     } finally {
       btnLoginSubmit.disabled = false;
-      btnLoginSubmit.textContent = "🔐 Sign In to Admin Panel";
+      if (adminLoginModal.style.display !== "none") setLoginStep(codeSent);
     }
   }
 
-  btnLoginSubmit.addEventListener("click", handleAdminLogin);
-  authPassword.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") handleAdminLogin();
-  });
-  authEmail.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") authPassword.focus();
-  });
+  btnLoginSubmit.addEventListener("click", () => (codeSent ? verifyCode() : requestCode()));
+  btnResendOtp.addEventListener("click", requestCode);
+  authEmail.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); codeSent ? verifyCode() : requestCode(); } });
+  authOtp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); verifyCode(); } });
 
-  btnLogoutAdmin.addEventListener("click", () => {
-    sessionStorage.removeItem("ica_admin_session");
+  btnLogoutAdmin.addEventListener("click", async () => {
+    await api("/auth/ic-admin/logout", { method: "POST", auth: true }).catch(() => {});
+    sessionStorage.removeItem(SESSION_KEY);
+    cachedEntries = [];
     updateAdminHeaderAuth();
     setView("form");
     showToast("Logged out from Admin Panel.");
@@ -1014,81 +971,39 @@
   btnTabAdmin.addEventListener("click", () => setView("admin"));
   $("#btnAdminNew").addEventListener("click", () => setView("form"));
   $("#btnEmptyNew").addEventListener("click", () => setView("form"));
+  $("#btnAdminRefresh").addEventListener("click", () => refreshAdminPanel());
   updateAdminHeaderAuth();
-
-  async function addSampleEntry() {
-    const id = "ICA-" + Date.now().toString(36).toUpperCase();
-    const now = new Date();
-    const entry = {
-      id,
-      createdAt: now.toISOString(),
-      name: "Apex Global Freight LLC",
-      signerName: "Michael R. Scott",
-      signerTitle: "Managing Director",
-      street: "742 Evergreen Terrace",
-      city: "Long Beach",
-      state: "CA",
-      zip: "90802",
-      ein: "95-1234567",
-      dl: "C4819203",
-      initials: "MS",
-      carrierName: "Empire Transportation",
-      carrierTitle: "Safety Director",
-      carrierInitials: "ET",
-      effDate: now.toISOString().split("T")[0],
-      effTime: "09:00",
-      sameExec: true,
-      exeDate: now.toISOString().split("T")[0],
-      exeTime: "09:00",
-      equipment: [
-        ["2023 Freightliner Cascadia (Tractor)", "1FUJGLDR8PL123456"],
-        ["2022 Kenworth T680", "1XKDDB9X1NJ654321"]
-      ],
-      sigContractor: true,
-      sigCarrier: true,
-      sigModes: { contractor: "type", carrier: "type" },
-      formData: {
-        name: "Apex Global Freight LLC",
-        street: "742 Evergreen Terrace",
-        city: "Long Beach",
-        state: "CA",
-        zip: "90802",
-        ein: "95-1234567",
-        dl: "C4819203",
-        initials: "MS",
-        signerName: "Michael R. Scott",
-        signerTitle: "Managing Director",
-        carrierName: "Empire Transportation",
-        carrierTitle: "Safety Director",
-        carrierInitials: "ET",
-        effDate: now.toISOString().split("T")[0],
-        effTime: "09:00",
-        sameExec: true,
-      }
-    };
-    await Storage.save(entry);
-    await refreshAdminPanel();
-    showToast("Sample entry added successfully!");
-  }
-
-  const btnSample = $("#btnLoadSample");
-  if (btnSample) btnSample.addEventListener("click", addSampleEntry);
-  const btnSampleH = $("#btnLoadSampleHeader");
-  if (btnSampleH) btnSampleH.addEventListener("click", addSampleEntry);
 
   // ─── Admin Panel Logic ────────────────────────────────────────────────────
   let cachedEntries = [];
 
   async function refreshAdminPanel() {
-    cachedEntries = await Storage.getAll();
+    if (!getAdminSession()) return;
+    try {
+      cachedEntries = await Submissions.list();
+    } catch (err) {
+      if (err.status === 401) { setView("admin"); return; }
+      showToast(err.message);
+      return;
+    }
     $("#badgeCount").textContent = cachedEntries.length;
     renderMetrics(cachedEntries);
     renderTable();
   }
 
+  // A list row has no signature images; fetch the whole record when one is needed.
+  async function withFullEntry(entry, fn) {
+    try {
+      await fn(await Submissions.get(entry.id));
+    } catch (err) {
+      if (err.status === 401) setView("admin");
+      else alert(err.message);
+    }
+  }
+
   function renderMetrics(entries) {
     $("#mTotal").textContent = entries.length;
-    const names = new Set(entries.map((e) => e.name.toLowerCase().trim()).filter(Boolean));
+    const names = new Set(entries.map((e) => (e.name || "").toLowerCase().trim()).filter(Boolean));
     $("#mContractors").textContent = names.size;
     const units = entries.reduce((acc, cur) => acc + (cur.equipment ? cur.equipment.length : 0), 0);
     $("#mUnits").textContent = units;
@@ -1132,28 +1047,28 @@
       const dt = new Date(e.createdAt);
       const dateStr = dt.toLocaleDateString() + " " + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       const unitCount = (e.equipment || []).length;
-      const hasContractorSig = !!(e.sigs?.contractor || e.sigModes?.contractor === "type");
-      const hasCarrierSig = !!(e.sigs?.carrier || e.sigModes?.carrier === "type");
+      const hasContractorSig = !!(e.hasSig?.contractor || e.sigModes?.contractor === "type");
+      const hasCarrierSig = !!(e.hasSig?.carrier || e.sigModes?.carrier === "type");
 
       tr.innerHTML = `
         <td>
-          <div style="font-weight:600; font-family:monospace; color:var(--muted)">${e.id}</div>
-          <div style="font-size:11px; color:var(--muted)">${dateStr}</div>
+          <div style="font-weight:600; font-family:monospace; color:var(--muted)">${esc(e.id)}</div>
+          <div style="font-size:11px; color:var(--muted)">${esc(dateStr)}</div>
         </td>
         <td>
-          <div class="contractor-name">${clean(e.name || "Untitled")}</div>
-          <div class="contractor-sub">${clean(e.street || "-")}</div>
+          <div class="contractor-name">${esc(e.name || "Untitled")}</div>
+          <div class="contractor-sub">${esc(e.street || "-")}</div>
         </td>
         <td>
-          <div>${clean(e.signerName || "-")}</div>
-          <div class="contractor-sub">${clean(e.signerTitle || "Contractor")}</div>
+          <div>${esc(e.signerName || "-")}</div>
+          <div class="contractor-sub">${esc(e.signerTitle || "Contractor")}</div>
         </td>
         <td>
-          <div>${clean([e.city, e.state, e.zip].filter(Boolean).join(", ") || "-")}</div>
+          <div>${esc([e.city, e.state, e.zip].filter(Boolean).join(", ") || "-")}</div>
         </td>
         <td>
-          <div>EIN: ${clean(e.ein || "-")}</div>
-          <div class="contractor-sub">DL: ${clean(e.dl || "-")}</div>
+          <div>EIN: ${esc(e.ein || "-")}</div>
+          <div class="contractor-sub">DL: ${esc(e.dl || "-")}</div>
         </td>
         <td>
           <span class="tag tag-info">${unitCount} Unit${unitCount === 1 ? "" : "s"}</span>
@@ -1177,14 +1092,17 @@
       `;
 
       // Actions
-      tr.querySelector(".btn-pdf").addEventListener("click", () => downloadSavedEntryPDF(e));
-      tr.querySelector(".btn-view").addEventListener("click", () => openEntryModal(e));
-      tr.querySelector(".btn-load").addEventListener("click", () => loadEntryIntoForm(e));
+      tr.querySelector(".btn-pdf").addEventListener("click", () => withFullEntry(e, downloadSavedEntryPDF));
+      tr.querySelector(".btn-view").addEventListener("click", () => withFullEntry(e, openEntryModal));
+      tr.querySelector(".btn-load").addEventListener("click", () => withFullEntry(e, loadEntryIntoForm));
       tr.querySelector(".btn-del").addEventListener("click", async () => {
-        if (confirm(`Delete entry for "${e.name}" (${e.id})?`)) {
-          await Storage.delete(e.id);
+        if (!confirm(`Delete entry for "${e.name}" (${e.id})? This cannot be undone.`)) return;
+        try {
+          await Submissions.remove(e.id);
           showToast("Entry deleted");
           refreshAdminPanel();
+        } catch (err) {
+          alert(err.message);
         }
       });
 
@@ -1201,29 +1119,29 @@
     activeModalEntry = entry;
     $("#modalTitle").textContent = `${entry.name} (${entry.id})`;
     const dt = new Date(entry.createdAt).toLocaleString();
-    const equipRows = (entry.equipment || []).map(([desc, vin]) => `<tr><td>${clean(desc)}</td><td>${clean(vin)}</td></tr>`).join("") || '<tr><td colspan="2" style="color:var(--muted)">No equipment listed</td></tr>';
+    const equipRows = (entry.equipment || []).map(([desc, vin]) => `<tr><td>${esc(desc)}</td><td>${esc(vin)}</td></tr>`).join("") || '<tr><td colspan="2" style="color:var(--muted)">No equipment listed</td></tr>';
 
     $("#modalBody").innerHTML = `
       <div class="detail-section">
         <div class="detail-title">Contractor Details</div>
         <div class="detail-grid">
-          <div class="detail-item"><span class="detail-label">Legal Name</span><span class="detail-val">${clean(entry.name)}</span></div>
-          <div class="detail-item"><span class="detail-label">EIN</span><span class="detail-val">${clean(entry.ein)}</span></div>
-          <div class="detail-item"><span class="detail-label">Address</span><span class="detail-val">${clean(entry.street)}</span></div>
-          <div class="detail-item"><span class="detail-label">City, State ZIP</span><span class="detail-val">${clean([entry.city, entry.state, entry.zip].filter(Boolean).join(", "))}</span></div>
-          <div class="detail-item"><span class="detail-label">Driver License</span><span class="detail-val">${clean(entry.dl || "-")}</span></div>
-          <div class="detail-item"><span class="detail-label">Initials</span><span class="detail-val">${clean(entry.initials || "-")}</span></div>
+          <div class="detail-item"><span class="detail-label">Legal Name</span><span class="detail-val">${esc(entry.name)}</span></div>
+          <div class="detail-item"><span class="detail-label">EIN</span><span class="detail-val">${esc(entry.ein)}</span></div>
+          <div class="detail-item"><span class="detail-label">Address</span><span class="detail-val">${esc(entry.street)}</span></div>
+          <div class="detail-item"><span class="detail-label">City, State ZIP</span><span class="detail-val">${esc([entry.city, entry.state, entry.zip].filter(Boolean).join(", "))}</span></div>
+          <div class="detail-item"><span class="detail-label">Driver License</span><span class="detail-val">${esc(entry.dl || "-")}</span></div>
+          <div class="detail-item"><span class="detail-label">Initials</span><span class="detail-val">${esc(entry.initials || "-")}</span></div>
         </div>
       </div>
 
       <div class="detail-section">
         <div class="detail-title">Signer &amp; Execution</div>
         <div class="detail-grid">
-          <div class="detail-item"><span class="detail-label">Signer Name / Title</span><span class="detail-val">${clean(entry.signerName)} (${clean(entry.signerTitle || "Owner")})</span></div>
-          <div class="detail-item"><span class="detail-label">Effective Date</span><span class="detail-val">${entry.effDate || "-"} ${entry.effTime || ""}</span></div>
-          <div class="detail-item"><span class="detail-label">Execution Date</span><span class="detail-val">${entry.exeDate || (entry.sameExec ? "Same as effective" : "-")} ${entry.exeTime || ""}</span></div>
-          <div class="detail-item"><span class="detail-label">Carrier Representative</span><span class="detail-val">${clean(entry.carrierName || "Empire Transportation")} (${clean(entry.carrierTitle || "-")})</span></div>
-          <div class="detail-item"><span class="detail-label">Submission Date</span><span class="detail-val">${dt}</span></div>
+          <div class="detail-item"><span class="detail-label">Signer Name / Title</span><span class="detail-val">${esc(entry.signerName)} (${esc(entry.signerTitle || "Owner")})</span></div>
+          <div class="detail-item"><span class="detail-label">Effective Date</span><span class="detail-val">${esc(entry.effDate || "-")} ${esc(entry.effTime || "")}</span></div>
+          <div class="detail-item"><span class="detail-label">Execution Date</span><span class="detail-val">${esc(entry.exeDate || (entry.sameExec ? "Same as effective" : "-"))} ${esc(entry.exeTime || "")}</span></div>
+          <div class="detail-item"><span class="detail-label">Carrier Representative</span><span class="detail-val">${esc(entry.carrierName || "Empire Transportation")} (${esc(entry.carrierTitle || "-")})</span></div>
+          <div class="detail-item"><span class="detail-label">Submission Date</span><span class="detail-val">${esc(dt)}</span></div>
         </div>
       </div>
 
@@ -1235,7 +1153,7 @@
         </table>
       </div>
 
-      ${entry.sigs?.contractor ? `
+      ${isPng(entry.sigs?.contractor) ? `
         <div class="detail-section">
           <div class="detail-title">Contractor Signature</div>
           <div style="background:#fff; border:1px solid var(--line); border-radius:6px; padding:8px; display:inline-block">
@@ -1318,34 +1236,29 @@
     }
 
     // Signatures
-    if (entry.sigs?.contractor) {
+    // The pad's context is already scaled by devicePixelRatio, so the image is
+    // fitted to the canvas's CSS size, keeping its proportions.
+    ["contractor", "carrier"].forEach((who) => {
+      const png = entry.sigs?.[who];
+      if (!isPng(png)) return;
       const im = new Image();
       im.onload = () => {
-        const c = $("canvas", document.querySelector('[data-sig="contractor"]'));
-        const ctx = c.getContext("2d");
-        ctx.drawImage(im, 0, 0, c.width, c.height);
-        pads.contractor.dirty = true;
+        const c = $("canvas", document.querySelector(`[data-sig="${who}"]`));
+        const r = c.getBoundingClientRect();
+        const scale = Math.min(r.width / im.width, r.height / im.height, 1);
+        c.getContext("2d").drawImage(im, 0, 0, im.width * scale, im.height * scale);
+        pads[who].dirty = true;
         schedule();
       };
-      im.src = entry.sigs.contractor;
-    }
-    if (entry.sigs?.carrier) {
-      const im = new Image();
-      im.onload = () => {
-        const c = $("canvas", document.querySelector('[data-sig="carrier"]'));
-        const ctx = c.getContext("2d");
-        ctx.drawImage(im, 0, 0, c.width, c.height);
-        pads.carrier.dirty = true;
-        schedule();
-      };
-      im.src = entry.sigs.carrier;
-    }
+      im.src = png;
+    });
 
     form.elements.sameExec.dispatchEvent(new Event("change"));
     form.elements.sameAck.dispatchEvent(new Event("change"));
     updatePlaceholders();
 
     setView("form");
+    loadedEntryId = entry.id;
     showToast(`Loaded "${entry.name}" into form!`);
     render();
   }
@@ -1413,46 +1326,35 @@
   $("#btnExportCSV").addEventListener("click", () => {
     if (!cachedEntries.length) return alert("No entries to export.");
     const headers = ["ID", "Submission Date", "Contractor Legal Name", "Signer Name", "Signer Title", "EIN", "DL", "Street", "City", "State", "ZIP", "Equipment Units", "Carrier Name"];
+    // Quoted, and a leading = + - @ neutralised: these values were typed by the
+    // public, and a spreadsheet would otherwise run them as formulas.
+    const cell = (v) => {
+      const s = String(v ?? "");
+      return `"${(/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""')}"`;
+    };
     const rows = cachedEntries.map((e) => [
-      e.id,
-      e.createdAt,
-      `"${(e.name || "").replace(/"/g, '""')}"`,
-      `"${(e.signerName || "").replace(/"/g, '""')}"`,
-      `"${(e.signerTitle || "").replace(/"/g, '""')}"`,
-      `"${(e.ein || "")}"`,
-      `"${(e.dl || "")}"`,
-      `"${(e.street || "").replace(/"/g, '""')}"`,
-      `"${(e.city || "").replace(/"/g, '""')}"`,
-      `"${(e.state || "").replace(/"/g, '""')}"`,
-      `"${(e.zip || "")}"`,
-      (e.equipment || []).length,
-      `"${(e.carrierName || "").replace(/"/g, '""')}"`,
-    ]);
+      e.id, e.createdAt, e.name, e.signerName, e.signerTitle, e.ein, e.dl,
+      e.street, e.city, e.state, e.zip, (e.equipment || []).length, e.carrierName,
+    ].map(cell));
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const encoded = encodeURI(csvContent);
-    const a = document.createElement("a");
-    a.href = encoded;
-    a.download = `IC-Agreements-Export-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
+    saveBlob([headers.map(cell).join(","), ...rows.map((r) => r.join(","))].join("\r\n"), "text/csv;charset=utf-8",
+      `IC-Agreements-Export-${new Date().toISOString().slice(0, 10)}.csv`);
   });
 
   $("#btnExportJSON").addEventListener("click", () => {
     if (!cachedEntries.length) return alert("No entries to export.");
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cachedEntries, null, 2));
-    const a = document.createElement("a");
-    a.href = dataStr;
-    a.download = `IC-Agreements-Backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
+    saveBlob(JSON.stringify(cachedEntries, null, 2), "application/json",
+      `IC-Agreements-Backup-${new Date().toISOString().slice(0, 10)}.json`);
   });
 
-  $("#btnClearAll").addEventListener("click", async () => {
-    if (confirm("Are you sure you want to delete ALL saved agreement entries? This cannot be undone.")) {
-      await Storage.clear();
-      showToast("All entries cleared.");
-      refreshAdminPanel();
-    }
-  });
+  const BOM = "﻿"; // so Excel reads the CSV as UTF-8
+  function saveBlob(content, type, name) {
+    const href = URL.createObjectURL(new Blob([type.startsWith("text/csv") ? BOM + content : content], { type }));
+    const a = document.createElement("a");
+    a.href = href; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 3000);
+  }
 
   // ─── Form Wiring ──────────────────────────────────────────────────────────
   const pad2 = (n) => String(n).padStart(2, "0");
@@ -1474,7 +1376,7 @@
     form.elements.initials.placeholder = initialsOf(val("signerName") || val("name")) || "auto";
     form.elements.carrierInitials.placeholder = initialsOf(val("carrierName")) || "auto";
   };
-  form.addEventListener("input", (e) => { e.target.classList?.remove("missing"); updatePlaceholders(); schedule(); });
+  form.addEventListener("input", (e) => { loadedEntryId = null; e.target.classList?.remove("missing"); updatePlaceholders(); schedule(); });
   form.addEventListener("change", schedule);
 
   function addRow(tableSel, names, values = []) {
@@ -1526,7 +1428,7 @@
       ctx2d.beginPath(); ctx2d.moveTo(last.x, last.y); ctx2d.lineTo(p.x, p.y); ctx2d.stroke();
       last = p; pad.dirty = true;
     });
-    const end = () => { if (last) { last = null; schedule(); } };
+    const end = () => { if (last) { last = null; loadedEntryId = null; schedule(); } };
     canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end);
     pad.clear = () => { ctx2d.clearRect(0, 0, canvas.width, canvas.height); pad.dirty = false; };
     $(".sig-bar button", wrap).addEventListener("click", () => { pad.clear(); schedule(); });
@@ -1557,6 +1459,7 @@
   });
 
   function reset() {
+    loadedEntryId = null;
     form.reset();
     document.querySelectorAll(".rows tbody").forEach((tb) => (tb.innerHTML = ""));
     addRow("#equipRows", EQUIP_COLS);
@@ -1570,11 +1473,9 @@
   }
   $("#btnReset").addEventListener("click", () => { if (confirm("Clear every field and signature?")) reset(); });
 
-  // Init DB and load initial state
-  openDB().then(() => {
-    Storage.syncLSCount();
-    reset();
-  });
+  // Initial state. The submissions count is shown only to a signed-in admin.
+  reset();
+  if (getAdminSession()) refreshAdminPanel();
 })();
 </script>
 </body>

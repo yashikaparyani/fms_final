@@ -6,7 +6,8 @@
     "test": "jest --detectOpenHandles --forceExit",
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "seed:admin": "node scripts/seedAdmin.js"
+    "seed:admin": "node scripts/seedAdmin.js",
+    "ic-admin:otp": "node scripts/icAdminOtp.js"
   },
   "keywords": [],
   "author": "",

@@ -28,9 +28,20 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 
 // PUBLIC — IC Agreement Admin Panel OTP Login
-const { sendAdminOtp, verifyAdminOtp } = require("../controllers/icAdminOtpController");
-router.post("/ic-admin/send-otp", sendAdminOtp);
-router.post("/ic-admin/verify-otp", verifyAdminOtp);
+// Rate limited per IP on top of the per-code attempt cap, so nobody can sit
+// requesting fresh codes and guessing at them.
+const rateLimit = require("express-rate-limit");
+const icAdminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many attempts. Wait a few minutes and try again." },
+});
+const { sendAdminOtp, verifyAdminOtp, logoutAdmin } = require("../controllers/icAdminOtpController");
+router.post("/ic-admin/send-otp", icAdminLimiter, sendAdminOtp);
+router.post("/ic-admin/verify-otp", icAdminLimiter, verifyAdminOtp);
+router.post("/ic-admin/logout", logoutAdmin);
 
 // PUBLIC
 router.post(
