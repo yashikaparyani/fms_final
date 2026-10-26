@@ -7,8 +7,12 @@ import { useState } from "react";
 import AppSelect from "./AppSelect";
 import { fleetOwnerLabel } from "../utils/fleetOwner";
 
+// Only carriers cleared to haul — approved onboarding, insurance on file. The
+// server refuses anyone else, so offering them would only end in an error.
 const ownerOptions = (fleetOwners) =>
-  fleetOwners.map((fo) => ({ value: fo._id, label: fleetOwnerLabel(fo) }));
+  fleetOwners
+    .filter((fo) => fo.clearedToHaul)
+    .map((fo) => ({ value: fo._id, label: fleetOwnerLabel(fo) }));
 
 // ─── Desktop: replaces the row's buttons while open ─────────────────────────
 export const AssignDropdown = ({

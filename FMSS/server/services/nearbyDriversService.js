@@ -1,6 +1,7 @@
 const TrackingEvent = require("../models/TrackingEvent");
 const Driver = require("../models/Driver");
 const FleetOwner = require("../models/FleetOwner");
+const { biddingCarrierIds } = require("../utils/biddingEligibility");
 
 /**
  * Which trucks are near a pickup, and who they work for.
@@ -109,11 +110,16 @@ const findNearbyDrivers = async ({
 
   const excluded = new Set(excludeFleetOwnerIds.map(String));
 
+  // Only carriers cleared to haul — an approved onboarding and insurance on
+  // file. A truck being nearby does not make an unapproved carrier one we can
+  // offer a load to.
+  const cleared = await biddingCarrierIds();
+
   const carrierIds = [
     ...new Set(
       drivers
         .map((d) => String(d.fleetOwner))
-        .filter((id) => !excluded.has(id)),
+        .filter((id) => !excluded.has(id) && cleared.has(id)),
     ),
   ];
 
@@ -121,7 +127,7 @@ const findNearbyDrivers = async ({
 
   const carriers = await FleetOwner.find({
     _id: { $in: carrierIds },
-    isActive: { $ne: false },
+    active: { $ne: false },
   })
     .select("carrierName fleetOwnerCode email phone userId")
     .lean();

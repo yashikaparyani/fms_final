@@ -11,10 +11,11 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
+const { seed, clearedToBid, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
 const { withTenant } = require("../utils/tenantContext");
 const Load = require("../models/Load");
 const FleetOwner = require("../models/FleetOwner");
+const CarrierOnboarding = require("../models/CarrierOnboarding");
 const Driver = require("../models/Driver");
 const { carrierLoadFilter, carrierLoadView } = require("../utils/carrierAccount");
 
@@ -62,6 +63,8 @@ beforeEach(async () => {
   await seed(async () => {
     portToYard = await FleetOwner.create({ carrierName: "Port Drayage LLC" });
     yardToDoor = await FleetOwner.create({ carrierName: "Last Mile Freight" });
+    await clearedToBid(portToYard._id);
+    await clearedToBid(yardToDoor._id);
 
     load = await Load.create({
       loadId: "LD-9001",
@@ -517,6 +520,7 @@ describe("Taking a split load off its carriers", () => {
   it("a direct assign replaces the split, so the new carrier holds the whole load", async () => {
     await splitWithDrivers();
     const newCarrier = await seed(() => FleetOwner.create({ carrierName: "New Carrier Inc" }));
+    await clearedToBid(newCarrier._id);
 
     const res = await request(app)
       .put("/api/loads/LD-9001/assign")
@@ -695,5 +699,46 @@ describe("Each carrier sees their own leg, and the timeline records assignments"
     const last = res.body.transportStatusHistory.slice(-1)[0];
     expect(last.status).toEqual("ASSIGNED");
     expect(last.note).toEqual("Reassigned from Port Drayage LLC to Last Mile Freight");
+  });
+});
+
+describe("only carriers cleared to haul can be given a load", () => {
+  let unapproved;
+  beforeEach(async () => {
+    unapproved = await seed(() => FleetOwner.create({ carrierName: "Unapproved Trucking" }));
+  });
+
+  it("refuses a direct assign to a carrier without approval", async () => {
+    const res = await request(app)
+      .put("/api/loads/LD-9001/assign")
+      .send({ fleetOwnerId: String(unapproved._id), fleetOwnerName: "Unapproved Trucking" });
+
+    expect(res.statusCode).toEqual(403);
+    expect(res.body.code).toEqual("CARRIER_NOT_CLEARED");
+    const doc = await seed(() => Load.findOne({ loadId: "LD-9001" }));
+    expect(doc.assignedFleetOwner?.fleetOwnerId).toBeFalsy();
+  });
+
+  it("refuses a split that puts an unapproved carrier on a leg", async () => {
+    const body = bodyForTwo();
+    body.assignments[1].fleetOwnerId = String(unapproved._id);
+
+    const res = await assign(body);
+
+    expect(res.statusCode).toEqual(403);
+    expect(res.body.message).toMatch(/Unapproved Trucking cannot be assigned yet/);
+  });
+
+  it("still lets the office edit a leg held by a carrier who has since lost clearance", async () => {
+    await assign(bodyForTwo());
+    await seed(() =>
+      CarrierOnboarding.updateOne({ fleetOwner: yardToDoor._id }, { status: "UNDER_REVIEW" }),
+    );
+
+    const body = bodyForTwo();
+    body.assignments[1].carrierRate = 450;
+    const res = await assign(body);
+
+    expect(res.statusCode).toEqual(200);
   });
 });

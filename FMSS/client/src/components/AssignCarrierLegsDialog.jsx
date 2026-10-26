@@ -210,10 +210,23 @@ const AssignCarrierLegsDialog = ({
 
   if (!load) return null;
 
-  const ownerOptions = fleetOwners.map((fo) => ({
-    value: fo._id,
-    label: fleetOwnerLabel(fo),
-  }));
+  // Carriers cleared to haul, plus any already holding a leg of this load —
+  // the server lets those keep their leg, and dropping them from the list would
+  // blank out a leg that is already assigned.
+  const onLoad = new Set(
+    [
+      load.assignedFleetOwner?.fleetOwnerId,
+      ...(load.assignments || []).map((leg) => leg.fleetOwnerId),
+    ]
+      .filter(Boolean)
+      .map(String),
+  );
+  const ownerOptions = fleetOwners
+    .filter((fo) => fo.clearedToHaul || onLoad.has(String(fo._id)))
+    .map((fo) => ({
+      value: fo._id,
+      label: fleetOwnerLabel(fo),
+    }));
 
   const patchLeg = (index, patch) =>
     setLegs((current) =>

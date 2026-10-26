@@ -306,6 +306,10 @@ const {
 const mongoose = require("mongoose");
 const { yardAge } = require("../utils/yardAge");
 const { biddingBlockFor, biddingCarrierIds } = require("../utils/biddingEligibility");
+
+/** The office-facing refusal for assigning carriers not cleared to haul. */
+const notClearedToHaulMessage = (names) =>
+  `${names.join(", ")} cannot be assigned yet: a carrier needs an approved onboarding and insurance on file before they can haul.`;
 const {
   requestInstantDispatch,
 } = require("../services/instantDispatchService");
@@ -3038,6 +3042,28 @@ const setLoadAssignments = async (req, res) => {
       });
     }
 
+    // Only carriers cleared to haul may be given a leg. A carrier already on
+    // the load keeps their leg — refusing every edit to a split because one
+    // carrier's insurance lapsed mid-run would strand the load.
+    const alreadyOnLoad = new Set(
+      [
+        load.assignedFleetOwner?.fleetOwnerId,
+        ...(load.assignments || []).map((leg) => leg.fleetOwnerId),
+      ]
+        .filter(Boolean)
+        .map(String),
+    );
+    const cleared = await biddingCarrierIds();
+    const notCleared = carriers.filter(
+      (c) => !alreadyOnLoad.has(String(c._id)) && !cleared.has(String(c._id)),
+    );
+    if (notCleared.length) {
+      return res.status(403).json({
+        message: notClearedToHaulMessage(notCleared.map((c) => c.carrierName)),
+        code: "CARRIER_NOT_CLEARED",
+      });
+    }
+
     // Progress already made is kept when a leg survives the edit. Adding a
     // third carrier must not send the first one's in-transit leg back to
     // ASSIGNED — the truck is where it is regardless of the paperwork.
@@ -3209,6 +3235,16 @@ const setLoadAssignments = async (req, res) => {
 const assignFleetOwner = async (req, res) => {
   try {
     const { fleetOwnerId, fleetOwnerName } = req.body;
+
+    // The office can override capacity (below) but not approval: a carrier
+    // whose onboarding is not approved, or whose insurance is not on file, is
+    // not given a load by any route.
+    if (await biddingBlockFor(fleetOwnerId)) {
+      return res.status(403).json({
+        message: notClearedToHaulMessage([fleetOwnerName || "That carrier"]),
+        code: "CARRIER_NOT_CLEARED",
+      });
+    }
 
     // No capacity check here: the one-truck-one-load rule applies to bidding
     // (placing and awarding bids). When the office assigns a carrier directly

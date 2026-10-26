@@ -2,7 +2,7 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
+const { seed, clearedToBid, TEST_LOCATION_ID } = require("./helpers/tenantTestContext");
 
 // ─── Instant dispatch ─────────────────────────────────────────────────────────
 // The two things here that are genuinely hard to get right, and that a reader
@@ -69,13 +69,16 @@ const LONG_BEACH = { latitude: 33.7701, longitude: -118.1937 };
 const NEW_YORK = { latitude: 40.7128, longitude: -74.006 };
 
 /** A carrier with one driver, whose last position is wherever you put it. */
-const makeCarrier = async ({ name, position, minutesAgo = 5 }) =>
+const makeCarrier = async ({ name, position, minutesAgo = 5, cleared = true }) =>
   seed(async () => {
     const carrier = await FleetOwner.create({
       carrierName: name,
       userId: new mongoose.Types.ObjectId(),
       email: `${name.toLowerCase().replace(/\s/g, "")}@example.com`,
     });
+    // Only carriers cleared to haul are offered loads — see
+    // utils/biddingEligibility.js.
+    if (cleared) await clearedToBid(carrier._id);
 
     const driver = await Driver.create({
       name: `${name} Driver`,
@@ -236,6 +239,22 @@ describe("finding trucks near a pickup", () => {
     expect(found[0].fleetOwner.carrierName).toBe("Near Co");
     expect(found[0].distanceMiles).toBeGreaterThan(15);
     expect(found[0].distanceMiles).toBeLessThan(25);
+  });
+
+  it("leaves out a carrier the office has not cleared to haul", async () => {
+    await makeCarrier({ name: "Near Co", position: LONG_BEACH });
+    await makeCarrier({ name: "Unapproved Co", position: LONG_BEACH, cleared: false });
+
+    const found = await seed(() =>
+      findNearbyCarriers({
+        latitude: LA.lat,
+        longitude: LA.lng,
+        radiusMiles: 100,
+        maxAgeHours: 24,
+      }),
+    );
+
+    expect(found.map((row) => row.fleetOwner.carrierName)).toEqual(["Near Co"]);
   });
 
   it("ignores a driver whose position is too old to mean anything", async () => {

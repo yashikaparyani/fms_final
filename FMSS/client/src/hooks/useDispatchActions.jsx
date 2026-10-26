@@ -118,7 +118,7 @@ export const useDispatchActions = (refresh) => {
       notify.success(`Load ${loadId} assigned to ${owner.carrierName}!`);
     } catch (err) {
       console.error("Assignment failed:", err);
-      notify.error("Assignment failed. Please try again.");
+      notify.error(err.response?.data?.message || "Assignment failed. Please try again.");
     } finally {
       setSaving(false);
     }

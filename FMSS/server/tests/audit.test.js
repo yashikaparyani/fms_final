@@ -20,6 +20,7 @@ const Branch = require("../models/Branch");
 const Load = require("../models/Load");
 const LoadAudit = require("../models/LoadAudit");
 const FleetOwner = require("../models/FleetOwner");
+const { clearedToBid } = require("./helpers/tenantTestContext");
 
 const loadRoutes = require("../routes/loadRoutes");
 const auditRoutes = require("../routes/auditRoutes");
@@ -219,6 +220,8 @@ describe("What gets recorded", () => {
       first = await FleetOwner.create({ carrierName: "Swift Haulage" });
       second = await FleetOwner.create({ carrierName: "Rival Freight" });
     });
+    await clearedToBid(first._id);
+    await clearedToBid(second._id);
 
     await call("put", `/api/loads/${load.loadId}/assign-fleet-owner`, staff, ny).send({
       fleetOwnerId: String(first._id),

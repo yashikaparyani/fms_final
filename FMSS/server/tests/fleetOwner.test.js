@@ -2,7 +2,7 @@ const request = require("supertest");
 const express = require("express");
 const mongoose = require("mongoose");
 const { connect, closeDatabase, clearDatabase } = require("./setup");
-const { seed } = require("./helpers/tenantTestContext");
+const { seed, clearedToBid } = require("./helpers/tenantTestContext");
 const FleetOwner = require("../models/FleetOwner");
 const User = require("../models/User");
 
@@ -87,6 +87,17 @@ describe("Fleet Owner API", () => {
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.length).toEqual(2);
+    });
+
+    it("flags which carriers are cleared to haul, for the dispatch pickers", async () => {
+      const approved = await seed(() => FleetOwner.create({ carrierName: "Approved Co" }));
+      await seed(() => FleetOwner.create({ carrierName: "Pending Co" }));
+      await clearedToBid(approved._id);
+
+      const res = await request(app).get("/api/fleet-owners").set("role", "staff");
+
+      const flags = Object.fromEntries(res.body.map((fo) => [fo.carrierName, fo.clearedToHaul]));
+      expect(flags).toEqual({ "Approved Co": true, "Pending Co": false });
     });
   });
 

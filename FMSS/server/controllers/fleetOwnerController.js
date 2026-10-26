@@ -8,6 +8,7 @@ const {
   carrierLoadView,
 } = require("../utils/carrierAccount");
 const { createAddressRef } = require("../utils/addressRef");
+const { biddingCarrierIds } = require("../utils/biddingEligibility");
 const Address = require("../models/common/Address");
 const mongoose = require("mongoose");
 const {
@@ -47,8 +48,20 @@ const getFleetOwners = async (req, res) => {
     const filter =
       req.query.includeInactive === "true" ? {} : { active: { $ne: false } };
 
-    const fleetOwners = await FleetOwner.find(filter).sort({ createdAt: -1 });
-    res.json(fleetOwners);
+    const [fleetOwners, cleared] = await Promise.all([
+      FleetOwner.find(filter).sort({ createdAt: -1 }),
+      biddingCarrierIds(),
+    ]);
+
+    // Whether the office has approved the carrier's onboarding and their
+    // insurance is on file — the rule for being given a load at all. The
+    // dispatch pickers offer only these; the directory still lists everyone.
+    res.json(
+      fleetOwners.map((fo) => ({
+        ...fo.toJSON(),
+        clearedToHaul: cleared.has(String(fo._id)),
+      })),
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
