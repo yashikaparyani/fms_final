@@ -205,6 +205,83 @@ describe("POST /api/drivers/bulk", () => {
     expect(res.body.failed[0].message).toMatch(/no portal account/i);
     expect(await User.findOne({ email: "nobody@swift.com" })).toBeNull();
   });
+
+  it("keeps the licence state and class the form sends", async () => {
+    // The mobile form's exact payload.
+    const res = await req.post("/api/drivers/bulk", carrierUser, ny).send({
+      drivers: [
+        {
+          name: "Amit",
+          phone: "4154654448",
+          email: "",
+          licenseNumber: "E1990146",
+          licenseState: "CA",
+          licenseClass: "A",
+          licenseExpiry: "2028-03-05",
+        },
+      ],
+    });
+
+    expect(res.statusCode).toBe(201);
+    const driver = await withTenant({ locationId: String(ny._id) }, () =>
+      Driver.findOne({ name: "Amit" }),
+    );
+    expect(driver.licenseState).toBe("CA");
+    expect(driver.licenseClass).toBe("A");
+  });
+
+  it("brings back a removed driver, and their old login, when they are added again", async () => {
+    const first = await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Amit", email: "amit@swift.com" }] });
+    const driverId = first.body.created[0].driver._id;
+
+    await request(app)
+      .delete(`/api/drivers/${driverId}`)
+      .set("Authorization", `Bearer ${tokenFor(carrierUser)}`)
+      .set("x-location-id", String(ny._id));
+
+    const again = await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Amit Chhina", email: "amit@swift.com" }] });
+
+    expect(again.statusCode).toBe(201);
+    expect(again.body.created[0].password).toBeTruthy();
+
+    const drivers = await withTenant({ locationId: String(ny._id) }, () =>
+      Driver.find({ email: "amit@swift.com" }),
+    );
+    expect(drivers).toHaveLength(1);
+    expect(String(drivers[0]._id)).toBe(driverId);
+    expect(drivers[0].active).toBe(true);
+    expect(drivers[0].name).toBe("Amit Chhina");
+
+    const account = await User.findOne({ email: "amit@swift.com" }).select("+password");
+    expect(account.isActive).toBe(true);
+    expect(await bcrypt.compare(again.body.created[0].password, account.password)).toBe(true);
+  });
+
+  it("still refuses an email already on the active roster", async () => {
+    await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Amit", email: "amit@swift.com" }] });
+
+    const res = await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Amit", email: "amit@swift.com" }] });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.failed[0].message).toMatch(/already on this carrier's driver roster/);
+  });
+
+  it("explains when an owner-operator uses their own sign-in as the driver email", async () => {
+    const res = await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Swift Owner", email: "swift@carrier.com" }] });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.failed[0].message).toMatch(/carrier's own sign-in/);
+  });
 });
 
 describe("Roster isolation", () => {

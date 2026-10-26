@@ -194,37 +194,73 @@ const createOneDriver = async ({ input, carrier, actor, channel = "email" }) => 
     });
   }
 
+  // A removed driver is only deactivated (see deactivateDriver) and drops out of
+  // the carrier's roster, so adding them again by the same email is the natural
+  // thing to do. Bring that record back rather than refusing a duplicate the
+  // carrier has no way to see.
+  let revived = null;
   if (email) {
     const clash = await Driver.findOne({ fleetOwner: carrier._id, email });
-    if (clash) {
+    if (clash && clash.active !== false) {
       throw Object.assign(
         new Error(`${email} is already on this carrier's driver roster.`),
         { status: 409 },
       );
     }
+    revived = clash;
   }
 
   if (wantsLogin) {
     // Checked against every account, not just drivers: emails are the login
-    // identity system-wide, so a clash with a customer is just as fatal.
+    // identity system-wide, so a clash with a customer is just as fatal. The
+    // revived driver's own old login is not a clash — it is reissued below.
     const taken = await User.findOne({ email });
-    if (taken) {
-      throw Object.assign(new Error(`An account already exists for ${email}.`), {
-        status: 409,
-      });
+    const ownOldLogin =
+      taken && revived?.userId && String(taken._id) === String(revived.userId);
+    if (taken && !ownOldLogin) {
+      // An owner-operator adding themselves types their own sign-in address,
+      // and "an account already exists" does not tell them what to do instead.
+      const carriersOwn = carrier.userId && String(taken._id) === String(carrier.userId);
+      throw Object.assign(
+        new Error(
+          carriersOwn
+            ? `${email} is the carrier's own sign-in, so it cannot also be a driver login. Leave the email blank to add this driver without a separate login, or use a different address.`
+            : `An account already exists for ${email}.`,
+        ),
+        { status: 409 },
+      );
     }
   }
 
-  const driver = await Driver.create({
-    fleetOwner: carrier._id,
+  const details = {
     name,
     phone: trimmed(input.phone),
     email: email || undefined,
     licenseNumber: trimmed(input.licenseNumber),
+    licenseState: trimmed(input.licenseState),
+    licenseClass: trimmed(input.licenseClass),
     licenseExpiry: input.licenseExpiry || undefined,
     notes: trimmed(input.notes),
-    createdBy: actor?._id,
-  });
+  };
+
+  let driver;
+  if (revived) {
+    revived.set({ ...details, active: true });
+    driver = await revived.save();
+  } else {
+    driver = await Driver.create({
+      fleetOwner: carrier._id,
+      ...details,
+      createdBy: actor?._id,
+    });
+  }
+
+  // Undo for when the login cannot be issued: a revived driver goes back to
+  // being removed, a new one is deleted outright.
+  const rollBack = () =>
+    revived
+      ? Driver.updateOne({ _id: driver._id }, { active: false })
+      : Driver.deleteOne({ _id: driver._id });
 
   if (!wantsLogin) {
     return { driver, password: null, emailStatus: null };
@@ -238,7 +274,7 @@ const createOneDriver = async ({ input, carrier, actor, channel = "email" }) => 
   if (!carrier.userId) {
     // Roll the Driver back: leaving the record without the login the caller
     // asked for would read as success in the list.
-    await Driver.deleteOne({ _id: driver._id });
+    await rollBack();
     throw Object.assign(
       new Error(
         `${carrier.carrierName || "This carrier"} has no portal account yet, so drivers cannot be given logins under it. Ask the office to issue the carrier's credentials first.`,
@@ -249,27 +285,35 @@ const createOneDriver = async ({ input, carrier, actor, channel = "email" }) => 
 
   let account;
   try {
-    account = await User.create({
-      firstName: name,
-      lastName: "",
-      email,
-      phone: trimmed(input.phone),
-      // Hashed by the model's pre-save hook — see models/User.js.
-      password,
-      role: "driver",
-      isVerified: true,
-      isActive: true,
-      parentAccount: carrier.userId,
-      // A driver works the location their carrier belongs to. Read off the
-      // tenant context rather than the request so it cannot disagree with the
-      // Driver record that was just stamped with the same value.
-      locations: driver.locationId ? [driver.locationId] : [],
-      defaultLocation: driver.locationId || undefined,
-      addedBy: actor?._id,
-      addedByName: [actor?.firstName, actor?.lastName].filter(Boolean).join(" "),
-    });
+    // A revived driver gets their old sub-account back with a fresh password,
+    // so their history stays attached to one login.
+    const oldLogin = driver.userId ? await User.findById(driver.userId) : null;
+    if (oldLogin) {
+      oldLogin.set({ firstName: name, phone: trimmed(input.phone), password, isActive: true });
+      account = await oldLogin.save();
+    } else {
+      account = await User.create({
+        firstName: name,
+        lastName: "",
+        email,
+        phone: trimmed(input.phone),
+        // Hashed by the model's pre-save hook — see models/User.js.
+        password,
+        role: "driver",
+        isVerified: true,
+        isActive: true,
+        parentAccount: carrier.userId,
+        // A driver works the location their carrier belongs to. Read off the
+        // tenant context rather than the request so it cannot disagree with the
+        // Driver record that was just stamped with the same value.
+        locations: driver.locationId ? [driver.locationId] : [],
+        defaultLocation: driver.locationId || undefined,
+        addedBy: actor?._id,
+        addedByName: [actor?.firstName, actor?.lastName].filter(Boolean).join(" "),
+      });
+    }
   } catch (error) {
-    await Driver.deleteOne({ _id: driver._id });
+    await rollBack();
     throw error;
   }
 

@@ -2010,7 +2010,14 @@ function CarrierDriversScreen({ onBack }) {
       setEditing(null);
       await load({ silent: true });
     } catch (error) {
-      Alert.alert("Could not add", error.response?.data?.message || error.message);
+      // When the only row fails the server answers 400, so axios throws past
+      // the check above — the actual reason (usually an email that already has
+      // an account) is still in the body's failed[].
+      const data = error.response?.data;
+      Alert.alert(
+        "Could not add",
+        data?.failed?.[0]?.message || data?.message || error.message,
+      );
     } finally {
       setSaving(false);
     }
