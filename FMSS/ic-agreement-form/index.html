@@ -21,13 +21,6 @@
   .header-left h1 { font-size: 16px; margin: 0; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
   .header-left p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
   
-  /* View Switcher Tabs */
-  .view-tabs { display: flex; background: var(--bg); padding: 3px; border-radius: 8px; border: 1px solid var(--line); gap: 2px; }
-  .view-tab-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; font-weight: 600; border: none; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; transition: all 0.15s ease; }
-  .view-tab-btn:hover { color: var(--ink); }
-  .view-tab-btn.active { background: var(--panel); color: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
-  .badge { display: inline-flex; align-items: center; justify-content: center; padding: 1px 6px; font-size: 11px; font-weight: 700; border-radius: 10px; background: var(--soft); color: var(--accent); min-width: 18px; }
-  .view-tab-btn.active .badge { background: var(--accent); color: #fff; }
   
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; transition: all 0.15s ease; font-weight: 500; }
@@ -160,29 +153,22 @@
   <div class="header-left">
     <h1>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      Empire Transportation &mdash; IC Agreement
+      <span id="pageTitle">Empire Transportation &mdash; IC Agreement</span>
     </h1>
-    <p>USDOT # 2207543 &middot; 49 CFR Part 376 &middot; 15-Page Agreement</p>
+    <p id="pageSub">USDOT # 2207543 &middot; 49 CFR Part 376 &middot; 15-Page Agreement</p>
   </div>
 
-  <!-- View Switcher -->
-  <div class="view-tabs">
-    <button type="button" class="view-tab-btn active" id="btnTabForm">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      Agreement Form
-    </button>
-    <button type="button" class="view-tab-btn" id="btnTabAdmin">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      Admin Panel
-      <span class="badge" id="badgeCount">0</span>
-    </button>
+  <!-- Admin navigation. The form page shows only "Login" to the public; the
+       admin page is its own screen (#admin) with no form controls on it. -->
+  <div class="actions" id="adminNav">
+    <button type="button" id="btnLogin" title="Admin login">🔐 Login</button>
+    <button type="button" id="btnGoAdmin" style="display:none">🛡️ Admin Panel</button>
+    <button type="button" id="btnGoForm" style="display:none">← Agreement Form</button>
+    <span id="adminWho" class="admin-user-pill" style="display:none"></span>
+    <button type="button" class="btn-logout" id="btnLogoutAdmin" style="display:none" title="Logout from Admin Panel">🔒 Logout</button>
   </div>
 
-  <div id="adminUserSection" style="display:none; align-items:center;">
-    <button type="button" class="btn-logout" id="btnLogoutAdmin" title="Logout from Admin Panel">🔒 Logout</button>
-  </div>
-
-  <div class="actions">
+  <div class="actions" id="formActions">
     <button type="button" id="btnReset" title="Clear form fields">Clear</button>
     <button type="button" id="btnPreview" title="Re-render PDF">Refresh preview</button>
     <button type="button" id="btnOpen" title="Open PDF in a new browser tab">Open tab</button>
@@ -836,9 +822,12 @@
   $("#btnPreview").addEventListener("click", render);
   $("#btnOpen").addEventListener("click", async () => { if (await render()) window.open(url, "_blank"); });
 
-  // ─── View Switcher (Form vs Admin) with OTP Auth ─────────────────────────
+  // ─── Pages: the form (/) and the admin panel (#admin) ────────────────────
+  // The admin panel is its own page with its own address, so it can be
+  // bookmarked and the browser's back button leaves it. The public only ever
+  // sees a "Login" button; the panel exists for them only after signing in.
   const formView = $("#formView"), adminView = $("#adminView");
-  const btnTabForm = $("#btnTabForm"), btnTabAdmin = $("#btnTabAdmin");
+  let currentView = "form";
 
   // ─── Admin Authentication (Email + one-time code) ─────────────────────────
   const adminLoginModal = $("#adminLoginModal");
@@ -849,14 +838,29 @@
   const btnLoginSubmit = $("#btnLoginSubmit");
   const btnResendOtp = $("#btnResendOtp");
   const btnAuthClose = $("#btnAuthClose");
-  const adminUserSection = $("#adminUserSection");
   const btnLogoutAdmin = $("#btnLogoutAdmin");
   let codeSent = false;
 
+  // Header for the page being shown: form controls only on the form, admin
+  // controls only to a signed-in admin, and just "Login" for everyone else.
   function updateAdminHeaderAuth() {
-    const signedIn = !!getAdminSession();
-    adminUserSection.style.display = signedIn ? "inline-flex" : "none";
-    if (!signedIn) $("#badgeCount").textContent = "–";
+    const session = getAdminSession();
+    const onAdmin = currentView === "admin";
+    const show = (sel, on, display = "inline-flex") => { $(sel).style.display = on ? display : "none"; };
+
+    show("#formActions", !onAdmin, "flex");
+    show("#btnLogin", !session);
+    show("#btnGoAdmin", !!session && !onAdmin);
+    show("#btnGoForm", !!session && onAdmin);
+    show("#adminWho", !!session && onAdmin);
+    show("#btnLogoutAdmin", !!session);
+    $("#adminWho").textContent = session?.email || "";
+
+    $("#pageTitle").textContent = onAdmin ? "IC Agreement — Admin Panel" : "Empire Transportation — IC Agreement";
+    $("#pageSub").textContent = onAdmin
+      ? "Contractor agreements saved from the form"
+      : "USDOT # 2207543 · 49 CFR Part 376 · 15-Page Agreement";
+    document.title = onAdmin ? "IC Agreement — Admin Panel" : "IC Agreement Form";
   }
 
   function showAuthNotice(msg, type = "info") {
@@ -922,7 +926,7 @@
       closeAdminLogin();
       updateAdminHeaderAuth();
       showToast(`Signed in as ${data.user.email}`);
-      setView("admin");
+      go("admin");
     } catch (err) {
       showAuthNotice(err.message, "error");
     } finally {
@@ -940,37 +944,44 @@
     await api("/auth/ic-admin/logout", { method: "POST", auth: true }).catch(() => {});
     sessionStorage.removeItem(SESSION_KEY);
     cachedEntries = [];
-    updateAdminHeaderAuth();
-    setView("form");
+    go("form");
     showToast("Logged out from Admin Panel.");
   });
 
+  const viewFromUrl = () => (location.hash === "#admin" ? "admin" : "form");
+
+  // Show a page without touching the address bar. Asking for the admin page
+  // without a session lands on the form with the login box open.
   function setView(view) {
-    if (view === "admin") {
-      if (!getAdminSession()) {
-        openAdminLogin();
-        return;
-      }
-      formView.style.display = "none";
-      adminView.style.display = "block";
-      btnTabAdmin.classList.add("active");
-      btnTabForm.classList.remove("active");
-      updateAdminHeaderAuth();
-      refreshAdminPanel();
-    } else {
-      adminView.style.display = "none";
-      formView.style.display = "grid";
-      btnTabForm.classList.add("active");
-      btnTabAdmin.classList.remove("active");
-      updateAdminHeaderAuth();
-      render();
+    if (view === "admin" && !getAdminSession()) {
+      if (location.hash === "#admin") history.replaceState(null, "", location.pathname + location.search);
+      setView("form");
+      openAdminLogin();
+      return;
     }
+    currentView = view;
+    formView.style.display = view === "admin" ? "none" : "grid";
+    adminView.style.display = view === "admin" ? "block" : "none";
+    updateAdminHeaderAuth();
+    if (view === "admin") refreshAdminPanel();
+    else render();
   }
 
-  btnTabForm.addEventListener("click", () => setView("form"));
-  btnTabAdmin.addEventListener("click", () => setView("admin"));
-  $("#btnAdminNew").addEventListener("click", () => setView("form"));
-  $("#btnEmptyNew").addEventListener("click", () => setView("form"));
+  // Navigate: a new history entry, so Back returns to the previous page.
+  function go(view) {
+    if (view === "admin" && !getAdminSession()) return setView("admin");
+    if (view !== viewFromUrl()) {
+      history.pushState(null, "", location.pathname + location.search + (view === "admin" ? "#admin" : ""));
+    }
+    setView(view);
+  }
+
+  window.addEventListener("popstate", () => setView(viewFromUrl()));
+  $("#btnLogin").addEventListener("click", () => (getAdminSession() ? go("admin") : openAdminLogin()));
+  $("#btnGoAdmin").addEventListener("click", () => go("admin"));
+  $("#btnGoForm").addEventListener("click", () => go("form"));
+  $("#btnAdminNew").addEventListener("click", () => go("form"));
+  $("#btnEmptyNew").addEventListener("click", () => go("form"));
   $("#btnAdminRefresh").addEventListener("click", () => refreshAdminPanel());
   updateAdminHeaderAuth();
 
@@ -986,7 +997,6 @@
       showToast(err.message);
       return;
     }
-    $("#badgeCount").textContent = cachedEntries.length;
     renderMetrics(cachedEntries);
     renderTable();
   }
@@ -1257,7 +1267,7 @@
     form.elements.sameAck.dispatchEvent(new Event("change"));
     updatePlaceholders();
 
-    setView("form");
+    go("form");
     loadedEntryId = entry.id;
     showToast(`Loaded "${entry.name}" into form!`);
     render();
@@ -1475,7 +1485,7 @@
 
   // Initial state. The submissions count is shown only to a signed-in admin.
   reset();
-  if (getAdminSession()) refreshAdminPanel();
+  if (viewFromUrl() === "admin") setView("admin");
 })();
 </script>
 </body>
