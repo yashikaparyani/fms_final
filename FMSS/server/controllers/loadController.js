@@ -3210,26 +3210,10 @@ const assignFleetOwner = async (req, res) => {
   try {
     const { fleetOwnerId, fleetOwnerName } = req.body;
 
-    // ─── One truck, one load ─────────────────────────────────────────────────
-    // Checked here as well as on the carrier's own screens, because this is the
-    // office assigning directly and never goes near them. Reassigning a load to
-    // the carrier who already holds it is not a second load, so it is allowed —
-    // otherwise correcting a typo in a carrier name would be blocked by the
-    // load being corrected.
-    const availability = await carrierAvailability(fleetOwnerId);
-    if (
-      availability.atCapacity &&
-      availability.blockingLoad?.loadId !== req.params.loadId
-    ) {
-      return res.status(409).json({
-        code: "CARRIER_AT_CAPACITY",
-        message:
-          `${fleetOwnerName || "That carrier"} has no truck free — ` +
-          `${availability.running} of ${availability.trucks} already running, ` +
-          `including load ${availability.blockingLoad?.loadId || "in progress"}. ` +
-          "Pick another carrier, or wait until that load is delivered.",
-      });
-    }
+    // No capacity check here: the one-truck-one-load rule applies to bidding
+    // (placing and awarding bids). When the office assigns a carrier directly
+    // it is deliberate — they may know a truck is about to free up — so it
+    // goes through.
 
     // Read before the update so the trail can say who the load moved *from* —
     // a reassignment is exactly the change somebody later asks about, and

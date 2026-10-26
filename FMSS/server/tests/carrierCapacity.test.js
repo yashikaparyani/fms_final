@@ -208,7 +208,7 @@ describe("Assigning to a committed carrier", () => {
     await withEquipment(1);
   });
 
-  it("is refused, and says why", async () => {
+  it("is allowed when the office assigns directly — capacity only gates bidding", async () => {
     await makeLoad();
     await loadOnTheRoad();
 
@@ -216,12 +216,10 @@ describe("Assigning to a committed carrier", () => {
       .put("/api/loads/LD 0001/assign-fleet-owner")
       .send({ fleetOwnerId: carrier._id, fleetOwnerName: "Owner Operator" });
 
-    expect(res.statusCode).toBe(409);
-    expect(res.body.code).toBe("CARRIER_AT_CAPACITY");
-    expect(res.body.message).toMatch(/LD 0009/);
+    expect(res.statusCode).toBe(200);
 
-    const untouched = await seed(() => Load.findOne({ loadId: "LD 0001" }));
-    expect(untouched.assignedFleetOwner?.fleetOwnerId).toBeUndefined();
+    const assigned = await seed(() => Load.findOne({ loadId: "LD 0001" }));
+    expect(String(assigned.assignedFleetOwner?.fleetOwnerId)).toBe(String(carrier._id));
   });
 
   it("still allows the load they already hold to be reassigned to them", async () => {
