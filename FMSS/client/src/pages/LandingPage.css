@@ -80,8 +80,36 @@
 .landing-logo strong {
   display: block;
   line-height: 1.05;
-  font-size: 20px;
+  font-size: 22px;
+  font-weight: 800;
   letter-spacing: 0;
+}
+
+.landing-logo small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 500;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+/* The tagline runs across a window the width of the wordmark. */
+.landing-logo__ticker {
+  width: 128px;
+  overflow: hidden;
+}
+
+.landing-logo__ticker span {
+  display: inline-block;
+  padding-left: 100%;
+  animation: landing-ticker 9s linear infinite;
+}
+
+@keyframes landing-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 
 .landing-nav {
@@ -828,5 +856,10 @@
   .landing-card:hover,
   .landing-btn:hover {
     transform: none;
+  }
+
+  .landing-logo__ticker span {
+    padding-left: 0;
+    animation: none;
   }
 }

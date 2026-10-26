@@ -65,7 +65,7 @@ const actionCards = [
   },
   {
     icon: FaUserPlus,
-    title: "Join S Line",
+    title: "Join Bestloaders",
     text: "Create your free account and get access to powerful logistics tools and services.",
     link: "Join Now",
     to: "/client/register",
@@ -132,13 +132,15 @@ const footerColumns = [
 
 function Logo() {
   return (
-    <Link className="landing-logo" to="/" aria-label="S Line Transport home">
+    <Link className="landing-logo" to="/" aria-label="Bestloaders home">
       <span className="landing-logo__mark">
         <FaTruck />
       </span>
       <span>
-        <strong>S LINE</strong>
-        <strong>TRANSPORT</strong>
+        <strong>Bestloaders</strong>
+        <small className="landing-logo__ticker">
+          <span>Powered by S Line Transport</span>
+        </small>
       </span>
     </Link>
   );
@@ -286,7 +288,7 @@ function LandingPage() {
 
       <section className="landing-section landing-why" id="resources">
         <div className="landing-why__intro">
-          <h2>Why Choose<br />S Line Transportation Inc.?</h2>
+          <h2>Why Choose<br />Bestloaders?</h2>
           <p>
             Technology, experience and a customer-first approach make us the
             trusted logistics partner.
