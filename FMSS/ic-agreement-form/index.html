@@ -134,7 +134,15 @@
   .btn-logout:hover { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
 
   @media (max-width: 900px) {
-    #formView { grid-template-columns: 1fr; height: auto; }
+    /* Stacked, the panes no longer scroll on their own — the page has to.
+       Without this the body's overflow:hidden left nothing scrollable at all. */
+    html, body { height: auto; }
+    body { overflow: visible; }
+    #formView { grid-template-columns: 1fr; height: auto; overflow: visible; }
+    #adminView { height: auto; overflow: visible; padding: 16px 14px 40px; }
+    .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .entries-table { min-width: 640px; }
+    .search-box { min-width: 0; }
     form { border-right: 0; overflow: visible; padding: 16px 16px 24px; }
     .preview iframe { height: 75vh; flex: none; }
     header { flex-wrap: wrap; padding: 10px 14px; }
