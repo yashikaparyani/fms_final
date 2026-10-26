@@ -1,6 +1,6 @@
 const crypto = require("crypto");
-const mongoose = require("mongoose");
 const IcAgreement = require("../models/IcAgreement");
+const { sendAgreementCopies } = require("../services/icAgreementMail");
 
 // ─── IC agreement submissions ─────────────────────────────────────────────────
 // POST is public: whoever fills the form saves it, signed in or not. Everything
@@ -16,6 +16,8 @@ const MAX_ROWS = 50;
 const MAX_CELLS = 5;
 const SIG_MAX_LENGTH = 1024 * 1024;
 const PNG_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
+const PDF_MAX_BYTES = 5 * 1024 * 1024;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const TEXT_FIELDS = [
   "name", "street", "city", "state", "zip", "ein", "dl", "initials",
@@ -38,6 +40,19 @@ const signature = (value) =>
     : undefined;
 
 const sigMode = (value) => (value === "type" ? "type" : "draw");
+
+const email = (value) => {
+  const e = text(value).toLowerCase();
+  return EMAIL.test(e) ? e : undefined;
+};
+
+// The PDF the form built, base64 encoded, to attach to the emailed copies. It
+// is mailed, not stored. Anything that is not a PDF is dropped, not attached.
+const pdfAttachment = (value) => {
+  if (typeof value !== "string" || value.length > (PDF_MAX_BYTES * 4) / 3 + 4) return null;
+  const buf = Buffer.from(value, "base64");
+  return buf.subarray(0, 5).toString("latin1") === "%PDF-" ? buf : null;
+};
 
 const newAgreementId = () =>
   "ICA-" + Date.now().toString(36).toUpperCase() + crypto.randomBytes(2).toString("hex").toUpperCase();
@@ -73,6 +88,7 @@ const createAgreement = async (req, res) => {
 
     const agreement = await IcAgreement.create({
       ...data,
+      contractorEmail: email(body.email),
       agreementId: newAgreementId(),
       sameExec: !!body.sameExec,
       sameAck: !!body.sameAck,
@@ -87,8 +103,12 @@ const createAgreement = async (req, res) => {
     res.status(201).json({
       id: agreement.agreementId,
       createdAt: agreement.createdAt,
+      emailed: !!agreement.contractorEmail,
       message: `Agreement saved for ${agreement.name}.`,
     });
+
+    // After answering: the agreement is safe whatever the mail server does.
+    sendAgreementCopies(agreement, pdfAttachment(body.pdf));
   } catch (error) {
     console.error("[IC Agreement] create failed:", error);
     res.status(500).json({ message: "Could not save the agreement. Please try again." });

@@ -122,6 +122,68 @@ describe("Saving the form", () => {
   });
 });
 
+describe("Emailed copies", () => {
+  const PDF = Buffer.from("%PDF-1.7\n%test agreement\n").toString("base64");
+
+  /** Wait for the copies, which are sent after the response. */
+  const mailed = async (id) => {
+    for (let i = 0; i < 50; i += 1) {
+      const doc = await IcAgreement.findOne({ agreementId: id }).lean();
+      if (doc?.mailStatus?.at) return doc.mailStatus;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error("copies were never sent");
+  };
+
+  it("sends the contractor and the office a copy, with the PDF attached", async () => {
+    process.env.IC_NOTIFY_EMAILS = "office@empiretpt.com, ravi@empiretpt.com";
+
+    const res = await request(app)
+      .post("/api/ic-agreements")
+      .send(submission({ email: "Driver@Example.com", pdf: PDF }));
+
+    expect(await mailed(res.body.id)).toMatchObject({ contractor: "SENT", office: "SENT" });
+    const [toContractor, toOffice] = sendEmail.mock.calls.map((c) => c[0]);
+    expect(toContractor.to).toBe("driver@example.com");
+    expect(toOffice.to).toBe("office@empiretpt.com, ravi@empiretpt.com");
+    expect(toOffice.replyTo).toBe("driver@example.com");
+    for (const mail of [toContractor, toOffice]) {
+      expect(mail.attachments[0].contentType).toBe("application/pdf");
+      expect(mail.attachments[0].content.subarray(0, 5).toString()).toBe("%PDF-");
+    }
+  });
+
+  it("skips whichever side has no address", async () => {
+    process.env.IC_NOTIFY_EMAILS = "";
+
+    const res = await request(app).post("/api/ic-agreements").send(submission({ email: "not-an-email" }));
+
+    expect(await mailed(res.body.id)).toMatchObject({ contractor: "SKIPPED", office: "SKIPPED" });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not attach something that is not a PDF", async () => {
+    process.env.IC_NOTIFY_EMAILS = "office@empiretpt.com";
+
+    const res = await request(app)
+      .post("/api/ic-agreements")
+      .send(submission({ pdf: Buffer.from("<html>not a pdf</html>").toString("base64") }));
+
+    await mailed(res.body.id);
+    expect(sendEmail.mock.calls[0][0].attachments).toEqual([]);
+  });
+
+  it("keeps the agreement when the mail server fails", async () => {
+    process.env.IC_NOTIFY_EMAILS = "office@empiretpt.com";
+    sendEmail.mockResolvedValue({ sent: false, reason: "SEND_FAILED" });
+
+    const res = await request(app).post("/api/ic-agreements").send(submission({ email: "d@example.com" }));
+
+    expect(res.statusCode).toBe(201);
+    expect(await mailed(res.body.id)).toMatchObject({ contractor: "SEND_FAILED", office: "SEND_FAILED" });
+  });
+});
+
 describe("Reading submissions back", () => {
   it("is refused without a session", async () => {
     await request(app).post("/api/ic-agreements").send(submission());

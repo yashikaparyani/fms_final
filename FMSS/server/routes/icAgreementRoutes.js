@@ -17,7 +17,8 @@ const {
 // IC admin session (OTP sign-in, see controllers/icAdminOtpController.js).
 //
 // Mounted in index.js ahead of the global JSON parser, with a larger body limit:
-// a drawn signature is a PNG data URL and two of them outgrow the 100kb default.
+// drawn signatures (PNG data URLs) and the PDF for the emailed copies outgrow
+// the 100kb default.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const submitLimiter = rateLimit({

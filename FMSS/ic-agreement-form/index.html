@@ -195,6 +195,7 @@
     <p class="hint">Printed on page 1 and again in the &sect;30 Notice block on page 9.</p>
     <div class="grid">
       <label class="full">Contractor legal name <span class="req">*</span><input name="name" required placeholder="e.g. Acme Hauling LLC"></label>
+      <label class="full">Contractor email (a copy of the signed agreement is emailed here)<input type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
       <label class="full">Street address <span class="req">*</span><input name="street" required placeholder="123 Trucker Way"></label>
       <label>City <span class="req">*</span><input name="city" required placeholder="Long Beach"></label>
       <label>State <span class="req">*</span><input name="state" maxlength="20" required placeholder="CA"></label>
@@ -279,6 +280,7 @@
     <div class="admin-actions">
       <button type="button" id="btnAdminNew" class="primary">+ New Agreement</button>
       <button type="button" id="btnAdminRefresh">↻ Refresh</button>
+      <button type="button" id="btnFormQr">📱 Form QR</button>
       <button type="button" id="btnExportCSV">📥 Export CSV</button>
       <button type="button" id="btnExportJSON">📥 Backup JSON</button>
     </div>
@@ -359,6 +361,24 @@
       <button type="button" id="btnModalLoad" class="small">✏️ Load into Form</button>
       <button type="button" id="btnModalDownload" class="primary small">📄 Download PDF</button>
       <button type="button" id="btnModalClose2" class="small">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: FORM QR CODE ==================== -->
+<div id="qrModal" class="modal-backdrop" style="display:none">
+  <div class="modal-content" style="max-width:380px">
+    <div class="modal-header">
+      <h3>Agreement Form QR</h3>
+      <button type="button" class="small" id="btnQrClose">✕</button>
+    </div>
+    <div class="modal-body" style="text-align:center">
+      <img src="form-qr.png" alt="QR code linking to the IC agreement form" style="width:260px; height:260px; display:block; margin:0 auto 10px">
+      <div style="font-size:13px; color:var(--muted)">Scan to open the form:<br><strong>http://3.217.68.179/ic-agreement/</strong></div>
+    </div>
+    <div class="modal-footer">
+      <a href="form-qr.png" download="IC-Agreement-Form-QR.png"><button type="button" class="primary small">Download PNG</button></a>
+      <a href="form-qr.svg" download="IC-Agreement-Form-QR.svg"><button type="button" class="small">Download SVG (print)</button></a>
     </div>
   </div>
 </div>
@@ -501,20 +521,27 @@
     { p: 9, x: 189, y: rule(446.6), v: "initials", max: 79 },
     { p: 9, x: 408, y: rule(446.6), v: "carrierInitials", max: 85 },
     { p: 10, x: 351, y: rule(459.4), v: "initials", max: 79 },
-    { p: 13, x: 413.4, y: base(378.6), v: "exeDay", max: 8.8 },
+    // `cx` centres the value on that x instead of starting it there.
+    { p: 13, cx: 415.2, y: base(378.6), v: "exeDay", max: 14 },
     { p: 13, x: 451, y: base(378.6), v: "exeMonth", max: 46 },
-    { p: 13, x: 121.1, y: base(391.9), v: "exeYear2", max: 7.6 },
-    { p: 13, x: 144.6, y: base(391.9), v: "exeTime", max: 30 },
+    // The year and time on the next line are drawn by drawExecutionLine().
     { p: 13, x: 128, y: base(468.2), v: "signerNameTitle", max: 182 },
     { p: 13, x: 191, y: base(521.7), v: "ein", max: 118 },
     { p: 13, x: 265.5, y: base(542.7), v: "dl", max: 46 },
     { p: 13, x: 350, y: base(521.7), v: "carrierName", max: 205 },
     { p: 13, x: 345, y: base(542.7), v: "carrierTitle", max: 210 },
-    { p: 14, x: 378, y: base(349.6) - 11, v: "ackDate", max: 44, size: 9 },
-    { p: 14, x: 424, y: base(349.6) - 11, v: "ackTime", max: 62, size: 9 },
-    { p: 14, x: 386, y: base(468.2) - 11, v: "ackDate", max: 40, size: 9 },
-    { p: 14, x: 428, y: base(468.2) - 11, v: "ackTime", max: 62, size: 9 },
+    // Appendix A acknowledgements: each value centred under its own "Date" /
+    // "Time (am/pm)" label, not started to the left of it under the signature line.
+    { p: 14, cx: 399.5, y: base(349.6) - 12, v: "ackDate", max: 46, size: 10 },
+    { p: 14, cx: 454.0, y: base(349.6) - 12, v: "ackTime", max: 60, size: 10 },
+    { p: 14, cx: 406.8, y: base(468.2) - 12, v: "ackDate", max: 46, size: 10 },
+    { p: 14, cx: 458.4, y: base(468.2) - 12, v: "ackTime", max: 60, size: 10 },
   ];
+  // Page 13: "…, 20__, at ______ (am/pm)". The template leaves 8pt for the year
+  // and 33pt for the time, which shrank both to a size nobody could read. The
+  // blanks are painted over and the line re-set at body size; AM or PM is then
+  // ringed in the template's own "(am/pm)". Measured from the template.
+  const EXEC_LINE = { p: 13, y: base(391.9), from: 121.2, to: 174.6, top: 382.3, bottom: 394.6, am: [178.8, 191.8], pm: [194.7, 208.3] };
   const FOOTER_INITIALS = { x: 177, y: rule(770), v: "initials", max: 55, size: 9 };
   const SIGNATURES = [
     { p: 13, who: "contractor", x: 164, y: 564.7, w: 129, h: 17 },
@@ -538,14 +565,36 @@
   const initialsOf = (s) => s.split(/\s+/).filter(Boolean).slice(0, 3).map((w) => w[0].toUpperCase()).join("");
   const rowsOf = (sel) => Array.from(document.querySelectorAll(`${sel} tbody tr`)).map((tr) => Array.from(tr.querySelectorAll("input")).map((i) => i.value.trim())).filter((r) => r.some(Boolean));
 
+  // Every date and time printed on the agreement, from the raw form values. One
+  // function for both the live form and a saved entry re-downloaded from the
+  // admin panel, so the two PDFs cannot drift apart.
+  function dateFields({ effDate, effTime, sameExec, exeDate, exeTime, sameAck, ackDate, ackTime }) {
+    const eff = parseDate(effDate), effT = parseTime(effTime);
+    const exe = sameExec ? eff : parseDate(exeDate);
+    const exeT = sameExec ? effT : parseTime(exeTime);
+    const ack = sameAck ? exe : parseDate(ackDate);
+    const ackT = sameAck ? exeT : parseTime(ackTime);
+    return {
+      effDayOrd: eff ? ordinal(eff.d) : "",
+      effMonth: eff ? MONTHS[eff.m - 1] : "",
+      effYear2: eff ? String(eff.y).slice(-2) : "",
+      effHour: effT ? h12(effT) : "",
+      effMinAmPm: effT ? `${effT.min} ${ampm(effT)}` : "",
+      exeDay: exe ? String(exe.d) : "",
+      exeMonth: exe ? MONTHS[exe.m - 1] : "",
+      exeYear2: exe ? String(exe.y).slice(-2) : "",
+      // Page 13 prints the clock time in the blank and rings AM or PM in the
+      // template's own "(am/pm)", rather than writing "PM (am/pm)".
+      exeClock: exeT ? `${h12(exeT)}:${exeT.min}` : "",
+      exeAmPm: exeT ? ampm(exeT) : "",
+      ackDate: ack ? `${ack.m}/${ack.d}/${ack.y}` : "",
+      ackTime: ackT ? `${h12(ackT)}:${ackT.min} ${ampm(ackT)}` : "",
+    };
+  }
+
   function context() {
-    const eff = parseDate(val("effDate")), effT = parseTime(val("effTime"));
     const same = form.elements.sameExec.checked;
-    const exe = same ? eff : parseDate(val("exeDate"));
-    const exeT = same ? effT : parseTime(val("exeTime"));
     const sameAck = form.elements.sameAck.checked;
-    const ack = sameAck ? exe : parseDate(val("ackDate"));
-    const ackT = sameAck ? exeT : parseTime(val("ackTime"));
     const signer = val("signerName"), title = val("signerTitle");
     return {
       effDateRaw: val("effDate"),
@@ -556,11 +605,11 @@
       sameAck: sameAck,
       ackDateRaw: val("ackDate"),
       ackTimeRaw: val("ackTime"),
-      effDayOrd: eff ? ordinal(eff.d) : "",
-      effMonth: eff ? MONTHS[eff.m - 1] : "",
-      effYear2: eff ? String(eff.y).slice(-2) : "",
-      effHour: effT ? h12(effT) : "",
-      effMinAmPm: effT ? `${effT.min} ${ampm(effT)}` : "",
+      ...dateFields({
+        effDate: val("effDate"), effTime: val("effTime"),
+        sameExec: same, exeDate: val("exeDate"), exeTime: val("exeTime"),
+        sameAck, ackDate: val("ackDate"), ackTime: val("ackTime"),
+      }),
       name: val("name"),
       street: val("street"),
       city: val("city"),
@@ -569,10 +618,6 @@
       cityStateZip: [val("city"), val("state"), val("zip")].filter(Boolean).join(", "),
       initials: (val("initials") || initialsOf(signer || val("name"))).toUpperCase(),
       carrierInitials: (val("carrierInitials") || initialsOf(val("carrierName"))).toUpperCase(),
-      exeDay: exe ? String(exe.d) : "",
-      exeMonth: exe ? MONTHS[exe.m - 1] : "",
-      exeYear2: exe ? String(exe.y).slice(-2) : "",
-      exeTime: exeT ? `${h12(exeT)}:${exeT.min} ${ampm(exeT)}` : "",
       signerName: signer,
       signerTitle: title,
       signerNameTitle: [signer, title].filter(Boolean).join(" / "),
@@ -580,8 +625,6 @@
       dl: val("dl"),
       carrierName: val("carrierName"),
       carrierTitle: val("carrierTitle"),
-      ackDate: ack ? `${ack.m}/${ack.d}/${ack.y}` : "",
-      ackTime: ackT ? `${h12(ackT)}:${ackT.min} ${ampm(ackT)}` : "",
       typed: { contractor: signer, carrier: val("carrierName") },
       equipment: rowsOf("#equipRows"),
       rates: rowsOf("#rateRows"),
@@ -616,13 +659,38 @@
     const bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
     const italic = await pdf.embedFont(StandardFonts.TimesRomanItalic);
 
-    const text = (page, raw, x, y, { size = BODY, max, face = font } = {}) => {
+    const text = (page, raw, x, y, { size = BODY, max, face = font, cx } = {}) => {
       const t = clean(raw);
       if (!t) return;
-      page.drawText(t, { x, y, size: fit(face, t, size, max), font: face, color: INK });
+      const s = fit(face, t, size, max);
+      if (cx !== undefined) x = cx - face.widthOfTextAtSize(t, s) / 2;
+      page.drawText(t, { x, y, size: s, font: face, color: INK });
+    };
+
+    const drawExecutionLine = () => {
+      if (!ctx.exeYear2 && !ctx.exeClock) return;
+      const L = EXEC_LINE, page = pages[L.p - 1];
+      page.drawRectangle({ x: L.from, y: H - L.bottom, width: L.to - L.from, height: L.bottom - L.top, color: rgb(1, 1, 1) });
+      let x = L.from;
+      const put = (t, color) => {
+        page.drawText(t, { x, y: L.y, size: BODY, font, color });
+        x += font.widthOfTextAtSize(t, BODY);
+      };
+      put(ctx.exeYear2 || "__", INK);
+      put(", at ", rgb(0, 0, 0));
+      if (ctx.exeClock) put(ctx.exeClock, INK);
+      const ring = ctx.exeAmPm === "AM" ? L.am : ctx.exeAmPm === "PM" ? L.pm : null;
+      if (ring) {
+        page.drawEllipse({
+          x: (ring[0] + ring[1]) / 2, y: L.y + 3.4,
+          xScale: (ring[1] - ring[0]) / 2, yScale: 6.4,
+          borderColor: INK, borderWidth: 0.8,
+        });
+      }
     };
 
     FIELDS.forEach((f) => text(pages[f.p - 1], ctx[f.v], f.x, f.y, f));
+    drawExecutionLine();
     pages.forEach((page) => text(page, ctx[FOOTER_INITIALS.v], FOOTER_INITIALS.x, FOOTER_INITIALS.y, FOOTER_INITIALS));
 
     const images = {};
@@ -735,16 +803,26 @@
   let lastSaved = null;        // { key, id } of the last payload sent
   let loadedEntryId = null;    // set while the form shows a saved agreement, unedited
 
-  async function saveRecord(auto = false) {
+  // `pdfBytes` is the PDF just built for a download; a plain Save builds one.
+  // It travels with the submission only so the server can email it as the
+  // contractor's and the office's copy.
+  async function saveRecord(auto = false, pdfBytes = null) {
     const ctx = context();
     if (!ctx.name) {
       if (!auto) alert("Please enter Contractor legal name before saving.");
       return null;
     }
     if (auto && loadedEntryId) return null;
+    const emailInput = form.elements.email;
+    if (!auto && emailInput.value.trim() && !emailInput.checkValidity()) {
+      alert("Please check the contractor email address.");
+      emailInput.focus();
+      return null;
+    }
 
     const entry = {
       name: ctx.name,
+      email: emailInput.checkValidity() ? val("email") : "",
       signerName: ctx.signerName,
       signerTitle: ctx.signerTitle,
       street: ctx.street,
@@ -789,9 +867,12 @@
     const btn = $("#btnSaveRecord");
     btn.disabled = true;
     try {
-      const saved = await Submissions.create(entry);
+      const bytes = pdfBytes || (await build());
+      const saved = await Submissions.create({ ...entry, pdf: toBase64(bytes) });
       lastSaved = { key, id: saved.id };
-      showToast(`Saved agreement for "${entry.name}" (${saved.id}).`);
+      showToast(saved.emailed
+        ? `Saved (${saved.id}). A copy is being emailed to ${entry.email}.`
+        : `Saved agreement for "${entry.name}" (${saved.id}).`);
       refreshAdminPanel();
       return lastSaved;
     } catch (err) {
@@ -816,8 +897,14 @@
     document.body.appendChild(a); a.click(); a.remove();
 
     // Saved to the server as well, so the office has it on file.
-    await saveRecord(true);
+    await saveRecord(true, bytes);
   });
+
+  function toBase64(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
 
   $("#btnPreview").addEventListener("click", render);
   $("#btnOpen").addEventListener("click", async () => { if (await render()) window.open(url, "_blank"); });
@@ -983,6 +1070,9 @@
   $("#btnAdminNew").addEventListener("click", () => go("form"));
   $("#btnEmptyNew").addEventListener("click", () => go("form"));
   $("#btnAdminRefresh").addEventListener("click", () => refreshAdminPanel());
+  $("#btnFormQr").addEventListener("click", () => { $("#qrModal").style.display = "flex"; });
+  $("#btnQrClose").addEventListener("click", () => { $("#qrModal").style.display = "none"; });
+  $("#qrModal").addEventListener("click", (e) => { if (e.target === $("#qrModal")) $("#qrModal").style.display = "none"; });
   updateAdminHeaderAuth();
 
   // ─── Admin Panel Logic ────────────────────────────────────────────────────
@@ -1137,6 +1227,8 @@
         <div class="detail-grid">
           <div class="detail-item"><span class="detail-label">Legal Name</span><span class="detail-val">${esc(entry.name)}</span></div>
           <div class="detail-item"><span class="detail-label">EIN</span><span class="detail-val">${esc(entry.ein)}</span></div>
+          <div class="detail-item"><span class="detail-label">Email</span><span class="detail-val">${esc(entry.contractorEmail || "-")}</span></div>
+          <div class="detail-item"><span class="detail-label">Emailed copies</span><span class="detail-val">Contractor: ${esc(entry.mailStatus?.contractor || "-")} &middot; Office: ${esc(entry.mailStatus?.office || "-")}</span></div>
           <div class="detail-item"><span class="detail-label">Address</span><span class="detail-val">${esc(entry.street)}</span></div>
           <div class="detail-item"><span class="detail-label">City, State ZIP</span><span class="detail-val">${esc([entry.city, entry.state, entry.zip].filter(Boolean).join(", "))}</span></div>
           <div class="detail-item"><span class="detail-label">Driver License</span><span class="detail-val">${esc(entry.dl || "-")}</span></div>
@@ -1214,6 +1306,7 @@
     form.elements.ackTime.value = entry.ackTime || "";
 
     form.elements.name.value = entry.name || "";
+    form.elements.email.value = entry.contractorEmail || "";
     form.elements.street.value = entry.street || "";
     form.elements.city.value = entry.city || "";
     form.elements.state.value = entry.state || "";
@@ -1277,18 +1370,8 @@
   async function downloadSavedEntryPDF(entry) {
     showToast(`Generating PDF for ${entry.name}...`);
     try {
-      const eff = parseDate(entry.effDate), effT = parseTime(entry.effTime);
-      const exe = entry.sameExec ? eff : parseDate(entry.exeDate);
-      const exeT = entry.sameExec ? effT : parseTime(entry.exeTime);
-      const ack = entry.sameAck ? exe : parseDate(entry.ackDate);
-      const ackT = entry.sameAck ? exeT : parseTime(entry.ackTime);
-
       const ctxObj = {
-        effDayOrd: eff ? ordinal(eff.d) : "",
-        effMonth: eff ? MONTHS[eff.m - 1] : "",
-        effYear2: eff ? String(eff.y).slice(-2) : "",
-        effHour: effT ? h12(effT) : "",
-        effMinAmPm: effT ? `${effT.min} ${ampm(effT)}` : "",
+        ...dateFields(entry),
         name: entry.name,
         street: entry.street,
         city: entry.city,
@@ -1297,17 +1380,11 @@
         cityStateZip: [entry.city, entry.state, entry.zip].filter(Boolean).join(", "),
         initials: (entry.initials || initialsOf(entry.signerName || entry.name)).toUpperCase(),
         carrierInitials: (entry.carrierInitials || initialsOf(entry.carrierName)).toUpperCase(),
-        exeDay: exe ? String(exe.d) : "",
-        exeMonth: exe ? MONTHS[exe.m - 1] : "",
-        exeYear2: exe ? String(exe.y).slice(-2) : "",
-        exeTime: exeT ? `${h12(exeT)}:${exeT.min} ${ampm(exeT)}` : "",
         signerNameTitle: [entry.signerName, entry.signerTitle].filter(Boolean).join(" / "),
         ein: entry.ein,
         dl: entry.dl,
         carrierName: entry.carrierName,
         carrierTitle: entry.carrierTitle,
-        ackDate: ack ? `${ack.m}/${ack.d}/${ack.y}` : "",
-        ackTime: ackT ? `${h12(ackT)}:${ackT.min} ${ampm(ackT)}` : "",
         typed: { contractor: entry.signerName, carrier: entry.carrierName },
         equipment: entry.equipment || [],
         rates: entry.rates || [],
@@ -1335,7 +1412,7 @@
   // ─── Export CSV & JSON ────────────────────────────────────────────────────
   $("#btnExportCSV").addEventListener("click", () => {
     if (!cachedEntries.length) return alert("No entries to export.");
-    const headers = ["ID", "Submission Date", "Contractor Legal Name", "Signer Name", "Signer Title", "EIN", "DL", "Street", "City", "State", "ZIP", "Equipment Units", "Carrier Name"];
+    const headers = ["ID", "Submission Date", "Contractor Legal Name", "Contractor Email", "Signer Name", "Signer Title", "EIN", "DL", "Street", "City", "State", "ZIP", "Equipment Units", "Carrier Name"];
     // Quoted, and a leading = + - @ neutralised: these values were typed by the
     // public, and a spreadsheet would otherwise run them as formulas.
     const cell = (v) => {
@@ -1343,7 +1420,7 @@
       return `"${(/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""')}"`;
     };
     const rows = cachedEntries.map((e) => [
-      e.id, e.createdAt, e.name, e.signerName, e.signerTitle, e.ein, e.dl,
+      e.id, e.createdAt, e.name, e.contractorEmail, e.signerName, e.signerTitle, e.ein, e.dl,
       e.street, e.city, e.state, e.zip, (e.equipment || []).length, e.carrierName,
     ].map(cell));
 

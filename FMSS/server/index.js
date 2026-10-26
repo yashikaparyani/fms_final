@@ -72,10 +72,11 @@ app.set("trust proxy", 1);
 
 // Middleware
 app.use(cors());
-// IC agreement submissions carry drawn signatures as PNG data URLs, which
-// outgrow the default 100kb body. Parsed here first, with its own limit, so the
-// global parser below leaves them alone.
-app.use("/api/ic-agreements", express.json({ limit: "3mb" }));
+// IC agreement submissions carry drawn signatures as PNG data URLs and the
+// built PDF (for the emailed copies), which outgrow the default 100kb body.
+// Parsed here first, with its own limit, so the global parser below leaves
+// them alone.
+app.use("/api/ic-agreements", express.json({ limit: "8mb" }));
 app.use(express.json());
 
 // Express 5 leaves req.body undefined when a request arrives with no body or no

@@ -20,6 +20,8 @@ const icAgreementSchema = new mongoose.Schema(
     agreementId: { type: String, required: true, unique: true, index: true },
 
     name: { type: String, trim: true, required: true },
+    // Where the contractor's copy of the signed PDF is mailed. Optional.
+    contractorEmail: { type: String, trim: true, lowercase: true },
     street: { type: String, trim: true },
     city: { type: String, trim: true },
     state: { type: String, trim: true },
@@ -63,6 +65,15 @@ const icAgreementSchema = new mongoose.Schema(
     },
 
     fileName: String,
+
+    // What happened to the two copies mailed on submission (see
+    // services/icAgreementMail.js): an emailer status such as "SENT" or
+    // "SEND_FAILED", or "SKIPPED" when there was nobody to send to.
+    mailStatus: {
+      contractor: String,
+      office: String,
+      at: Date,
+    },
 
     // Evidence of who submitted it, as the other signed agreements record.
     submittedIp: String,
