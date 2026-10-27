@@ -282,6 +282,15 @@ describe("POST /api/drivers/bulk", () => {
     expect(res.statusCode).toBe(400);
     expect(res.body.failed[0].message).toMatch(/carrier's own sign-in/);
   });
+
+  it("puts the reason in the top-level message when nothing was added", async () => {
+    // Installed mobile builds read only `message` on a failed add.
+    const res = await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Swift Owner", email: "swift@carrier.com" }] });
+
+    expect(res.body.message).toBe(res.body.failed[0].message);
+  });
 });
 
 describe("Roster isolation", () => {

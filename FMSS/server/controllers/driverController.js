@@ -815,13 +815,22 @@ const createDriversBulk = async (req, res) => {
 
     const withLogins = created.filter((c) => c.password).length;
 
+    // Installed mobile builds only show `message` when nothing was added, so
+    // carry the row's actual reason there rather than a bare count.
+    const noneAdded =
+      failed.length === 1
+        ? failed[0].message
+        : `None of the ${failed.length} rows could be added: ${failed
+            .map((f) => f.message)
+            .join(" ")}`;
+
     res.status(status).json({
       message:
         failed.length === 0
           ? `${created.length} driver(s) added${withLogins ? `, ${withLogins} with app logins` : ""}.`
           : created.length
             ? `${created.length} added, ${failed.length} could not be added.`
-            : `None of the ${failed.length} rows could be added.`,
+            : noneAdded,
       createdCount: created.length,
       failedCount: failed.length,
       created,
