@@ -210,6 +210,11 @@ const createOneDriver = async ({ input, carrier, actor, channel = "email" }) => 
     revived = clash;
   }
 
+  // An owner-operator adding themselves types their own sign-in address. They
+  // already run their loads from the carrier login, so they go on the roster
+  // with no second login rather than being refused.
+  let usesCarrierLogin = false;
+
   if (wantsLogin) {
     // Checked against every account, not just drivers: emails are the login
     // identity system-wide, so a clash with a customer is just as fatal. The
@@ -217,18 +222,12 @@ const createOneDriver = async ({ input, carrier, actor, channel = "email" }) => 
     const taken = await User.findOne({ email });
     const ownOldLogin =
       taken && revived?.userId && String(taken._id) === String(revived.userId);
-    if (taken && !ownOldLogin) {
-      // An owner-operator adding themselves types their own sign-in address,
-      // and "an account already exists" does not tell them what to do instead.
-      const carriersOwn = carrier.userId && String(taken._id) === String(carrier.userId);
-      throw Object.assign(
-        new Error(
-          carriersOwn
-            ? `${email} is the carrier's own sign-in, so it cannot also be a driver login. Leave the email blank to add this driver without a separate login, or use a different address.`
-            : `An account already exists for ${email}.`,
-        ),
-        { status: 409 },
-      );
+    usesCarrierLogin =
+      !!taken && !!carrier.userId && String(taken._id) === String(carrier.userId);
+    if (taken && !ownOldLogin && !usesCarrierLogin) {
+      throw Object.assign(new Error(`An account already exists for ${email}.`), {
+        status: 409,
+      });
     }
   }
 
@@ -262,8 +261,8 @@ const createOneDriver = async ({ input, carrier, actor, channel = "email" }) => 
       ? Driver.updateOne({ _id: driver._id }, { active: false })
       : Driver.deleteOne({ _id: driver._id });
 
-  if (!wantsLogin) {
-    return { driver, password: null, emailStatus: null };
+  if (!wantsLogin || usesCarrierLogin) {
+    return { driver, password: null, emailStatus: null, usesCarrierLogin };
   }
 
   const password = trimmed(input.password) || generatePassword();
@@ -710,7 +709,7 @@ const createDriver = async (req, res) => {
       requestedId: req.body.fleetOwnerId,
     });
 
-    const { driver, password, emailStatus } = await createOneDriver({
+    const { driver, password, emailStatus, usesCarrierLogin } = await createOneDriver({
       input: req.body,
       carrier,
       actor: req.user,
@@ -724,7 +723,9 @@ const createDriver = async (req, res) => {
         ? emailStatus?.sent
           ? `${driver.name} added — login details emailed.`
           : `${driver.name} added. Share the password shown here.`
-        : `${driver.name} added.`,
+        : usesCarrierLogin
+          ? `${driver.name} added — they drive under the carrier's own sign-in.`
+          : `${driver.name} added.`,
       driver: toListItem(driver, { carrierName: carrier.carrierName }),
       // Shown once, at creation, so the carrier can hand it to the driver in
       // person — which is how it usually happens.
@@ -801,6 +802,7 @@ const createDriversBulk = async (req, res) => {
           driver: toListItem(result.driver, { carrierName: carrier.carrierName }),
           password: result.password,
           emailStatus: result.emailStatus,
+          usesCarrierLogin: !!result.usesCarrierLogin,
         });
       } catch (error) {
         failed.push({
@@ -1064,9 +1066,13 @@ const sendCredentialsToDriver = async (req, res) => {
 
       const taken = await User.findOne({ email });
       if (taken) {
-        return res
-          .status(409)
-          .json({ message: `An account already exists for ${email}.` });
+        const carriersOwn =
+          carrier?.userId && String(taken._id) === String(carrier.userId);
+        return res.status(409).json({
+          message: carriersOwn
+            ? `${email} is the carrier's own sign-in — ${driver.name} already uses that login. Change the driver's email to give them a separate one.`
+            : `An account already exists for ${email}.`,
+        });
       }
 
       const account = await User.create({

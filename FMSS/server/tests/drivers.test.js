@@ -274,21 +274,42 @@ describe("POST /api/drivers/bulk", () => {
     expect(res.body.failed[0].message).toMatch(/already on this carrier's driver roster/);
   });
 
-  it("explains when an owner-operator uses their own sign-in as the driver email", async () => {
+  it("adds an owner-operator under their own sign-in without a second login", async () => {
     const res = await req
       .post("/api/drivers/bulk", carrierUser, ny)
       .send({ drivers: [{ name: "Swift Owner", email: "swift@carrier.com" }] });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body.failed[0].message).toMatch(/carrier's own sign-in/);
+    expect(res.statusCode).toBe(201);
+    expect(res.body.created[0].usesCarrierLogin).toBe(true);
+    expect(res.body.created[0].password).toBeNull();
+
+    const owner = await withTenant({ locationId: String(ny._id) }, () =>
+      Driver.findOne({ email: "swift@carrier.com" }),
+    );
+    expect(owner.userId).toBeUndefined();
+    expect(await User.countDocuments({ email: "swift@carrier.com" })).toBe(1);
+
+    // Their next driver still gets a login of their own, under this carrier.
+    const next = await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Second Driver", email: "second@swift.com" }] });
+
+    expect(next.statusCode).toBe(201);
+    const account = await User.findOne({ email: "second@swift.com" });
+    expect(account.role).toBe("driver");
+    expect(String(account.parentAccount)).toBe(String(carrierUser._id));
   });
 
   it("puts the reason in the top-level message when nothing was added", async () => {
     // Installed mobile builds read only `message` on a failed add.
+    await req
+      .post("/api/drivers/bulk", carrierUser, ny)
+      .send({ drivers: [{ name: "Amit", email: "amit@swift.com" }] });
     const res = await req
       .post("/api/drivers/bulk", carrierUser, ny)
-      .send({ drivers: [{ name: "Swift Owner", email: "swift@carrier.com" }] });
+      .send({ drivers: [{ name: "Amit", email: "amit@swift.com" }] });
 
+    expect(res.statusCode).toBe(400);
     expect(res.body.message).toBe(res.body.failed[0].message);
   });
 });
