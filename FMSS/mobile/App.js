@@ -2036,16 +2036,41 @@ function CarrierDriversScreen({ onBack }) {
     }
   };
 
-  const uploadLicence = async (driver) => {
+  // The licence is usually in the carrier's hand, so photographing it is the
+  // quick path; a scan or PDF already on the phone is the other.
+  const uploadLicence = (driver) => {
+    Alert.alert("Licence copy", `How do you want to add ${driver.name}'s licence?`, [
+      { text: "Take photo", onPress: () => photographLicence(driver) },
+      { text: "Choose file", onPress: () => pickLicenceFile(driver) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const photographLicence = async (driver) => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert(
+        "Camera permission required",
+        "Camera access is needed to photograph the licence.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (result.canceled || !result.assets?.[0]) return;
+    await sendLicence(driver, result.assets[0]);
+  };
+
+  const pickLicenceFile = async (driver) => {
     const picked = await DocumentPicker.getDocumentAsync({
       type: ["image/*", "application/pdf"],
       copyToCacheDirectory: true,
     });
-    if (picked.canceled) return;
+    if (picked.canceled || !picked.assets?.[0]) return;
+    await sendLicence(driver, picked.assets[0]);
+  };
 
-    const asset = picked.assets?.[0];
-    if (!asset) return;
-
+  const sendLicence = async (driver, asset) => {
     const body = new FormData();
     body.append("license", {
       uri: asset.uri,
