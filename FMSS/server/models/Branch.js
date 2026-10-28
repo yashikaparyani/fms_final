@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { normalizeLocationName } = require("../utils/locationName");
 
 // ─── Branch — the tenant ──────────────────────────────────────────────────────
 // One operating location of the business. Every load, customer, carrier and
@@ -12,10 +13,12 @@ const mongoose = require("mongoose");
 
 const branchSchema = new mongoose.Schema(
   {
+    // Stored in one style whatever was typed — see utils/locationName.js.
     name: {
       type: String,
       required: [true, "Location name is required"],
       trim: true,
+      set: normalizeLocationName,
     },
 
     // Goes into every ID this branch issues — NY-LD-0001, NY-FO-0001 — so it is
