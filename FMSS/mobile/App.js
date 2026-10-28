@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   BackHandler,
   FlatList,
   Image,
@@ -33,8 +34,11 @@ import api, {
   API_BASE_URL,
   TOKEN_KEY,
   clearSession,
+  flushClientErrors,
   getStoredSession,
+  reportClientError,
   saveSession,
+  withRetry,
 } from "./src/api";
 import {
   brand,
@@ -5633,6 +5637,9 @@ function FleetHomeScreen({ session, onLogout }) {
   const [available, setAvailable] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [booted, setBooted] = useState(false);
+  const [dashboardError, setDashboardError] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const lastDashboardLoad = useRef(0);
 
   // Android hardware back button handler: closes active overlays or returns to home tab
   useEffect(() => {
@@ -5741,43 +5748,76 @@ function FleetHomeScreen({ session, onLogout }) {
    */
   const loadDashboard = useCallback(async () => {
     setRefreshing(true);
+    lastDashboardLoad.current = Date.now();
 
-    const statsReq = api
-      .get("/stats")
-      .then((res) => setStats(res.data))
-      .catch(() => null);
+    // Still one failure per request, but no longer a silent one: a dashboard
+    // that could not load used to show the same zeros as a carrier with no
+    // work, and the carrier rang the office believing their loads were gone.
+    const failed = [];
+    const fetchInto = (path, config, apply) =>
+      withRetry(() => api.get(path, config))
+        .then((res) => apply(res.data))
+        .catch((error) => {
+          failed.push(path);
+          reportClientError({ where: "dashboard", path, error });
+        });
 
-    const carrierReqs = carrierSide
-      ? [
-          api
-            .get("/fleet-owners/assignedLoad")
-            .then((res) =>
-              setAssigned(
-                (res.data || []).filter(
-                  (load) =>
-                    load &&
-                    load.loadId &&
-                    !completedStatuses.includes(load.transportStatus),
-                ),
+    const requests = [
+      fetchInto("/stats", undefined, (data) => setStats(data)),
+      carrierSide
+        ? fetchInto("/fleet-owners/assignedLoad", undefined, (data) =>
+            setAssigned(
+              (data || []).filter(
+                (load) =>
+                  load &&
+                  load.loadId &&
+                  !completedStatuses.includes(load.transportStatus),
               ),
-            )
-            .catch(() => null),
-          isCarrier
-            ? api
-                .get("/loads", { params: { bidStatus: "OPEN" } })
-                .then((res) => setAvailable(res.data || []))
-                .catch(() => null)
-            : null,
-        ].filter(Boolean)
-      : [];
+            ),
+          )
+        : null,
+      carrierSide && isCarrier
+        ? fetchInto("/loads", { params: { bidStatus: "OPEN" } }, (data) =>
+            setAvailable(data || []),
+          )
+        : null,
+    ].filter(Boolean);
 
-    await Promise.all([statsReq, ...carrierReqs]);
+    await Promise.all(requests);
+
+    if (failed.length) {
+      setDashboardError(
+        failed.length === requests.length
+          ? "Couldn't reach the server, so these numbers may be out of date."
+          : "Part of your dashboard didn't load, so some numbers may be out of date.",
+      );
+    } else {
+      setDashboardError(null);
+      setUpdatedAt(new Date());
+      // Through to the server again, so anything that failed earlier can be
+      // reported now.
+      flushClientErrors();
+    }
+
     setRefreshing(false);
     setBooted(true);
   }, [carrierSide, isCarrier]);
 
   useEffect(() => {
     loadDashboard();
+  }, [loadDashboard]);
+
+  // The dashboard used to load once, when it first mounted. A phone left on
+  // the home screen for hours came back to whatever was true that morning —
+  // before the load was assigned. Coming back to the foreground now reloads it,
+  // unless it was loaded moments ago.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "active") return;
+      if (Date.now() - lastDashboardLoad.current < 15000) return;
+      loadDashboard();
+    });
+    return () => sub.remove();
   }, [loadDashboard]);
 
   /** Where a dashboard tile or a More row sends you. */
@@ -5952,6 +5992,8 @@ function FleetHomeScreen({ session, onLogout }) {
         onBell={bell}
         onOpen={open}
         compliance={compliance}
+        error={dashboardError}
+        updatedAt={updatedAt}
       />
     ) : (
       <>
@@ -6101,6 +6143,12 @@ export default function App() {
         Alert.alert(
           "Load offered to you",
           `${data.loadId} is available near one of your drivers. Open Loads to accept it before the offer closes.`,
+        );
+      }
+      if (data?.type === "LOAD_ASSIGNED" && data?.loadId) {
+        Alert.alert(
+          "New load assigned",
+          `${data.loadId} has been assigned to you. Open Assigned Bids to confirm it.`,
         );
       }
     });

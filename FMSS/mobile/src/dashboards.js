@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo } from "react";
-import { RefreshControl, Text, View } from "react-native";
+import { Pressable, RefreshControl, Text, View } from "react-native";
 
 import { colors, palette, radius, spacing, type } from "./theme";
 import {
@@ -57,6 +57,51 @@ const refresher = (refreshing, onRefresh, tint) => ({
 
 /* -------------------------------------------------------------------------- */
 /* Driver                                                                      */
+/**
+ * A count, or a dash when it could not be loaded. Zero is a real answer — "you
+ * have no trips" — and showing it for a failed request is how a carrier with
+ * two loads assigned came to believe they had none.
+ */
+const countOr = (value, failed) => value ?? (failed ? "—" : 0);
+
+const updatedLabel = (at) =>
+  at
+    ? `Updated ${at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : "";
+
+/**
+ * Says so when the dashboard did not load, with a way to try again — and when
+ * it did, how fresh it is.
+ */
+function DashboardStatus({ error, updatedAt, onRetry }) {
+  if (error) {
+    return (
+      <Pressable
+        onPress={onRetry}
+        style={{
+          backgroundColor: colors.warning,
+          borderRadius: radius.md,
+          padding: spacing.md,
+          marginBottom: spacing.md,
+        }}
+      >
+        <Text style={{ ...type.body, color: "#1A1A1A", fontWeight: "700" }}>{error}</Text>
+        <Text style={{ ...type.caption, color: "#1A1A1A", marginTop: 2 }}>
+          Tap to retry{updatedAt ? ` · last ${updatedLabel(updatedAt).toLowerCase()}` : ""}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  if (!updatedAt) return null;
+
+  return (
+    <Text style={{ ...type.caption, color: colors.muted, marginBottom: spacing.sm }}>
+      {updatedLabel(updatedAt)}
+    </Text>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 
 export function DriverHome({
@@ -70,12 +115,14 @@ export function DriverHome({
   onBell,
   onOpen,
   compliance,
+  error,
+  updatedAt,
 }) {
   const user = session?.user;
   const nextLoad = loads[0];
   const origin = nextLoad?.pickup || nextLoad?.pickups?.[0];
   const destination = nextLoad?.drop || nextLoad?.drops?.[0];
-  const active = stats?.activeTrips ?? loads.length;
+  const active = stats?.activeTrips ?? (loads.length || (error ? "—" : 0));
   const blocked = compliance && !compliance.canUpdateLoads;
 
   return (
@@ -94,6 +141,8 @@ export function DriverHome({
       </AppHeader>
 
       <Body {...refresher(refreshing, onRefresh, theme.accent)}>
+        <DashboardStatus error={error} updatedAt={updatedAt} onRetry={onRefresh} />
+
         {blocked ? (
           <ListRow
             icon="warning"
@@ -146,7 +195,7 @@ export function DriverHome({
           <ActionTile
             icon="history"
             title="Trip History"
-            subtitle={`${stats?.completedTrips ?? 0} completed`}
+            subtitle={`${countOr(stats?.completedTrips, !!error)} completed`}
             color={colors.tires}
             onPress={() => onOpen("over")}
           />
@@ -206,8 +255,14 @@ export function CarrierHome({
   onRefresh,
   onBell,
   onOpen,
+  error,
+  updatedAt,
 }) {
   const user = session?.user;
+  const failed = !!error;
+  // The trips list comes from its own request; when the count did not arrive
+  // but the list did, the list is the better answer than a dash.
+  const activeTrips = stats?.activeTrips ?? (loads.length || (failed ? "—" : 0));
 
   return (
     <>
@@ -225,22 +280,24 @@ export function CarrierHome({
           <StatStrip
             tone="dark"
             stats={[
-              { label: "Active trips", value: stats?.activeTrips ?? 0 },
-              { label: "Open bids", value: stats?.pendingBids ?? 0 },
-              { label: "Won", value: stats?.wonBids ?? 0 },
-              { label: "Delivered", value: stats?.completedTrips ?? 0 },
+              { label: "Active trips", value: activeTrips },
+              { label: "Open bids", value: countOr(stats?.pendingBids, failed) },
+              { label: "Won", value: countOr(stats?.wonBids, failed) },
+              { label: "Delivered", value: countOr(stats?.completedTrips, failed) },
             ]}
           />
         </View>
       </AppHeader>
 
       <Body {...refresher(refreshing, onRefresh, theme.accent)}>
+        <DashboardStatus error={error} updatedAt={updatedAt} onRetry={onRefresh} />
+
         {/* Every shortcut is one full-width bar, alternating grey sections and
             deep navy so neighbouring bars never read as one block. */}
         <BigAction
           icon="bid"
           title="Open Bids"
-          subtitle={`${stats?.availableLoads ?? 0} live — tap to bid`}
+          subtitle={`${countOr(stats?.availableLoads, failed)} live — tap to bid`}
           color={colors.brand}
           live={(stats?.availableLoads ?? 0) > 0}
           onPress={() => onOpen("available")}
@@ -248,14 +305,14 @@ export function CarrierHome({
         <BigAction
           icon="truck"
           title="Assigned Bids"
-          subtitle={`${stats?.activeTrips ?? 0} running`}
+          subtitle={`${activeTrips} running`}
           color={colors.info}
           onPress={() => onOpen("assigned")}
         />
         <BigAction
           icon="check"
           title="Completed"
-          subtitle={`${stats?.completedTrips ?? 0} done`}
+          subtitle={`${countOr(stats?.completedTrips, failed)} done`}
           color={colors.brand}
           onPress={() => onOpen("over")}
         />

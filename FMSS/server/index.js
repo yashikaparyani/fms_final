@@ -56,7 +56,9 @@ const instantDispatchRoutes = require("./routes/instantDispatchRoutes");
 const streetTurnRoutes = require("./routes/streetTurnRoutes");
 const chassisCompanyRoutes = require("./routes/chassisCompanyRoutes");
 const icAgreementRoutes = require("./routes/icAgreementRoutes");
+const clientLogRoutes = require("./routes/clientLogRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
+const { noStore, carrierRequestLog } = require("./middleware/apiDiagnostics");
 const startCronJobs = require("./utils/cron");
 
 const app = express();
@@ -91,6 +93,10 @@ app.use((req, _res, next) => {
 
 app.use(helmet());
 app.use(morgan("dev"));
+
+// No device-side caching of API answers, and a per-carrier request trail — see
+// middleware/apiDiagnostics.js.
+app.use("/api", noStore, carrierRequestLog);
 
 // Rate Limiter
 // Rate limiting disabled for demo mode
@@ -157,6 +163,7 @@ app.use("/api/street-turn-partners", streetTurnPartnerRoutes);
 app.use("/api/delivery-partners", streetTurnPartnerRoutes);
 app.use("/api/chassis-companies", chassisCompanyRoutes);
 app.use("/api/ic-agreements", icAgreementRoutes);
+app.use("/api/client-logs", clientLogRoutes);
 
 
 // Error Middleware

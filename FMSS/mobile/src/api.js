@@ -59,8 +59,71 @@ api.interceptors.request.use(async (config) => {
     config.headers["x-location-id"] = locationId;
   }
 
+  // iOS keeps its own cache of GET responses and may answer from it without
+  // asking us — which is how a carrier ends up looking at the empty board from
+  // before their load was assigned. The server also sends no-store; this covers
+  // anything the phone stored before it did.
+  config.headers["Cache-Control"] = "no-cache";
+
   return config;
 });
+
+/**
+ * Run a request, asking again after a pause if the connection dropped.
+ *
+ * Only network failures and 5xx are retried. A 4xx is the server's considered
+ * answer — asking again gets the same one, just later.
+ */
+export const withRetry = async (request, delays = [2000, 5000]) => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      const status = error?.response?.status;
+      if ((status && status < 500) || attempt >= delays.length) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+};
+
+// ─── Failure reports ──────────────────────────────────────────────────────────
+// A request that never reached the server leaves no trace in its logs, so when
+// a carrier says "my loads are missing" there is nothing to look at. The app
+// keeps a short list of what failed and sends it to POST /api/client-logs the
+// next time it gets through.
+const MAX_PENDING_REPORTS = 20;
+const pendingReports = [];
+let flushingReports = false;
+
+export const flushClientErrors = async () => {
+  if (flushingReports || !pendingReports.length) return;
+
+  flushingReports = true;
+  const batch = pendingReports.splice(0);
+  try {
+    await api.post("/client-logs", { entries: batch });
+  } catch {
+    // Still offline, most likely. Keep them for next time, newest first to go.
+    pendingReports.unshift(...batch.slice(-MAX_PENDING_REPORTS));
+    pendingReports.splice(MAX_PENDING_REPORTS);
+  } finally {
+    flushingReports = false;
+  }
+};
+
+export const reportClientError = ({ where, path, error }) => {
+  pendingReports.push({
+    where,
+    path,
+    status: error?.response?.status ?? null,
+    message: error?.message || String(error),
+    at: new Date().toISOString(),
+    appVersion: Constants.expoConfig?.version || "",
+  });
+  if (pendingReports.length > MAX_PENDING_REPORTS) pendingReports.shift();
+
+  flushClientErrors();
+};
 
 export const saveSession = async ({ api_token, user }) => {
   await AsyncStorage.multiSet([

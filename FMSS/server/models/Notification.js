@@ -26,7 +26,10 @@ const notificationSchema = new mongoose.Schema(
         "BID_WON",                
         "BID_LOST",               
         "BID_NOT_PLACED",         
-        "LOAD_STATUS_CHANGED",    
+        "LOAD_STATUS_CHANGED",
+        // A load given to a carrier — by award, direct assignment or a leg of a
+        // split. See services/assignmentNotice.js.
+        "LOAD_ASSIGNED",
         "LOAD_REQUIRES_CHANGES",  
         "LOAD_VERIFIED",
         // A load marked delivered — to the office and the customer.

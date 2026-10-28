@@ -1306,6 +1306,37 @@ loadSchema.methods.issueStreetTurnToken = function issueStreetTurnToken({ days =
 loadSchema.statics.hashStreetTurnToken = (token) =>
   crypto.createHash("sha256").update(String(token)).digest("hex");
 
+// ===================== TELL A NEWLY ASSIGNED CARRIER =====================
+// Every carrier on the load as it was read, so the save can tell who is new.
+// Only the new ones are told: re-saving a load, or adding a second leg, must not
+// re-announce it to the carrier who already has it.
+const carrierIdsOn = (load) =>
+  new Set(
+    [
+      load.assignedFleetOwner?.fleetOwnerId,
+      ...(load.assignments || []).map((leg) => leg.fleetOwnerId),
+    ]
+      .filter(Boolean)
+      .map(String),
+  );
+
+loadSchema.post("init", function rememberCarriers() {
+  this.$locals.carriersWhenRead = carrierIdsOn(this);
+});
+
+loadSchema.post("save", async function announceAssignment() {
+  const before = this.$locals.carriersWhenRead || new Set();
+  const now = carrierIdsOn(this);
+  this.$locals.carriersWhenRead = now;
+
+  const added = [...now].filter((id) => !before.has(id));
+  if (!added.length) return;
+
+  // Required here, not at the top: the service loads models of its own.
+  const { notifyNewCarriers } = require("../services/assignmentNotice");
+  await notifyNewCarriers(this, added);
+});
+
 loadSchema.statics.LEG_ORDER = LEG_ORDER;
 loadSchema.statics.LEG_FINISHED = LEG_FINISHED;
 // Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
