@@ -2,7 +2,6 @@ import "./App.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
-import LandingPage from "./pages/LandingPage";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import Support from "./pages/legal/Support";
 import Dashboard from "./pages/dashboard/Dashboard";
@@ -107,11 +106,10 @@ function App() {
       <RoleTheme />
       <ErrorBoundary>
       <Routes>
-        {/* Default Route */}
-        <Route
-          path="/"
-          element={<LandingPage />}
-        />
+        {/* Default Route. The landing page is switched off for now: the site
+            opens straight on the sign-in screen. LandingPage is kept, so putting
+            it back is this one line. */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* PUBLIC LEGAL/SUPPORT PAGES.
             No login: these are the Privacy Policy and Support URLs the App
