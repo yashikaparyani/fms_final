@@ -274,6 +274,12 @@ const createCarrierAccount = async (request, password, session) => {
     [
       {
         userId: user._id,
+        // The branch the carrier chose, same as their login above. Left to the
+        // tenant plugin, it took whichever branch the approving staff member had
+        // selected — the carrier record landed in one location while their login
+        // and signed agreements went to another, and the office could not find
+        // the agreements.
+        locationId: request.locationId,
         carrierName: request.carrierName || request.email.split("@")[0],
         phone: request.phone,
         mcLicense: request.mcLicense,

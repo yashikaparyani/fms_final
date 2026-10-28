@@ -105,6 +105,48 @@ describe("POST /api/signups/:id/approve — carrier", () => {
       zip: "94612",
     });
   });
+
+  it("files the carrier under the branch they chose, not the approver's", async () => {
+    // Production: a carrier signed up for a rail branch and was approved by
+    // staff working in Head Office. The login went to the rail branch, the
+    // carrier record to Head Office, and the agreements they then signed were
+    // filed with the login — where the office, looking at the carrier, could
+    // not see them.
+    const rail = await runUnscoped(() =>
+      Branch.create({ name: "Rail Operations", code: "RAIL" }),
+    );
+    staff.locations = [branch._id, rail._id];
+    await staff.save();
+
+    const submit = await request(app).post("/api/signups").send({
+      role: "fleetOwner",
+      email: "ops@kong.com",
+      phone: "555-0102",
+      carrierName: "Kong Transport",
+      street: "1 Rail Way",
+      city: "Los Angeles",
+      state: "CA",
+      zip: "90021",
+      locationId: String(rail._id),
+    });
+    expect(submit.statusCode).toBe(201);
+
+    const approve = await call(
+      "post",
+      `/api/signups/${submit.body.request.id}/approve`,
+      staff,
+      branch,
+    );
+    expect(approve.statusCode).toBe(200);
+
+    const carrier = await runUnscoped(() =>
+      FleetOwner.findOne({ carrierName: "Kong Transport" }).lean(),
+    );
+    const login = await User.findById(carrier.userId).lean();
+
+    expect(String(carrier.locationId)).toBe(String(rail._id));
+    expect(login.locations.map(String)).toEqual([String(rail._id)]);
+  });
 });
 
 // Small local check that keeps the assertion readable — the stored ref should be
