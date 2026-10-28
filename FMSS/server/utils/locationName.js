@@ -59,4 +59,50 @@ const normalizeLocationName = (value) => {
   });
 };
 
-module.exports = { normalizeLocationName };
+/**
+ * A short code made from a location's name, so nobody has to invent one.
+ *
+ * Codes were typed by hand and came out meaning nothing ("LA" for Oakland).
+ * Initials of each word for a longer name, the first three letters for a
+ * single word; an abbreviation already in the name is kept whole.
+ *
+ *   "Oakland-Rail Operations" → "ORO"
+ *   "Rail Operational - LA"   → "ROLA"
+ *   "Oakland"                 → "OAK"
+ *
+ * Uniqueness is the caller's job — see uniqueLocationCode.
+ */
+const codeFromName = (name) => {
+  const words = String(name || "")
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean);
+
+  if (!words.length) return "LOC";
+  if (words.length === 1) return words[0].slice(0, 3).padEnd(2, "X");
+
+  const code = words
+    .map((word) => (ABBREVIATIONS.has(word) ? word : word[0]))
+    .join("")
+    .slice(0, 5);
+
+  return code.length >= 2 ? code : (words[0] + words[1]).slice(0, 3);
+};
+
+/**
+ * The code for a new location, numbered when its natural code is taken:
+ * a second "Oakland" becomes OAK2. `isTaken` is an async (code) => boolean.
+ */
+const uniqueLocationCode = async (name, isTaken) => {
+  const base = codeFromName(name);
+  if (!(await isTaken(base))) return base;
+
+  for (let n = 2; n < 100; n += 1) {
+    const suffix = String(n);
+    const candidate = base.slice(0, 5 - suffix.length) + suffix;
+    if (!(await isTaken(candidate))) return candidate;
+  }
+  throw new Error(`Could not find a free location code for ${name}.`);
+};
+
+module.exports = { normalizeLocationName, codeFromName, uniqueLocationCode };

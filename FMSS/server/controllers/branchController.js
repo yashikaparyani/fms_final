@@ -3,6 +3,7 @@ const User = require("../models/User");
 const Load = require("../models/Load");
 const { runUnscoped } = require("../utils/tenantContext");
 const { allowedLocationsFor } = require("../middleware/location");
+const { normalizeLocationName, uniqueLocationCode } = require("../utils/locationName");
 
 // ─── Locations (branches) ─────────────────────────────────────────────────────
 // Branch itself is not tenant-scoped — it is the thing being scoped by — so
@@ -87,27 +88,22 @@ const getBranches = async (req, res) => {
 // @access  Private (admin)
 const createBranch = async (req, res) => {
   try {
-    const { name, code, address, city, state, zip, phone, email, website } =
-      req.body;
+    const { name, address, city, state, zip, phone, email, website } = req.body;
 
-    if (!String(name || "").trim() || !String(code || "").trim()) {
-      return res
-        .status(400)
-        .json({ message: "A location name and code are both required." });
+    if (!String(name || "").trim()) {
+      return res.status(400).json({ message: "A location name is required." });
     }
 
-    const normalizedCode = String(code).trim().toUpperCase();
-
-    const clash = await Branch.findOne({ code: normalizedCode });
-    if (clash) {
-      return res.status(400).json({
-        message: `Location code ${normalizedCode} is already used by ${clash.name}.`,
-      });
-    }
+    // Made from the name rather than typed: hand-typed codes came out meaning
+    // nothing ("LA" for an Oakland branch). See utils/locationName.js. Any code
+    // sent in the body is ignored for the same reason.
+    const code = await uniqueLocationCode(normalizeLocationName(name), async (candidate) =>
+      Boolean(await Branch.exists({ code: candidate })),
+    );
 
     const branch = await Branch.create({
       name: String(name).trim(),
-      code: normalizedCode,
+      code,
       address,
       city,
       state,

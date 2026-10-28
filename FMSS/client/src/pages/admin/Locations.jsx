@@ -15,7 +15,6 @@ import Swal from "sweetalert2";
 
 const BLANK = {
   name: "",
-  code: "",
   address: "",
   city: "",
   state: "",
@@ -52,8 +51,8 @@ const Locations = () => {
     e.preventDefault();
     try {
       setSaving(true);
-      await api.post("/branches", form);
-      notify.success(`${form.name} created.`);
+      const { data } = await api.post("/branches", form);
+      notify.success(`${data.name} created with code ${data.code}.`);
       setForm(BLANK);
       setShowForm(false);
       fetchBranches();
@@ -186,21 +185,13 @@ const Locations = () => {
                 required
               />
             </div>
+            {/* No code field: the server makes the code from the name (e.g.
+                "Oakland Rail Operations" → ORO). Typed codes came out
+                meaning nothing. */}
             <div>
-              <label className="text-xs font-semibold text-gray-600">Code *</label>
-              <input
-                className={uiStyles.input}
-                value={form.code}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))
-                }
-                placeholder="NY"
-                maxLength={5}
-                required
-              />
-              <p className="text-[13px] text-gray-500 mt-1">
-                2–5 letters/numbers. Goes into every ID this location issues
-                (NY-LD-0001) and cannot be changed once loads exist.
+              <label className="text-xs font-semibold text-gray-600">Code</label>
+              <p className="text-[13px] text-gray-500 mt-2">
+                Created automatically from the name.
               </p>
             </div>
             <div>
