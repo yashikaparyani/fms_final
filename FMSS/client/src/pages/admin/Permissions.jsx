@@ -323,6 +323,15 @@ const Permissions = () => {
                   >
                     Opens on sign-in
                   </th>
+                  {/* What they can do lives on the other tab; without a way in
+                      from here people took this grid for the whole screen and
+                      went looking for where to grant features. */}
+                  <th
+                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider border-l border-slate-600"
+                    style={{ minWidth: "170px" }}
+                  >
+                    Access &amp; features
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -420,6 +429,36 @@ const Permissions = () => {
                           </span>
                         ) : (
                           <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2.5 border-l border-gray-200">
+                        {isAdmin ? (
+                          <span className="text-xs text-gray-400 italic">
+                            Everything
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs ${
+                                valueFor(member, "permissions").length
+                                  ? "text-gray-600"
+                                  : "text-red-600 font-semibold"
+                              }`}
+                            >
+                              {valueFor(member, "permissions").length} granted
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedId(member._id);
+                                setTab("modules");
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                            >
+                              <TuneIcon style={{ fontSize: 14 }} /> Edit
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
