@@ -30,6 +30,9 @@ export const WhatsAppButton = ({ phone }) => {
   );
 };
 
+// A yard or warehouse is often entered by name alone, with no city to show.
+const legPlace = (point) => point?.city || point?.company || point?.address;
+
 const CarrierLegs = ({ load, fleetOwners }) => (
   <div className="space-y-1.5">
     {load.assignments.map((leg, index) => {
@@ -51,7 +54,7 @@ const CarrierLegs = ({ load, fleetOwners }) => (
           <WhatsAppButton phone={phone} />
         </div>
         <p className="text-[12px] text-gray-500 pl-5 truncate">
-          {[leg.origin?.city, leg.destination?.city].filter(Boolean).join(" → ") ||
+          {[legPlace(leg.origin), legPlace(leg.destination)].filter(Boolean).join(" → ") ||
             "—"}
           {leg.transportStatus
             ? " · " + leg.transportStatus.replace(/_/g, " ").toLowerCase()

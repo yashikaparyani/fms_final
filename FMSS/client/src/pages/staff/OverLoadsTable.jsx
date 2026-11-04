@@ -10,7 +10,11 @@ import AssignCarrierLegsDialog from "../../components/AssignCarrierLegsDialog";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
 import { carrierNameOnLoad } from "../../utils/loadCarrier";
-import { isAssignedToCarrier, STATUS_LOCKED_REASON } from "../../utils/loadAssignment";
+import {
+  isAssignedToCarrier,
+  isParkedWithCarrier,
+  STATUS_LOCKED_REASON,
+} from "../../utils/loadAssignment";
 import { STATUS_BADGE_COLORS, STATUS_ROW_COLORS } from "../../utils/loadColorMode";
 import { transportStatusLabel } from "../../utils/transportStatus";
 import { missingPaperwork } from "../../utils/paperwork";
@@ -54,11 +58,6 @@ const { LoadIdCell, CustomerCell, AddressCell, DateCell, fmtDate } = LoadTable;
 // From and To. The first carrier's bill moves to payables as soon as that is
 // saved (see raiseHandoverBills on the server), and the second has a leg of
 // their own to update.
-const PARKED = ["EMPTY_IN_YARD", "LOADED_IN_YARD", "DROP_IN_WAREHOUSE"];
-
-const isParkedWithCarrier = (row) =>
-  isAssignedToCarrier(row) && PARKED.includes(row.transportStatus);
-
 const reassignLabel = (row) =>
   isParkedWithCarrier(row)
     ? "Assign Another Driver"

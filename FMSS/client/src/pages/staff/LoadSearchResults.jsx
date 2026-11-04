@@ -1,7 +1,17 @@
-import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useEffect, useState } from "react";
+import api from "../../api";
 import LoadTable from "../../components/LoadTable";
 import MobileCard from "../../components/MobileCard";
+import UpdateStatusModal from "../../components/loads/UpdateStatusModal";
+import AssignCarrierPicker from "../../components/loads/AssignCarrierPicker";
+import AssignCarrierLegsDialog from "../../components/AssignCarrierLegsDialog";
+import { useCarrierAssignment } from "../../hooks/useCarrierAssignment";
+import { notify } from "../../utils/swal";
+import {
+  isAssignedToCarrier,
+  isParkedWithCarrier,
+  STATUS_LOCKED_REASON,
+} from "../../utils/loadAssignment";
 import {
   dropDateOf,
   dropWindowOf,
@@ -56,13 +66,75 @@ const TabBadge = ({ row }) => {
   );
 };
 
+// A search reaches loads the tabs would not offer these actions on, and the
+// assign route does not check for itself: it would put an unverified load on the
+// road, or pull a billed one back out of Accounting and reset it to Assigned.
+const actionLockReason = (row) => {
+  if (row.transportStatus === "INVOICED")
+    return "This load is in Accounting — open it to make changes.";
+  if (row.status === "PENDING_VERIFICATION")
+    return "Verify this load in the Pending tab first.";
+  return null;
+};
+
+const assignLabel = (row) =>
+  isParkedWithCarrier(row)
+    ? "Assign Another Driver"
+    : isAssignedToCarrier(row)
+      ? "Reassign"
+      : "Assign Driver";
+
 /**
  * Flat, cross-tab result list for a load search. Rows keep the tint of the tab
  * they belong to, so a mixed list still reads as three groups at a glance.
  */
-const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
-  const navigate = useNavigate();
-  const role = useSelector((state) => state.auth.user?.role);
+const LoadSearchResults = ({ term, status, results, loading, onClear, onChanged }) => {
+  const [fleetOwners, setFleetOwners] = useState([]);
+  const [openRow, setOpenRow] = useState(null); // assign picker open on this load
+  const [statusModal, setStatusModal] = useState(null);
+  // The parked load whose yard handover is being set up.
+  const [handoverLoad, setHandoverLoad] = useState(null);
+  const [savingLegs, setSavingLegs] = useState(false);
+
+  const { saving, assign } = useCarrierAssignment(onChanged);
+
+  useEffect(() => {
+    api
+      .get("/fleet-owners")
+      .then((res) => setFleetOwners(res.data))
+      .catch((err) => console.error("Failed to fetch fleet owners:", err));
+  }, []);
+
+  const handleAssign = async (loadId, ownerId, owners) => {
+    const done = await assign(loadId, ownerId, owners);
+    if (done) setOpenRow(null);
+  };
+
+  // Parked with a carrier: set up who collects it from the yard, as the Over tab
+  // does. A straight assignment would clear the first driver's run and bill.
+  const startAssign = (row) => {
+    if (isParkedWithCarrier(row)) {
+      setHandoverLoad(row);
+    } else {
+      setOpenRow(row.loadId);
+    }
+  };
+
+  const saveHandover = async (assignments) => {
+    setSavingLegs(true);
+    try {
+      const { data } = await api.put(`/loads/${handoverLoad.loadId}/assignments`, {
+        assignments,
+      });
+      setHandoverLoad(null);
+      await onChanged();
+      notify.success(data.message || "Second driver assigned.");
+    } catch (err) {
+      notify.error(err.response?.data?.message || "Could not assign the second driver.");
+    } finally {
+      setSavingLegs(false);
+    }
+  };
 
   // Human-readable description of the active search term and/or status filter.
   const criteria = [
@@ -94,14 +166,44 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
     { key: "lastFreeDate",header: "Last Free Date",width: "9%", render: (row) => <DateCell value={row.lastFreeDate} showExpiry /> },
   ];
 
-  const actions = (row) => (
-    <button
-      onClick={() => navigate(`/${role}/track-load/${row.loadId}`)}
-      className="px-3 py-1 text-xs font-semibold whitespace-nowrap text-white bg-indigo-600 hover:bg-indigo-700 rounded transition"
-    >
-      View
-    </button>
+  const picker = (row) => (
+    <AssignCarrierPicker
+      loadId={row.loadId}
+      fleetOwners={fleetOwners}
+      onConfirm={handleAssign}
+      onCancel={() => setOpenRow(null)}
+      saving={saving}
+    />
   );
+
+  // Opening a load stays one click away on its ID, on both the table and the card.
+  const actions = (row) => {
+    if (openRow === row.loadId) return picker(row);
+
+    const assigned = isAssignedToCarrier(row);
+    const lockReason = actionLockReason(row);
+
+    return (
+      <div className="flex flex-col items-stretch gap-1.5">
+        <button
+          onClick={() => startAssign(row)}
+          disabled={saving || Boolean(lockReason)}
+          title={lockReason || undefined}
+          className={`${assigned ? "btn-secondary-small" : "btn-primary-small"} w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {assignLabel(row)}
+        </button>
+        <button
+          onClick={() => setStatusModal(row)}
+          disabled={saving || Boolean(lockReason) || !assigned}
+          title={lockReason || (assigned ? undefined : STATUS_LOCKED_REASON)}
+          className="w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        >
+          Update Status
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 md:p-5">
@@ -154,10 +256,27 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
                 { label: "Container #",   value: row.containerNo },
                 { label: "Last Free Date",value: fmtDate(row.lastFreeDate) },
               ]}
-              actions={[
-                { label: "View", color: "#4f46e5", onClick: () => navigate(`/${role}/track-load/${row.loadId}`) },
-              ]}
-            />
+              actions={
+                openRow === row.loadId
+                  ? []
+                  : [
+                      {
+                        label: assignLabel(row),
+                        color: "#2563eb",
+                        disabled: saving || Boolean(actionLockReason(row)),
+                        onClick: () => startAssign(row),
+                      },
+                      {
+                        label: "Update Status",
+                        color: "#4f46e5",
+                        disabled: saving || Boolean(actionLockReason(row)) || !isAssignedToCarrier(row),
+                        onClick: () => setStatusModal(row),
+                      },
+                    ]
+              }
+            >
+              {openRow === row.loadId && picker(row)}
+            </MobileCard>
           ))
         ) : (
           <p className="text-center text-gray-500 py-10">No loads match {criteria}.</p>
@@ -176,6 +295,31 @@ const LoadSearchResults = ({ term, status, results, loading, onClear }) => {
           emptyMessage={`No loads match ${criteria}.`}
         />
       </div>
+
+      {handoverLoad && (
+        <AssignCarrierLegsDialog
+          key={handoverLoad.loadId}
+          load={handoverLoad}
+          fleetOwners={fleetOwners}
+          saving={savingLegs}
+          onSave={saveHandover}
+          onClose={() => setHandoverLoad(null)}
+          handover
+          title="Assign another driver"
+          subtitle="Leg 1 is the run already made — set the yard or warehouse it ended at. Leg 2 is the new driver: choose them and where they take it. Saving moves the first driver's bill to payables."
+        />
+      )}
+
+      {statusModal && (
+        <UpdateStatusModal
+          load={statusModal}
+          onClose={() => setStatusModal(null)}
+          onSaved={async () => {
+            setStatusModal(null);
+            await onChanged();
+          }}
+        />
+      )}
     </div>
   );
 };

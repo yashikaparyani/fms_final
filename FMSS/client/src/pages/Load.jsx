@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import PendingLoadsTable from "./staff/PendingLoadsTable";
 import VerifiedLoadsTable from "./staff/VerifiedLoadsTable";
@@ -53,39 +53,51 @@ const Load = () => {
     setInput(term);
   }, [term]);
 
+  // Only the newest request may write its answer: a term typed over an in-flight
+  // request must not be overwritten by it.
+  const latestSearch = useRef(0);
+
+  // `silent` is the re-read after an action on a result: the rows stay on screen
+  // rather than giving way to the spinner, and a failed re-read leaves them there.
+  const fetchResults = useCallback(
+    ({ silent = false } = {}) => {
+      const requestId = ++latestSearch.current;
+      if (!silent) setSearching(true);
+
+      const params = {};
+      if (term) params.q = term;
+      if (statusFilter) params.transportStatus = statusFilter;
+
+      return api
+        .get("/loads", { params })
+        .then((res) => {
+          if (requestId === latestSearch.current) setResults(res.data);
+        })
+        .catch(() => {
+          if (requestId === latestSearch.current) {
+            if (!silent) setResults([]);
+            notify.error("Search failed. Please try again.");
+          }
+        })
+        .finally(() => {
+          if (requestId === latestSearch.current) setSearching(false);
+        });
+    },
+    [term, statusFilter],
+  );
+
   useEffect(() => {
     if (!term && !statusFilter) {
       setResults([]);
       return;
     }
 
-    let cancelled = false;
-    setSearching(true);
+    fetchResults();
 
-    const params = {};
-    if (term) params.q = term;
-    if (statusFilter) params.transportStatus = statusFilter;
-
-    api
-      .get("/loads", { params })
-      .then((res) => {
-        if (!cancelled) setResults(res.data);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setResults([]);
-          notify.error("Search failed. Please try again.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setSearching(false);
-      });
-
-    // A term typed over an in-flight request must not be overwritten by it.
     return () => {
-      cancelled = true;
+      latestSearch.current += 1;
     };
-  }, [term, statusFilter]);
+  }, [term, statusFilter, fetchResults]);
 
   const handleTabChange = (tabKey) => {
     // Choosing a tab leaves the search and filters behind.
@@ -252,6 +264,7 @@ const Load = () => {
               results={results}
               loading={searching}
               onClear={clearSearch}
+              onChanged={() => fetchResults({ silent: true })}
             />
           ) : (
             renderTab()
