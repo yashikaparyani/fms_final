@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import Swal from "sweetalert2";
@@ -107,7 +108,9 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
 
   if (!isShow) return null;
 
-  return (
+  // Portalled to <body> so no ancestor's stacking can put it under the
+  // topbar (z-index 100) or clip it to the content column.
+  return createPortal(
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-[1000] p-4">
       <div className="bg-white p-5 sm:p-6 rounded-xl w-full max-w-xl max-h-[90vh] overflow-y-auto space-y-4">
         <div className="flex justify-between items-center">
@@ -181,7 +184,8 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
