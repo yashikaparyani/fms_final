@@ -2650,25 +2650,66 @@ function MyBidsTab({ onOpenDetail }) {
   );
 }
 
-function AssignedLoadsTab({ onTrack, onOpenDetail }) {
+// How often an open screen re-reads its loads by itself. A load that moves on
+// in the office — assigned, delivered, cancelled — reaches the phone within
+// this long without anyone pulling to refresh.
+const AUTO_REFRESH_MS = 30000;
+
+/**
+ * Call `callback` every `intervalMs` while the app is on screen. Skipped while
+ * the app is in the background (the foreground listener on the dashboard
+ * catches up on return), and always calls the latest `callback`, so a screen
+ * can pass a fresh closure on every render.
+ */
+function usePolling(callback, intervalMs = AUTO_REFRESH_MS) {
+  const latest = useRef(callback);
+  useEffect(() => {
+    latest.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (AppState.currentState === "active") latest.current();
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+}
+
+/**
+ * The carrier's loads, read for the Assigned and Completed tabs. `silent`
+ * reads are the automatic ones: no spinner, and no alert when the network
+ * blips — the list just stays as it was until the next one succeeds.
+ */
+function useCarrierLoads() {
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchLoads = async () => {
+  const fetchLoads = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await api.get("/fleet-owners/assignedLoad");
       setLoads(res.data || []);
     } catch (error) {
-      Alert.alert("Unable to fetch loads", error.response?.data?.message || error.message);
+      if (!silent) {
+        Alert.alert("Unable to fetch loads", error.response?.data?.message || error.message);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchLoads();
-  }, []);
+  }, [fetchLoads]);
+
+  usePolling(() => fetchLoads({ silent: true }));
+
+  // RefreshControl passes no arguments, so a pull is never silent.
+  return { loads, loading, fetchLoads: () => fetchLoads() };
+}
+
+function AssignedLoadsTab({ onTrack, onOpenDetail }) {
+  const { loads, loading, fetchLoads } = useCarrierLoads();
 
   const confirm = async (loadId) => {
     try {
@@ -2707,24 +2748,7 @@ function AssignedLoadsTab({ onTrack, onOpenDetail }) {
 }
 
 function OverLoadsTab({ onTrack, onOpenDetail }) {
-  const [loads, setLoads] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const fetchLoads = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get("/fleet-owners/assignedLoad");
-      setLoads(res.data || []);
-    } catch (error) {
-      Alert.alert("Unable to fetch loads", error.response?.data?.message || error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchLoads();
-  }, []);
+  const { loads, loading, fetchLoads } = useCarrierLoads();
 
   return (
     <FlatList
@@ -5746,8 +5770,10 @@ function FleetHomeScreen({ session, onLogout }) {
    * request rather than per batch: a carrier whose bid board is empty should
    * still see their trips.
    */
-  const loadDashboard = useCallback(async () => {
-    setRefreshing(true);
+  // `silent` is the automatic refresh: the numbers update in place without the
+  // pull-to-refresh spinner appearing on its own every half minute.
+  const loadDashboard = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setRefreshing(true);
     lastDashboardLoad.current = Date.now();
 
     // Still one failure per request, but no longer a silent one: a dashboard
@@ -5799,7 +5825,7 @@ function FleetHomeScreen({ session, onLogout }) {
       flushClientErrors();
     }
 
-    setRefreshing(false);
+    if (!silent) setRefreshing(false);
     setBooted(true);
   }, [carrierSide, isCarrier]);
 
@@ -5819,6 +5845,10 @@ function FleetHomeScreen({ session, onLogout }) {
     });
     return () => sub.remove();
   }, [loadDashboard]);
+
+  // And while it stays open: a carrier watching the home screen sees a load
+  // arrive, or a delivered one leave "running", without pulling to refresh.
+  usePolling(() => loadDashboard({ silent: true }));
 
   /** Where a dashboard tile or a More row sends you. */
   const open = useCallback(
