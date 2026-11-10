@@ -45,7 +45,8 @@ const chassisCompanySchema = new mongoose.Schema(
 );
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-chassisCompanySchema.plugin(tenantScope, { modelName: "ChassisCompany" });
+// Offered at the locations picked on the record (`availableAt`). See the
+// "Shared models" note in plugins/tenantScope.js.
+chassisCompanySchema.plugin(tenantScope, { modelName: "ChassisCompany", availability: true });
 
 module.exports = mongoose.model("ChassisCompany", chassisCompanySchema);

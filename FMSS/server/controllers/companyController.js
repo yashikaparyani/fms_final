@@ -1,5 +1,6 @@
 const Company = require("../models/Company");
 const Address = require("../models/common/Address");
+const { resolveAvailability } = require("../utils/availability");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @desc    Get all companies (optionally search by name)
@@ -49,6 +50,8 @@ const createCompany = async (req, res) => {
       return res.status(400).json({ message: "Company name is required" });
     }
 
+    const availableAt = await resolveAvailability(req, req.body.availableAt);
+
     const company = await Company.create({
       name,
       type,
@@ -56,11 +59,12 @@ const createCompany = async (req, res) => {
       contactPhone,
       contactEmail,
       notes,
+      ...(availableAt && { availableAt }),
     });
 
     res.status(201).json(company);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(err.status || 400).json({ message: err.message, code: err.code });
   }
 };
 
@@ -71,15 +75,26 @@ const createCompany = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const updateCompany = async (req, res) => {
   try {
+    // Where it is offered goes through resolveAvailability, never straight
+    // from the body: that is what stops a location being ticked by someone who
+    // does not work there, or dropped by someone who cannot see it.
+    const { availableAt: requested, locationId, _id, ...changes } = req.body;
+
+    const existing = await Company.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ message: "Company not found" });
+
+    const availableAt = await resolveAvailability(req, requested, existing);
+    if (availableAt) changes.availableAt = availableAt;
+
     const company = await Company.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body },
+      { $set: changes },
       { new: true, runValidators: true }
     );
     if (!company) return res.status(404).json({ message: "Company not found" });
     res.json(company);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(err.status || 400).json({ message: err.message, code: err.code });
   }
 };
 

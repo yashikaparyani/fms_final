@@ -41,7 +41,8 @@ const customerSchema = new mongoose.Schema(
 );
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-customerSchema.plugin(tenantScope, { modelName: "Customer" });
+// Offered at the locations picked on the record (`availableAt`). See the
+// "Shared models" note in plugins/tenantScope.js.
+customerSchema.plugin(tenantScope, { modelName: "Customer", availability: true });
 
 module.exports = mongoose.model("Customer", customerSchema);

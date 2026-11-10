@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import AllLocationsWriteNotice, {
-  writesBlocked,
-} from "../AllLocationsWriteNotice";
 import { uiStyles } from "../../style/uiStyles";
 import AddressFields from "../AddressFields";
+import LocationAvailabilityPicker from "../LocationAvailabilityPicker";
+import { noLocationPicked } from "../../utils/locationAvailability";
 
 const FleetOwnerForm = ({
   onSubmit,
@@ -73,6 +72,10 @@ const FleetOwnerForm = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (noLocationPicked(formData.availableAt)) {
+      toast.error("Choose at least one location where this carrier is available.");
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit(formData);
@@ -105,11 +108,6 @@ const FleetOwnerForm = ({
         <div className="mb-6">
           <h1 className="page-title">{title}</h1>
           <p className="page-subtitle">Fill in the carrier details, payment address, and contact persons.</p>
-        </div>
-
-        {/* Said before the form rather than after a rejected submit. */}
-        <div className="mb-4">
-          <AllLocationsWriteNotice what="add a carrier" />
         </div>
 
         {/* Card */}
@@ -233,6 +231,18 @@ const FleetOwnerForm = ({
                   Active
                 </label>
               </div>
+            </div>
+
+            {/* ── Section: Locations ─────────────────────────────────────── */}
+            <div className="mb-6">
+              <LocationAvailabilityPicker
+                value={formData.availableAt}
+                onChange={(availableAt) =>
+                  setFormData((prev) => ({ ...prev, availableAt }))
+                }
+                disabled={loading}
+                hint="Only the ticked locations will list this carrier and can assign loads to them. The carrier's login sees loads from these locations."
+              />
             </div>
 
             {/* ── Section: Payment Address ───────────────────────────────── */}
@@ -365,12 +375,7 @@ const FleetOwnerForm = ({
               <button
                 type="submit"
                 className="btn-primary disabled:opacity-50"
-                disabled={loading || writesBlocked()}
-                title={
-                  writesBlocked()
-                    ? "Pick a single location from the switcher first"
-                    : undefined
-                }
+                disabled={loading}
               >
                 {loading ? "Saving..." : (
                   <>

@@ -13,6 +13,8 @@ import MapPicker from "../MapPicker";
 import BaseAmountDialog from "../accounting/BaseAmountDialog";
 // A pickup date is a calendar date. Filling the input via toISOString() shifts
 // it a day for anyone whose timezone is not UTC — see utils/dates.js.
+import LocationAvailabilityPicker from "../LocationAvailabilityPicker";
+import { noLocationPicked } from "../../utils/locationAvailability";
 import { toDateInput } from "../../utils/dates";
 
 
@@ -110,6 +112,10 @@ const AddCompanyModal = ({ onClose, onSaved }) => {
       toast.error("Company name is required");
       return;
     }
+    if (noLocationPicked(form.availableAt)) {
+      toast.error("Choose at least one location where this company is available");
+      return;
+    }
     setSaving(true);
     try {
       const res = await api.post("/companies", form);
@@ -188,6 +194,12 @@ const AddCompanyModal = ({ onClose, onSaved }) => {
             <textarea rows={2} className={uiStyles.textarea} placeholder="Notes (optional)" value={form.notes} onChange={(e) => set("notes", e.target.value)} disabled={saving} />
             <label className="input-label">Notes</label>
           </div>
+
+          <LocationAvailabilityPicker
+            value={form.availableAt}
+            onChange={(availableAt) => set("availableAt", availableAt)}
+            disabled={saving}
+          />
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">

@@ -27,7 +27,9 @@ const getMyBranches = async (req, res) => {
       // the tenant context is established, by design.
       activeLocationId: req.locationId ?? null,
       allLocations: !!req.allLocations,
-      // Only a member of more than one branch has anything to switch between.
+      // Only a member of more than one branch has anything to switch between —
+      // including a customer or carrier offered at several locations, whose
+      // account follows their record (see utils/availability.js).
       canSwitch: branches.length > 1,
     });
   } catch (error) {

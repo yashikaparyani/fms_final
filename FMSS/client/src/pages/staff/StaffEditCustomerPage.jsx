@@ -47,6 +47,8 @@ const EditCustomerPage = () => {
         sendStatusEmails: data.preferences?.sendStatusEmails,
         sendInvoiceEmails: data.preferences?.sendInvoiceEmails,
         creditLimitExceeded: data.preferences?.creditLimitExceeded,
+
+        availableAt: (data.availableAt || []).map(String),
       });
     } catch {
       notify.error("Failed to load customer");

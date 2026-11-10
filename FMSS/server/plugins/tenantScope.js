@@ -86,7 +86,152 @@ const noLocationsYet = (what) =>
     { status: 400, code: "NO_LOCATION_EXISTS" },
   );
 
-module.exports = function tenantScope(schema, { modelName = "query" } = {}) {
+// ─── Shared models ────────────────────────────────────────────────────────────
+// Not everything is per-location. Two other shapes are declared on the model:
+//
+//   shared: true        One list for the whole business — addresses, drivers,
+//                       carrier onboarding. Never filtered. `locationId` is
+//                       still stamped when a single location is in play, as a
+//                       label of where the record was first added (and so the
+//                       per-location driver codes keep their counter).
+//
+//   availability: true  Master lists — customers, carriers, stop companies,
+//                       street-turn partners, shipping lines, chassis
+//                       companies — where whoever adds the record picks which
+//                       locations it is offered at. The choice is stored in
+//                       `availableAt`, and lists, searches and dropdowns only
+//                       show records available at the location(s) in play.
+//
+// Availability decides where a record can be *picked*, not whether an existing
+// link to it still resolves. A lookup by _id is therefore not filtered: a
+// Chicago load that already names a carrier must still show that carrier after
+// Chicago is unticked, and populate() of a load's customer must not come back
+// null. Every list, search and count is filtered.
+//
+// Records from before the choice existed have no `availableAt`; they count as
+// available where they were added (`locationId`), which is exactly how they
+// behaved when everything was per-location — so no migration is needed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const noLocationPicked = (modelName) =>
+  Object.assign(
+    new Error(
+      `Choose at least one location where this ${modelName} should be available.`,
+    ),
+    { status: 400, code: "AVAILABILITY_REQUIRED" },
+  );
+
+/**
+ * True when the filter names specific records by _id — `{ _id: x }`,
+ * `{ _id: { $in: [...] } }` (what populate sends) or `{ _id: { $eq: x } }`.
+ * `$ne` / `$nin` exclude records rather than name them, so they still filter.
+ */
+const targetsSpecificIds = (filter) => {
+  const id = filter?._id;
+  if (id == null) return false;
+  if (typeof id !== "object" || mongoose.isValidObjectId(id)) return true;
+  const ops = Object.keys(id);
+  return ops.length > 0 && ops.every((op) => op === "$in" || op === "$eq");
+};
+
+/** Location ids in play for a request context, or null when there is none. */
+const locationsInPlay = (context) => {
+  if (context.noLocations) return [];
+  if (context.locationIds?.length) return context.locationIds;
+  if (context.locationId) return [context.locationId];
+  return null;
+};
+
+const availableIn = (ids) => {
+  const oids = ids.map(toObjectId);
+  return {
+    $or: [
+      { availableAt: { $in: oids } },
+      // Legacy rows: available where they were first added.
+      { "availableAt.0": { $exists: false }, locationId: { $in: oids } },
+    ],
+  };
+};
+
+const installSharedScope = (schema, { modelName, availability }) => {
+  if (availability) {
+    schema.add({
+      availableAt: {
+        type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Branch" }],
+        default: undefined,
+        // Deliberately unindexed. These are short master lists, and a new
+        // index build on `customers` races the transaction that self-signup
+        // writes in: Mongo refuses it with "catalog changes; please retry".
+      },
+    });
+  }
+
+  // Decide where a record lives. A caller-supplied `locationId` or
+  // `availableAt` always wins; otherwise the active location is used.
+  const place = (doc, context) => {
+    if (context?.unscoped) return;
+
+    if (availability && !(doc.availableAt || []).length) {
+      // An existing row being re-saved keeps the location it was added in,
+      // rather than moving to whichever location happened to save it.
+      const here = doc.locationId || context?.locationId;
+      if (here) {
+        doc.availableAt = [here];
+      } else if (context?.noLocations) {
+        throw noLocationsYet(`create a ${modelName}`);
+      } else {
+        throw noLocationPicked(modelName);
+      }
+    }
+
+    if (!doc.locationId) {
+      const here = context?.locationId || doc.availableAt?.[0];
+      if (here) doc.locationId = here;
+    }
+  };
+
+  schema.pre("validate", function stampSharedLocation() {
+    place(this, getTenantContext());
+  });
+
+  schema.pre("insertMany", function stampManySharedLocations(docs) {
+    const context = getTenantContext();
+    for (const doc of docs || []) place(doc, context);
+  });
+
+  if (!availability) return;
+
+  schema.pre(QUERY_HOOKS, function applyAvailabilityFilter() {
+    const context = getTenantContext();
+    if (context?.unscoped) return;
+    if (this.getOptions?.().skipTenantScope) return;
+    if (!context) throw missingContext(`querying ${modelName}`);
+
+    if (targetsSpecificIds(this.getFilter?.())) return;
+
+    const ids = locationsInPlay(context);
+    if (!ids) throw missingContext(`querying ${modelName}`);
+
+    // and() rather than where(): a caller's own $or must survive alongside it.
+    this.and([availableIn(ids)]);
+  });
+
+  schema.pre("aggregate", function applyAvailabilityMatch() {
+    const context = getTenantContext();
+    if (context?.unscoped) return;
+    if (this.options?.skipTenantScope) return;
+    if (!context) throw missingContext(`aggregating ${modelName}`);
+
+    const ids = locationsInPlay(context);
+    if (!ids) throw missingContext(`aggregating ${modelName}`);
+    this.pipeline().unshift({ $match: availableIn(ids) });
+  });
+};
+
+module.exports = function tenantScope(
+  schema,
+  { modelName = "query", shared = false, availability = false } = {},
+) {
   schema.add({
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -94,6 +239,11 @@ module.exports = function tenantScope(schema, { modelName = "query" } = {}) {
       index: true,
     },
   });
+
+  if (shared || availability) {
+    installSharedScope(schema, { modelName, availability });
+    return;
+  }
 
   // ── Writes: stamp the active location ──────────────────────────────────────
   // pre("validate") rather than pre("save") so the field is present before

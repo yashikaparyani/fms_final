@@ -10,6 +10,7 @@ const {
 const { createAddressRef } = require("../utils/addressRef");
 const { biddingCarrierIds } = require("../utils/biddingEligibility");
 const Address = require("../models/common/Address");
+const { resolveAvailability, currentAvailability, syncAccountLocations } = require("../utils/availability");
 const mongoose = require("mongoose");
 const {
   claimCredentialIssue,
@@ -142,6 +143,10 @@ const createFleetOwner = async (req, res) => {
       sendCredentials
     } = req.body;
 
+    // Which locations can pick this carrier. Defaults to the active location
+    // when the form does not say — see plugins/tenantScope.js.
+    const availableAt = await resolveAvailability(req, req.body.availableAt);
+
     // Create Fleet Owner. Note the address is NOT passed as street/suite/... here:
     // those are not fields on FleetOwner (its only address field is `addresses`, a
     // list of Address references), so passing them top-level silently dropped the
@@ -156,7 +161,8 @@ const createFleetOwner = async (req, res) => {
       websiteUrl,
       notes,
       contactPersons: contactPersons || [],
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      ...(availableAt && { availableAt }),
     });
 
     const addressId = await createAddressRef(
@@ -196,7 +202,7 @@ const createFleetOwner = async (req, res) => {
             // filed under. Without this the account authenticates but cannot
             // resolve a location, so every request after sign-in comes back
             // 403 NO_LOCATION — an account that exists and cannot be used.
-            locations: [fleetOwner.locationId],
+            locations: currentAvailability(fleetOwner),
             defaultLocation: fleetOwner.locationId,
           });
 
@@ -223,8 +229,9 @@ const createFleetOwner = async (req, res) => {
           // have been created before this location did, or by a path that did
           // not grant one — so it is added rather than assumed.
           const has = (existingUser.locations || []).map(String);
-          if (!has.includes(String(fleetOwner.locationId))) {
-            existingUser.locations = [...has, fleetOwner.locationId];
+          const missing = currentAvailability(fleetOwner).filter((id) => !has.includes(id));
+          if (missing.length) {
+            existingUser.locations = [...has, ...missing];
             existingUser.defaultLocation =
               existingUser.defaultLocation || fleetOwner.locationId;
             await existingUser.save();
@@ -243,7 +250,7 @@ const createFleetOwner = async (req, res) => {
         : 'Fleet owner created successfully'
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(error.status || 400).json({ message: error.message, code: error.code });
   }
 };
 
@@ -260,12 +267,26 @@ const updateFleetOwner = async (req, res) => {
   try {
     // Read the contact address before the edit, so a change to it can be
     // detected below.
-    const before = await FleetOwner.findById(req.params.id).select("contactPersons userId").lean();
+    const before = await FleetOwner.findById(req.params.id)
+      .select("contactPersons userId availableAt locationId")
+      .lean();
+    if (!before) {
+      return res.status(404).json({ message: "Fleet owner not found" });
+    }
 
     // street/suite/city/state/zip are not FleetOwner fields — the address lives
     // in a referenced Address document, so it is split off and written there.
     // `addresses` is never taken from the body, so the reference cannot be swapped.
-    const { street, suite, city, state, zip, addresses, ...updates } = req.body;
+    // `availableAt` is resolved rather than copied (see utils/availability.js);
+    // `locationId` is where the carrier was first added and never edited.
+    const {
+      street, suite, city, state, zip, addresses,
+      availableAt: requestedAvailability, locationId: _ignoredLocation,
+      ...updates
+    } = req.body;
+
+    const availableAt = await resolveAvailability(req, requestedAvailability, before);
+    if (availableAt) updates.availableAt = availableAt;
 
     const fleetOwner = await FleetOwner.findByIdAndUpdate(
       req.params.id,
@@ -340,9 +361,14 @@ const updateFleetOwner = async (req, res) => {
       }
     }
 
+    // The carrier's portal follows where the carrier is available.
+    if (availableAt && fleetOwner.userId) {
+      await syncAccountLocations(fleetOwner.userId, currentAvailability(fleetOwner));
+    }
+
     res.json(loginNotice ? { ...fleetOwner.toObject(), loginNotice } : fleetOwner);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(error.status || 400).json({ message: error.message, code: error.code });
   }
 };
 
@@ -452,7 +478,7 @@ const sendCredentialsToFleetOwner = async (req, res) => {
         isVerified: true,
         // Without membership the account authenticates and then 403s on every
         // request — see resolveLocation. Same rule as createFleetOwner.
-        locations: [fleetOwner.locationId],
+        locations: currentAvailability(fleetOwner),
         defaultLocation: fleetOwner.locationId,
         credentialsSentAt: new Date(),
       });
@@ -465,9 +491,9 @@ const sendCredentialsToFleetOwner = async (req, res) => {
 
       // Repair membership on the way past: an account issued before locations
       // existed would otherwise get a working password and still not load.
-      if (!(user.locations || []).length && fleetOwner.locationId) {
-        user.locations = [fleetOwner.locationId];
-        user.defaultLocation = fleetOwner.locationId;
+      if (!(user.locations || []).length && currentAvailability(fleetOwner).length) {
+        user.locations = currentAvailability(fleetOwner);
+        user.defaultLocation = fleetOwner.locationId || user.locations[0];
       }
 
       await user.save();

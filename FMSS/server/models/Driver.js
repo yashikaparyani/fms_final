@@ -140,7 +140,8 @@ driverSchema.pre("save", async function assignDriverCode() {
   this.driverCode = await nextSequence("driver", this.locationId);
 });
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-driverSchema.plugin(tenantScope, { modelName: "Driver" });
+// Shared by every location — one list for the whole business. See the
+// "Shared models" note in plugins/tenantScope.js.
+driverSchema.plugin(tenantScope, { modelName: "Driver", shared: true });
 
 module.exports = mongoose.model("Driver", driverSchema);

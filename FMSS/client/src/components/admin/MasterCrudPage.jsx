@@ -7,6 +7,8 @@ import api from "../../api";
 import LoadTable from "../LoadTable";
 import { uiStyles } from "../../style/uiStyles";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
+import LocationAvailabilityPicker from "../LocationAvailabilityPicker";
+import { noLocationPicked } from "../../utils/locationAvailability";
 
 // ─── Reusable admin master page ──────────────────────────────────────────────
 // Shipping lines, delivery partners and chassis companies are the same master
@@ -45,7 +47,16 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
           fields.map((f) => [f.name, initial[f.name] == null ? "" : String(initial[f.name])]),
         )
       : {};
-    setForm(initial ? { ...empty, ...initial, ...seeded } : empty);
+    // Where the entry is offered. Entries from before the choice existed are
+    // available where they were added. A new entry starts undefined so the
+    // picker can preselect the location being worked in.
+    const availableAt = initial
+      ? (initial.availableAt?.length
+          ? initial.availableAt
+          : initial.locationId ? [initial.locationId] : []
+        ).map(String)
+      : undefined;
+    setForm(initial ? { ...empty, ...initial, ...seeded, availableAt } : empty);
   }, [isShow, initial, fields]);
 
   const handleSubmit = async () => {
@@ -60,6 +71,11 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
       return;
     }
 
+    if (noLocationPicked(form.availableAt)) {
+      notify.error(`Choose at least one location where this ${singular.toLowerCase()} is available`);
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -68,6 +84,8 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
         ...Object.fromEntries(
           fields.map((f) => [f.name, String(form[f.name] || "").trim()]),
         ),
+        // Left out when the picker is hidden (one location only).
+        ...(form.availableAt && { availableAt: form.availableAt }),
       };
 
       if (initial?._id) {
@@ -134,6 +152,12 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
               )}
             </div>
           ))}
+
+          <LocationAvailabilityPicker
+            value={form.availableAt}
+            onChange={(availableAt) => setForm((prev) => ({ ...prev, availableAt }))}
+            disabled={saving}
+          />
 
           {config.modalExtra?.(initial)}
 

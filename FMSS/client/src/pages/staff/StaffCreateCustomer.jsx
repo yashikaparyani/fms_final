@@ -37,6 +37,10 @@ const StaffCreateCustomer = () => {
       sendStatusEmails: !!data.sendStatusEmails,
       sendInvoiceEmails: !!data.sendInvoiceEmails,
       creditLimitExceeded: !!data.creditLimitExceeded,
+
+      // Left out when the picker is not shown (one location only) — the
+      // server then uses the location being worked in.
+      ...(data.availableAt && { availableAt: data.availableAt }),
     };
 
     console.log("📤 STAFF PAYLOAD:", payload); // DEBUG

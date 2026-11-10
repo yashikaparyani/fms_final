@@ -194,16 +194,129 @@ describe("Per-location ID sequences", () => {
     expect(fo.fleetOwnerCode).toBe("SLINE 00001");
   });
 
-  it("keeps customers separate per location", async () => {
-    const mongoose = require("mongoose");
-    await runWithTenant({ locationId: String(ny._id) }, () =>
+});
+
+// Customers, carriers, stop companies, street-turn partners, shipping lines and
+// chassis companies are offered at the locations picked on each record
+// (`availableAt`). Drivers, onboarding and addresses are one shared list.
+describe("Shared models", () => {
+  const mongoose = require("mongoose");
+  const Driver = require("../models/Driver");
+  const Address = require("../models/common/Address");
+  const ShippingLine = require("../models/ShippingLine");
+  const Bid = require("../models/bidSchema");
+  const TrackingEvent = require("../models/TrackingEvent");
+  const allMode = () => ({
+    locationIds: [String(ny._id), String(chi._id)],
+    allLocations: true,
+  });
+  const at = (branch, fn) => runWithTenant({ locationId: String(branch._id) }, fn);
+
+  it("offers a new record only where it was added, unless told otherwise", async () => {
+    const created = await at(ny, () =>
       Customer.create({ user: new mongoose.Types.ObjectId(), customerName: "NY Client" }),
     );
+    expect(String(created.locationId)).toBe(String(ny._id));
+    expect(created.availableAt.map(String)).toEqual([String(ny._id)]);
 
-    const chiCustomers = await runWithTenant({ locationId: String(chi._id) }, () =>
-      Customer.find(),
+    expect(await at(ny, () => Customer.find())).toHaveLength(1);
+    expect(await at(chi, () => Customer.find())).toHaveLength(0);
+  });
+
+  it("lists a record at every location it is available at", async () => {
+    await at(ny, () =>
+      ShippingLine.create({ name: "Maersk", availableAt: [ny._id, chi._id] }),
     );
-    expect(chiCustomers).toHaveLength(0);
+    await at(ny, () => ShippingLine.create({ name: "MSC" }));
+
+    expect((await at(chi, () => ShippingLine.find())).map((l) => l.name)).toEqual(["Maersk"]);
+    expect(await at(ny, () => ShippingLine.countDocuments())).toBe(2);
+    // A caller's own $or is kept alongside the location filter.
+    const either = await at(chi, () =>
+      ShippingLine.find({ $or: [{ name: "Maersk" }, { name: "MSC" }] }),
+    );
+    expect(either.map((l) => l.name)).toEqual(["Maersk"]);
+    const agg = await at(chi, () => ShippingLine.aggregate([{ $match: {} }]));
+    expect(agg).toHaveLength(1);
+  });
+
+  it("still opens a record by id where it is not offered", async () => {
+    const line = await at(ny, () => ShippingLine.create({ name: "CMA CGM" }));
+    expect(await at(chi, () => ShippingLine.findById(line._id))).not.toBeNull();
+    expect(await at(chi, () => ShippingLine.find({ _id: { $ne: line._id } }))).toHaveLength(0);
+  });
+
+  it("treats records from before the choice as available where they were added", async () => {
+    await runUnscoped(() =>
+      ShippingLine.collection.insertOne({ name: "Legacy", locationId: chi._id }),
+    );
+    expect(await at(chi, () => ShippingLine.find())).toHaveLength(1);
+    expect(await at(ny, () => ShippingLine.find())).toHaveLength(0);
+  });
+
+  it("lets another location open, update and populate a carrier", async () => {
+    const fo = await runWithTenant({ locationId: String(ny._id) }, async () => {
+      const address = await Address.create({ city: "Newark" });
+      return FleetOwner.create({ carrierName: "Empire Haul", addresses: [address._id] });
+    });
+    await runWithTenant({ locationId: String(ny._id) }, () =>
+      Driver.create({ fleetOwner: fo._id, name: "Sam" }),
+    );
+
+    await runWithTenant({ locationId: String(chi._id) }, async () => {
+      const found = await FleetOwner.findById(fo._id).populate("addresses");
+      expect(found.addresses[0].city).toBe("Newark");
+      await FleetOwner.updateOne({ _id: fo._id }, { phone: "555" });
+      expect(await Driver.countDocuments({ fleetOwner: fo._id })).toBe(1);
+    });
+    const updated = await runUnscoped(() => FleetOwner.findById(fo._id).lean());
+    expect(updated.phone).toBe("555");
+  });
+
+  it("can be created while viewing all locations once locations are picked", async () => {
+    await expect(
+      runWithTenant(allMode(), () => FleetOwner.create({ carrierName: "Nowhere Freight" })),
+    ).rejects.toMatchObject({ code: "AVAILABILITY_REQUIRED" });
+
+    const fo = await runWithTenant(allMode(), () =>
+      FleetOwner.create({ carrierName: "Anywhere Freight", availableAt: [chi._id, ny._id] }),
+    );
+    // Filed under the first location picked, so its code has a counter.
+    expect(String(fo.locationId)).toBe(String(chi._id));
+    expect(fo.fleetOwnerCode).toBeTruthy();
+  });
+
+  it("can share a driver or address without a location in play", async () => {
+    const address = await runWithTenant(allMode(), () => Address.create({ city: "Gary" }));
+    expect(address.locationId).toBeUndefined();
+  });
+
+  it("files a record written in all-locations mode under its load's location", async () => {
+    const load = await runWithTenant({ locationId: String(chi._id) }, () =>
+      Load.create(newLoad()),
+    );
+    const event = await runWithTenant(allMode(), () =>
+      TrackingEvent.create({
+        load: load._id,
+        loadId: load.loadId,
+        user: new mongoose.Types.ObjectId(),
+        coordinates: { latitude: 40, longitude: -74 },
+      }),
+    );
+    expect(String(event.locationId)).toBe(String(chi._id));
+
+    const [bid] = await runWithTenant(allMode(), () =>
+      Bid.insertMany([
+        { loadId: load._id, fleetOwnerId: new mongoose.Types.ObjectId(), amount: 10 },
+      ]),
+    );
+    expect(String(bid.locationId)).toBe(String(chi._id));
+  });
+
+  it("still refuses an all-locations write with no load to take a location from", async () => {
+    await expect(
+      runWithTenant(allMode(), () => Load.create(newLoad())),
+    ).rejects.toMatchObject({ code: "ALL_LOCATIONS_READ_ONLY" });
   });
 });
 

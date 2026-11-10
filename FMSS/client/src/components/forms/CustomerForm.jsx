@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { uiStyles } from "../../style/uiStyles";
 import AddressFields from "../AddressFields";
+import LocationAvailabilityPicker from "../LocationAvailabilityPicker";
+import { noLocationPicked } from "../../utils/locationAvailability";
 
 const CustomerForm = ({
   onSubmit,
@@ -115,6 +117,10 @@ const CustomerForm = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isSelfRegister && noLocationPicked(formData.availableAt)) {
+      toast.error("Choose at least one location where this customer is available.");
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit(formData);
@@ -225,6 +231,20 @@ const CustomerForm = ({
                   </div>
                 </div>
               </>
+            )}
+
+            {/* ── Section: Locations (staff only) ────────────────────────── */}
+            {!isSelfRegister && (
+              <div className="mb-6">
+                <LocationAvailabilityPicker
+                  value={formData.availableAt}
+                  onChange={(availableAt) =>
+                    setFormData((prev) => ({ ...prev, availableAt }))
+                  }
+                  disabled={loading}
+                  hint="Only the ticked locations will list this customer. Their own login sees loads from these locations."
+                />
+              </div>
             )}
 
             {/* ── Section: Address Details ───────────────────────────────── */}

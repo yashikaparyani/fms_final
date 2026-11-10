@@ -85,7 +85,8 @@ fleetOwnerSchema.pre("save", async function () {
 });
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-fleetOwnerSchema.plugin(tenantScope, { modelName: "FleetOwner" });
+// Offered at the locations picked on the record (`availableAt`). See the
+// "Shared models" note in plugins/tenantScope.js.
+fleetOwnerSchema.plugin(tenantScope, { modelName: "FleetOwner", availability: true });
 
 module.exports = mongoose.model("FleetOwner", fleetOwnerSchema);

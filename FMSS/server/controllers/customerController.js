@@ -3,6 +3,7 @@ const Customer = require("../models/Customer");
 const Address = require("../models/common/Address");
 const { sendCustomerCredentials } = require("../services/emailService");
 const mongoose = require("mongoose");
+const { resolveAvailability, syncAccountLocations } = require("../utils/availability");
 const {
   claimCredentialIssue,
   releaseCredentialIssue,
@@ -125,9 +126,13 @@ const getCustomers = async (req, res) => {
     const userIds = users.map((u) => u._id);
 
     // 2. Get customers + populate addresses
+    // The accounts above are already narrowed to this location, so their
+    // profiles are read unfiltered: a profile whose availability has drifted
+    // from its account must not make the customer look profile-less.
     const customerProfiles = await Customer.find({
       user: { $in: userIds },
     })
+      .setOptions({ skipTenantScope: true })
       .populate({
         path: "addresses",
         options: { sort: { createdAt: -1 } }, // 🔥 latest first
@@ -173,6 +178,10 @@ const getCustomers = async (req, res) => {
         primaryAddress: topAddress,
 
         customerId: profile?._id || null,
+
+        // Where this customer is offered — falls back to the account's own
+        // locations for profiles from before the choice existed.
+        availableAt: (profile?.availableAt?.length ? profile.availableAt : user.locations) || [],
       };
     });
 
@@ -201,7 +210,10 @@ const getCustomerById = async (req, res) => {
     }
 
     // ✅ 2. GET CUSTOMER + POPULATE ADDRESSES
+    // By account rather than by location — one account has one profile, and
+    // the edit screen must find it wherever it is offered.
     const customer = await Customer.findOne({ user: userId })
+      .setOptions({ skipTenantScope: true })
       .populate("addresses") // 🔥 populate address collection
       .lean();
 
@@ -211,6 +223,9 @@ const getCustomerById = async (req, res) => {
       ...(customer || {}),
       customerName:
         customer?.customerName || customerNameFromUser(user),
+      availableAt: customer?.availableAt?.length
+        ? customer.availableAt
+        : user.locations || [],
     };
 
     res.json(response);
@@ -511,7 +526,20 @@ const editCustomerByStaff = async (req, res) => {
     );
 
     // ✅ FIND CUSTOMER VIA USER
-    let customer = await Customer.findOne({ user: id }).session(session);
+    // Unfiltered for the same reason as getCustomerById — and here it matters
+    // more: a profile hidden by the filter would be "recreated" below as a
+    // second profile for the same account.
+    let customer = await Customer.findOne({ user: id })
+      .setOptions({ skipTenantScope: true })
+      .session(session);
+
+    // Where the customer is offered. Profiles from before the choice existed
+    // are judged by the account's locations, which is what listed them.
+    const availableAt = await resolveAvailability(
+      req,
+      req.body.availableAt,
+      customer?.availableAt?.length ? customer : { availableAt: user.locations },
+    );
     const resolvedCustomerName =
       String(customerName || "").trim() ||
       customer?.customerName ||
@@ -531,6 +559,7 @@ const editCustomerByStaff = async (req, res) => {
             customerName: resolvedCustomerName,
             locationId:
               req.locationId || user.defaultLocation || user.locations?.[0],
+            availableAt: availableAt || (user.locations?.length ? user.locations : undefined),
             addresses: [],
           },
         ],
@@ -545,6 +574,7 @@ const editCustomerByStaff = async (req, res) => {
       {
         $set: {
           customerName: resolvedCustomerName,
+          ...(availableAt && { availableAt }),
           contact:     { phone: phone || "", fax: fax || "", email: email || "", website: website || "" },
           emails:      { podEmail: podEmail || "", accChargesEmail: accChargesEmail || "", deliveryEmail: deliveryEmail || "" },
           preferences: {
@@ -556,6 +586,9 @@ const editCustomerByStaff = async (req, res) => {
       },
       { returnDocument: "after", session }
     );
+
+    // The customer's own portal follows where they are offered.
+    if (availableAt) await syncAccountLocations(id, availableAt, { session });
 
     // ✅ HANDLE ADDRESS
     let address;
@@ -604,7 +637,7 @@ const editCustomerByStaff = async (req, res) => {
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message, code: err.code });
   }
 };
 
@@ -621,7 +654,9 @@ const deleteCustomerByStaff = async (req, res) => {
     const user = await User.findOne({ _id: id, role: "client" });
     if (!user) throw new Error("User not found");
 
-    const customer = await Customer.findOne({ user: id }).session(session);
+    const customer = await Customer.findOne({ user: id })
+      .setOptions({ skipTenantScope: true })
+      .session(session);
 
     if (!customer) {
       throw new Error("Customer not found");

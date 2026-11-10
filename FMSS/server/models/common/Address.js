@@ -26,7 +26,8 @@ const addressSchema = new mongoose.Schema(
 );
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-addressSchema.plugin(tenantScope, { modelName: "Address" });
+// Shared by every location — one list for the whole business. See the
+// "Shared models" note in plugins/tenantScope.js.
+addressSchema.plugin(tenantScope, { modelName: "Address", shared: true });
 
 module.exports = mongoose.model("Address", addressSchema);

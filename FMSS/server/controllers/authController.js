@@ -12,6 +12,7 @@ const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const { getJwtSecret } = require("../utils/jwtSecret");
 const { createAddressRef } = require("../utils/addressRef");
+const { resolveAvailability } = require("../utils/availability");
 const { createOneStaff } = require("./staffController");
 
 
@@ -348,13 +349,18 @@ const createCustomerByStaff = async (req, res) => {
     // ✅ VALIDATION
     if (!email || !phone) throw new Error("Email and phone are required");
 
-    const locationsForNewCustomer = (
-      req.locationId ? [req.locationId] : req.locationIds || []
-    ).map(String);
+    // The locations ticked on the form, or the active one when the form sent
+    // none. The account and the Customer record get the same list: the account
+    // decides where the customer's own portal works, the record decides which
+    // locations list them.
+    const locationsForNewCustomer =
+      (await resolveAvailability(req, req.body.availableAt)) ||
+      (req.locationId ? [String(req.locationId)] : []);
 
     if (!locationsForNewCustomer.length) {
-      throw new Error(
-        "Pick a single location before adding a customer — the account has to belong to one.",
+      throw Object.assign(
+        new Error("Choose at least one location where this customer should be available."),
+        { status: 400 },
       );
     }
 
@@ -406,6 +412,7 @@ const createCustomerByStaff = async (req, res) => {
         {
           user: createdUser._id,
           customerName: customerName || `${firstName} ${lastName}`,
+          availableAt: locationsForNewCustomer,
           addresses: [],
           contact: {
             phone:   phone   || "",
@@ -472,7 +479,9 @@ const createCustomerByStaff = async (req, res) => {
     const isCallerFixable = /already exists|are required|is required/i.test(
       err.message || "",
     );
-    return res.status(isCallerFixable ? 400 : 500).json({ message: err.message });
+    return res
+      .status(err.status || (isCallerFixable ? 400 : 500))
+      .json({ message: err.message, code: err.code });
   }
 };
 

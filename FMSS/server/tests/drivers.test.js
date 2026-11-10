@@ -356,7 +356,8 @@ describe("Roster isolation", () => {
     expect(String(res.body.driver.fleetOwner)).toBe(String(carrier._id));
   });
 
-  it("keeps one location's drivers out of another's", async () => {
+  // Drivers belong to their carrier, and carriers are shared by every location.
+  it("shows every location the same drivers", async () => {
     const staffBothBranches = await User.create({
       email: "roving@fms.com",
       password: "x",
@@ -366,7 +367,7 @@ describe("Roster isolation", () => {
     });
 
     const chicagoView = await req.get("/api/drivers", staffBothBranches, chi);
-    expect(chicagoView.body).toHaveLength(0);
+    expect(chicagoView.body).toHaveLength(2);
 
     const newYorkView = await req.get("/api/drivers", staffBothBranches, ny);
     expect(newYorkView.body).toHaveLength(2);

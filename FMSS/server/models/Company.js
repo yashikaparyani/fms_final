@@ -45,7 +45,8 @@ companySchema.virtual("addresses", {
 });
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-companySchema.plugin(tenantScope, { modelName: "Company" });
+// Offered at the locations picked on the record (`availableAt`). See the
+// "Shared models" note in plugins/tenantScope.js.
+companySchema.plugin(tenantScope, { modelName: "Company", availability: true });
 
 module.exports = mongoose.model("Company", companySchema);

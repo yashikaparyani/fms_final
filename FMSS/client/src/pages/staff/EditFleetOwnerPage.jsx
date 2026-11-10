@@ -30,6 +30,12 @@ const EditFleetOwnerPage = () => {
         notes:       data.notes,
         active:      data.active ?? true,
 
+        // Records from before the choice existed are available where added.
+        availableAt: (data.availableAt?.length
+          ? data.availableAt
+          : data.locationId ? [data.locationId] : []
+        ).map(String),
+
         street: data.street,
         suite:  data.suite,
         city:   data.city,

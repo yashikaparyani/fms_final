@@ -268,8 +268,9 @@ carrierOnboardingSchema.methods.issueInsuranceToken = function ({ days = 30 } = 
 carrierOnboardingSchema.statics.hashInsuranceToken = (token) =>
   crypto.createHash("sha256").update(String(token)).digest("hex");
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-carrierOnboardingSchema.plugin(tenantScope, { modelName: "CarrierOnboarding" });
+// Shared by every location — one list for the whole business. See the
+// "Shared models" note in plugins/tenantScope.js.
+carrierOnboardingSchema.plugin(tenantScope, { modelName: "CarrierOnboarding", shared: true });
 
 carrierOnboardingSchema.statics.STEPS = STEPS;
 carrierOnboardingSchema.statics.STATUSES = STATUSES;

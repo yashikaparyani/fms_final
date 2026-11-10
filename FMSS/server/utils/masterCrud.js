@@ -8,6 +8,8 @@
 
 // Names are matched case-insensitively, so user input must be escaped before
 // it is used to build the lookup RegExp.
+const { resolveAvailability } = require("./availability");
+
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -27,10 +29,26 @@ const createMasterController = ({
   requiredFields = [],
   apply,
 }) => {
+  // Names are unique across the whole business, not per location, so the
+  // duplicate check looks everywhere — including entries this location cannot
+  // see yet, which is what `availableAt` (see utils/availability.js) is for.
   const findByName = (name, excludeId) => {
     const query = { name: new RegExp(`^${escapeRegex(name)}$`, "i") };
     if (excludeId) query._id = { $ne: excludeId };
-    return Model.findOne(query);
+    return Model.findOne(query).setOptions({ skipTenantScope: true });
+  };
+
+  // Phrased for the case where the duplicate is hidden from this location: the
+  // user can see no such entry, so a bare "already exists" reads as a bug.
+  const duplicateMessage = (existing, trimmed, req) => {
+    const ids = (existing.availableAt?.length ? existing.availableAt : [existing.locationId])
+      .filter(Boolean)
+      .map(String);
+    const here = (req.locationIds || []).map(String);
+    if (ids.length && !ids.some((id) => here.includes(id))) {
+      return `"${trimmed}" already exists, but is not available at this location. Edit it from a location that has it and tick this location.`;
+    }
+    return `"${trimmed}" already exists`;
   };
 
   // Returns an error message, or null when every required field is present.
@@ -77,11 +95,14 @@ const createMasterController = ({
     try {
       const trimmed = name.trim();
 
-      if (await findByName(trimmed)) {
-        return res.status(409).json({ message: `"${trimmed}" already exists` });
+      const duplicate = await findByName(trimmed);
+      if (duplicate) {
+        return res.status(409).json({ message: duplicateMessage(duplicate, trimmed, req) });
       }
 
       const doc = { name: trimmed, isActive: isActive !== false };
+      const availableAt = await resolveAvailability(req, body.availableAt);
+      if (availableAt) doc.availableAt = availableAt;
       for (const field of textFields) {
         doc[field] = String(body[field] || "").trim();
       }
@@ -96,7 +117,7 @@ const createMasterController = ({
       if (err.code === 11000) {
         return res.status(409).json({ message: `${label} already exists` });
       }
-      res.status(500).json({ message: err.message });
+      res.status(err.status || 500).json({ message: err.message, code: err.code });
     }
   };
 
@@ -116,8 +137,11 @@ const createMasterController = ({
         if (!trimmed) {
           return res.status(400).json({ message: `${label} name is required` });
         }
-        if (await findByName(trimmed, row._id)) {
-          return res.status(409).json({ message: `"${trimmed}" already exists` });
+        const duplicate = await findByName(trimmed, row._id);
+        if (duplicate) {
+          return res
+            .status(409)
+            .json({ message: duplicateMessage(duplicate, trimmed, req) });
         }
         row.name = trimmed;
       }
@@ -129,6 +153,9 @@ const createMasterController = ({
       }
       if (isActive !== undefined) row.isActive = Boolean(isActive);
 
+      const availableAt = await resolveAvailability(req, body.availableAt, row);
+      if (availableAt) row.availableAt = availableAt;
+
       const problem = apply ? apply(row, body, req, { isNew: false }) : null;
       if (problem) return res.status(400).json({ message: problem });
 
@@ -138,7 +165,7 @@ const createMasterController = ({
       if (err.code === 11000) {
         return res.status(409).json({ message: `${label} already exists` });
       }
-      res.status(500).json({ message: err.message });
+      res.status(err.status || 500).json({ message: err.message, code: err.code });
     }
   };
 

@@ -21,7 +21,8 @@ const shippingLineSchema = new mongoose.Schema(
 );
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-shippingLineSchema.plugin(tenantScope, { modelName: "ShippingLine" });
+// Offered at the locations picked on the record (`availableAt`). See the
+// "Shared models" note in plugins/tenantScope.js.
+shippingLineSchema.plugin(tenantScope, { modelName: "ShippingLine", availability: true });
 
 module.exports = mongoose.model("ShippingLine", shippingLineSchema);

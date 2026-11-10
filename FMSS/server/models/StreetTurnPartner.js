@@ -35,8 +35,9 @@ const streetTurnPartnerSchema = new mongoose.Schema(
 );
 
 
-// Per-location data — scoping is enforced centrally, see plugins/tenantScope.js.
-streetTurnPartnerSchema.plugin(tenantScope, { modelName: "StreetTurnPartner" });
+// Offered at the locations picked on the record (`availableAt`). See the
+// "Shared models" note in plugins/tenantScope.js.
+streetTurnPartnerSchema.plugin(tenantScope, { modelName: "StreetTurnPartner", availability: true });
 
 // Third argument pins the collection. The model was called DeliveryPartner, and
 // Mongoose would otherwise derive `streetturnpartners` from the new name and
