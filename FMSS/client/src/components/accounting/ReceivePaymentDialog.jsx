@@ -270,7 +270,7 @@ const ReceivePaymentDialog = ({ open, customerName, invoices = [], onClose, onRe
   const allPicked = openRows.length > 0 && selected.length === openRows.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/50 p-4">
+    <div className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-ink-900/50 p-4">
       <div className="my-8 w-full max-w-3xl rounded-2xl bg-surface shadow-2xl">
         <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
           <div className="flex items-center gap-2">

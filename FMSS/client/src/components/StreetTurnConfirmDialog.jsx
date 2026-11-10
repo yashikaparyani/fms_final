@@ -81,8 +81,8 @@ const StreetTurnConfirmDialog = ({ isShow, load, onCancel, onConfirm, saving }) 
   ].filter(Boolean);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-gray-100">
           <h3 className="text-base font-bold text-gray-800">Confirm Street Turn</h3>
           <p className="text-xs text-gray-400">

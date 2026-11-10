@@ -89,10 +89,10 @@ const ForgotPasswordDialog = ({ open, initialEmail = "", onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <form
         onSubmit={step === "email" ? sendCode : reset}
-        className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+        className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto"
       >
         <div className="px-5 py-4 border-b border-hairline">
           <h3 className="text-base font-bold text-ink-800">Forgot password</h3>

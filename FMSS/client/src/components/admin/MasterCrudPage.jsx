@@ -108,8 +108,8 @@ const MasterModal = ({ isShow, initial, onClose, onSaved, config }) => {
   if (!isShow) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
-      <div className="bg-white p-5 rounded-xl w-[420px] max-w-[95vw] space-y-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-[1000] p-4">
+      <div className="bg-white p-5 sm:p-6 rounded-xl w-full max-w-xl max-h-[90vh] overflow-y-auto space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-lg">
             {initial?._id ? `Edit ${singular}` : `Add ${singular}`}

@@ -70,7 +70,7 @@ const AddNewAddressModal = ({ isShow, setIsShow, onSuccess }) => {
   if (!isShow) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-[1000] p-4">
       <div className="bg-white p-5 rounded-xl w-[480px] max-w-[95vw] space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-1">
           <h2 className="font-semibold text-lg">Add New Address</h2>

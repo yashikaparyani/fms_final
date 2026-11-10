@@ -295,7 +295,7 @@ const AssignCarrierLegsDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
+    <div className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/40 p-4">
       <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl my-6">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-gray-200 p-5">

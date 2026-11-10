@@ -183,7 +183,7 @@ const ScheduleBidding = ({ open, onClose, load, refreshLoads }) => {
   if (!open || !load) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className={`${uiStyles.card} w-full max-w-[580px] max-h-[90vh] overflow-y-auto p-6 rounded-2xl bg-white shadow-2xl relative`}>
 
         {/* Header */}

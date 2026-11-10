@@ -103,7 +103,7 @@ const UpdateAddressDialog = ({ open, onClose, load, onSuccess }) => {
   if (!open || !load) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center z-50 overflow-y-auto py-4 px-3">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center z-[1000] overflow-y-auto py-4 px-3">
       <div className="bg-gray-50 rounded-xl w-full max-w-2xl shadow-xl mx-auto my-4 h-fit">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-white rounded-t-xl">

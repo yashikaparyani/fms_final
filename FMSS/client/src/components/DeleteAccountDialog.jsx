@@ -54,10 +54,10 @@ const DeleteAccountDialog = ({ open, onClose, role, onDeleted }) => {
   const ready = password && confirm.trim().toUpperCase() === "DELETE";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="bg-surface rounded-2xl shadow-card-hover w-full max-w-md overflow-hidden"
+        className="bg-surface rounded-2xl shadow-card-hover w-full max-w-md max-h-[90vh] overflow-y-auto"
       >
         <div className="px-5 py-4 border-b border-hairline">
           <h3 className="text-base font-bold text-bad-700">Delete your account</h3>
