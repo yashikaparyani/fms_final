@@ -153,6 +153,26 @@ const availableIn = (ids) => {
   };
 };
 
+/**
+ * The branch of the load a new record is about, when the request is a carrier's
+ * and that load is one of theirs from another branch (see widenForCarrier in
+ * middleware/location.js). Without this, a tracking point or notification on a
+ * Head Office load, written while the carrier's own branch is active, would be
+ * filed under the carrier's branch, where the Head Office staff running the
+ * load could never see it.
+ *
+ * Records point at their load as `load` (TrackingEvent, Notification,
+ * LoadAudit) or as an ObjectId `loadId` (Bid); a string `loadId` is the
+ * human-readable number and is ignored.
+ */
+const loadLocationOf = (doc, context) => {
+  const map = context?.loadLocations;
+  if (!map?.size || !doc) return null;
+  const ref = doc.load?._id || doc.load || doc.loadId?._id || doc.loadId;
+  if (!ref || !mongoose.isValidObjectId(ref) || typeof ref === "number") return null;
+  return map.get(String(ref)) || null;
+};
+
 const installSharedScope = (schema, { modelName, availability }) => {
   if (availability) {
     schema.add({
@@ -255,6 +275,12 @@ module.exports = function tenantScope(
     const context = getTenantContext();
     if (context?.unscoped) return;
 
+    const fromLoad = loadLocationOf(this, context);
+    if (fromLoad) {
+      this.locationId = fromLoad;
+      return;
+    }
+
     // Writes still fail when no location exists — but with a message naming the
     // fix. There is genuinely nowhere to file the record, and silently inventing
     // a home for it would be worse than saying so.
@@ -289,11 +315,19 @@ module.exports = function tenantScope(
     const context = getTenantContext();
     if (context?.unscoped) return;
 
+    for (const doc of unstamped) {
+      const fromLoad = loadLocationOf(doc, context);
+      if (fromLoad) doc.locationId = fromLoad;
+    }
+    if (unstamped.every((doc) => doc.locationId)) return;
+
     if (context?.noLocations) throw noLocationsYet(`insert ${modelName}`);
     if (context?.allLocations) throw allLocationsIsReadOnly(`insert ${modelName}`);
     if (!context?.locationId) throw missingContext(`inserting ${modelName}`);
 
-    for (const doc of unstamped) doc.locationId = context.locationId;
+    for (const doc of unstamped) {
+      if (!doc.locationId) doc.locationId = context.locationId;
+    }
   });
 
   // ── Reads / updates / deletes: constrain to the active location ────────────

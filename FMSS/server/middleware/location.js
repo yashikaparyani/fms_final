@@ -22,6 +22,64 @@ const allowedLocationsFor = async (user) => {
   return (user.locations || []).map(String);
 };
 
+// ─── Carriers work loads from any branch ──────────────────────────────────────
+// A carrier is filed under the branch that onboarded them, but the office can
+// assign them a load from any branch (Golden Dream, an Oakland-Rail carrier,
+// was given LD 0145 from Head Office). Scoped to their own branch alone, that
+// load was assigned and invisible: missing from their list, 404 on its detail
+// screen, nothing to update the status on.
+//
+// So for the carrier side, reads also span the branches of the loads they hold.
+// That widens nothing they could not already reach: every carrier endpoint
+// filters by their own carrier id, and the one that does not, the open bid
+// board, narrows itself back to `req.carrierHomeLocationIds`.
+//
+// Writes still default to the carrier's own branch, except a record about one
+// of their loads (a tracking point, a notification, an audit row), which is
+// filed under that load's branch so the office running the load sees it. See
+// `loadLocations` in plugins/tenantScope.js.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CARRIER_ROLES = ["fleetOwner", "driver"];
+
+/** Map of loadId → branch id for every load this carrier holds, in any branch. */
+const carrierLoadLocations = async (user) => {
+  // Required here rather than at the top: models load the tenant plugin, which
+  // loads the context module this file also feeds.
+  const { findCarrierFor, carrierLoadFilter } = require("../utils/carrierAccount");
+  const Load = require("../models/Load");
+
+  const carrier = await findCarrierFor(user, "_id");
+  if (!carrier) return new Map();
+
+  const loads = await Load.find(carrierLoadFilter(carrier._id))
+    .setOptions({ skipTenantScope: true })
+    .select("_id locationId")
+    .lean();
+
+  return new Map(
+    loads.filter((l) => l.locationId).map((l) => [String(l._id), String(l.locationId)]),
+  );
+};
+
+/** Widen a carrier's tenant context to the branches of the loads they hold. */
+const widenForCarrier = async (req) => {
+  if (!CARRIER_ROLES.includes(req.user.role)) return;
+
+  const home = req.locationIds.map(String);
+  req.carrierHomeLocationIds = home;
+
+  const loadLocations = await carrierLoadLocations(req.user);
+  const extra = [...new Set(loadLocations.values())].filter((id) => !home.includes(id));
+  if (!extra.length) return;
+
+  req.tenantContext = {
+    ...req.tenantContext,
+    locationIds: [...home, ...extra],
+    loadLocations,
+  };
+};
+
 /**
  * Must run after `protect`. Populates:
  *   req.locationId   — the single active branch, or null in "all" mode
@@ -86,6 +144,7 @@ const resolveLocation = async (req, res, next) => {
       req.locationIds = allowed;
       req.allLocations = true;
       req.tenantContext = { locationIds: allowed, allLocations: true };
+      await widenForCarrier(req);
       return runWithTenant(req.tenantContext, next);
     }
 
@@ -109,6 +168,7 @@ const resolveLocation = async (req, res, next) => {
     req.locationIds = [active];
     req.allLocations = false;
     req.tenantContext = { locationId: active };
+    await widenForCarrier(req);
 
     return runWithTenant(req.tenantContext, next);
   } catch (err) {
@@ -116,4 +176,9 @@ const resolveLocation = async (req, res, next) => {
   }
 };
 
-module.exports = { resolveLocation, allowedLocationsFor, LOCATION_HEADER };
+module.exports = {
+  resolveLocation,
+  allowedLocationsFor,
+  widenForCarrier,
+  LOCATION_HEADER,
+};

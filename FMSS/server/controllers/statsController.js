@@ -412,8 +412,15 @@ const getStats = async (req, res) => {
       // counted or listed until the carrier is cleared to bid — see
       // utils/biddingEligibility.js.
       const biddingBlocked = await biddingBlockFor(fleetOwnerId);
+
+      // The board is the carrier's own branch, as on GET /loads — their trips
+      // span every branch, open loads do not (middleware/location.js).
+      const onHomeBoard = (filter) =>
+        req.carrierHomeLocationIds?.length
+          ? { ...filter, $and: [{ locationId: { $in: req.carrierHomeLocationIds } }] }
+          : filter;
       const boardCount = (filter) =>
-        biddingBlocked ? Promise.resolve(0) : Load.countDocuments(filter);
+        biddingBlocked ? Promise.resolve(0) : Load.countDocuments(onHomeBoard(filter));
 
       // =========================
       // BIDS
@@ -487,9 +494,7 @@ const getStats = async (req, res) => {
 
       const recentAvailableLoads = biddingBlocked
         ? []
-        : await Load.find({
-            bidStatus: "OPEN",
-          })
+        : await Load.find(onHomeBoard({ bidStatus: "OPEN" }))
             .sort({ bidEndTime: 1 })
             .limit(5)
             .select("loadId customer customerName pickup drop amount bidEndTime bidHighlight");

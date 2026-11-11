@@ -873,6 +873,15 @@ const getLoads = async (req, res) => {
       // capacity endpoint says why, so the screen can too.
       if (await biddingBlockFor(carrier?._id)) return res.json([]);
 
+      // The board is the carrier's own branch. Their context reads more widely
+      // so loads assigned from other branches reach them (middleware/location.js
+      // widenForCarrier), but that is no reason to offer them other branches'
+      // open loads. $and rather than a plain key: the tenant plugin sets
+      // `locationId` itself and would overwrite it.
+      if (req.carrierHomeLocationIds?.length) {
+        query.$and = [{ locationId: { $in: req.carrierHomeLocationIds } }];
+      }
+
       // A counter-offer the office has put to this carrier and not yet had an
       // answer to. It belongs on their board whatever the bid window is doing —
       // the window has usually closed by the time an offer is made, and an
